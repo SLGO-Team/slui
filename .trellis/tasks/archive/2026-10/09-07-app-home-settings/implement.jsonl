@@ -1,0 +1,6 @@
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"React 组件不直接依赖 Tauri/JSON；新增窗口、命令、事件需经 platform 适配器。"}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"新增 src/app/home 与 src/platform 适配器的放置规则。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"typed adapter、输入穿透、Windows 验证与禁止模式。"}
+{"file":".trellis/spec/frontend/minimap.md","reason":"雷达偏好合同与前台/焦点生命周期，设置页必须复用而非复制规则。"}
+{"file":".trellis/tasks/08-25-minimap/research/radar-settings-verification.md","reason":"偏好接入方式、动作状态与呈现能力不作为偏好保存。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Rust 状态、事件与两个 webview 之间的跨层数据流。"}

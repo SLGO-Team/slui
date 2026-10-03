@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/client-features.schema.json",
+  "title": "SLUI features taken over from the plugin (client frame after the baseline)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "features"],
+  "properties": {
+    "type": { "const": "client.features" },
+    "features": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+    }
+  }
+}

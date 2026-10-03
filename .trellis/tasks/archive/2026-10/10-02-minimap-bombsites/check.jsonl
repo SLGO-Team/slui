@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Verify v5 bombsite contract and rendering rules match spec"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Screenshot quality gates for radar visuals"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards and required checks"}

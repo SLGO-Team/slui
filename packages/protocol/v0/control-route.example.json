@@ -1,0 +1,11 @@
+{
+  "protocol_version": 0,
+  "type": "control.route.resolved",
+  "identity_mode": "local-steamid",
+  "steam_id": "76561198000000100",
+  "server_id": "slgo-local-7777",
+  "instance_id": "instance-2026-08-18-1645",
+  "sidecar_endpoint": "wss://example.invalid/slgo/sidecar",
+  "session_token": "fixture-only",
+  "expires_at": "2026-08-25T12:00:00Z"
+}

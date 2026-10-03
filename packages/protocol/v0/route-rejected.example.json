@@ -1,0 +1,6 @@
+{
+  "protocol_version": 0,
+  "type": "control.route.rejected",
+  "reason": "not-in-game",
+  "message": "No registered server currently hosts this player"
+}

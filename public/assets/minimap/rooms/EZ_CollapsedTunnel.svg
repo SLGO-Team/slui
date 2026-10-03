@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" color-rendering="optimizeQuality">
+  <title>EZ_CollapsedTunnel</title>
+  <path d="M95.5 0L95 12.5L92 13.5L92.201 98.5L93.5 98.799L95.5 96.066C96.833 96.374 100.667 96.76 103.5 97.915C106.333 99.071 111 102.153 112.5 103L118.5 101.799L124.5 95.884L128.5 99.771L131.5 99.771L133.5 96.621L139.5 99.915C140.5 99.83 143.333 99.057 145.5 99.404C147.667 99.752 151.333 101.567 152.5 102L158.5 100.799L164 94.5L164 13.5L161 12.5L161 0.5L95.5 0Z" fill="#ffffff" fill-rule="evenodd"/>
+</svg>

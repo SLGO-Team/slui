@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="46%" r="80%">
+      <stop offset="0%" stop-color="#203042"/>
+      <stop offset="50%" stop-color="#131c28"/>
+      <stop offset="100%" stop-color="#090e15"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f7941d" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#f7941d" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#f7941d" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="go" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffb84e"/>
+      <stop offset="100%" stop-color="#ee7d11"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="112" fill="url(#bg)"/>
+  <g fill="none" stroke="url(#go)" stroke-width="60">
+    <path d="M 132 330 V 132 H 330"/>
+    <path d="M 694 132 H 892 V 330"/>
+    <path d="M 892 694 V 892 H 694"/>
+    <path d="M 330 892 H 132 V 694"/>
+  </g>
+  <circle cx="512" cy="512" r="300" fill="url(#glow)"/>
+  <g transform="translate(345 362) skewX(-8) scale(2.5)">
+    <path fill="#ecf2f8" d="M 0 0 H 26 V 94 H 70 V 0 H 96 V 108 L 84 120 H 12 L 0 108 Z"/>
+    <path fill="#ecf2f8" d="M 132 0 H 142 L 150 8 V 112 L 142 120 H 132 L 124 112 V 8 Z"/>
+  </g>
+</svg>

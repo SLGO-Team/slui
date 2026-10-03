@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/command-result.schema.json",
+  "title": "SLGO command result payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command_id", "command_kind", "status"],
+  "properties": {
+    "command_id": { "type": "string", "minLength": 1 },
+    "command_kind": { "enum": ["command.shop.purchase", "command.chat.send"] },
+    "status": { "enum": ["accepted", "rejected", "duplicate", "failed"] },
+    "reason": { "type": "string" }
+  }
+}

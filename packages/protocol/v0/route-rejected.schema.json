@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/route-rejected.schema.json",
+  "title": "SLUI control-plane route rejection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "type", "reason"],
+  "properties": {
+    "protocol_version": { "const": 0 },
+    "type": { "const": "control.route.rejected" },
+    "reason": { "enum": ["invalid-request", "unsupported-protocol", "unauthorized", "not-in-game", "rate-limited"] },
+    "message": { "type": "string" }
+  }
+}

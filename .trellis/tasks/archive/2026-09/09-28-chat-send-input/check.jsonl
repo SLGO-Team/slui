@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查命令状态、断线、测试覆盖"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"检查快捷键保留集 TS/Rust 一致、interactive 派生规则、spec 已更新"}

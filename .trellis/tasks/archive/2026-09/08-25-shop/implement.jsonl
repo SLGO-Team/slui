@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"command id、权威状态、错误和 mock provider 约束。"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"商店规则归 SLGO 插件，客户端不得自算。"}
+{"file": ".trellis/tasks/08-25-shop/research/cs2ui-buymenu.md", "reason": "CS2 buymenu 层级/尺寸/状态矩阵/字体/配色/资源清单与 Panorama→Web 换算表；含'不是轮盘'实现禁令。"}
+{"file": ".trellis/tasks/08-25-shop/research/slgo-shop-mapping.md", "reason": "契约缺口清单、购买命令状态机、HUD 可复用模式、overlay 集成边界与验收门禁缺口。"}

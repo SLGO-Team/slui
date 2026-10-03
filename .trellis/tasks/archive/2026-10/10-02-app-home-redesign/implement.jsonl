@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "home/overlay window split, desktop adapters and settings store contracts that must stay unchanged"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "where home components, styles and icon sources belong"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "code standards and forbidden patterns for the rewrite"}
+{"file": ".trellis/tasks/archive/2026-10/09-07-app-home-settings/prd.md", "reason": "original functional requirements and AC that the redesign must preserve"}
+{"file": ".trellis/tasks/archive/2026-10/09-07-app-home-settings/design.md", "reason": "existing home window, tray, close-to-tray and settings persistence design"}

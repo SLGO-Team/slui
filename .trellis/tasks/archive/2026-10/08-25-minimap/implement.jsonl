@@ -1,0 +1,13 @@
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"地图 seed、版本、坐标和 visibility-filtered 数据边界。"}
+{"file":"protocol/v0/minimap-init.schema.json","reason":"地图初始化契约。"}
+{"file":"protocol/v0/minimap-positions.schema.json","reason":"可见位置完整帧契约。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"规范 typed adapter、输入穿透、版本化契约和 Windows 验证。"}
+{"file":".trellis/spec/frontend/cs2-visual-replication.md","reason":"使用手工 React、固定分辨率视觉基准和受维护资源，不引入 Panorama 生成器。"}
+{"file":".trellis/tasks/08-25-minimap/prd.md","reason":"两区域、中文特殊房间、死亡共享视野、计分板缩放以及主界面设置职责的最新要求。"}
+{"file":".trellis/tasks/08-25-minimap/design.md","reason":"地图生成浏览器兼容、视点和权限分离、SLGO 计分板状态证据以及配置接口边界。"}
+{"file":".trellis/tasks/08-25-minimap/research/protocol-and-state.md","reason":"具体payload v2接口、原子权限帧、来源/序列、diagnostic管线、baseline例外和回归用例。"}
+{"file":".trellis/tasks/08-25-minimap/research/generator-and-rendering.md","reason":"精确提交与源hash、浏览器等价验证、两区坐标/检查点限制、中文词表和视觉来源。"}
+{"file":".trellis/spec/frontend/minimap.md","reason":"小地图世界坐标、地图缓存、摄像机与验收合同；用户本轮已授权启用房间 SVG。"}
+{"file":".trellis/tasks/08-25-minimap/research/room-svg-audit.md","reason":"2026-09-11 SVG 素材选择、世界变换、版本和来源核验。"}
+{"file":".trellis/tasks/08-25-minimap/research/radar-settings-plan.md","reason":"已批准11项偏好、实机效果、接口/能力边界以及移除地图内部中文标签的最新要求。"}
+{"file":".trellis/tasks/08-25-minimap/research/radar-settings-evidence.md","reason":"CS2设置范围、独立切换缩放、动态缩放公开行为、HUD样式和原生能力证据。"}

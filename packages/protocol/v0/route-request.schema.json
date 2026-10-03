@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/route-request.schema.json",
+  "title": "SLUI control-plane route request (POST /v0/route)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "type", "steam_id", "proof"],
+  "properties": {
+    "protocol_version": { "const": 0 },
+    "type": { "const": "control.route.request" },
+    "steam_id": { "type": "string", "pattern": "^[0-9]{17}$" },
+    "proof": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind"],
+          "properties": { "kind": { "const": "local-steamid" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "ticket", "app_id"],
+          "properties": { "kind": { "const": "session-ticket" }, "ticket": { "type": "string", "minLength": 1 }, "app_id": { "type": "integer", "minimum": 1 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "claimed_id"],
+          "properties": { "kind": { "const": "openid" }, "claimed_id": { "type": "string", "minLength": 1 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "device_id", "signature"],
+          "properties": { "kind": { "const": "device-signature" }, "device_id": { "type": "string", "minLength": 1 }, "signature": { "type": "string", "minLength": 1 } }
+        }
+      ]
+    }
+  }
+}

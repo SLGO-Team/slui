@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Verify updated input contracts match implementation"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates and forbidden patterns"}

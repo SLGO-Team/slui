@@ -1,0 +1,7 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "type": "session.open",
+  "session_token": "fixture-only",
+  "minimap_schema_versions": [5]
+}

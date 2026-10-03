@@ -1,0 +1,10 @@
+{"file":".trellis/tasks/08-26-panorama-source-translation/prd.md","reason":"Approved manual React visual-replication scope and acceptance"}
+{"file":".trellis/tasks/08-26-panorama-source-translation/design.md","reason":"Manual component architecture, scaling, migration, and rollback"}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"Preserve protocol/platform boundaries while replacing presentation"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend quality, mock behavior, and visual verification"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"Do not modify SLGO protocol and authorization boundaries"}
+{"file":"../cs2ui/panorama/layout/hud/hudteamcounter.xml","reason":"Structural reference for manually implementing the first HUD slice"}
+{"file":"../cs2ui/panorama/styles/hud/hudteamcounter.css","reason":"Sizing, colors, states, and asset reference for the manual HUD"}
+{"file":".trellis/tasks/08-26-panorama-source-translation/research/hud-visual-audit.md","reason":"Known visual gaps and fixed-viewport evidence from the discarded generated route"}
+{"file":".trellis/tasks/08-26-panorama-source-translation/research/hud-translation-root-cause.md","reason":"Root causes that the replacement implementation must not repeat"}
+

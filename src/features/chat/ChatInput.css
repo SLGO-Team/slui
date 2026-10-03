@@ -1,0 +1,253 @@
+/* Manual recreation of CS2 panorama/styles/hud/hudchat.css at 1920x1080.
+   Sizes, colours and opacities are the Panorama values; values marked
+   "screenshot" come from the Chinese client at 1600x900 (scale 0.833), because
+   CSGOHudChat sets them in C++. Panorama sizes include padding (border-box).
+   "Stratum2 Chat" faces are registered in src/shared/fonts.ts (theme pack or bundled fallback). */
+/* CJK text: CS2's panorama/fonts/fonts.conf falls back from Stratum2 to the bundled
+   Noto Sans SC and scales it by 0.9 ("reduce the pixelsize" rule), hence size-adjust.
+   Light serves the Stratum2 Light entry box, bold the history rows and the button;
+   both files are SIL OFL (see THIRD_PARTY_NOTICES.md). */
+@font-face {
+  font-family: "Noto Sans SC Chat";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-light.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Noto Sans SC Chat";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+.chat-overlay {
+  --chat-font: "Stratum2 Chat", "Noto Sans SC Chat", sans-serif;
+  position: fixed;
+  inset: 0;
+  z-index: 31;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.chat-overlay *,
+.chat-overlay *::before,
+.chat-overlay *::after {
+  box-sizing: border-box;
+}
+
+/* #ChatContainer: vertical-align bottom, padding 0 10px 72px, anchored to the
+   screen's bottom-left corner and scaled with the overlay. */
+.chat-container {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 0 10px 72px;
+  transform: scale(var(--chat-scale, 1));
+  transform-origin: bottom left;
+}
+
+/* #ChatMain sizes to #ChatFG including its margin (Panorama margins never
+   collapse, hence flow-root); #ChatBGPanel (.ChatBG) fills it underneath. */
+.chat-main {
+  position: relative;
+  display: flow-root;
+}
+
+.chat-overlay[data-open="true"] .chat-main {
+  pointer-events: auto;
+}
+
+/* Only #ChatBGPanel of the black 0.75 panels is recreated: stacking the
+   .ChatTextBG layers as well makes the panel far darker than the game. The history
+   and the entry row each add #00000099 on top (0.9 in total), a shade darker than
+   the 8px frame, as in the screenshots. */
+.chat-bg {
+  position: absolute;
+  inset: 0;
+  background-color: black;
+  opacity: 0.75;
+}
+
+.chat-fg {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 553px;
+  margin: 8px;
+}
+
+.chat-history {
+  position: relative;
+  width: 100%;
+  height: 327px;
+}
+
+/* #ChatHistoryText: stratum-bold 18px, padding 10px, #00000099, vscroll.
+   Rows start at the top (screenshot). */
+.chat-history-text {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: #00000099;
+  color: white;
+  font-family: var(--chat-font);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  scrollbar-width: none;
+}
+
+/* Rows are 19px apart at 1600x900 (screenshot): 22.8px at 1080p. */
+.chat-line {
+  margin: 0;
+  color: white;
+  font-family: var(--chat-font);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 22.8px;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* [ALL] is white; the team tag and the name take the team colour (CS2 uses the
+   side colour; SLGO its SCP/NTF colours); the dot takes the player's slot colour
+   (screenshot). Notices stay white. */
+/* The slot-colour dot is drawn, not a "●" glyph: Stratum2 has none and a fallback
+   font's glyph is far larger than CS2's (about 7px at 1080p in the screenshots). */
+.chat-line-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: currentColor;
+  vertical-align: 0.2em;
+}
+
+.chat-line-tag[data-team="true"],
+.chat-line-name {
+  color: var(--chat-team-color);
+}
+
+.chat-text-entry {
+  position: relative;
+  width: 100%;
+  height: 48px;
+  margin-top: 8px;
+  background-color: #00000099;
+}
+
+.chat-text-entry-fg {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* #ChatTextEntryBox over the base TextEntry (padding 6px 16px 6px 6px, radius 2px),
+   with the hudchat overrides: no border, no left padding, Stratum2 Light 20px, white. */
+.chat-text-entry-box {
+  flex: none;
+  width: 450px;
+  height: 36px;
+  margin: 0 0 0 15px;
+  padding: 6px 16px 6px 0;
+  border: 0;
+  border-radius: 2px;
+  outline: none;
+  background: transparent;
+  color: white;
+  font-family: var(--chat-font);
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: 0;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.chat-text-entry-box::placeholder {
+  color: darkgrey;
+  opacity: 1;
+}
+
+/* @define selectedTextBackgroundColor */
+.chat-text-entry-box::selection,
+.chat-line::selection {
+  background-color: #3281ac40;
+}
+
+/* #ChatSendButton: 75px wide, label centred, Stratum2 medium 22px uppercase grey;
+   enabled bold #A0A0A0; hover white; 0.2s colour transition. CS2 shows it
+   enabled even with an empty entry (screenshot), so it is never disabled here. */
+.chat-send-button {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 75px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.chat-send-button span {
+  color: grey;
+  font-family: var(--chat-font);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.chat-send-button:enabled {
+  cursor: pointer;
+}
+
+.chat-send-button:enabled span {
+  color: #a0a0a0;
+  font-weight: 700;
+}
+
+.chat-send-button:enabled:hover span {
+  color: white;
+}
+
+/* Closed: recent rows stack upward from the screen's bottom-left with no panel and
+   no shadow (screenshot: text 10px from the left, the last row's bottom 118px above
+   the screen's bottom). Each row fades on the compositor; ChatInput sets its delay
+   and duration. */
+.chat-recent {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 553px;
+  padding: 0 0 118px 10px;
+  transform: scale(var(--chat-scale, 1));
+  transform-origin: bottom left;
+}
+
+.chat-recent .chat-line {
+  animation-name: chat-line-fade;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+@keyframes chat-line-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

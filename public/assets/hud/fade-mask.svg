@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="fade" x2="0" y2="1">
+      <stop offset="0.000" stop-color="#fff" stop-opacity="1.000"/>
+      <stop offset="0.240" stop-color="#fff" stop-opacity="0.940"/>
+      <stop offset="0.480" stop-color="#fff" stop-opacity="0.725"/>
+      <stop offset="0.620" stop-color="#fff" stop-opacity="0.600"/>
+      <stop offset="0.710" stop-color="#fff" stop-opacity="0.500"/>
+      <stop offset="0.790" stop-color="#fff" stop-opacity="0.390"/>
+      <stop offset="0.860" stop-color="#fff" stop-opacity="0.200"/>
+      <stop offset="0.920" stop-color="#fff" stop-opacity="0.035"/>
+      <stop offset="0.937" stop-color="#fff" stop-opacity="0.000"/>
+      <stop offset="1.000" stop-color="#fff" stop-opacity="0.000"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" fill="url(#fade)"/>
+</svg>

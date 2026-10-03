@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Defines src/contracts ownership; must be updated for package vs facade split"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Client/backend contract rules the moved parsers enforce"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type conventions for the moved contract code"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Contract fixture and npm test expectations"}

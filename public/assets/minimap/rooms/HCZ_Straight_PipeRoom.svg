@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" color-rendering="optimizeQuality">
+  <title>HCZ_Straight_PipeRoom</title>
+  <path d="M24.5 6.825L23.825 89.5L-0.175 90.5L-0.175 165.5L60 166.5L60 248.5L233.5 249L234.044 166.5L256.175 165.5L256.175 90.5L232.175 89.5L232.175 7.5L24.5 6.825Z M113.5 83.175L113.5 165.956L180.5 165.956L180.825 83.5L113.5 83.175Z" fill="#ffffff" fill-opacity="0.651" fill-rule="evenodd"/>
+  <path d="M24.5 7.325L24.325 89.5L0.325 90.5L0.5 165.675L112.5 166.11L113.5 82.675L181.325 83.5L181.5 166.11L255.675 165.5L255.675 90.5L231.675 89.5L231.5 7.325L24.5 7.325Z" fill="#ffffff" fill-rule="evenodd"/>
+</svg>

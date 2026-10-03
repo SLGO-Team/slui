@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Minimap payload contract and radar rendering rules, extended to v5 bombsites"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Plugin authoritative vs client rendering boundary; protocol package rules"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "CS2 radar asset/size replication rules for BombZone icons"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where protocol, feature, mock and smoke files live"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards, forbidden patterns, required checks"}
+{"file": "public/assets/minimap/SOURCE-MAP.md", "reason": "Radar asset provenance; add bomb-zone icons"}

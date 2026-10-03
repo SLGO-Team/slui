@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "slui-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:mock", "--", "--port", "1430", "--strictPort"],
+      "port": 1430
+    },
+    {
+      "name": "slui-backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "1431", "--strictPort"],
+      "port": 1431
+    },
+    {
+      "name": "slui-installer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "installer:vite"],
+      "port": 1440
+    }
+  ]
+}

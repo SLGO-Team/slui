@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" color-rendering="optimizeQuality">
+  <title>HCZ_Crossing</title>
+  <path d="M90.5 0L90 69.5L70.5 71.014L70.379 91.5L0 92.5L0 167.5L69.5 168L71.014 185.5L89.5 185.621L90.5 256L165.5 256L166.5 185.621L184.986 185.5L186.5 168L256 167.5L256 92.5L185.621 91.5L185.5 71.014L166 69.5L165.5 0L90.5 0Z" fill="#ffffff" fill-rule="evenodd"/>
+</svg>

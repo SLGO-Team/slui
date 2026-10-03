@@ -1,0 +1,12 @@
+.shop-debug-panel { position: fixed; top: 12px; right: 12px; z-index: 1001; display: flex; gap: 10px; align-items: center; padding: 8px; color: #fff; background: rgb(20 22 23 / 96%); border: 1px solid rgb(255 255 255 / 16%); border-radius: 4px; font: 11px/1.2 system-ui, sans-serif; pointer-events: auto; }
+.shop-debug-panel__title { display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
+.shop-debug-panel__title button { padding: 4px 7px; color: #101214; background: #eabe54; border: 0; border-radius: 3px; font: inherit; cursor: pointer; }
+.shop-debug-panel__title button:hover { background: #f5d77e; }
+.shop-debug-panel__controls { display: inline-flex; gap: 8px; align-items: center; }
+.shop-debug-panel label { display: inline-flex; gap: 4px; align-items: center; color: #aaa; white-space: nowrap; }
+.shop-debug-panel select { color: #fff; background: #303437; border: 1px solid #4c5255; border-radius: 3px; }
+
+@media (max-width: 720px) {
+  .shop-debug-panel { align-items: stretch; flex-direction: column; }
+  .shop-debug-panel__controls { flex-wrap: wrap; }
+}

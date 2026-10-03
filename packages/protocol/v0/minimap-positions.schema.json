@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/minimap-positions.schema.json",
+  "title": "SLGO v4 visibility-filtered minimap position frame",
+  "$comment": "Runtime validation additionally enforces unique player ids, authenticated viewer binding, team/visibility/status relationships (self is live exactly when the viewer is alive; last-known only for opponents; observed = plugin observation rights, never self, never a teammate, never last-known, the only kind a team-less viewer may receive) and exact viewpoint equality with a live authorized marker, at most one commander keycard holder, and no keycard item while a marker holds it. Geometry validation enforces room references; authorization changes (including status) require an increased revision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["minimap_schema_version", "map_id", "visibility_revision", "viewer", "viewpoint", "scoreboard_visible", "positions", "commander_keycard"],
+  "properties": {
+    "minimap_schema_version": { "const": 5 },
+    "map_id": { "$ref": "#/$defs/identifier" },
+    "visibility_revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "viewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "team_id", "is_alive"],
+      "properties": {
+        "player_id": { "$ref": "#/$defs/identifier" },
+        "team_id": { "enum": ["team-a", "team-b", null] },
+        "is_alive": { "type": "boolean" }
+      }
+    },
+    "viewpoint": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/pose" }],
+          "unevaluatedProperties": false,
+          "required": ["player_id"],
+          "properties": { "player_id": { "$ref": "#/$defs/identifier" } }
+        }
+      ]
+    },
+    "scoreboard_visible": { "type": "boolean" },
+    "commander_keycard": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "z", "zone", "room_id", "team_id", "status", "status_age_ms", "state"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "z": { "type": "number" },
+            "zone": { "enum": ["Entrance", "HeavyContainment"] },
+            "room_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/identifier" }] },
+            "team_id": { "enum": ["team-a", "team-b"] },
+            "status": { "enum": ["live", "last-known"] },
+            "status_age_ms": { "type": "integer", "minimum": 0, "maximum": 7999 },
+            "state": { "enum": ["carried", "dropped", "planted"] }
+          },
+          "allOf": [{
+            "if": { "properties": { "status": { "const": "live" } } },
+            "then": { "properties": { "status_age_ms": { "const": 0 }, "state": { "enum": ["dropped", "planted"] } } }
+          }]
+        }
+      ]
+    },
+    "positions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "unevaluatedProperties": false,
+        "required": ["player_id", "team_id", "role", "visibility", "status", "status_age_ms", "has_commander_keycard"],
+        "properties": {
+          "player_id": { "$ref": "#/$defs/identifier" },
+          "team_id": { "enum": ["team-a", "team-b"] },
+          "role": { "enum": ["ntf", "scp"] },
+          "visibility": {
+            "enum": ["self", "teammate", "spotted-by-self", "spotted-by-teammate", "observed"]
+          },
+          "status": { "enum": ["live", "last-known", "dead"] },
+          "status_age_ms": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "has_commander_keycard": { "type": "boolean" }
+        },
+        "allOf": [
+          { "$ref": "#/$defs/pose" },
+          {
+            "if": { "properties": { "status": { "const": "live" } } },
+            "then": { "properties": { "status_age_ms": { "const": 0 } } }
+          },
+          {
+            "if": { "properties": { "status": { "const": "last-known" } } },
+            "then": {
+              "properties": {
+                "status_age_ms": { "maximum": 5999 },
+                "visibility": { "enum": ["spotted-by-self", "spotted-by-teammate"] }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "status": { "const": "dead" } } },
+            "then": { "properties": { "status_age_ms": { "maximum": 3999 } } }
+          },
+          {
+            "if": { "properties": { "has_commander_keycard": { "const": true } } },
+            "then": { "properties": { "status": { "const": "live" } } }
+          }
+        ]
+      }
+    }
+  },
+  "allOf": [{
+    "if": { "properties": { "viewer": { "properties": { "team_id": { "type": "null" } } } } },
+    "then": { "properties": { "positions": { "items": { "properties": { "visibility": { "const": "observed" } } } } } }
+  }],
+  "$defs": {
+    "identifier": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "pose": {
+      "type": "object",
+      "required": ["x", "y", "z", "yaw_degrees", "zone", "room_id"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "yaw_degrees": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+        "zone": { "enum": ["Entrance", "HeavyContainment"] },
+        "room_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/identifier" }] }
+      }
+    }
+  }
+}

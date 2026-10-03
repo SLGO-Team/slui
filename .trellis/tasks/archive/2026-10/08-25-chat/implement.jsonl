@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"聊天 command、错误状态和 provider 边界。"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"聊天范围和权威语义归 SLGO 插件。"}

@@ -1,0 +1,29 @@
+{
+  "id": "chat",
+  "name": "chat",
+  "title": "SLUI 聊天界面",
+  "description": "负责 SLGO 插件聊天范围、消息历史、发送和实时接收。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "23q3",
+  "assignee": "23q3",
+  "createdAt": "2026-08-25",
+  "completedAt": "2026-10-02",
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-28-chat-send-input",
+    "09-29-chat-receive"
+  ],
+  "parent": "08-25-slui-mvp",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

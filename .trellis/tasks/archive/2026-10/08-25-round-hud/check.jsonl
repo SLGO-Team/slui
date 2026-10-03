@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查纯 selector 测试和 stale/error UI。"}
+{"file":"protocol/v0/match-snapshot.example.json","reason":"基础 HUD fixture。"}

@@ -1,0 +1,138 @@
+/* Font faces are registered in src/shared/fonts.ts (theme pack or bundled fallback). */
+.minimap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.minimap-design-canvas {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  margin-left: -960px;
+  transform: scale(var(--minimap-scale, 1));
+  transform-origin: top center;
+}
+
+.minimap-radar {
+  --radar-accent: #eabe54;
+  position: absolute;
+  top: 28px;
+  left: 12px;
+  width: 300px;
+  height: 352px;
+  transform: scale(var(--radar-hud-scale, 1));
+  transform-origin: top left;
+  font-family: "Stratum2 Radar", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #f4f5f1;
+}
+
+.minimap-radar__filters { position: absolute; }
+.minimap-radar__viewport {
+  position: absolute;
+  width: var(--radar-view-size);
+  height: var(--radar-view-size);
+  left: calc((300px - var(--radar-view-size)) / 2);
+  top: calc((300px - var(--radar-view-size)) / 2);
+  border-radius: 50%;
+}
+.minimap-radar[data-shape="square"] .minimap-radar__viewport { border-radius: 0; }
+
+/* A transparent native WebView cannot sample the external game. The view model
+   gates blur; these ancestors must not create a filtered/opaque backdrop root. */
+.minimap-radar__background, .minimap-radar__map, .minimap-radar__markers, .minimap-radar__border {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+.minimap-radar__background { background: rgb(0 0 0 / var(--radar-background-alpha, 0.63)); }
+/* Blur at the viewport boundary: a sibling backdrop layer lets the screen-mixed
+   map resample the sharp page behind it. Backdrop filtering leaves our foreground
+   artwork and markers sharp. This radius is visually calibrated, not native units. */
+.minimap-radar[data-blur-background="true"] .minimap-radar__viewport { backdrop-filter: blur(64px); }
+.minimap-radar[data-map-blend="true"] .minimap-radar__map { mix-blend-mode: screen; }
+.minimap-map__room[data-active="false"] { opacity: 0.82; }
+.minimap-radar__markers { overflow: hidden; }
+.minimap-radar__border { box-sizing: border-box; border: 1px solid var(--radar-accent); }
+
+.minimap-marker { position: absolute; width: 0; height: 0; }
+.minimap-marker--self { z-index: 3; }
+.minimap-marker--enemy { z-index: 2; }
+.minimap-marker img { position: absolute; display: block; filter: var(--marker-filter); }
+/* The heading tip and the already-red ghost keep their original colours; this must outrank the wash rule above. */
+.minimap-marker .minimap-marker__heading, .minimap-marker .minimap-marker__ghost { filter: none; }
+.minimap-marker__direction { position: absolute; width: 0; height: 0; }
+/* Sizes follow the user's in-game crop (208px circle = 250px design circle):
+   ~8.5px friendly disc, ~9.6px enemy diamond, a short white heading tip. */
+.minimap-marker__dot { width: 8px; height: 8px; left: -4px; top: -4px; }
+.minimap-marker--enemy .minimap-marker__dot { width: 10px; height: 10px; left: -5px; top: -5px; opacity: 0.95; }
+/* The 32px source art is a wedge whose base sits low in the canvas. A 9px box puts ~4px of white tip beyond the 8px
+   disc (8px left a 3px sliver, 11px looked oversized). The wedge's axis is at x=16.5 of 32, not the canvas centre, so
+   it is centred with a translate (16.5/32 = 51.5625%) rather than a fractional `left`, which the browser snaps to whole
+   device pixels and which left the tip visibly off the dot's axis. */
+.minimap-marker__heading { width: 9px; height: 9px; left: 0; top: -10px; transform: translateX(-51.5625%); }
+.minimap-marker__view-angle { width: 128px; height: 64px; left: -64px; top: -62px; opacity: 0.08; }
+.minimap-marker__edge-icon { width: 16px; height: 16px; left: -8px; top: -8.75px; opacity: 0.8; }
+/* CS2 PI_Ghost (9x15, opacity 0.8) and PI_Death (19x19) at the markers' shared ~0.73 scale. The ghost PNG is
+   already red, so it is not washed; the death X is washed like its owner (red enemy, white self, team color). */
+.minimap-marker--last-known, .minimap-marker--dead { z-index: 1; }
+.minimap-marker__ghost { width: 6.6px; height: 11px; left: -3.3px; top: -5.5px; opacity: 0.8; }
+.minimap-marker__death { width: 14px; height: 14px; left: -7px; top: -7px; }
+
+/* Commander keycard (SLGO's C4). CS2 #CreateBombPack is 16x12 with a black 2px shadow and is drawn centred over
+   its carrier in the carrier's colour (slot colour, red for an enemy; confirmed in game); at the markers' ~0.73 scale
+   the card body (the middle half of the 32px SVG canvas) is ~12px wide. The wash multiplies the white card before
+   the black shadow is added, so the outline stays black. */
+.minimap-marker .minimap-marker__keycard { width: 12px; height: 12px; left: -6px; top: -6px;
+  filter: var(--marker-filter) drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
+/* The radar item (a dropped or planted card, or one fading at its last seen spot) renders under every player marker.
+   CS2 #DroppedBomb: 110px ring (~80px here), 2px #880000; #PlantedBomb: 70px (~51px here), 2px #D10000; both screen
+   blend with DroppedBomb--Animate over 0.75s. */
+.minimap-keycard-drop { position: absolute; width: 0; height: 0; }
+.minimap-keycard-drop__icon { position: absolute; display: block; width: 12px; height: 12px; left: -6px; top: -6px;
+  /* Empty fallback, not `none`: "none drop-shadow(...)" is an invalid filter list and would drop the shadow too. */
+  filter: var(--keycard-wash,) drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
+.minimap-keycard-drop__pulse { position: absolute; box-sizing: border-box; width: 80px; height: 80px; left: -40px; top: -40px;
+  border: 2px solid #880000; border-radius: 50%; mix-blend-mode: screen; opacity: 0;
+  animation: minimap-keycard-dropped 0.75s linear infinite; }
+.minimap-keycard-drop[data-state="planted"] .minimap-keycard-drop__pulse { width: 51px; height: 51px; left: -25.5px; top: -25.5px;
+  border-color: #d10000; }
+@keyframes minimap-keycard-dropped {
+  0% { opacity: 1; transform: scale(0.01); }
+  20% { opacity: 1; transform: scale(0.1); }
+  50% { opacity: 1; transform: scale(0.25); }
+  75% { opacity: 0.5; transform: scale(0.4); }
+  100% { opacity: 0; transform: scale(0.6); }
+}
+
+/* Bombsites (CS2 #BombZoneA/B, 24x38 white letters): .BombZone is 6% of the 300px panel (18px), opacity 0.7,
+   wash #ffcc00, img-shadow 0 0 1px 2 #111; .BombZone_OnMap is 4% (12px), opacity 0.4. The edge tier is used when the
+   site is clamped to the radar edge, the on-map tier while it is in range (tiering inferred from the class names).
+   Centred on the site (Panorama's x:-4px/y:-8px is a panel alignment detail), under the keycard and every marker. */
+.minimap-bombsite { position: absolute; width: 0; height: 0; opacity: 0.4; }
+.minimap-bombsite[data-edge="true"] { opacity: 0.7; }
+.minimap-bombsite__icon { position: absolute; display: block; width: auto; height: 12px; left: 0; top: 0; transform: translate(-50%, -50%);
+  /* Empty fallback, not `none`: "none drop-shadow(...)" is an invalid filter list. */
+  filter: var(--bombsite-wash,) drop-shadow(0 0 1px #111) drop-shadow(0 0 1px #111); }
+.minimap-bombsite[data-edge="true"] .minimap-bombsite__icon { height: 18px; }
+/* Letters without CS2 artwork (C and later): a heavy glyph whose cap height roughly matches the image tiers. */
+.minimap-bombsite__letter { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); color: #ffcc00;
+  font-size: 17px; font-weight: 900; line-height: 1; text-shadow: 0 0 1px #111, 0 0 1px #111, 0 0 2px #111; }
+.minimap-bombsite[data-edge="true"] .minimap-bombsite__letter { font-size: 25px; }
+
+/* The in-game title renders a paler gold than the 1px frame accent. */
+.minimap-radar__location { position: absolute; top: 300px; width: 300px; height: 28px; color: #fad27c; text-align: center; font-size: 16px; line-height: 28px; white-space: nowrap; }
+.minimap-radar__status { position: absolute; top: 332px; width: 300px; display: flex; justify-content: center; gap: 10px; font-size: 12px; line-height: 18px; color: #d1d5ce; text-shadow: 0 1px 2px #000; }
+.minimap-radar[data-availability="invalid"] .minimap-radar__status,
+.minimap-radar[data-availability="incompatible"] .minimap-radar__status { color: #ef7b77; }
+.minimap-radar__spectating { color: #dce7c0; }
+.minimap-radar__empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #cbd0c7; }

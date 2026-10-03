@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查 lint/test/build、输入穿透和 Windows 验证说明。"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"检查组件未直接调用 invoke/listen，窗口与事件边界一致。"}
+{"file":".trellis/spec/frontend/minimap.md","reason":"检查设置接入未改变雷达偏好合同，调试 URL 与视觉审计场景不回退。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查设置范围/默认值直接复用 preferences.ts，无重复规则。"}

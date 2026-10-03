@@ -1,0 +1,745 @@
+/* Font faces are registered in src/shared/fonts.ts (theme pack or bundled fallback). */
+.hud-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hud-design-canvas {
+  --hud-overlay-scale: 1;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  margin-left: -960px;
+  transform: scale(var(--hud-overlay-scale));
+  transform-origin: top center;
+}
+
+.hud-team-counter {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  box-sizing: border-box;
+  /* Panorama flows Team__Large directly against the 84px score column, so no gap in either variant. */
+  gap: 0;
+  width: 100%;
+  font-family: "Stratum2 Bold TF", sans-serif;
+  letter-spacing: 0;
+}
+
+.hud-team {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  box-sizing: border-box;
+  /* Panorama card pitch is 56px: a 54px avatar with 1px slack on each side. */
+  gap: 2px;
+  padding: 0 1px;
+  width: auto;
+  min-width: 0;
+  height: 68px;
+  transition: height 0.5s linear;
+}
+
+.hud-team-counter--detailed .hud-team {
+  height: 190px;
+}
+
+/* Opponent cards stay outside Panorama's SHOW-EQUIPINFO state. */
+.hud-team-counter--detailed .hud-team--opponent,
+.hud-player--detailed[data-health="hidden"] {
+  height: 84px;
+}
+
+.hud-team--left {
+  justify-content: flex-end;
+}
+
+.hud-team--right {
+  justify-content: flex-start;
+}
+
+.hud-player {
+  position: relative;
+  flex: 0 0 54px;
+  width: 54px;
+  height: 68px;
+  transition: height 0.5s linear;
+}
+
+.hud-player--detailed {
+  height: 190px;
+}
+
+.hud-player__name {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  box-sizing: border-box;
+  width: 54px;
+  height: 0;
+  overflow: hidden;
+  color: #fff;
+  background: #0000008c;
+  font-family: "Stratum2 Light Condensed", sans-serif;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 14px;
+  letter-spacing: 1px;
+  text-align: center;
+  text-indent: 1px;
+  text-overflow: ellipsis;
+  transition: height 0.5s linear;
+  white-space: nowrap;
+  font-synthesis: none;
+}
+
+.hud-player--detailed .hud-player__name {
+  height: 14px;
+}
+
+/* Panorama wash-color multiplies the whole label: tinted text plus a lighter black plate. */
+.hud-player--ct .hud-player__name {
+  color: #e85b66;
+  background: #0000007a;
+}
+
+.hud-player--t .hud-player__name {
+  color: #a7e3ffdd;
+  background: #0000007a;
+}
+
+.hud-player__portrait {
+  position: relative;
+  z-index: 3;
+  /* `top` needs an explicit base value: auto -> 14px is not interpolable, so the push would jump. */
+  top: 0;
+  box-sizing: border-box;
+  width: 54px;
+  height: 54px;
+  overflow: hidden;
+  background: #4d555a;
+  border: 3px solid var(--hud-player-color);
+  transition: top 0.5s linear, filter 0.2s ease-in-out, opacity 0.2s ease-in-out;
+}
+
+.hud-player--detailed .hud-player__portrait {
+  top: 14px;
+}
+
+.hud-player--ct .hud-player__portrait {
+  background: #962f3b;
+}
+
+.hud-player--t .hud-player__portrait {
+  background: #7289a3;
+}
+
+.hud-player__fallback,
+.hud-player__steam-avatar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hud-player__fallback {
+  object-fit: cover;
+  opacity: 1;
+}
+
+.hud-player__steam-avatar {
+  z-index: 1;
+}
+
+.hud-player__health {
+  position: absolute;
+  z-index: 4;
+  top: 56px;
+  left: 1px;
+  width: 52px;
+  height: 4px;
+  overflow: hidden;
+  background: transparent;
+  transition: top 0.5s linear, height 0.5s linear, opacity 0.2s ease-in-out;
+}
+
+.hud-player__health::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--hud-health);
+  background: linear-gradient(to left, transparent 0%, #f00 50%, #f00 100%) right / 52px 100% no-repeat;
+  content: "";
+}
+
+.hud-player__health-fill {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--hud-health);
+  background: #fff;
+  box-shadow: 1px 1px 1px #0008;
+  filter: brightness(10);
+  mix-blend-mode: plus-lighter;
+}
+
+.hud-player--detailed .hud-player__health {
+  top: 70px;
+  height: 14px;
+}
+
+/* SCP-079 aux power in the health bar's place: spent power is not damage, so no red loss segment. */
+.hud-player__health--aux::before {
+  background: rgb(0 0 0 / 35%);
+}
+
+.hud-player__health--aux .hud-player__health-fill {
+  background: #f5c542;
+  filter: none;
+}
+
+.hud-player__health-value {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+  color: #050505;
+  padding-left: 1px;
+  font-family: "Stratum2 Mono", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: left;
+  text-shadow: 0 0 1px rgb(255 255 255 / 80%);
+}
+
+.hud-player__shield {
+  position: absolute;
+  z-index: 4;
+  top: 61px;
+  left: 1px;
+  width: 52px;
+  height: 4px;
+  overflow: hidden;
+  background: transparent;
+  transition: top 0.5s linear, height 0.5s linear, opacity 0.2s ease-in-out;
+}
+
+.hud-player__shield--hume::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--hud-shield);
+  background: linear-gradient(to left, transparent 0%, #087caf 50%, #087caf 100%) right / 52px 100% no-repeat;
+  content: "";
+}
+
+.hud-player__shield > span:not(.hud-player__shield-value) {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--hud-shield);
+  background: #63d8ff;
+  mix-blend-mode: plus-lighter;
+}
+
+/* Detailed shield mirrors the detailed health bar geometry, one bar below it. */
+.hud-player--detailed .hud-player__shield {
+  top: 85px;
+  height: 14px;
+}
+
+.hud-player__shield-value {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+  padding-left: 1px;
+  color: #050505;
+  font-family: "Stratum2 Mono", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: left;
+  text-shadow: 0 0 1px rgb(255 255 255 / 80%);
+}
+
+.hud-player__health-unknown {
+  position: absolute;
+  inset: -4px 0 auto;
+  color: #fff;
+  background: rgb(7 8 9 / 92%);
+  font-size: 9px;
+  line-height: 11px;
+  text-align: center;
+}
+
+.hud-player--detailed .hud-player__health-unknown {
+  inset: 0;
+  color: #fff;
+  background: rgb(8 10 11 / 88%);
+  font-size: 12px;
+  line-height: 14px;
+}
+
+/* Panorama `.HTC__kills` sits in the flow under the health bar in both variants and
+   counts kills; it is not a death marker. */
+.hud-player__kills {
+  position: absolute;
+  z-index: 4;
+  top: 66px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 12px;
+  transition: top 0.5s linear;
+}
+
+.hud-player[data-shield="hidden"] .hud-player__kills {
+  top: 61px;
+}
+
+.hud-player--detailed .hud-player__kills {
+  top: 100px;
+}
+
+.hud-player--detailed[data-shield="hidden"] .hud-player__kills {
+  top: 85px;
+}
+
+/* Enemy cards carry no bars at all, so the row moves up under the portrait. */
+.hud-player[data-health="hidden"] .hud-player__kills {
+  top: 56px;
+}
+
+.hud-player--detailed[data-health="hidden"] .hud-player__kills {
+  top: 70px;
+}
+
+.hud-player__kill-flag {
+  width: 10px;
+  height: 10px;
+  margin-top: 1px;
+  filter: drop-shadow(1px 1px 1px #00000090);
+  animation: hud-kill-pop 0.3s ease-out 1;
+}
+
+.hud-player__kills-count {
+  color: #fff;
+  font-size: 12px;
+  line-height: 12px;
+  text-shadow: 0 0 3px #00000080;
+}
+
+/* Panorama washes the kill icons to `deadwhite` (#dddddd) once the player is down. */
+.hud-player--dead .hud-player__kills,
+.hud-player--offline .hud-player__kills {
+  filter: brightness(0.87);
+}
+
+@keyframes hud-kill-pop {
+  from {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Clip box starts at the name's lower edge, so the panel slides out from behind the
+   name instead of sweeping across it. */
+.hud-player__equipment {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  z-index: 0;
+  box-sizing: border-box;
+  width: 54px;
+  height: 200px;
+  overflow: visible;
+  color: #fff;
+}
+
+.hud-player__equipment-background,
+.hud-player__equipment-content {
+  opacity: 0;
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 0.5s ease-in-out, opacity 0.5s ease-in-out;
+}
+
+.hud-player--detailed .hud-player__equipment-background,
+.hud-player--detailed .hud-player__equipment-content {
+  opacity: 1;
+  clip-path: inset(0);
+}
+
+.hud-player__equipment-background {
+  position: absolute;
+  top: 0;
+  left: -1px;
+  width: calc(100% + 2px);
+  /* Extend past the clip edge so fractional scaling cannot expose the mask's final pixel. */
+  height: 204px;
+  overflow: visible;
+  -webkit-mask: url("/assets/hud/fade-mask.svg") center top / 100% 204px no-repeat;
+  mask: url("/assets/hud/fade-mask.svg") center top / 100% 204px no-repeat;
+}
+
+.hud-player--dead .hud-player__equipment-background {
+  /* Keep the death panel long enough to carry the equipment rows while retaining the fade. */
+  height: 160px;
+  -webkit-mask-size: 100% 160px;
+  mask-size: 100% 160px;
+}
+
+.hud-player__equipment-blur,
+.hud-player__equipment-fill {
+  position: absolute;
+  inset: 0;
+}
+
+.hud-player__equipment-blur {
+  z-index: 0;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.hud-player__equipment-blur::after {
+  position: absolute;
+  inset: 0;
+  background: url("/assets/hud/dot-grid.png") 100% 100% / 360px 360px;
+  opacity: 0.15;
+  content: "";
+}
+
+.hud-player__equipment-fill {
+  /* Panorama composites the translucent tint over the blurred world layer. */
+  z-index: 1;
+  background: rgb(0 0 0 / 60%);
+}
+
+.hud-player__equipment-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  /* Keep equipment rows on one shared baseline whether the shield bar is visible or not. */
+  padding: 100px 2px 0;
+}
+
+.hud-player__equipment-row {
+  display: flex;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 16px;
+  margin: 2px 0;
+}
+
+/* Panorama shades leaves by panel type (`.equipinfo-root Image`), not the row,
+   so the money Label keeps a single text-shadow instead of a stacked pair. */
+.hud-player__equipment img {
+  filter: drop-shadow(1px 1px 1px #00000090);
+}
+
+.hud-player__money {
+  max-width: 54px;
+  overflow: hidden;
+  font-family: "Stratum2 Mono", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  text-shadow: 1px 1px 1px #000;
+  white-space: nowrap;
+}
+
+.hud-player__money--shrink {
+  font-size: 15px;
+}
+
+.hud-player__equipment-row--weapon img {
+  width: 50px;
+  max-height: 16px;
+  object-fit: contain;
+}
+
+.hud-player__equipment-row--utility {
+  flex-direction: row-reverse;
+  overflow: visible;
+}
+
+.hud-player__equipment-row--utility img {
+  width: 13.5px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.hud-player__equipment-row--utility-wrapped {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  flex: 0 0 32px;
+  height: 32px;
+  align-content: start;
+  justify-content: center;
+  column-gap: 0;
+  row-gap: 0;
+}
+
+.hud-player__equipment-row--utility-wrapped img {
+  flex: 0 0 12.5px;
+  width: 12.5px;
+}
+
+.hud-player__equipment-row--special {
+  gap: 1px;
+}
+
+.hud-player__equipment-row--special img {
+  width: 20px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.hud-player--dead .hud-player__portrait {
+  border: 2px solid #000;
+  filter: saturate(0) brightness(1) contrast(0.9);
+  opacity: 0.2;
+}
+
+.hud-player--dead .hud-player__equipment-content {
+  filter: saturate(0);
+  color: #ddd;
+}
+
+.hud-player--offline .hud-player__portrait,
+.hud-player--offline .hud-player__equipment {
+  filter: saturate(0);
+  opacity: 0.2;
+}
+
+.hud-player--dead .hud-player__health,
+.hud-player--offline .hud-player__health,
+.hud-player--dead .hud-player__shield,
+.hud-player--offline .hud-player__shield {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hud-scoreboard {
+  position: relative;
+  flex: 0 0 84px;
+  width: 84px;
+  height: 106px;
+  margin-top: -3px;
+  text-align: center;
+  font-synthesis: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-scoreboard::before,
+.hud-scoreboard::after {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 1px;
+  width: 82px;
+  height: 106px;
+  content: "";
+  -webkit-mask: url("/assets/hud/score-timer-mask.svg") center / 100% 100% no-repeat;
+  mask: url("/assets/hud/score-timer-mask.svg") center / 100% 100% no-repeat;
+}
+
+.hud-scoreboard::before {
+  background: rgb(0 0 0 / 75%);
+}
+
+.hud-scoreboard::after {
+  background: url("/assets/hud/dot-grid.png") 100% 100% / 360px 360px;
+  opacity: 0.08;
+}
+
+.hud-scoreboard__timer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 84px;
+  height: 32px;
+  color: #fff;
+  background: transparent;
+  font-family: "Stratum2 HUD Timer", sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 32px;
+  letter-spacing: 0;
+  mix-blend-mode: plus-lighter;
+}
+
+.hud-scoreboard__timer--warning {
+  color: #e14d43;
+}
+
+/*
+ * Generator overload: no digits, only the commander keycard washed CS2 .bomb_planted red
+ * (#b80000) and blinking with the bombDet keyframes. The period comes inline per tier
+ * (HUD_GENERATOR_PULSE_SECONDS); an <img> cannot be recoloured, so the svg is a mask.
+ */
+.hud-scoreboard__timer-keycard {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  background-color: #b80000;
+  -webkit-mask: url("/assets/slui-svg/KeycardNTFCommander.svg") center / contain no-repeat;
+  mask: url("/assets/slui-svg/KeycardNTFCommander.svg") center / contain no-repeat;
+  animation: hud-generator-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes hud-generator-pulse {
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
+}
+
+/* Tactical pause countdown: yellow seconds and a small label. */
+.hud-scoreboard__timer--pause {
+  gap: 2px;
+  color: #f2c94c;
+}
+
+.hud-scoreboard__timer-label {
+  flex: none;
+  font-family: "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 12px;
+}
+
+.hud-scoreboard__scores {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  width: 84px;
+  height: 30px;
+  margin-top: 1px;
+  background: transparent;
+}
+
+.hud-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 30px;
+  font-family: "Stratum2 HUD Score", sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 30px;
+  mix-blend-mode: plus-lighter;
+}
+
+.hud-score--ct {
+  color: #d94652;
+}
+
+.hud-score--t {
+  color: #b5d4ee;
+}
+
+.hud-scoreboard__counts {
+  position: absolute;
+  z-index: 1;
+  top: 60px;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  box-sizing: border-box;
+  width: 84px;
+  height: 46px;
+  padding: 0;
+  mix-blend-mode: plus-lighter;
+}
+
+.hud-empty-state {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  min-width: 132px;
+  padding: 7px 10px;
+  transform: translateX(-50%);
+  color: #fff;
+  background: rgb(13 16 18 / 92%);
+  font-family: "Stratum2 Bold TF", sans-serif;
+  font-size: 12px;
+  line-height: 14px;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.hud-alive-count {
+  display: flex;
+  align-self: start;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0;
+  margin-top: 14px;
+  font-family: "Stratum2 Bold TF", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hud-alive-count--ct {
+  color: #d94652;
+}
+
+.hud-alive-count--t {
+  color: #b5d4ee;
+}
+
+.hud-alive-count__person {
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 50%));
+  -webkit-mask: url("/assets/hud/player.svg") center / contain no-repeat;
+  mask: url("/assets/hud/player.svg") center / contain no-repeat;
+}

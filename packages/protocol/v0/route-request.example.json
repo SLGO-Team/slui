@@ -1,0 +1,6 @@
+{
+  "protocol_version": 0,
+  "type": "control.route.request",
+  "steam_id": "76561198000000100",
+  "proof": { "kind": "device-signature", "device_id": "fixture-device", "signature": "fixture-only" }
+}

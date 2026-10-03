@@ -1,0 +1,58 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-match-1",
+  "server_id": "slgo-local-7777",
+  "instance_id": "instance-2026-08-18-1645",
+  "round_id": "round-7",
+  "sequence": 12,
+  "type": "match.snapshot",
+  "sent_at": "2026-08-18T08:46:20Z",
+  "payload": {
+    "viewer_team_id": "team-a",
+    "state": "ActionPhase",
+    "round": 7,
+    "max_rounds": 15,
+    "phase_remaining_ms": 149000,
+    "phase_paused": false,
+    "generator_remaining_ms": null,
+    "pause_remaining_ms": null,
+    "teams": [
+      {
+        "team_id": "team-a",
+        "role": "ntf",
+        "display_name": "Team A",
+        "score": 3,
+        "players": [
+          {
+            "player_id": "76561198000000100",
+            "display_name": "Nova",
+            "avatar_url": null,
+            "is_online": true,
+            "is_alive": true,
+            "health": 100,
+            "shield": 65,
+            "max_health": 100,
+            "max_shield": 75,
+            "kills": 2,
+            "loadout": {
+              "money": 4250,
+              "primary_item_id": "GunE11SR",
+              "utility_item_ids": ["GrenadeFlash", "Medkit"],
+              "armor": "combat",
+              "has_commander_keycard": true,
+              "has_generator_upgrade": false
+            }
+          }
+        ]
+      },
+      {
+        "team_id": "team-b",
+        "role": "scp",
+        "display_name": "Team B",
+        "score": 2,
+        "players": []
+      }
+    ]
+  }
+}

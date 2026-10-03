@@ -1,0 +1,4 @@
+{
+  "type": "client.features",
+  "features": ["chat-input"]
+}

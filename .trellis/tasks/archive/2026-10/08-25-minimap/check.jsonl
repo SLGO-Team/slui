@@ -1,0 +1,13 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查禁止进程读取、fixture、解析和 stale 测试。"}
+{"file":"protocol/v0/minimap-init.example.json","reason":"14.2.7/1.0.0 基础地图 fixture。"}
+{"file":"protocol/v0/minimap-positions.example.json","reason":"visibility-filtered marker fixture。"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"校验服务端可见性授权、实例隔离与固定地图版本边界。"}
+{"file":".trellis/spec/frontend/cs2-visual-replication.md","reason":"校验手工 React 实现、整体缩放、资源来源与浏览器视觉验收。"}
+{"file":".trellis/tasks/08-25-minimap/prd.md","reason":"验收办公区和重收容区、中文特殊房间、死亡共享视野、两种方向模式和计分板全图。"}
+{"file":".trellis/tasks/08-25-minimap/design.md","reason":"检查实际计分板状态联动、视点与权限分离、独立 stale 时钟及正式主界面设置边界。"}
+{"file":".trellis/tasks/08-25-minimap/research/protocol-and-state.md","reason":"校验客户端能验证的授权边界、非法baseline、失败传播、焦点恢复和真实桥接限制。"}
+{"file":".trellis/tasks/08-25-minimap/research/generator-and-rendering.md","reason":"校验固定依赖/许可证、browser bundle证据、地图投影/轮廓和未完成的实机对比。"}
+{"file":".trellis/spec/frontend/minimap.md","reason":"小地图既有协议、世界坐标、摄像机与 stale 回归要求。"}
+{"file":".trellis/tasks/08-25-minimap/research/room-svg-audit.md","reason":"校验用户明确要求的房间 SVG 接入、映射、定位、缩放、旋转与来源。"}
+{"file":".trellis/tasks/08-25-minimap/research/radar-settings-plan.md","reason":"最终已批准配置/渲染/动态状态边界，地图内标签已取消，仅保留底部位置。"}
+{"file":".trellis/tasks/08-25-minimap/research/radar-settings-evidence.md","reason":"依据截图/源码验证设置范围与视觉，避免把本项目动态参数称作CS2原生默认。"}

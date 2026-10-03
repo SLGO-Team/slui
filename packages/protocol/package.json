@@ -1,0 +1,15 @@
+{
+  "name": "@slgo/protocol",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "description": "SLGO protocol v0 wire contract: types, parsers and validators shared by SLUI and the SLGO backend.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./v0/*": "./v0/*"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit -p ."
+  }
+}

@@ -1,0 +1,30 @@
+/* SLUI brand tokens: colours, fonts and the chamfer shape shared by the home window
+   (src/app/home/home.css) and the installer shell (installer/src/installer.css).
+   Font family names resolve to the @font-face rules each consumer declares itself;
+   only SIL OFL fonts (Chakra Petch, Barlow, Noto Sans SC) may be bound to them. */
+:root {
+  --home-chrome: #090e15;
+  --home-base: #0c131c;
+  --home-panel: rgba(18, 27, 39, 0.82);
+  --home-raised: #1b2838;
+  --home-raised-hover: #233348;
+  --home-field: #0a1119;
+  --home-line: #172231;
+  --home-line-strong: #243448;
+  --home-bracket: #33475c;
+  --home-text: #ecf2f8;
+  --home-text-2: #a9b6c5;
+  --home-muted: #6c7c90;
+  --home-orange: #f7941d;
+  --home-orange-hi: #ffb84e;
+  --home-orange-lo: #ee7d11;
+  --home-orange-grad: linear-gradient(180deg, var(--home-orange-hi), var(--home-orange-lo));
+  --home-ok: #45c97a;
+  --home-pending: #5aa9ff;
+  --home-warn: #f2c94c;
+  --home-error: #ff5d5d;
+  --home-font-ui: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  --home-font-display: "SLUI Display", "SLUI CJK", var(--home-font-ui);
+  --home-font-latin: "SLUI Latin", var(--home-font-ui);
+  --home-chamfer: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+}

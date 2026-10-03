@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/08-26-panorama-source-translation/prd.md","reason":"Verify user-approved scope and observable acceptance criteria"}
+{"file":".trellis/tasks/08-26-panorama-source-translation/design.md","reason":"Verify implementation follows manual React architecture and migration boundary"}
+{"file":".trellis/tasks/08-26-panorama-source-translation/implement.md","reason":"Verify ordered rollout, visual gate, and cleanup are complete"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Run required frontend quality checks"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"Confirm protocol/platform boundaries remain unchanged"}
+

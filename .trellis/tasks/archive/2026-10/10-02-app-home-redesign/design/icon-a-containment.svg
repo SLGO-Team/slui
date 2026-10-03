@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="46%" r="80%">
+      <stop offset="0%" stop-color="#203042"/>
+      <stop offset="50%" stop-color="#131c28"/>
+      <stop offset="100%" stop-color="#090e15"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f7941d" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#f7941d" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#f7941d" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="go" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffb84e"/>
+      <stop offset="100%" stop-color="#ee7d11"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="112" fill="url(#bg)"/>
+  <!-- HUD viewport brackets (UI) replace the SLGO crosshair ring -->
+  <g fill="none" stroke="url(#go)" stroke-width="60">
+    <path d="M 132 330 V 132 H 330"/>
+    <path d="M 694 132 H 892 V 330"/>
+    <path d="M 892 694 V 892 H 694"/>
+    <path d="M 330 892 H 132 V 694"/>
+  </g>
+  <g transform="translate(512 512)">
+    <circle r="210" fill="url(#glow)"/>
+    <!-- containment ring (SCP), three gaps for the arrows -->
+    <g fill="none" stroke="#ecf2f8" stroke-width="52">
+      <path d="M 50.2 -224.5 A 230 230 0 0 1 219.5 68.8"/>
+      <path d="M 169.3 155.7 A 230 230 0 0 1 -169.3 155.7"/>
+      <path d="M -219.5 68.8 A 230 230 0 0 1 -50.2 -224.5"/>
+    </g>
+    <g fill="#ecf2f8">
+      <path d="M -24 -282 H 24 V -142 H 66 L 0 -58 L -66 -142 H -24 Z"/>
+      <path d="M -24 -282 H 24 V -142 H 66 L 0 -58 L -66 -142 H -24 Z" transform="rotate(120)"/>
+      <path d="M -24 -282 H 24 V -142 H 66 L 0 -58 L -66 -142 H -24 Z" transform="rotate(240)"/>
+    </g>
+    <circle r="28" fill="#f7941d"/>
+  </g>
+</svg>

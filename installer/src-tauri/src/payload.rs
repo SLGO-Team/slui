@@ -1,0 +1,224 @@
+//! The embedded NSIS package and the per-run temp directory.
+//!
+//! Everything the shell writes lives in `%TEMP%\slui-setup-<pid>\`: the extracted
+//! package and the WebView2 user data. Nothing goes to `%LOCALAPPDATA%`. The directory
+//! is removed after the window closes, once the WebView2 processes that lock it have
+//! exited; a directory left behind (classic mode, a crash) is removed by the next run.
+
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
+
+use crate::detect;
+
+const SESSION_PREFIX: &str = "slui-setup-";
+
+/// Resource name of the embedded package (RCDATA, see build.rs).
+#[cfg(not(slui_setup_no_payload))]
+const PAYLOAD_RESOURCE: &str = "SLUI_PAYLOAD";
+
+/// The NSIS package embedded in this exe; `None` in payload-less development builds.
+#[cfg(not(slui_setup_no_payload))]
+fn embedded_payload() -> Option<&'static [u8]> {
+    use windows_sys::Win32::System::LibraryLoader::{
+        FindResourceW, GetModuleHandleW, LoadResource, LockResource, SizeofResource,
+    };
+    // MAKEINTRESOURCE(RT_RCDATA)
+    const RT_RCDATA: windows_sys::core::PCWSTR = 10 as _;
+    let expected: u64 = env!("SLUI_SETUP_PAYLOAD_BYTES").parse().unwrap_or(0);
+    let name = detect::wide(PAYLOAD_RESOURCE);
+    // Resources stay mapped for the lifetime of the module, so the slice is 'static.
+    let bytes = unsafe {
+        let module = GetModuleHandleW(std::ptr::null());
+        let info = FindResourceW(module, name.as_ptr(), RT_RCDATA);
+        if info.is_null() {
+            return None;
+        }
+        let size = SizeofResource(module, info);
+        let data = LoadResource(module, info);
+        let pointer = if data.is_null() { std::ptr::null_mut() } else { LockResource(data) };
+        if pointer.is_null() || size == 0 {
+            return None;
+        }
+        std::slice::from_raw_parts(pointer as *const u8, size as usize)
+    };
+    // A size mismatch means the resource is not the package build.rs validated.
+    (bytes.len() as u64 == expected).then_some(bytes)
+}
+
+/// UI development build without an embedded package (see build.rs).
+#[cfg(slui_setup_no_payload)]
+fn embedded_payload() -> Option<&'static [u8]> {
+    None
+}
+
+#[derive(Debug, Clone)]
+pub struct Session {
+    pub dir: PathBuf,
+}
+
+impl Session {
+    /// Creates this run's temp directory and removes stale ones from earlier runs.
+    pub fn create() -> Session {
+        let temp = std::env::temp_dir();
+        remove_stale_sessions(&temp);
+        let dir = temp.join(session_dir_name(std::process::id()));
+        if let Err(error) = fs::create_dir_all(&dir) {
+            eprintln!("slui-setup: cannot create {}: {error}", dir.display());
+        }
+        Session { dir }
+    }
+
+    pub fn webview_data_dir(&self) -> PathBuf {
+        self.dir.join("webview")
+    }
+
+    /// Writes the NSIS package into the session directory and returns its path.
+    pub fn extract_payload(&self) -> Result<PathBuf, PayloadError> {
+        let bytes = embedded_payload().ok_or(PayloadError::Missing)?;
+        fs::create_dir_all(&self.dir).map_err(|error| PayloadError::Write(error.to_string()))?;
+        let path = self.dir.join(payload_file_name(detect::payload_version()));
+        fs::write(&path, bytes).map_err(|error| PayloadError::Write(error.to_string()))?;
+        Ok(path)
+    }
+
+    /// Called after the event loop has ended: waits (bounded) for the WebView2
+    /// processes started by this shell to exit, since they hold the user data
+    /// folder open, then removes the session directory.
+    pub fn cleanup_after_exit(&self) {
+        wait_for_webview_exit(std::process::id(), Duration::from_secs(10));
+        if let Err(error) = fs::remove_dir_all(&self.dir) {
+            if self.dir.exists() {
+                eprintln!("slui-setup: cannot remove {} ({error}); the next run removes it", self.dir.display());
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PayloadError {
+    /// Debug build without an embedded package.
+    Missing,
+    Write(String),
+}
+
+pub fn payload_file_name(version: &str) -> String {
+    format!("SLUI_{version}_x64-setup.exe")
+}
+
+fn session_dir_name(pid: u32) -> String {
+    format!("{SESSION_PREFIX}{pid}")
+}
+
+/// `slui-setup-<pid>` → pid.
+pub fn session_pid(name: &str) -> Option<u32> {
+    let digits = name.strip_prefix(SESSION_PREFIX)?;
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
+}
+
+fn remove_stale_sessions(temp: &Path) {
+    let Ok(entries) = fs::read_dir(temp) else { return };
+    let own = std::process::id();
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid) = name.to_str().and_then(session_pid) else { continue };
+        // file_type() does not follow links: only a real directory named
+        // slui-setup-<digits> directly inside %TEMP% is ever removed.
+        let real_dir = entry.file_type().is_ok_and(|kind| kind.is_dir() && !kind.is_symlink());
+        if pid == own || !real_dir || process_alive(pid) {
+            continue;
+        }
+        if let Err(error) = fs::remove_dir_all(entry.path()) {
+            eprintln!("slui-setup: cannot remove stale {}: {error}", entry.path().display());
+        }
+    }
+}
+
+fn process_alive(pid: u32) -> bool {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED, WAIT_TIMEOUT},
+        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
+    };
+    let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
+    if handle.is_null() {
+        // Access denied means the process exists but belongs to someone else.
+        return unsafe { GetLastError() } == ERROR_ACCESS_DENIED;
+    }
+    let alive = unsafe { WaitForSingleObject(handle, 0) } == WAIT_TIMEOUT;
+    unsafe { CloseHandle(handle) };
+    alive
+}
+
+/// WebView2 process name; the browser process is a child of the shell and starts the
+/// GPU, utility and renderer processes as its own children.
+const WEBVIEW_EXE: &str = "msedgewebview2.exe";
+
+/// WebView2 processes descended from `root`. SLUI started from the finish page is also
+/// a child of the shell and is deliberately not included.
+fn webview_descendants(root: u32) -> Vec<u32> {
+    let processes = detect::process_names();
+    let mut found = vec![root];
+    let mut index = 0;
+    while index < found.len() {
+        let parent = found[index];
+        for (pid, parent_pid, name) in &processes {
+            if *parent_pid == parent && name.eq_ignore_ascii_case(WEBVIEW_EXE) && !found.contains(pid) {
+                found.push(*pid);
+            }
+        }
+        index += 1;
+    }
+    found.remove(0);
+    found
+}
+
+fn wait_for_webview_exit(root: u32, timeout: Duration) {
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
+    };
+    let deadline = Instant::now() + timeout;
+    // Open every handle first so an exiting process cannot be replaced by a reused pid.
+    let handles: Vec<_> = webview_descendants(root)
+        .into_iter()
+        .map(|pid| unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) })
+        .filter(|handle| !handle.is_null())
+        .collect();
+    for handle in handles {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        unsafe {
+            WaitForSingleObject(handle, remaining.as_millis().min(u32::MAX as u128) as u32);
+            CloseHandle(handle);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_session_directory_names() {
+        assert_eq!(session_pid("slui-setup-1234"), Some(1234));
+        assert_eq!(session_pid(&session_dir_name(42)), Some(42));
+        assert_eq!(session_pid("slui-setup-"), None);
+        assert_eq!(session_pid("slui-setup-12a"), None);
+        assert_eq!(session_pid("slui-setup--1"), None);
+        assert_eq!(session_pid("other-1234"), None);
+    }
+
+    #[test]
+    fn payload_file_name_matches_the_nsis_bundle() {
+        assert_eq!(payload_file_name("0.1.0"), "SLUI_0.1.0_x64-setup.exe");
+    }
+
+    #[test]
+    fn own_process_is_alive() {
+        assert!(process_alive(std::process::id()));
+    }
+}

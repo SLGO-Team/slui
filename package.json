@@ -1,0 +1,50 @@
+{
+  "name": "slui",
+  "private": true,
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "vite --mode mock",
+    "lint": "tsc --noEmit && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer",
+    "build": "tsc && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer && vite build",
+    "build:local": "tsc && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer && vite build --mode development",
+    "test": "node --experimental-strip-types scripts/contract-smoke.mjs && node --experimental-strip-types scripts/hud-model-smoke.mjs && node --experimental-strip-types scripts/backend-connection-smoke.mjs && node --experimental-strip-types scripts/settings-smoke.mjs && node --experimental-strip-types scripts/desktop-adapters-smoke.mjs && node --experimental-strip-types scripts/shop-model-smoke.mjs && node --experimental-strip-types scripts/shop-audio-smoke.mjs && node --experimental-strip-types scripts/theme-pack-smoke.mjs && node --experimental-strip-types scripts/chat-model-smoke.mjs && node --experimental-strip-types scripts/minimap-contract-smoke.mjs && node scripts/minimap-model-smoke.mjs && node scripts/minimap-provider-smoke.mjs && node scripts/minimap-integration-smoke.mjs && node --experimental-strip-types scripts/game-foreground-smoke.mjs && node --experimental-strip-types scripts/installer-model-smoke.mjs && node scripts/public-content-check.mjs",
+    "tauri:check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "tauri:build:with-theme-pack": "tauri build --config src-tauri/tauri.bundle-theme-pack.conf.json",
+    "hud-layout-audit": "node scripts/hud-layout-audit.mjs",
+    "chat-layout-audit": "node scripts/chat-layout-audit.mjs",
+    "hud-visual-audit": "node scripts/hud-visual-audit.mjs",
+    "minimap-layout-audit": "node scripts/minimap-visual-audit.mjs",
+    "minimap-visual-audit": "node scripts/minimap-visual-audit.mjs",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:mock": "tauri dev --config src-tauri/tauri.mock.conf.json",
+    "tauri:build:local": "tauri build --config src-tauri/tauri.local.conf.json --bundles nsis",
+    "installer:dev": "node scripts/build-installer.mjs --dev",
+    "installer:build:local": "node scripts/build-installer.mjs --local",
+    "installer:build:shell": "node scripts/build-installer.mjs --local --reuse-payload",
+    "installer:build": "node scripts/build-installer.mjs",
+    "installer:vite": "vite --config installer/vite.config.ts",
+    "installer:vite:build": "tsc --noEmit -p installer && vite build --config installer/vite.config.ts"
+  },
+  "dependencies": {
+    "@slgo/protocol": "*",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  }
+}

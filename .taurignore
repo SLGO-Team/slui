@@ -1,0 +1,5 @@
+# The installer shell is a second Tauri app (installer/src-tauri). Hide it from the
+# Tauri CLI's tauri.conf.json lookup so `npm run tauri ...` at the repo root always
+# resolves the SLUI app in src-tauri/. scripts/build-installer.mjs runs the CLI in
+# installer/ with TAURI_APP_PATH set explicitly.
+installer/

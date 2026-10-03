@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/command.schema.json",
+  "title": "SLGO client command",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "command_id"],
+  "properties": {
+    "kind": { "enum": ["command.shop.purchase", "command.chat.send"] },
+    "command_id": { "type": "string", "minLength": 1 },
+    "item_id": { "type": "string", "minLength": 1 },
+    "quantity": { "type": "integer", "minimum": 1 },
+    "scope": { "enum": ["global", "team", "spectator"] },
+    "body": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    { "if": { "properties": { "kind": { "const": "command.shop.purchase" } } }, "then": { "required": ["item_id", "quantity"] } },
+    { "if": { "properties": { "kind": { "const": "command.chat.send" } } }, "then": { "required": ["scope", "body"] } }
+  ]
+}

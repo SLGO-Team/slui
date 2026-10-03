@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"覆盖层 interactive/快捷键/Rust 命令契约，本任务需扩展"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"命令 pending/成功/失败、被动模式不抢焦点、测试要求"}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"feature 目录布局"}
+{"file":".trellis/tasks/08-25-chat/prd.md","reason":"父任务聊天总体要求"}

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/match-snapshot.schema.json",
+  "title": "SLGO match snapshot payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["viewer_team_id", "state", "round", "max_rounds", "phase_remaining_ms", "phase_paused", "teams"],
+  "properties": {
+    "viewer_team_id": {
+      "description": "The authenticated viewer's stable team, or null for a spectator. Only this team's players may include health.",
+      "type": ["string", "null"],
+      "enum": ["team-a", "team-b", null]
+    },
+    "state": {
+      "enum": ["Idle", "WaitingForPlayers", "PreRoundWait", "BuyPhase", "ActionPhase", "RoundEnd", "MatchEnd"]
+    },
+    "round": { "type": "integer", "minimum": 0 },
+    "max_rounds": { "type": "integer", "minimum": 1 },
+    "phase_remaining_ms": { "type": "integer", "minimum": 0 },
+    "phase_paused": { "type": "boolean" },
+    "generator_remaining_ms": {
+      "description": "Optional. Generator overload time left (smallest over all activating generators), or null when none runs. While non-null, phase_remaining_ms is the frozen action clock.",
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "pause_remaining_ms": {
+      "description": "Optional. Tactical pause time left, or null when no pause runs. During a pause phase_paused is true and phase_remaining_ms is 0.",
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "teams": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/team" }
+    }
+  },
+  "$defs": {
+    "team": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["team_id", "role", "display_name", "score", "players"],
+      "properties": {
+        "team_id": { "enum": ["team-a", "team-b"] },
+        "role": { "enum": ["ntf", "scp"] },
+        "display_name": { "type": "string", "minLength": 1 },
+        "score": { "type": "integer", "minimum": 0 },
+        "players": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/player" }
+        }
+      }
+    },
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "display_name", "is_online", "is_alive"],
+      "properties": {
+        "player_id": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string" },
+        "avatar_url": { "type": ["string", "null"] },
+        "is_online": { "type": "boolean" },
+        "is_alive": { "type": "boolean" },
+        "health": { "type": ["number", "null"], "minimum": 0 },
+        "shield": { "type": ["number", "null"], "minimum": 0 },
+        "max_health": { "description": "Cap of health (viewer's own team only). Absent from older plugins, which scaled health to 100.", "type": ["number", "null"], "minimum": 0 },
+        "max_shield": { "description": "Cap of shield (Hume shield + AHP; viewer's own team only). Absent from older plugins, which scaled shield to 100.", "type": ["number", "null"], "minimum": 0 },
+        "aux_power": { "description": "SCP-079 auxiliary power (viewer's own team, alive SCP-079 only). 079 has no health or shield.", "type": ["number", "null"], "minimum": 0 },
+        "max_aux_power": { "description": "Cap of aux_power.", "type": ["number", "null"], "minimum": 0 },
+        "kills": { "type": "integer", "minimum": 0 },
+        "loadout": {
+          "description": "Viewer's own team only (same rule as health). null for an offline teammate.",
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/loadout" }]
+        }
+      }
+    },
+    "loadout": {
+      "type": "object",
+      "required": ["money", "primary_item_id", "utility_item_ids", "armor", "has_commander_keycard", "has_generator_upgrade"],
+      "properties": {
+        "money": { "type": "integer", "minimum": 0 },
+        "primary_item_id": {
+          "description": "shop.snapshot item_id vocabulary: NTF weapon (ItemType name) or SCP role (RoleTypeId name). null when none.",
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "utility_item_ids": {
+          "description": "NTF: carried non-weapon, non-armor, non-keycard items in inventory order. SCP: highest owned HealthUpgradeN, ShieldUpgradeN and Scp079LevelN.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "armor": { "enum": ["light", "combat", "heavy", null] },
+        "has_commander_keycard": { "type": "boolean" },
+        "has_generator_upgrade": { "type": "boolean" }
+      }
+    }
+  }
+}

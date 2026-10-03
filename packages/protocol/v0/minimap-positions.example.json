@@ -1,0 +1,100 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-positions-1",
+  "server_id": "slgo-local-7777",
+  "instance_id": "instance-2026-08-18-1645",
+  "round_id": "round-7",
+  "sequence": 14,
+  "type": "minimap.positions",
+  "sent_at": "2026-08-18T08:46:20.067Z",
+  "payload": {
+    "minimap_schema_version": 5,
+    "map_id": "map-generation-1",
+    "visibility_revision": 31,
+    "viewer": { "player_id": "76561198000000100", "team_id": "team-a", "is_alive": true },
+    "viewpoint": {
+      "player_id": "76561198000000100",
+      "x": 135,
+      "y": -100,
+      "z": 105,
+      "yaw_degrees": 90,
+      "zone": "HeavyContainment",
+      "room_id": null
+    },
+    "scoreboard_visible": false,
+    "positions": [
+      {
+        "player_id": "76561198000000100",
+        "team_id": "team-a",
+        "role": "ntf",
+        "visibility": "self",
+        "status": "live",
+        "status_age_ms": 0,
+        "has_commander_keycard": false,
+        "x": 135,
+        "y": -100,
+        "z": 105,
+        "yaw_degrees": 90,
+        "zone": "HeavyContainment",
+        "room_id": null
+      },
+      {
+        "player_id": "76561198000000011",
+        "team_id": "team-b",
+        "role": "scp",
+        "visibility": "spotted-by-self",
+        "status": "live",
+        "status_age_ms": 0,
+        "has_commander_keycard": false,
+        "x": 150,
+        "y": -100,
+        "z": 110,
+        "yaw_degrees": 270,
+        "zone": "HeavyContainment",
+        "room_id": null
+      },
+      {
+        "player_id": "76561198000000012",
+        "team_id": "team-b",
+        "role": "scp",
+        "visibility": "spotted-by-teammate",
+        "status": "last-known",
+        "status_age_ms": 2400,
+        "has_commander_keycard": false,
+        "x": 120,
+        "y": -100,
+        "z": 90,
+        "yaw_degrees": 180,
+        "zone": "HeavyContainment",
+        "room_id": null
+      },
+      {
+        "player_id": "76561198000000002",
+        "team_id": "team-a",
+        "role": "ntf",
+        "visibility": "teammate",
+        "status": "dead",
+        "status_age_ms": 1500,
+        "has_commander_keycard": false,
+        "x": 140,
+        "y": -100,
+        "z": 60,
+        "yaw_degrees": 0,
+        "zone": "Entrance",
+        "room_id": null
+      }
+    ],
+    "commander_keycard": {
+      "x": 128,
+      "y": -100,
+      "z": 96,
+      "zone": "HeavyContainment",
+      "room_id": null,
+      "team_id": "team-a",
+      "status": "live",
+      "status_age_ms": 0,
+      "state": "dropped"
+    }
+  }
+}

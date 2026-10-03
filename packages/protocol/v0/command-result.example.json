@@ -1,0 +1,14 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-command-result-1",
+  "server_id": "slgo-local-7777",
+  "instance_id": "instance-2026-08-18-1645",
+  "sequence": 14,
+  "type": "command.result",
+  "payload": {
+    "command_id": "purchase-mk2-abc123",
+    "command_kind": "command.shop.purchase",
+    "status": "accepted"
+  }
+}

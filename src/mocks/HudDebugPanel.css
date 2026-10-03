@@ -1,0 +1,94 @@
+.hud-debug-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: min(620px, calc(100vw - 24px));
+  padding: 8px;
+  color: #f2f3f3;
+  background: rgb(20 22 23 / 96%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 4px;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 38%);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.hud-debug-panel__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 18px;
+  margin-bottom: 6px;
+}
+
+.hud-debug-panel__title strong {
+  color: #f2f3f3;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.hud-debug-panel__title output {
+  padding: 1px 5px;
+  color: #8ee0bd;
+  background: #242a27;
+  border: 1px solid #416756;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.hud-debug-panel__controls {
+  display: grid;
+  grid-template-columns: 0.75fr 0.9fr 1.35fr 1.25fr 1fr;
+  gap: 6px;
+}
+
+.hud-debug-panel__field {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  color: #aeb3b5;
+  line-height: 12px;
+}
+
+.hud-debug-panel__field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 22px 0 6px;
+  color: #f6f7f7;
+  background: #303437;
+  border: 1px solid #4c5255;
+  border-radius: 3px;
+  font: inherit;
+  letter-spacing: 0;
+  outline: none;
+  cursor: pointer;
+}
+
+.hud-debug-panel__field select:hover {
+  border-color: #777f82;
+}
+
+.hud-debug-panel__field select:focus-visible {
+  border-color: #8ee0bd;
+  box-shadow: 0 0 0 2px rgb(142 224 189 / 18%);
+}
+
+@media (max-width: 720px) {
+  .hud-debug-panel__controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 430px) {
+  .hud-debug-panel__controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

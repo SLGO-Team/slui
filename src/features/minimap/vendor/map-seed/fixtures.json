@@ -1,0 +1,779 @@
+{
+  "packageVersion": "1.0.0",
+  "template": {
+    "path": "data/mapgen-raw-14.2.7.json",
+    "bytes": 345771,
+    "sha256": "8053d25d742e4e415c0ed705b55d4a4ec893fab1fa0acae154a83e3b08693c88"
+  },
+  "sourceHashes": {
+    "src/generator.js": "7cdfa957d6f776a28f0aa052607a5620f8e6e6d6440d32c9bca9682e31b596e4",
+    "src/random.js": "7c982dbc66bffabef150acb310667d3690240dfd1d3c042ab6e186768a698a72",
+    "src/errors.js": "b8930ac526887bb42e081838c5af16affdf0d82cddc1c4cd1c2442b128b897f6",
+    "LICENSE": "50e6751797c50dedd75ef1b8a0d9e42f5f8472e9fbce91f34718e9f97b0c780a"
+  },
+  "runtime": "Node vm.SourceTextModule with atob; no Buffer, process, require or node imports in module context",
+  "browserBundle": {
+    "platform": "browser",
+    "format": "esm",
+    "bytes": 397590,
+    "evaluatedWithoutNodeGlobals": true
+  },
+  "browserChange": "Buffer.from(atlas.rgbaBase64, 'base64') -> Uint8Array.from(atob(...), charCodeAt)",
+  "fixtures": [
+    {
+      "seed": 1,
+      "holiday": "None",
+      "allRooms": 106,
+      "supportedRooms": 74,
+      "supportedEdges": 81,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-058",
+          "ez": "room-088"
+        },
+        {
+          "hcz": "room-076",
+          "ez": "room-103"
+        }
+      ],
+      "sha256": "8b4f9d6a4d09e66b440d3fe7c8e4eeab208608d2661565574860aa2e4a223983"
+    },
+    {
+      "seed": 1,
+      "holiday": "Christmas",
+      "allRooms": 106,
+      "supportedRooms": 74,
+      "supportedEdges": 81,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-058",
+          "ez": "room-088"
+        },
+        {
+          "hcz": "room-076",
+          "ez": "room-103"
+        }
+      ],
+      "sha256": "a405c35bdf6d2c9d7b9ef52f599c8d0396763b9a652520e912fd9720ed2c2887"
+    },
+    {
+      "seed": 1,
+      "holiday": "Halloween",
+      "allRooms": 106,
+      "supportedRooms": 74,
+      "supportedEdges": 81,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-058",
+          "ez": "room-088"
+        },
+        {
+          "hcz": "room-076",
+          "ez": "room-103"
+        }
+      ],
+      "sha256": "a841b60d6472a427b355e8c2b8b2d7f7f4bdbb768cd4ca34e7ea2370b0ebada9"
+    },
+    {
+      "seed": 1,
+      "holiday": "AprilFools",
+      "allRooms": 106,
+      "supportedRooms": 74,
+      "supportedEdges": 81,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-058",
+          "ez": "room-088"
+        },
+        {
+          "hcz": "room-076",
+          "ez": "room-103"
+        }
+      ],
+      "sha256": "7a86967f4e6a1283e8c926c80111694e767c347f3fb7e7e4d551ea4565deb6e1"
+    },
+    {
+      "seed": 142007,
+      "holiday": "None",
+      "allRooms": 95,
+      "supportedRooms": 60,
+      "supportedEdges": 64,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-061",
+          "ez": "room-092"
+        },
+        {
+          "hcz": "room-066",
+          "ez": "room-071"
+        }
+      ],
+      "sha256": "705b4f3e3cf2fc0b40263efb8d647d29d7489f3ad46ba2b0f4effb1fffd66f9d"
+    },
+    {
+      "seed": 142007,
+      "holiday": "Christmas",
+      "allRooms": 95,
+      "supportedRooms": 60,
+      "supportedEdges": 64,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-061",
+          "ez": "room-092"
+        },
+        {
+          "hcz": "room-066",
+          "ez": "room-071"
+        }
+      ],
+      "sha256": "fa37c1b7d886ecbd0fac0d676b36ac74b654a534315d102ae84356f268c7628c"
+    },
+    {
+      "seed": 142007,
+      "holiday": "Halloween",
+      "allRooms": 95,
+      "supportedRooms": 60,
+      "supportedEdges": 64,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-061",
+          "ez": "room-092"
+        },
+        {
+          "hcz": "room-066",
+          "ez": "room-071"
+        }
+      ],
+      "sha256": "7c3613f5b49ac09b247c2c63fe09f7695ea09552676399eb84a13ab0110ae1ec"
+    },
+    {
+      "seed": 142007,
+      "holiday": "AprilFools",
+      "allRooms": 95,
+      "supportedRooms": 60,
+      "supportedEdges": 64,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-061",
+          "ez": "room-092"
+        },
+        {
+          "hcz": "room-066",
+          "ez": "room-071"
+        }
+      ],
+      "sha256": "01b39d543ec66e8c6dd6348aa36c757065affa5c4a8283361d4f3b6f4f5b1951"
+    },
+    {
+      "seed": 1062329959,
+      "holiday": "None",
+      "allRooms": 102,
+      "supportedRooms": 70,
+      "supportedEdges": 76,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-072",
+          "ez": "room-086"
+        },
+        {
+          "hcz": "room-078",
+          "ez": "room-091"
+        }
+      ],
+      "sha256": "f56d04f0502339da06e0f26486031d84e0c8d6862ada3c5e206aa2a138461b5b"
+    },
+    {
+      "seed": 1062329959,
+      "holiday": "Christmas",
+      "allRooms": 102,
+      "supportedRooms": 70,
+      "supportedEdges": 76,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-072",
+          "ez": "room-086"
+        },
+        {
+          "hcz": "room-078",
+          "ez": "room-091"
+        }
+      ],
+      "sha256": "5ff71fc78e8bd9e34dd86e082f1d7f9df69829125f3794611650d177479a8b35"
+    },
+    {
+      "seed": 1062329959,
+      "holiday": "Halloween",
+      "allRooms": 102,
+      "supportedRooms": 70,
+      "supportedEdges": 76,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-072",
+          "ez": "room-086"
+        },
+        {
+          "hcz": "room-078",
+          "ez": "room-091"
+        }
+      ],
+      "sha256": "9ba3b15d81bb189fd6e84dba2f6e0a0de4150523ea630156d3048d2fe566e8eb"
+    },
+    {
+      "seed": 1062329959,
+      "holiday": "AprilFools",
+      "allRooms": 102,
+      "supportedRooms": 70,
+      "supportedEdges": 76,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-072",
+          "ez": "room-086"
+        },
+        {
+          "hcz": "room-078",
+          "ez": "room-091"
+        }
+      ],
+      "sha256": "1729b4bb6bb73bd868731df8b11b774b2592044909abf69cc9a93f801326992e"
+    },
+    {
+      "seed": 2147483647,
+      "holiday": "None",
+      "allRooms": 106,
+      "supportedRooms": 71,
+      "supportedEdges": 78,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-038",
+          "ez": "room-098"
+        },
+        {
+          "hcz": "room-045",
+          "ez": "room-095"
+        }
+      ],
+      "sha256": "131ef10187a68f08b547d32b276016dddbb26fb2c3e8249ff9d67bed71f1e89a"
+    },
+    {
+      "seed": 2147483647,
+      "holiday": "Christmas",
+      "allRooms": 106,
+      "supportedRooms": 71,
+      "supportedEdges": 78,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-038",
+          "ez": "room-098"
+        },
+        {
+          "hcz": "room-045",
+          "ez": "room-095"
+        }
+      ],
+      "sha256": "ed9177d376d9e9850906b16e17e771b7c278df98721c34f2f02e234ff6062926"
+    },
+    {
+      "seed": 2147483647,
+      "holiday": "Halloween",
+      "allRooms": 106,
+      "supportedRooms": 71,
+      "supportedEdges": 78,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-038",
+          "ez": "room-098"
+        },
+        {
+          "hcz": "room-045",
+          "ez": "room-095"
+        }
+      ],
+      "sha256": "174952b4b4de53205ab333d90bed4bb1aeb7204e20e5fe72144d94627c9c0388"
+    },
+    {
+      "seed": 2147483647,
+      "holiday": "AprilFools",
+      "allRooms": 106,
+      "supportedRooms": 71,
+      "supportedEdges": 78,
+      "crossZoneEdges": 0,
+      "crossCheckpointEdges": 0,
+      "geometricCheckpointPairs": [
+        {
+          "hcz": "room-038",
+          "ez": "room-098"
+        },
+        {
+          "hcz": "room-045",
+          "ez": "room-095"
+        }
+      ],
+      "sha256": "52b97c01f6badbb93c008acd6f992d29ae312aa653d43eac7e8fca75e846d00c"
+    }
+  ],
+  "invalidInputCases": 6,
+  "referenceZones": [
+    {
+      "zone": {
+        "name": "HeavyContainment",
+        "value": 2
+      },
+      "worldY": -100,
+      "bounds": {
+        "minX": 15,
+        "maxX": 135,
+        "minZ": 0,
+        "maxZ": 135,
+        "width": 135,
+        "height": 150
+      },
+      "roomIds": [
+        "room-030",
+        "room-031",
+        "room-032",
+        "room-033",
+        "room-034",
+        "room-035",
+        "room-036",
+        "room-037",
+        "room-038",
+        "room-039",
+        "room-040",
+        "room-041",
+        "room-042",
+        "room-043",
+        "room-044",
+        "room-045",
+        "room-046",
+        "room-047",
+        "room-048",
+        "room-049",
+        "room-050",
+        "room-051",
+        "room-052",
+        "room-053",
+        "room-054",
+        "room-055",
+        "room-056",
+        "room-057",
+        "room-058",
+        "room-059",
+        "room-060",
+        "room-061",
+        "room-062",
+        "room-063",
+        "room-064",
+        "room-065",
+        "room-066",
+        "room-067",
+        "room-068",
+        "room-069",
+        "room-070",
+        "room-071",
+        "room-072",
+        "room-073",
+        "room-074",
+        "room-075",
+        "room-076",
+        "room-077",
+        "room-078"
+      ]
+    },
+    {
+      "zone": {
+        "name": "Entrance",
+        "value": 3
+      },
+      "worldY": -100,
+      "bounds": {
+        "minX": 150,
+        "maxX": 210,
+        "minZ": 30,
+        "maxZ": 120,
+        "width": 75,
+        "height": 105
+      },
+      "roomIds": [
+        "room-079",
+        "room-080",
+        "room-081",
+        "room-082",
+        "room-083",
+        "room-084",
+        "room-085",
+        "room-086",
+        "room-087",
+        "room-088",
+        "room-089",
+        "room-090",
+        "room-091",
+        "room-092",
+        "room-093",
+        "room-094",
+        "room-095",
+        "room-096",
+        "room-097",
+        "room-098",
+        "room-099"
+      ]
+    }
+  ],
+  "referenceCrossEdges": [],
+  "templateGroups": [
+    {
+      "zone": "HeavyContainment",
+      "rooms": [
+        {
+          "name": "Hcz049",
+          "prefab": "HCZ_049",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Hcz079",
+          "prefab": "HCZ_079",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "Hcz096",
+          "prefab": "HCZ_096",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "Hcz106",
+          "prefab": "HCZ_106_Rework",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "Hcz939",
+          "prefab": "HCZ_939",
+          "shape": "Curve",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "HczCheckpointA",
+          "prefab": "HCZ_ChkpA",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "HczCheckpointB",
+          "prefab": "HCZ_ChkpB",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Corner_Deep",
+          "shape": "Curve",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Crossing",
+          "shape": "XShape",
+          "generationSpecial": false,
+          "connectorCount": 4
+        },
+        {
+          "name": "HczAcroamaticAbatement",
+          "prefab": "HCZ_Crossroom_Water",
+          "shape": "XShape",
+          "generationSpecial": false,
+          "connectorCount": 4
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Curve",
+          "shape": "Curve",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Hcz127",
+          "prefab": "HCZ_127",
+          "shape": "TShape",
+          "generationSpecial": false,
+          "connectorCount": 3
+        },
+        {
+          "name": "HczServers",
+          "prefab": "HCZ_ServerRoom",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Intersection",
+          "shape": "TShape",
+          "generationSpecial": false,
+          "connectorCount": 3
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Intersection_Junk",
+          "shape": "TShape",
+          "generationSpecial": false,
+          "connectorCount": 3
+        },
+        {
+          "name": "HczMicroHID",
+          "prefab": "HCZ_MicroHID_New",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "HczWarhead",
+          "prefab": "HCZ_Nuke",
+          "shape": "TShape",
+          "generationSpecial": false,
+          "connectorCount": 3
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Straight",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Straight_C",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "HCZ_Straight_PipeRoom",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "HczArmory",
+          "prefab": "HCZ_TArmory",
+          "shape": "TShape",
+          "generationSpecial": false,
+          "connectorCount": 3
+        },
+        {
+          "name": "HczTesla",
+          "prefab": "HCZ_Tesla_Rework",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "HczTestroom",
+          "prefab": "HCZ_Testroom",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "HczCheckpointToEntranceZone",
+          "prefab": "HCZ_EZ_Checkpoint Part",
+          "shape": "Straight",
+          "generationSpecial": true,
+          "connectorCount": 1
+        },
+        {
+          "name": "HczWaysideIncinerator",
+          "prefab": "HCZ_IncineratorWayside",
+          "shape": "Curve",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "HczRampTunnel",
+          "prefab": "HCZ_Intersection_Ramp",
+          "shape": "TShape",
+          "generationSpecial": false,
+          "connectorCount": 3
+        }
+      ]
+    },
+    {
+      "zone": "Entrance",
+      "rooms": [
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_Cafeteria",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_Chef",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "EzCollapsedTunnel",
+          "prefab": "EZ_CollapsedTunnel",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_Crossing",
+          "shape": "XShape",
+          "generationSpecial": false,
+          "connectorCount": 4
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_Curve",
+          "shape": "Curve",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "EzRedroom",
+          "prefab": "EZ_Endoof",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "EzGateA",
+          "prefab": "EZ_GateA",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "EzGateB",
+          "prefab": "EZ_GateB",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "HczCheckpointToEntranceZone",
+          "prefab": "EZ_HCZ_Checkpoint Part",
+          "shape": "Straight",
+          "generationSpecial": true,
+          "connectorCount": 1
+        },
+        {
+          "name": "EzIntercom",
+          "prefab": "EZ_Intercom",
+          "shape": "Curve",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "EzOfficeLarge",
+          "prefab": "EZ_PCs",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "EzOfficeSmall",
+          "prefab": "EZ_PCs_small",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "EzEvacShelter",
+          "prefab": "EZ_Shelter",
+          "shape": "Endroom",
+          "generationSpecial": false,
+          "connectorCount": 1
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_Smallrooms1",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_Smallrooms2",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_Straight",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_StraightColumn",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        },
+        {
+          "name": "Unnamed",
+          "prefab": "EZ_ThreeWay",
+          "shape": "TShape",
+          "generationSpecial": false,
+          "connectorCount": 3
+        },
+        {
+          "name": "EzOfficeStoried",
+          "prefab": "EZ_upstairs",
+          "shape": "Straight",
+          "generationSpecial": false,
+          "connectorCount": 2
+        }
+      ]
+    }
+  ]
+}

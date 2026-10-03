@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "小地图契约：payload 版本、viewer/viewpoint、revision、校验矩阵与测试要求"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "客户端不得收到全知位置、插件是可见性权威"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "不可信输入的白名单校验与类型收窄"}
+{"file": ".trellis/tasks/09-30-minimap-v3-protocol/research/minimap-v3-contract.md", "reason": "minimap v3 权威草案"}
+{"file": ".trellis/tasks/09-30-minimap-v3-protocol/research/cs2-last-known.md", "reason": "CS2 最后已知位置与死亡 X 行为依据"}

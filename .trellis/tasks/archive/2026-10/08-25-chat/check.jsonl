@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查断线/重连和输入命令测试。"}
+{"file":"protocol/v0/README.md","reason":"检查消息走 sidecar 数据面。"}

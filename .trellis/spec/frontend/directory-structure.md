@@ -1,0 +1,153 @@
+# Directory Structure
+
+> How frontend code is organized in this project.
+
+---
+
+## Overview
+
+The client is a Windows game overlay built with Tauri, React, and TypeScript.
+The React layer owns presentation and user interaction. Tauri/Rust owns only
+desktop capabilities that cannot be implemented safely in the browser layer.
+Business state must remain independent from both React components and Tauri
+commands so that the client can run against a mock data source during
+development and a Backend connection in production.
+
+<!--
+Document your project's frontend directory structure here.
+
+Questions to answer:
+- Where do components live?
+- How are features/modules organized?
+- Where are shared utilities?
+- How are assets organized?
+-->
+
+---
+
+## Directory Layout
+
+```
+packages/
+└── protocol/            # @slgo/protocol: wire contract shared with slgo-backend
+    ├── src/index.ts     # protocol v0 types, parsers, validators, sequence guard
+    └── v0/              # JSON Schemas, example fixtures, protocol README
+src/
+├── app/                 # application composition and lifecycle
+├── contracts/           # client facade: re-exports @slgo/protocol + client-only types
+├── features/            # vertical UI slices: hud, shop, chat, minimap
+├── platform/            # Tauri commands, events, and network adapters
+├── shared/              # reusable UI primitives and pure utilities
+│   └── brand-tokens.css # --home-* colour/font tokens shared by home and installer
+└── mocks/               # local fixtures and mock data sources
+src-tauri/
+└── src/                 # window, input, hotkey, and Win32 integration only
+installer/               # installer shell (second Tauri app) -> SLUI-Setup-<ver>.exe
+├── src/                 # React UI: model.ts (pure), platform.ts (only invoke), screens/
+└── src-tauri/           # crate slui-setup: detect, payload, install, webview2 gate
+scripts/build-installer.mjs  # NSIS payload build + shell build + copy to bundle/setup/
+```
+
+---
+
+## Module Organization
+
+- Add a feature under `src/features/<feature>` when it owns UI, state, and
+  user actions for one product capability.
+- Put cross-feature payloads in `src/contracts`; do not duplicate the same
+  server event shape inside multiple components.
+- Wire-contract code — anything described by `packages/protocol/v0` schemas or
+  its README (payload/command/event types, `parse*`, version constants,
+  sequence/baseline rules, identity-mode authorization) — lives in
+  `packages/protocol/src/index.ts`. The private `slgo-backend` (TypeScript on
+  Bun) imports the same package, so client and server run one validator.
+- `@slgo/protocol` must stay dependency-free and ES-only (no DOM, React, Tauri
+  or Node APIs); `tsc -p packages/protocol` enforces this and runs in
+  `npm run lint` / `npm run build:local`.
+- Client-only state (connection status, Steam identity, verification state,
+  local diagnostics, command-id generation) stays in `src/contracts/index.ts`.
+- Only `src/contracts/index.ts` imports `@slgo/protocol`; features, platform
+  and mocks import `src/contracts`.
+- Protocol fixtures are read from `packages/protocol/v0/*.example.json`. Schema
+  `$id` URLs are identifiers and keep their original `.../slui/protocol/v0/`
+  form.
+- Put Tauri and WebSocket details in `src/platform`; feature code consumes
+  typed interfaces instead of calling `invoke`, `listen`, or raw sockets
+  directly.
+- Keep reducers, selectors, parsers, and command validation pure where
+  possible. They must be testable without a Tauri window or a running game.
+- The installer shell lives in `installer/` and only schedules the NSIS package
+  produced from `src-tauri` (embedded at build time via `SLUI_SETUP_PAYLOAD`).
+  It never writes the install dir, registry or shortcuts itself. Its frontend
+  calls Tauri only from `installer/src/platform.ts`; screen transitions live in
+  the pure `installer/src/model.ts` (covered by
+  `scripts/installer-model-smoke.mjs`). `tsc -p installer` runs in
+  `npm run lint` / `build` / `build:local`.
+- Build it with `npm run installer:build:local` (or `installer:build`); output
+  is `src-tauri/target/release/bundle/setup/SLUI-Setup-<version>.exe`. The root
+  `.taurignore` lists `installer/` so `npm run tauri ...` at the repo root keeps
+  resolving `src-tauri/`; `scripts/build-installer.mjs` targets the shell with
+  `TAURI_APP_PATH` / `TAURI_FRONTEND_PATH`. `installer:build:shell` reuses the NSIS
+  package already built (shell-only changes). The shell's Cargo target dir is
+  `src-tauri/target` (`installer/src-tauri/.cargo/config.toml`), shared with SLUI.
+- Brand tokens (`--home-*`) live in `src/shared/brand-tokens.css`, imported by
+  `src/app/home/home.css` and `installer/src/installer.css`. Each consumer
+  declares its own `@font-face` rules (OFL fonts only).
+- Windows application manifests (`installer/src-tauri/app.manifest`) must be
+  pure ASCII: a non-ASCII comment makes the exe fail to start with
+  side-by-side error 14001.
+- The ~100 MB NSIS payload is embedded as the RCDATA resource `SLUI_PAYLOAD`
+  (`append_rc_content` in `installer/src-tauri/build.rs`), never with
+  `include_bytes!`: a constant that size makes LLVM run out of memory in
+  release builds.
+- `installer/src-tauri/Cargo.lock` must keep the Tauri crates (`tauri`,
+  `tauri-build`, `tauri-runtime*`, `tauri-utils`, `tauri-plugin`, `wry`, `tao`)
+  on the same versions as `src-tauri/Cargo.lock`; the Tauri CLI refuses to
+  build when `tauri` and `@tauri-apps/api` differ in major/minor. When
+  bumping Tauri, update both lockfiles (and pin plugins such as
+  `tauri-plugin-dialog` to a release compatible with that `tauri`).
+- Shortcuts: NSIS `/NS` turns off **both** the start-menu and the desktop
+  shortcut. The shell passes `/NS` plus `/SLUI-STARTMENU` and, if ticked,
+  `/SLUI-DESKTOP`; `src-tauri/windows/installer-hooks.nsh`
+  (`bundle.windows.nsis.installerHooks`) creates exactly those through the
+  Tauri template's own `CreateOrUpdate*Shortcut` functions. Never create a
+  shortcut and delete it afterwards. The hook depends on the template's
+  `$NoShortcutMode` and function names: re-check it when bumping Tauri.
+- The shell must leave by destroying its window (close button, or
+  `window.destroy()` in a command), never `AppHandle::exit`: `exit` ends the
+  event loop with the webview alive, its WebView2 processes outlive the
+  cleanup wait and the user data stays in `%TEMP%\slui-setup-<pid>`.
+- Keep `src-tauri` thin. It must not contain shop, chat, match, account, or
+  minimap business rules.
+
+<!-- How should new features be organized? -->
+
+---
+
+## Naming Conventions
+
+- React components and component files use `PascalCase`.
+- Hooks use `useXxx` and live beside the feature that owns them.
+- Protocol types use nouns that match the wire contract (`MatchSnapshot`,
+  `ChatMessage`, `ShopCommand`).
+- Platform adapters use an interface plus an implementation suffix, for
+  example `MatchDataSource`, `MockMatchDataSource`, and
+  `BackendMatchDataSource`.
+- Do not use `App.tsx` as a catch-all for feature state, protocol parsing, or
+  Tauri integration.
+
+<!-- File and folder naming rules -->
+
+---
+
+## Examples
+
+- The existing overlay shell is the reference for transparent, passive, and
+  interactive window states.
+- New HUD, shop, chat, and minimap work should follow the feature boundary
+  above instead of extending the shell with another group of unrelated
+  `useState` calls.
+
+<!-- Link to well-organized modules as examples -->
+
+(To be filled by the team)

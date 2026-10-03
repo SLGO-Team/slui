@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/session-open.schema.json",
+  "title": "SLUI sidecar session open (first client frame)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "schema_version", "type", "session_token", "minimap_schema_versions"],
+  "properties": {
+    "protocol_version": { "const": 0 },
+    "schema_version": { "const": 1 },
+    "type": { "const": "session.open" },
+    "session_token": { "type": "string", "minLength": 1 },
+    "minimap_schema_versions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 1 }
+    }
+  }
+}

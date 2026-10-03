@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"定义 app/contracts/features/platform/mocks 分层，避免继续扩展单体 App.tsx。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"规定 mock provider、stale/error 状态、command id、测试和禁止的进程注入/内存读取。"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"记录 SLGO 专属边界、中心/sidecar 拓扑、身份 proof、版本与可见性契约。"}
+{"file":"protocol/v0/README.md","reason":"协议 v0 的 envelope、路由、match、minimap 兼容基线。"}
+{"file":"../cs2ui/panorama/layout/hud/hud.xml","reason":"overlay shell 的 Panorama 层级、区域和 hit-test 视觉基准。"}

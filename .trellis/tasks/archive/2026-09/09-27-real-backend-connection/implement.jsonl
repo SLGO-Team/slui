@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Identity/authorization boundary and control-plane/sidecar contracts being changed"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Protocol vs client contracts vs platform adapter placement"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Authorization gate, error surfacing and smoke-test conventions"}
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Minimap diagnostics / viewer binding the shared intake must preserve"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Protocol package change consumed by slgo-backend"}

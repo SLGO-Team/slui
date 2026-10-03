@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/shop-snapshot.schema.json",
+  "title": "SLGO shop snapshot payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["balance", "items", "window_open"],
+  "properties": {
+    "balance": { "type": "integer", "minimum": 0 },
+    "next_round_min_money": { "description": "Plugin-authoritative minimum money required for the next round.", "type": ["integer", "null"], "minimum": 0 },
+    "window_open": { "type": "boolean" },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "order"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "order": { "type": "integer" }
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item_id", "name", "price", "quantity", "purchasable"],
+        "properties": {
+          "item_id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "icon_url": { "type": ["string", "null"] },
+          "price": { "type": "integer", "minimum": 0 },
+          "quantity": { "description": "Remaining purchasable quantity; null means unlimited.", "type": ["integer", "null"], "minimum": 0 },
+          "owned_quantity": { "description": "Quantity already owned by the viewer.", "type": ["integer", "null"], "minimum": 0 },
+          "category_id": { "type": ["string", "null"] },
+          "purchasable": { "description": "Final plugin-authoritative eligibility, including balance and inventory rules.", "type": "boolean" },
+          "unavailable_reason": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

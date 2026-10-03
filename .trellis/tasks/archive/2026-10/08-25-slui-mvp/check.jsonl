@@ -1,0 +1,9 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"按项目质量门禁检查边界、错误状态、测试和 overlay 输入行为。"}
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"按系统契约检查身份授权、实例隔离、可见性过滤和 sidecar 延迟边界。"}
+{"file":"protocol/v0/envelope.schema.json","reason":"校验所有实时事件的版本、身份、实例和序列字段。"}
+{"file":"protocol/v0/match-snapshot.schema.json","reason":"校验 HUD 使用稳定 team id、当前角色和队友血量。"}
+{"file":"protocol/v0/minimap-positions.schema.json","reason":"校验小地图输入已是 visibility-filtered 完整帧。"}
+{"file":"../cs2ui/panorama/styles/hud/hudteamcounter.css","reason":"核对 HUD 尺寸、颜色、字体、裁切和状态变体。"}
+{"file":"../cs2ui/panorama/styles/buymenu.css","reason":"核对商店布局、buy wheel 和交互状态样式。"}
+{"file":"../cs2ui/panorama/styles/hud/hudchat.css","reason":"核对聊天背景、历史区、输入区和焦点状态。"}
+{"file":"../cs2ui/panorama/styles/mapoverview.css","reason":"核对小地图容器、marker、缩放和平移样式。"}

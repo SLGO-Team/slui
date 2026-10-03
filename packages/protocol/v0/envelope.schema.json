@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/envelope.schema.json",
+  "title": "SLUI sidecar event envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "schema_version",
+    "event_id",
+    "server_id",
+    "instance_id",
+    "sequence",
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "protocol_version": { "const": 0 },
+    "schema_version": { "const": 1 },
+    "event_id": { "type": "string", "minLength": 1 },
+    "server_id": { "type": "string", "minLength": 1 },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "round_id": { "type": ["string", "null"] },
+    "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "type": { "type": "string", "minLength": 1 },
+    "sent_at": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object" }
+  },
+  "allOf": [{
+    "if": { "properties": { "type": { "enum": ["minimap.init", "minimap.positions"] } } },
+    "then": {
+      "required": ["round_id", "sent_at"],
+      "properties": {
+        "round_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "sent_at": { "type": "string", "minLength": 1, "format": "date-time" }
+      }
+    }
+  }]
+}

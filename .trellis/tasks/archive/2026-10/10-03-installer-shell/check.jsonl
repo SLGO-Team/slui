@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates and forbidden patterns"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Verify layout and spec update for installer/"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Rust command contract vs React platform adapter consistency"}
+{"file": ".trellis/tasks/10-03-installer-shell/research/nsis-payload-facts.md", "reason": "Check args (/D= last unquoted), registry view, success verification"}

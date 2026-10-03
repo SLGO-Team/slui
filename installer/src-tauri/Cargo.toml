@@ -1,0 +1,23 @@
+[package]
+name = "slui-setup"
+version = "0.1.0"
+description = "SLUI installer shell: branded UI around the SLUI NSIS package"
+authors = ["SLUI contributors"]
+edition = "2021"
+license = "GPL-3.0-or-later"
+
+[lib]
+name = "slui_setup_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+serde_json = "1"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Diagnostics_ToolHelp", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

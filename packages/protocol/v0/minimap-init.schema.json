@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/minimap-init.schema.json",
+  "title": "SLGO minimap initialization payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "minimap_schema_version",
+    "map_id",
+    "game_version",
+    "map_generator",
+    "map_generator_version",
+    "map_schema_version",
+    "seed",
+    "holiday",
+    "coordinate_system",
+    "position_update_hz",
+    "bombsites"
+  ],
+  "properties": {
+    "minimap_schema_version": { "const": 5 },
+    "map_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "game_version": { "const": "14.2.7" },
+    "map_generator": { "const": "@scpsl-tools/map-seed" },
+    "map_generator_version": { "const": "1.0.0" },
+    "map_schema_version": { "const": 1 },
+    "seed": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "holiday": { "enum": ["None", "Christmas", "Halloween", "AprilFools"] },
+    "coordinate_system": { "const": "unity-world-xz" },
+    "position_update_hz": { "type": "number", "exclusiveMinimum": 0, "maximum": 60 },
+    "bombsites": {
+      "$comment": "Bombsite (generator site) centres decided by the plugin; letters are unique (runtime-enforced). Geometry validation enforces that a non-null room_id belongs to its zone.",
+      "type": "array",
+      "maxItems": 26,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "x", "y", "z", "zone", "room_id"],
+        "properties": {
+          "label": { "type": "string", "pattern": "^[A-Z]$" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "z": { "type": "number" },
+          "zone": { "enum": ["Entrance", "HeavyContainment"] },
+          "room_id": { "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "pattern": "\\S" }] }
+        }
+      }
+    }
+  }
+}

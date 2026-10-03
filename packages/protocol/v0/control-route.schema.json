@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/control-route.schema.json",
+  "title": "SLUI control-plane route response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "type",
+    "identity_mode",
+    "steam_id",
+    "server_id",
+    "instance_id",
+    "sidecar_endpoint",
+    "session_token",
+    "expires_at"
+  ],
+  "properties": {
+    "protocol_version": { "const": 0 },
+    "type": { "const": "control.route.resolved" },
+    "identity_mode": {
+      "enum": ["local-steamid", "session-ticket", "openid", "device-signature"]
+    },
+    "steam_id": { "type": "string", "pattern": "^[0-9]{17}$" },
+    "server_id": { "type": "string", "minLength": 1 },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "sidecar_endpoint": { "type": "string", "pattern": "^wss://" },
+    "session_token": { "type": "string", "minLength": 1 },
+    "expires_at": { "type": "string", "format": "date-time" }
+  }
+}

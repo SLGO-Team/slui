@@ -1,0 +1,6 @@
+{
+  "kind": "command.shop.purchase",
+  "command_id": "purchase-mk2-abc123",
+  "item_id": "armor",
+  "quantity": 1
+}

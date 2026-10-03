@@ -1,0 +1,12 @@
+{
+  "exclude": [
+    ".trellis/.backup-*/",
+    ".trellis/tasks/**/research/"
+  ],
+  "deprioritize": [
+    ".trellis/",
+    ".agents/",
+    ".claude/",
+    ".codex/"
+  ]
+}

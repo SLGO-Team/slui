@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>SLUI icon candidates</title>
+<style>
+  body { margin: 0; padding: 24px; background: #0d1117; color: #ecf2f8; font: 13px/1.5 "Microsoft YaHei UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+  .card { background: #161b22; border: 1px solid #2a3a4c; border-radius: 8px; padding: 14px; }
+  .card h2 { font-size: 14px; margin: 0 0 8px; }
+  .big { width: 100%; aspect-ratio: 1; display: block; }
+  .sizes { display: flex; align-items: flex-end; gap: 10px; margin-top: 10px; padding: 10px; border-radius: 6px; }
+  .sizes.dark { background: #1f1f1f; } .sizes.light { background: #f3f3f3; }
+  .sizes img { display: block; }
+  .bar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; margin-top: 10px; background: #0c131c; border-radius: 6px; font: 700 15px "Chakra Petch", sans-serif; }
+  @font-face { font-family: "Chakra Petch"; font-weight: 700; src: url(/assets/fonts/ChakraPetch-Bold.ttf); }
+  .note { color: #8b98a8; margin-top: 8px; }
+</style></head><body>
+<h1>SLUI 图标候选 · 右侧为 SLGO 母品牌参考</h1>
+<div class="grid" id="grid"></div>
+<script>
+const items = [
+  ["A 收容视窗", "icon-a-containment.svg", "SLGO 的准星环换成 HUD 四角括号（= UI / 覆盖层），保留 SCP 收容三箭头。与 SLGO 同族、一眼可辨是兄弟产品。"],
+  ["B UI 字标", "icon-b-monogram.svg", "用 SLGO 字标的切角字形写 UI，U 白 I 橙，呼应 SL 白 / GO 橙。小尺寸最清晰，但图形识别度弱于 A。"],
+  ["C 雷达", "icon-c-radar.svg", "以小地图雷达为主体：橙色雷达环 + 扫描扇区 + 玩家箭头。点出功能，但与 SLGO 准星环过于相似。"],
+  ["D 括号字标", "icon-d-bracket-monogram.svg", "A 的橙色括号框住白色 UI 字标，括号 = 覆盖层视窗。字小，16px 时 UI 难辨。"],
+  ["参考 SLGO", "ref-slgo-icon.svg", "母品牌图标（不作为候选）。"],
+];
+document.getElementById("grid").innerHTML = items.map(([name, src, note]) => `
+  <div class="card"><h2>${name}</h2><img class="big" src="${src}">
+    <div class="sizes dark">${[16, 24, 32, 48, 64].map((s) => `<img src="${src}" width="${s}" height="${s}">`).join("")}</div>
+    <div class="sizes light">${[16, 24, 32, 48, 64].map((s) => `<img src="${src}" width="${s}" height="${s}">`).join("")}</div>
+    <div class="bar"><img src="${src}" width="20" height="20">SLUI</div>
+    <div class="note">${note}</div></div>`).join("");
+</script>
+</body></html>

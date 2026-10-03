@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Minimap payload contract, marker rendering rules, authorization key — extended to v4"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Plugin/backend authoritative vs client rendering boundary; protocol package rules"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "CS2 radar asset/size replication rules for keycard icon and dropped pulse ring"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where protocol, feature, mock and smoke files live"}
+{"file": "public/assets/minimap/SOURCE-MAP.md", "reason": "Radar asset provenance and sizes; heading arrow intent (unwashed white)"}

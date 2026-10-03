@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Module layout rules; installer/ and src/shared placement"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Forbidden patterns: no invoke in leaf components, no swallowed errors"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Token extraction shared by home and installer"}
+{"file": ".trellis/tasks/10-03-installer-shell/research/nsis-payload-facts.md", "reason": "NSIS switches, registry view, exit codes, sizes the shell depends on"}

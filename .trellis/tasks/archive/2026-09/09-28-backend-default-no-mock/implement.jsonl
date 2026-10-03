@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/system-boundaries.md","reason":"后端配置条目与本地开发流程"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"mock 不得冒充生产状态"}

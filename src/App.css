@@ -1,0 +1,18 @@
+html,
+body,
+#root,
+#SlgoOverlayRoot {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+#SlgoOverlayRoot[data-preview-background="1"] {
+  background: #101214 url("/assets/preview/background-1.jpg") center / cover no-repeat;
+}
+
+#SlgoOverlayRoot[data-preview-background="2"] {
+  background: #101214 url("/assets/preview/background-2.jpg") center / cover no-repeat;
+}
