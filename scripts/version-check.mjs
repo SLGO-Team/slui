@@ -32,7 +32,8 @@ const versions = [
   ["src-tauri/Cargo.toml", cargoVersion("src-tauri/Cargo.toml")],
   ["installer/src-tauri/Cargo.toml", cargoVersion("installer/src-tauri/Cargo.toml")],
   ["src-tauri/Cargo.lock (slui)", cargoVersion("src-tauri/Cargo.lock", "slui")],
-  ["installer/src-tauri/Cargo.lock (slui-setup)", cargoVersion("installer/src-tauri/Cargo.lock", "slui-setup")],
+  // One Cargo.lock for the workspace rooted at src-tauri (SLUI and the installer shell).
+  ["src-tauri/Cargo.lock (slui-setup)", cargoVersion("src-tauri/Cargo.lock", "slui-setup")],
 ];
 
 const expected = versions[0][1];

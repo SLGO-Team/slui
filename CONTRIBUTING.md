@@ -23,8 +23,8 @@ CI 在 Windows 上运行 `npm ci`、`npm run lint`、`npm test`、生产模式�
 由 `npm test` 中的 `scripts/version-check.mjs` 检查：
 
 `package.json`、`package-lock.json`、`.release-please-manifest.json`、`src-tauri/tauri.conf.json`、
-`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`installer/src-tauri/tauri.conf.json`、
-`installer/src-tauri/Cargo.toml`、`installer/src-tauri/Cargo.lock`。
+`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`（含 `slui` 和 `slui-setup` 两项）、
+`installer/src-tauri/tauri.conf.json`、`installer/src-tauri/Cargo.toml`。
 
 不要手动改版本号。流程如下：
 

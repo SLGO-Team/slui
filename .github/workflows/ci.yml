@@ -34,10 +34,17 @@ jobs:
           VITE_CONTROL_PLANE_URL: https://control-plane.invalid
       # The installer shell's frontend; installer/src-tauri embeds it at compile time.
       - run: npm run installer:vite:build
-      # installer/src-tauri shares src-tauri/target (installer/src-tauri/.cargo/config.toml).
+      # One Cargo workspace rooted at src-tauri: SLUI, the installer shell and workspace-hack.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
-      # A debug build without a payload compiles with cfg(slui_setup_no_payload).
-      - run: cargo check --manifest-path installer/src-tauri/Cargo.toml
+      # workspace-hack must match the dependency graph, or SLUI and the installer shell
+      # compile shared crates twice (src-tauri/.config/hakari.toml).
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hakari
+      - run: cargo hakari generate --diff && cargo hakari manage-deps --dry-run
+        working-directory: src-tauri
+      # Both crates in one build, so their shared dependencies compile once. The installer
+      # shell without a payload compiles with cfg(slui_setup_no_payload).
+      - run: cargo test --workspace --manifest-path src-tauri/Cargo.toml

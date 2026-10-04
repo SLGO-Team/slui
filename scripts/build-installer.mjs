@@ -12,8 +12,9 @@
 // app's `theme-pack/` resource; the result is SLUI-Setup-<version>-theme-pack.exe and the
 // regular installer is left untouched. Nothing is written into the repository.
 //
-// The shell shares src-tauri/target with SLUI (installer/src-tauri/.cargo/config.toml), so the
-// Tauri dependencies are compiled and stored once.
+// The shell is a member of the Cargo workspace rooted at src-tauri (one Cargo.lock, one target
+// dir), and workspace-hack unifies the features of their shared dependencies, so the Tauri
+// dependencies are compiled and stored once.
 //
 // The shell is a second Tauri app. The root .taurignore hides installer/ from the CLI's
 // tauri.conf.json lookup, and here the CLI is pointed at it explicitly with
