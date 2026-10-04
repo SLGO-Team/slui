@@ -385,3 +385,26 @@ minimap payload v4：持卡人标记（含被发现的敌方持卡人，随持�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: CI、分支保护与 release-please 发版流程
+<!-- trellis-session: v=2 fp=5dc29afc38f6a233 -->
+
+**Date**: 2026-10-04
+**Task**: CI、分支保护与 release-please 发版流程
+**Branch**: `ci/release-workflow`
+
+### Summary
+
+PR CI（build-and-test、pr-title）、main Ruleset、release-please 草稿发版加安装器上传、版本一致性检查、build-installer --theme-pack、CONTRIBUTING；试验 PR https://github.com/SLGO-Team/slui/pull/1 的检查和直推拒绝已验证，试验发版待合并后进行
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da9fa11` | feat(installer): add --theme-pack option to build-installer |
+| `0e21299` | ci: add PR checks, release-please release workflow and contribution guide |
+
+### Status
+
+[OK] **Completed**
