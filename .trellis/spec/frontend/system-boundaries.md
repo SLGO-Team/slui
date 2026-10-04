@@ -473,6 +473,7 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
 | Local SteamID cannot be read or Steam is not running | Show signed-out/Steam-offline state and retry on process/account change |
 | Sidecar closes with 4001 (address is not the game connection, player left, address changed) | Show `unauthorized` with the same-PC/network hint; retry with backoff |
 | Control plane answers `not-in-game` | Expected before the player joins a server, not an error: status `not-in-game`, home shows blue "等待中" with the Chinese hint "等待进入游戏服务器" (never the raw English detail, no retry button); poll the route every 5 s (`retry: "poll"`, `NOT_IN_GAME_POLL_MS`), never backing off, so joining a server is noticed within seconds; the poll resets the failure count. Keep the interval inside the control plane's 30 route requests per minute per address |
+| Any timer-driven retry (`poll`, `backoff`, `reroute`) | Runs `quiet`: its progress steps (`discovering`, `route-pending`, `connecting`) only bump `attempt` and clear `retry`; status, detail and Steam identity keep the last outcome until the attempt reaches a new one, so the home cards never flash every poll. A manual "重试" or an account change is not quiet and shows its progress |
 | Control plane answers `rate-limited`, or is unreachable | Show offline with the reason; retry with backoff; never guess a sidecar endpoint |
 | Sidecar closes with 4003 (instance ended) | Resolve a new route |
 | Sidecar closes with 4000/4002 | Show `incompatible`; no automatic retry |

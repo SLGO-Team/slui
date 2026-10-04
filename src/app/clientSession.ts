@@ -26,13 +26,17 @@ export type ClientSessionState = {
   retry: RetryHint | null;
 };
 
+/**
+ * `quiet` marks a progress step of a background retry: the state keeps showing the
+ * previous outcome until the attempt reaches a new one, so polling does not flicker.
+ */
 export type ClientSessionAction =
-  | { type: "discover"; attempt: number }
+  | { type: "discover"; attempt: number; quiet?: boolean }
   | { type: "signed-out"; attempt: number }
-  | { type: "identity-found"; attempt: number; identity: SteamIdentity }
-  | { type: "route-resolved"; attempt: number }
+  | { type: "identity-found"; attempt: number; identity: SteamIdentity; quiet?: boolean }
+  | { type: "route-resolved"; attempt: number; quiet?: boolean }
   | { type: "connected"; attempt: number; status: ConnectionStatus }
-  | { type: "connection-status"; attempt: number; status: ConnectionStatus }
+  | { type: "connection-status"; attempt: number; status: ConnectionStatus; quiet?: boolean }
   | { type: "failed"; attempt: number; status: ConnectionFailure["status"]; detail: string; retry?: RetryHint };
 
 export const initialClientSessionState: ClientSessionState = {
@@ -45,6 +49,11 @@ export const initialClientSessionState: ClientSessionState = {
 
 export function clientSessionReducer(state: ClientSessionState, action: ClientSessionAction): ClientSessionState {
   if (action.attempt < state.attempt) return state;
+  // Clearing `retry` still matters: the attempt is under way, so no further retry may be scheduled.
+  if ("quiet" in action && action.quiet) {
+    const identity = action.type === "identity-found" ? action.identity : state.identity;
+    return { ...state, identity, attempt: action.attempt, retry: null };
+  }
   switch (action.type) {
     case "discover":
       return { status: "discovering", identity: null, detail: null, attempt: action.attempt, retry: null };
@@ -119,8 +128,10 @@ export async function runClientSessionAttempt(
   dependencies: ClientSessionDependencies,
   attempt: number,
   callbacks: SessionAttemptCallbacks,
+  /** A background retry: progress steps are `quiet`, only the outcome shows. */
+  quiet = false,
 ): Promise<() => void> {
-  callbacks.dispatch({ type: "discover", attempt });
+  callbacks.dispatch({ type: "discover", attempt, quiet });
   let currentIdentity: SteamIdentity | null;
   try {
     currentIdentity = await dependencies.identity.getCurrentUser();
@@ -134,7 +145,7 @@ export async function runClientSessionAttempt(
     return () => undefined;
   }
 
-  callbacks.dispatch({ type: "identity-found", attempt, identity: currentIdentity });
+  callbacks.dispatch({ type: "identity-found", attempt, identity: currentIdentity, quiet });
   let proof: SteamIdentityProof | null;
   try {
     proof = await dependencies.proof.getProof(currentIdentity);
@@ -161,7 +172,7 @@ export async function runClientSessionAttempt(
     return () => undefined;
   }
 
-  callbacks.dispatch({ type: "route-resolved", attempt });
+  callbacks.dispatch({ type: "route-resolved", attempt, quiet });
   let active = true;
   const isCurrent = () => active && callbacks.isCurrent();
   const subscriptions = [
@@ -170,7 +181,7 @@ export async function runClientSessionAttempt(
     }),
     dependencies.connection.subscribeStatus((status) => {
       if (!isCurrent()) return;
-      callbacks.dispatch({ type: "connection-status", attempt, status });
+      callbacks.dispatch({ type: "connection-status", attempt, status, quiet: quiet && status === "connecting" });
       callbacks.onStatus?.(status);
     }),
     dependencies.connection.subscribeDiagnostic((diagnostic) => {

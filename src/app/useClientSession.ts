@@ -19,13 +19,21 @@ export function useClientSession(
   const statusHandlerRef = useRef(onStatus);
   const failuresRef = useRef(0);
   const liveSinceRef = useRef<number | null>(null);
+  // Set only by the retry timer; a manual retry or an account switch shows its progress.
+  const backgroundRetryRef = useRef(false);
   stateRef.current = state;
   eventHandlerRef.current = onEvent;
   diagnosticHandlerRef.current = onDiagnostic;
   statusHandlerRef.current = onStatus;
 
+  const retryNow = useCallback(() => {
+    backgroundRetryRef.current = false;
+    requestRetry();
+  }, []);
+
   useEffect(() => {
     const attempt = retryKey + 1;
+    const quiet = backgroundRetryRef.current;
     let current = true;
     let unsubscribe: () => void = () => undefined;
 
@@ -35,7 +43,7 @@ export function useClientSession(
       onDiagnostic: (diagnostic) => diagnosticHandlerRef.current?.(diagnostic),
       onStatus: (status) => statusHandlerRef.current?.(status),
       isCurrent: () => current,
-    }).then((cleanup) => {
+    }, quiet).then((cleanup) => {
       if (current) unsubscribe = cleanup;
       else cleanup();
     });
@@ -54,9 +62,9 @@ export function useClientSession(
         if (!active) return;
         const previousSteamId = stateRef.current.identity?.steamId ?? null;
         const nextSteamId = identity?.steamId ?? null;
-        if (previousSteamId !== nextSteamId) requestRetry();
+        if (previousSteamId !== nextSteamId) retryNow();
       }).catch(() => {
-        if (active && stateRef.current.status !== "offline") requestRetry();
+        if (active && stateRef.current.status !== "offline") retryNow();
       });
     }, IDENTITY_POLL_INTERVAL_MS);
     return () => {
@@ -79,10 +87,12 @@ export function useClientSession(
     liveSinceRef.current = null;
     const delay = retryDelayMs(state.retry, failuresRef.current);
     if (delay === null) return undefined;
-    const timer = window.setTimeout(requestRetry, delay);
+    const timer = window.setTimeout(() => {
+      backgroundRetryRef.current = true;
+      requestRetry();
+    }, delay);
     return () => window.clearTimeout(timer);
   }, [state.attempt, state.retry, state.status]);
 
-  const retry = useCallback(() => requestRetry(), []);
-  return { ...state, retry };
+  return { ...state, retry: retryNow };
 }
