@@ -1,0 +1,12 @@
+# Settings for `cargo hakari`, which generates the workspace-hack crate: the union of
+# the features SLUI and the installer shell enable on their shared dependencies, so each
+# of them compiles once in the shared target dir. After changing a dependency run
+#     cargo hakari generate && cargo hakari manage-deps
+# CI fails (cargo hakari generate --diff / manage-deps --dry-run) when this is stale.
+# See https://docs.rs/cargo-hakari/latest/cargo_hakari/config for all options.
+
+hakari-package = "workspace-hack"
+dep-format-version = "4"
+resolver = "2"
+# SLUI only targets Windows.
+platforms = ["x86_64-pc-windows-msvc"]

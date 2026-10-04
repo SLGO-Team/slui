@@ -5,6 +5,8 @@ description = "SLUI installer shell: branded UI around the SLUI NSIS package"
 authors = ["SLUI contributors"]
 edition = "2021"
 license = "GPL-3.0-or-later"
+# Member of the workspace rooted at src-tauri (shared Cargo.lock and target dir).
+workspace = "../../src-tauri"
 
 [lib]
 name = "slui_setup_lib"
@@ -21,3 +23,4 @@ windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Securit
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+workspace-hack = { version = "0.1", path = "../../src-tauri/workspace-hack" }

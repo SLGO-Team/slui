@@ -1,4 +1,0 @@
-# Share SLUI's target dir: the Tauri dependencies are compiled and stored once.
-# Relative to installer/src-tauri (the parent of this .cargo directory).
-[build]
-target-dir = "../../src-tauri/target"
