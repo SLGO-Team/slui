@@ -33,5 +33,7 @@ squash-merged PR whose required checks (`build-and-test`, `pr-title`) passed.
 - Do not ask the user before merging; the required checks are the gate. Right after opening the PR,
   enable auto-merge (`gh pr merge --squash --auto --delete-branch`) so GitHub merges it once CI passes;
   if CI fails, fix it on the branch. After the merge: `git switch main && git pull --ff-only`.
-  This includes release-please's release PR; publishing the draft GitHub Release stays with the user.
+- Exception: release-please's release PR (`chore(main): release X.Y.Z`) batches changes. Leave it
+  open (release-please keeps updating it as PRs merge) and merge it only when the user asks for a
+  release; publishing the draft GitHub Release stays with the user.
 - Never edit version numbers by hand; release-please owns them.
