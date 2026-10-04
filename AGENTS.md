@@ -30,6 +30,7 @@ squash-merged PR whose required checks (`build-and-test`, `pr-title`) passed.
   branch, before the PR is merged, so the bookkeeping is squashed into the same PR.
 - Then push the branch and open a PR whose title follows Conventional Commits
   (`type(scope): description`); release-please derives versions and the changelog from it.
-- Wait for CI. Merging changes the public `main`: ask the user before
+- Wait for CI, then merge without asking the user (the required checks are the gate):
   `gh pr merge --squash --delete-branch`, then `git switch main && git pull --ff-only`.
+  This includes release-please's release PR; publishing the draft GitHub Release stays with the user.
 - Never edit version numbers by hand; release-please owns them.
