@@ -1,0 +1,43 @@
+# Required check `build-and-test` (main ruleset). Runs on main too, so pull requests can
+# restore the npm and Rust caches main saved. No path filters: a required check that is
+# filtered out stays pending and blocks the merge.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      # Production-mode build, the same as a release except for the address:
+      # vite.config.ts refuses to build without one, and .invalid never resolves.
+      - run: npm run build
+        env:
+          VITE_CONTROL_PLANE_URL: https://control-plane.invalid
+      # The installer shell's frontend; installer/src-tauri embeds it at compile time.
+      - run: npm run installer:vite:build
+      # installer/src-tauri shares src-tauri/target (installer/src-tauri/.cargo/config.toml).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      # A debug build without a payload compiles with cfg(slui_setup_no_payload).
+      - run: cargo check --manifest-path installer/src-tauri/Cargo.toml

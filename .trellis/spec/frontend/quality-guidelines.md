@@ -78,6 +78,30 @@ values.
 - Does the change preserve passive-mode input behavior and avoid introducing
   game-process coupling?
 
+## CI and Release Contracts
+
+Process rules (branches, PR titles, release steps) live in `CONTRIBUTING.md`;
+these are the code-level contracts behind them.
+
+- **Versions are owned by release-please.** `release-please-config.json` lists
+  every file that carries the SLUI version besides `package.json` /
+  `package-lock.json`; `scripts/version-check.mjs` (in `npm test`) lists the
+  same set and is the authority that they agree. Adding a file that carries the
+  version means adding it to both. Never bump versions by hand.
+- **Cargo.lock JSONPath needs `.value`.** release-please's TOML parser wraps
+  every scalar as `{ value, start, end }`, so a lockfile entry is selected with
+  `$.package[?(@.name.value==='slui')].version`, not `@.name==='slui'`.
+- **Production builds need a URL at build time.** `vite.config.ts` refuses a
+  non-mock build without `VITE_CONTROL_PLANE_URL`, so CI's build check sets the
+  placeholder `https://control-plane.invalid`. The real URL exists only as the
+  `CONTROL_PLANE_URL` secret of the `release` environment (main only) — never an
+  Actions variable (variables are printed in step logs) and never a file.
+- **Theme packs enter installers only via `build-installer.mjs --theme-pack
+  <dir>`**, which passes the resource mapping as inline `--config` JSON, writes
+  `SLUI-Setup-<version>-theme-pack.exe`, and renames its NSIS payload so a later
+  `--reuse-payload` cannot pick it up. Do not reintroduce a checked-in Tauri
+  config or a repo-local pack directory for this.
+
 ## Client Foundation Contracts
 
 The browser layer consumes typed adapters from `src/platform` and deterministic

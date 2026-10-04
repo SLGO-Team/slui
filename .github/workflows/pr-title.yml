@@ -1,0 +1,20 @@
+# Required check `pr-title` (main ruleset). Pull requests are squash-merged with the PR
+# title as the commit message, so the title is what release-please reads. Separate from
+# ci.yml so editing a title does not rebuild everything; `synchronize` re-attaches the
+# check to each new head commit.
+name: pr-title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

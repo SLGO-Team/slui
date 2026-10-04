@@ -26,6 +26,8 @@ slui 在公开仓库 `SLGO-Team/slui` 中开发。需要一套轻量但自动把
   - GitHub Rulesets：分支保护；
   - `Swatinem/rust-cache` 加 `actions/setup-node` 的 npm 缓存；
   - Dependabot：可选。
+- release-please 使用 GitHub App 令牌（`actions/create-github-app-token`）。这样它创建的发版 PR 也会触发 CI，
+  否则必需检查无法满足（2026-10-04 确认）。
   - 不用 `tauri-action`：分发的产物是自有的安装器外壳（`scripts/build-installer.mjs`），不是 Tauri 标准包。
 
 ## Background / Confirmed Facts
@@ -35,7 +37,8 @@ slui 在公开仓库 `SLGO-Team/slui` 中开发。需要一套轻量但自动把
   `installer/src-tauri/Cargo.toml`，外加对应的 `Cargo.lock`。`packages/protocol/package.json` 是 `0.0.0`，
   与客户端版本无关。
 - 正式包需要在构建时通过环境变量 `VITE_CONTROL_PLANE_URL` 提供生产控制平面地址，然后运行
-  `npm run installer:build`。地址刻意不写进仓库，CI 中应使用 Actions 仓库变量，也不得写入文件。
+  `npm run installer:build`。地址刻意不写进仓库，也不得写入文件。CI 中改用 Environment `release`
+  的 secret，并限制只有 main 能用；不用 Actions 变量，因为变量值会以明文出现在日志里（2026-10-04 修正）。
 - 产物路径为 `src-tauri/target/release/bundle/setup/SLUI-Setup-<version>.exe`；`--reuse-payload`
   会复用 `bundle/nsis/` 中已有的 NSIS 包。
 - 已有现成的拼装方式：`src-tauri/tauri.bundle-theme-pack.conf.json` 会把仓库根目录的 `theme-pack/`
