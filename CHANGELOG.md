@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/SLGO-Team/slui/compare/v0.2.1...v0.2.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* **session:** keep the last status during background retries ([#5](https://github.com/SLGO-Team/slui/issues/5)) ([7b64a60](https://github.com/SLGO-Team/slui/commit/7b64a6031c5d95ff2f802c2b8f38789f7ca07ffa))
+
 ## [0.2.1](https://github.com/SLGO-Team/slui/compare/v0.2.0...v0.2.1) (2026-10-04)
 
 
