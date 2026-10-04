@@ -28,21 +28,21 @@ Node 命令前先执行 `export PATH="<fnm node 24 安装目录>:$PATH"`（Agent
 
 ## B. GitHub 侧（需要用户授权或手动操作）
 
-- [ ] B1 用户手动：创建 GitHub App 并安装到 slui（design 4.5），把 Client ID 和私钥交给下一步
-- [ ] B2 经用户确认后用 gh 配置：变量 `RELEASE_APP_CLIENT_ID`；secret `RELEASE_APP_PRIVATE_KEY`
+- [x] B1 用户手动：创建 GitHub App 并安装到 slui（design 4.5），把 Client ID 和私钥交给下一步
+- [x] B2 经用户确认后用 gh 配置：变量 `RELEASE_APP_CLIENT_ID`；secret `RELEASE_APP_PRIVATE_KEY`
       （私钥文件通过管道传给 `gh secret set`，不在会话中显示）；Environment `release`，部署分支策略只允许 main；
       Environment secret `CONTROL_PLANE_URL`（由用户自己设置，或者经授权后从运维配置拼出地址，用管道传入，
       不回显）
-- [ ] B3 经用户确认后：仓库合并设置（只允许 squash，标题用 PR_TITLE，正文 BLANK，合并后删除分支）
+- [x] B3 经用户确认后：仓库合并设置（只允许 squash，标题用 PR_TITLE，正文 BLANK，合并后删除分支）
 
 ## C. 试验 PR（验收 1）
 
 - [ ] C1 3.4 工作提交，然后 `/trellis:finish-work`（在分支上归档并写 journal，同时验证 R6）
-- [ ] C2 推送分支，开 PR，标题 `feat: add CI, release workflow and installer --theme-pack option`（必须是 `feat`：
+- [x] C2 推送分支，开 PR，标题 `feat: add CI, release workflow and installer --theme-pack option`（必须是 `feat`：
       `ci` 类型的提交不触发发版，D 阶段的试验发版就不会发生）
-- [ ] C3 CI 两项都通过；把标题临时改成不合规，确认 `pr-title` 失败，再改回来
-- [ ] C4 经用户确认后创建 Ruleset（design 3）
-- [ ] C5 在 main 上建一个空提交，尝试直接推送，应当被拒绝；然后删除这个本地提交
+- [x] C3 CI 两项都通过；把标题临时改成不合规，确认 `pr-title` 失败，再改回来
+- [x] C4 经用户确认后创建 Ruleset（design 3）
+- [x] C5 在 main 上建一个空提交，尝试直接推送，应当被拒绝；然后删除这个本地提交
 - [ ] C6 经用户确认后 squash 合并 PR，然后 `git switch main && git pull --ff-only`
 
 ## D. 试验发版（验收 2）
