@@ -8,6 +8,9 @@
 // node scripts/build-installer.mjs --dev     shell UI only: `tauri dev`, no payload
 // add --reuse-payload to skip the NSIS build and embed the package already in bundle/nsis
 // (for shell-only changes; the package must match the current version).
+// add --theme-pack <dir> to bundle a local theme pack directory (`fonts/`, `sounds/`) as the
+// app's `theme-pack/` resource; the result is SLUI-Setup-<version>-theme-pack.exe and the
+// regular installer is left untouched. Nothing is written into the repository.
 //
 // The shell shares src-tauri/target with SLUI (installer/src-tauri/.cargo/config.toml), so the
 // Tauri dependencies are compiled and stored once.
@@ -16,7 +19,7 @@
 // tauri.conf.json lookup, and here the CLI is pointed at it explicitly with
 // TAURI_APP_PATH / TAURI_FRONTEND_PATH (both read by @tauri-apps/cli).
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,9 +30,13 @@ const tauriCli = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 // The NSIS uninstaller and installer bookkeeping next to slui.exe.
 const INSTALL_OVERHEAD_BYTES = 4 * 1024 * 1024;
 
-const args = new Set(process.argv.slice(2));
-const mode = args.has("--dev") ? "dev" : args.has("--local") ? "local" : "production";
-const reusePayload = args.has("--reuse-payload");
+const { flags, themePack } = parseArgs(process.argv.slice(2));
+const mode = flags.has("--dev") ? "dev" : flags.has("--local") ? "local" : "production";
+const reusePayload = flags.has("--reuse-payload");
+if (themePack && (mode === "dev" || reusePayload)) {
+  fail("--theme-pack builds its own payload; it cannot be combined with --dev or --reuse-payload");
+}
+if (themePack && !isNonEmptyDirectory(themePack)) fail(`--theme-pack ${themePack} is not a non-empty directory`);
 
 const version = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8")).version;
 if (typeof version !== "string" || !/^\d+\.\d+\.\d+/.test(version)) {
@@ -51,13 +58,17 @@ if (mode === "dev") {
 }
 
 const started = Date.now();
-console.log(`build-installer: SLUI ${version}, ${reusePayload ? "reused" : mode} payload`);
-if (reusePayload) {
-  // Nothing is built, so nothing tells a local package from a production one.
-} else if (mode === "local") {
-  run("npm run tauri:build:local", [], { cwd: root, shell: true });
-} else {
-  run("npm run tauri -- build --bundles nsis", [], { cwd: root, shell: true });
+console.log(`build-installer: SLUI ${version}, ${reusePayload ? "reused" : mode} payload${themePack ? `, theme pack ${themePack}` : ""}`);
+if (!reusePayload) {
+  // Same as `npm run tauri:build:local` / `npm run tauri -- build --bundles nsis`, but without a
+  // shell so the inline theme-pack config needs no quoting. Tauri merges --config in order.
+  const buildArgs = ["build", "--bundles", "nsis"];
+  if (mode === "local") buildArgs.push("--config", join("src-tauri", "tauri.local.conf.json"));
+  if (themePack) {
+    const resources = { [`${themePack.split("\\").join("/")}/`]: "theme-pack/" };
+    buildArgs.push("--config", JSON.stringify({ bundle: { resources } }));
+  }
+  run(process.execPath, [tauriCli, ...buildArgs], { cwd: root });
 }
 
 const release = join(root, "src-tauri", "target", "release");
@@ -86,10 +97,38 @@ const shellExe = join(release, "slui-setup.exe");
 statOrFail(shellExe, "installer shell");
 const outDir = join(release, "bundle", "setup");
 mkdirSync(outDir, { recursive: true });
-const output = join(outDir, `SLUI-Setup-${version}.exe`);
+const output = join(outDir, `SLUI-Setup-${version}${themePack ? "-theme-pack" : ""}.exe`);
 copyFileSync(shellExe, output);
 const size = statSync(output).size;
 console.log(`build-installer: ${output} (${size.toLocaleString("en-US")} bytes, payload ${payloadStat.size.toLocaleString("en-US")} bytes)`);
+if (themePack) {
+  // Keep the themed NSIS package out of a later --reuse-payload, which must fail rather than
+  // silently embed it, and drop the copy of the pack tauri-build leaves next to slui.exe.
+  renameSync(payload, payload.replace(/\.exe$/, "-theme-pack.exe"));
+  rmSync(join(release, "theme-pack"), { recursive: true, force: true });
+}
+
+function parseArgs(argv) {
+  const flags = new Set();
+  let themePack = null;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--theme-pack") themePack = argv[++index] ?? "";
+    else if (arg.startsWith("--theme-pack=")) themePack = arg.slice("--theme-pack=".length);
+    else flags.add(arg);
+  }
+  if (themePack === null) return { flags, themePack };
+  if (!themePack || themePack.startsWith("--")) fail("--theme-pack needs a directory");
+  return { flags, themePack: resolve(themePack) };
+}
+
+function isNonEmptyDirectory(path) {
+  try {
+    return statSync(path).isDirectory() && readdirSync(path).length > 0;
+  } catch {
+    return false;
+  }
+}
 
 function run(command, commandArgs, options) {
   const result = spawnSync(command, commandArgs, { stdio: "inherit", ...options });

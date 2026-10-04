@@ -1,0 +1,10 @@
+# Keeps the workflow actions current. The `ci` prefix gives Conventional Commits PR titles
+# ("ci: bump ..."), which the pr-title check requires.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci

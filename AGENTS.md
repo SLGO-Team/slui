@@ -19,3 +19,19 @@ If you're using Codex or another agent-capable tool, additional project-scoped h
 Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
 
 <!-- TRELLIS:END -->
+
+# Git workflow
+
+`main` is protected (see `CONTRIBUTING.md`): no direct or force pushes; every change lands as a
+squash-merged PR whose required checks (`build-and-test`, `pr-title`) passed.
+
+- Before the first edit of a task, create a branch `<type>/<slug>` from an up-to-date `main`.
+- Phase 3.4 work commits and `/trellis:finish-work` (archive + journal auto-commits) happen on that
+  branch, before the PR is merged, so the bookkeeping is squashed into the same PR.
+- Then push the branch and open a PR whose title follows Conventional Commits
+  (`type(scope): description`); release-please derives versions and the changelog from it.
+- Do not ask the user before merging; the required checks are the gate. Right after opening the PR,
+  enable auto-merge (`gh pr merge --squash --auto --delete-branch`) so GitHub merges it once CI passes;
+  if CI fails, fix it on the branch. After the merge: `git switch main && git pull --ff-only`.
+  This includes release-please's release PR; publishing the draft GitHub Release stays with the user.
+- Never edit version numbers by hand; release-please owns them.
