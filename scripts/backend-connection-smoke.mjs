@@ -414,14 +414,15 @@ const sessionDependencies = (controlPlane, connection) => ({
   controlPlane,
   connection,
 });
-async function attempt(dependencies, drive) {
+async function attempt(dependencies, drive, { initial = initialClientSessionState, quiet = false } = {}) {
   const actions = [];
-  let state = initialClientSessionState;
-  const running = runClientSessionAttempt(dependencies, 1, {
-    dispatch: (action) => { actions.push(action); state = clientSessionReducer(state, action); },
+  let state = initial;
+  const states = [];
+  const running = runClientSessionAttempt(dependencies, initial.attempt + 1, {
+    dispatch: (action) => { actions.push(action); state = clientSessionReducer(state, action); states.push(state); },
     onEvent: () => undefined,
     isCurrent: () => true,
-  });
+  }, quiet);
   if (drive) {
     const sockets = FakeWebSocket.instances.length;
     for (let tick = 0; FakeWebSocket.instances.length === sockets; tick += 1) {
@@ -431,7 +432,7 @@ async function attempt(dependencies, drive) {
     drive(lastSocket());
   }
   const cleanup = await running;
-  return { actions, cleanup, state: () => state };
+  return { actions, cleanup, state: () => state, states };
 }
 
 {
@@ -473,6 +474,24 @@ async function attempt(dependencies, drive) {
   assert.equal(state().status, "unauthorized");
   assert.equal(state().retry, "backoff");
   assert.ok(state().detail.startsWith(SAME_CONNECTION_HINT));
+}
+{
+  // A background retry keeps the card on its last outcome instead of flashing through the progress steps.
+  const waiting = { status: "not-in-game", identity, detail: "Join a server first", attempt: 1, retry: "poll" };
+  const polled = await attempt(sessionDependencies(answer(404, rejection("not-in-game")), harness().connection), undefined, { initial: waiting, quiet: true });
+  assert.deepEqual([...new Set(polled.states.map((state) => state.status))], ["not-in-game"], "polling never leaves the waiting state");
+  assert.ok(polled.states.every((state) => state.identity === identity), "polling keeps the Steam account shown");
+  assert.equal(polled.states[0].retry, null, "a retry in flight schedules no other");
+  assert.equal(polled.state().attempt, 2);
+  assert.equal(polled.state().retry, "poll");
+
+  const offline = { status: "offline", identity, detail: "Sidecar is unreachable", attempt: 1, retry: "backoff" };
+  const reconnect = await attempt(sessionDependencies(answer(200, routeBody()), harness().connection), (socket) => socket.drop(1006, ""), { initial: offline, quiet: true });
+  assert.deepEqual([...new Set(reconnect.states.map((state) => state.status))], ["offline"], "a failed background reconnect never shows connecting");
+  assert.equal(reconnect.state().retry, "backoff");
+
+  const manual = await attempt(sessionDependencies(answer(404, rejection("not-in-game")), harness().connection), undefined, { initial: waiting });
+  assert.deepEqual(manual.states.map((state) => state.status), ["discovering", "route-pending", "not-in-game"], "a manual retry shows its progress");
 }
 
 console.log("backend connection smoke: config, control plane, sidecar handshake/close codes/timeouts and retry policy ok");
