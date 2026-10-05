@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="#fff">
+  <!-- SLUI-drawn eighth note for the MVP music-kit row. -->
+  <ellipse cx="3.3" cy="11.2" rx="3" ry="2.2" transform="rotate(-22 3.3 11.2)"/>
+  <path d="M5.2 1h1.3v10.2H5.2z"/>
+  <path d="M6.5 1c.4 1.6 1.6 2.4 2.5 3.4.8.9.9 2.3.4 3.6-.1-1.5-.9-2.4-2.9-2.9z"/>
+</svg>

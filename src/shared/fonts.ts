@@ -115,6 +115,21 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
   { family: "Stratum2 Chat", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
   // Minimap (MinimapRadar.css)
   { family: "Stratum2 Radar", weight: 500, pack: stratum("stratum2-medium.otf", CAP_CENTERED), fallback: barlow("Medium", CAP_CENTERED) },
+  // Win panel (WinPanel.css). The title is centred on cap height like Panorama's vertical-align
+  // center; the other labels are top-aligned Panorama labels and keep Stratum2's own metrics.
+  {
+    family: "Stratum2 WinPanel Title",
+    weight: 700,
+    pack: stratum("stratum2condensed-bold.otf", CAP_CENTERED),
+    fallback: sairaCondensed("bold", CAP_CENTERED),
+  },
+  { family: "Stratum2 WinPanel", weight: 700, pack: stratum("stratum2-bold.otf", null), fallback: barlow("Bold", NATURAL) },
+  {
+    family: "Stratum2 WinPanel Condensed",
+    weight: 500,
+    pack: stratum("stratum2condensed-medium.otf", null),
+    fallback: sairaCondensed("medium", NATURAL),
+  },
 ];
 
 export type ResolvedFontFace = {

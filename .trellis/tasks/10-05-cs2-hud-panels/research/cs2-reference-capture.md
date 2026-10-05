@@ -121,3 +121,111 @@ All boxes ≈ x 810-1110 (300 wide), dark translucent fill, centred white text.
   the ring and background wash red → yellow → green over the progress
   (`circle-full-to-empty`), so mid-progress captures are yellow. The icon pulses
   in `color-CT` (kit) or `color-icon-bomb` `#ffb136` (no kit).
+
+### Win panel: SLUI render vs captures (2026-10-05)
+
+Measured on headless-Chrome renders of the mock scenes (`hudSceneAt=2000`,
+no theme pack, so Stratum2 falls back to Barlow / Saira) against the T-win
+most-kills capture, 1920x1080:
+
+- Exact (+-0 px): title box 760-1160 / 190-270, CJK title glyph columns
+  871-904 / 918-953 / 965-1001 / 1013-1048 and rows 206-241, chevrons
+  776-789 and 1130-1143, subtitle ink rows 255-264, MVP strip top 286,
+  avatar 770-842 / 295-367 (with a kit row), chip rows 294-314, name cap top
+  322, kit ink rows 356-365. 1600x900 scales uniformly.
+- Deviations: Panorama places the title 2 px lower and the subtitle 2 px
+  higher than the captures show; SLUI follows the captures. The Panorama
+  `brightness` 1.5 / 1.3 on the MVP name and kit text is not visible in the
+  captures (the CT name is the plain side colour) and is not applied. The chip
+  is wider with the fallback fonts than with Stratum2 (text width only). The
+  title-box fill is a translucent tinted grey read from the captures, not
+  CS2's near-opaque `winPanelBgColorT/CT`. The 3D MVP banner scene is replaced
+  by a SLUI-drawn checker canvas and the glitch video by a SLUI-drawn glitch
+  sprite, both animated as measured below; the music-kit artwork overlapping
+  the avatar is dropped (no SLGO equivalent) and the trailing note glyph is a
+  SLUI icon.
+- Motion: see "Win panel motion (recording)" below (superseded the earlier
+  guessed root fade, chevron slide and checker twinkle).
+
+### Win panel motion (recording)
+
+Source: a local 1920x1080 in-game recording (2026-10-05; never committed),
+stepped frame by frame. The file is variable frame rate with a 240 fps time
+base but ~60 rendered frames per second, so timings are +-17 ms. Three panels:
+T win with most-kills MVP and music kit (console partly over it), a second
+T win with MVP (clean, the main reference), and a lost panel without MVP.
+Times are from the first frame of the title box (t = 0).
+
+Entrance (win and lost identical, colours aside):
+
+- 0-230 ms: title box opens from its centre, full height. Width (of 400):
+  14, 36, 62, 94, 132, 169, 211, 246, 286, 318, 346, 376, 394, 400 per frame,
+  fits `cubic-bezier(0.3, 0.1, 0.7, 1)`. The side bars show in the accent; the
+  inside is white over a box fading in (white alpha vs. scene 0.03, 0.14, 0.27,
+  0.37, 0.49, 0.58, 0.68, 0.75, 0.82, 0.87, 0.92, 0.96, 0.98, 1; fits
+  `cubic-bezier(0.2, 0.1, 0.4, 0.9)`).
+- 230-245 ms fully white; the white then clears slowly (to ~85 % by 345 ms)
+  and fast after (gone by ~410 ms). The title glyphs are at their final size
+  and place under the white (no scale-in).
+- 320-650 ms: glitch over the title box, a 30 fps clip (each image held for two
+  frames): full-height and partial vertical bars 3-35 px wide, rounded
+  horizontal pills, speckles on the right, the first image mostly a pale wash
+  of horizontal streaks; the last ~2 images fade (gone by ~660 ms). Colour: a
+  light tint of the accent (pale gold on a T win, salmon on a loss).
+- 560-730 ms: both chevrons slide inwards from 19 px outside their rest
+  position, i.e. they emerge from behind the side bars (clipped at the bar),
+  right edge 771, 773, 776, 778, 780, 783, 785, 787, 789, 790 px for the left
+  one. They start at brightness ~1.5 (T gold reads (255, 254, 193)), hold it
+  until ~70 % of the slide and settle to (240, 198, 130) by 730 ms.
+- 990-1220 ms: subtitle fades in (linear), together with the MVP strip.
+- MVP strip (990 ms; 0.94-0.99 s in the two win panels): opens from its
+  centre as a solid white bar, full strip height, its faded ends scaling with
+  it. Width per frame 4, 24, 55, 97, 150, 205, 260, 324, 387, 454, 506, 545,
+  584, 609, 621: 240 ms, fits `cubic-bezier(0.4, 0.2, 0.7, 1)`. White holds
+  ~30 ms, then clears over ~170 ms (ease-in, 1260-1430 ms); avatar, texts and
+  checker are already in place under it.
+
+Checker idle (both win panels, ~8.5 s each, per-square luminance series):
+
+- Grid: 17 px squares, 19.32 px pitch on both axes; 5 rows, the middle row
+  centred on the strip (rows at y 286-300 cut, 303-319, 322-338, 341-358,
+  361-375 cut); a column gap near the strip's vertical centre line.
+- A lighting wave climbs the rows: each row starts lighting 468 ms after the
+  row below, the top row is followed by the bottom row again, so every square
+  gets a pass every 2.34 s. The phase is locked to the strip entrance (both
+  panels agree within ~70 ms): the bottom row starts at 1.885 s after the
+  strip opens (mod 2.34 s). Within a row the onset lags 6.8 ms per column left
+  to right (~0.2 s across), plus random jitter of ~+-0.1 s per square.
+- Per pass a square lights with ~60 % probability; which squares light is
+  random per pass (correlation between the two panels 0.25). Lit levels vary:
+  ~30 % of the lit passes are about half brightness.
+- Envelope of one pass (median of 95 events, normalised): rise over ~350 ms,
+  hold to 1.0 s (0.95-0.98), linear fade to 0 by 1.95 s, dark until the next
+  pass.
+- Colours (T win): strip base / dark square (50, 37, 6); a fully lit square in
+  the middle (102, 78, 24) = base + 0.26 x (accent - base); squares more than
+  ~195 px from the strip centre light up to ~1.65x brighter (luminance
+  amplitude ~27 in the middle, ~45 near the ends). Unlit squares are just the
+  base (after the checker stops the strip is a flat (50, 37, 6)).
+- The checker disappears in one frame 9.0 s after the strip entrance
+  (8.98 s and 9.03 s), leaving the plain strip; the panel itself stays.
+
+Exit (the round-start reset; win at 92.86 s and lost at 117.2 s):
+
+- Frame 1: the title box turns solid white (title, chevrons hidden), then
+  collapses to its centre: width 400, 344, 316, 279, 245, 200, 165, 128, 86,
+  56 (win) / 388, 358, 330, 298, 258, 224, 185, 150, 113, 70, 44 (lost) per
+  frame, i.e. ~0.17-0.2 s, near linear, the white thinning to a translucent
+  light grey; the side bars stay on its edges.
+- MVP strip: frame 1 the band widens to ~1.85x (about 1170-1200 px, faded ends
+  scaled with it) and shows a fully lit random checker again; the avatar and
+  texts are not stretched and fade out within ~4 frames; a white wash rises
+  over the band (~0.6 by 70 ms, ~0.9 by 150 ms); from ~70 ms the band
+  collapses to its centre, width ~1110, 910, 750, 580, 410, 265, 163, 56, 7,
+  gone by ~230 ms.
+
+SLUI implementation (`WinPanel.css`, `checker.ts`) uses these numbers
+directly; remaining differences: the glitch images are procedurally drawn
+(not CS2's clip), the checker squares are flat (no faint darker gap lines or
+corner ticks between lit squares), and the exit is driven by the plugin's
+hold time ending instead of the round-start event.
