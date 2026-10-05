@@ -63,7 +63,11 @@ impl Session {
     /// Creates this run's temp directory and removes stale ones from earlier runs.
     pub fn create() -> Session {
         let temp = std::env::temp_dir();
-        remove_stale_sessions(&temp);
+        // The relocated uninstaller runs from the directory of the process that started it.
+        let running_from = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent()?.file_name()?.to_str().and_then(session_pid));
+        remove_stale_sessions(&temp, running_from);
         let dir = temp.join(session_dir_name(std::process::id()));
         if let Err(error) = fs::create_dir_all(&dir) {
             eprintln!("slui-setup: cannot create {}: {error}", dir.display());
@@ -121,7 +125,7 @@ pub fn session_pid(name: &str) -> Option<u32> {
     digits.parse().ok()
 }
 
-fn remove_stale_sessions(temp: &Path) {
+fn remove_stale_sessions(temp: &Path, keep: Option<u32>) {
     let Ok(entries) = fs::read_dir(temp) else { return };
     let own = std::process::id();
     for entry in entries.flatten() {
@@ -130,7 +134,7 @@ fn remove_stale_sessions(temp: &Path) {
         // file_type() does not follow links: only a real directory named
         // slui-setup-<digits> directly inside %TEMP% is ever removed.
         let real_dir = entry.file_type().is_ok_and(|kind| kind.is_dir() && !kind.is_symlink());
-        if pid == own || !real_dir || process_alive(pid) {
+        if pid == own || Some(pid) == keep || !real_dir || process_alive(pid) {
             continue;
         }
         if let Err(error) = fs::remove_dir_all(entry.path()) {
@@ -178,25 +182,57 @@ fn webview_descendants(root: u32) -> Vec<u32> {
 }
 
 fn wait_for_webview_exit(root: u32, timeout: Duration) {
-    use windows_sys::Win32::{
-        Foundation::CloseHandle,
-        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
-    };
-    let deadline = Instant::now() + timeout;
-    // Open every handle first so an exiting process cannot be replaced by a reused pid.
-    let handles: Vec<_> = webview_descendants(root)
-        .into_iter()
-        .map(|pid| unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) })
-        .filter(|handle| !handle.is_null())
-        .collect();
-    for handle in handles {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        unsafe {
-            WaitForSingleObject(handle, remaining.as_millis().min(u32::MAX as u128) as u32);
-            CloseHandle(handle);
+    ProcessSet::open(webview_descendants(root)).wait(timeout);
+}
+
+/// Running SLUI processes and their WebView2 processes, which hold SLUI's WebView2 data.
+pub fn app_processes() -> ProcessSet {
+    let mut pids = Vec::new();
+    for (pid, _, name) in detect::process_names() {
+        if name.eq_ignore_ascii_case(detect::APP_EXE) {
+            pids.push(pid);
+            pids.extend(webview_descendants(pid));
+        }
+    }
+    ProcessSet::open(pids)
+}
+
+/// Processes held open by handle, so an exiting process cannot be replaced by a reused pid.
+pub struct ProcessSet(Vec<windows_sys::Win32::Foundation::HANDLE>);
+
+impl ProcessSet {
+    /// Opens every handle first; processes that already exited are left out.
+    pub fn open(pids: Vec<u32>) -> ProcessSet {
+        use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SYNCHRONIZE};
+        ProcessSet(
+            pids.into_iter()
+                .map(|pid| unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) })
+                .filter(|handle| !handle.is_null())
+                .collect(),
+        )
+    }
+
+    /// Waits until every process has exited or `timeout` has passed.
+    pub fn wait(self, timeout: Duration) {
+        use windows_sys::Win32::System::Threading::WaitForSingleObject;
+        let deadline = Instant::now() + timeout;
+        for handle in &self.0 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            unsafe { WaitForSingleObject(*handle, remaining.as_millis().min(u32::MAX as u128) as u32) };
         }
     }
 }
+
+impl Drop for ProcessSet {
+    fn drop(&mut self) {
+        for handle in &self.0 {
+            unsafe { windows_sys::Win32::Foundation::CloseHandle(*handle) };
+        }
+    }
+}
+
+// The handles are only waited on and closed; any thread may do either.
+unsafe impl Send for ProcessSet {}
 
 #[cfg(test)]
 mod tests {

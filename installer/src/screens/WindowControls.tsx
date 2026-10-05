@@ -1,8 +1,10 @@
 import { CloseIcon, MinimizeIcon } from "../../../src/app/home/icons.tsx";
 
 /** Minimize and close, floating in the top-right corner; the window has no title bar. */
-export function WindowControls({ closeDisabled, onMinimize, onClose }: {
+export function WindowControls({ closeDisabled, busyTitle = "安装进行中，无法关闭", onMinimize, onClose }: {
   closeDisabled: boolean;
+  /** Close button tooltip while it is disabled. */
+  busyTitle?: string;
   onMinimize: () => void;
   onClose: () => void;
 }) {
@@ -11,7 +13,7 @@ export function WindowControls({ closeDisabled, onMinimize, onClose }: {
       <MinimizeIcon />
     </button>
     <button type="button" className="setup-controls__button setup-controls__button--close" aria-label="关闭"
-      title={closeDisabled ? "安装进行中，无法关闭" : "关闭"} disabled={closeDisabled} onClick={onClose}>
+      title={closeDisabled ? busyTitle : "关闭"} disabled={closeDisabled} onClick={onClose}>
       <CloseIcon />
     </button>
   </div>;

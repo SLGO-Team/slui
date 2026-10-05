@@ -107,10 +107,49 @@ these are the code-level contracts behind them.
   `CONTROL_PLANE_URL` secret of the `release` environment (main only) — never an
   Actions variable (variables are printed in step logs) and never a file.
 - **Theme packs enter installers only via `build-installer.mjs --theme-pack
-  <dir>`**, which passes the resource mapping as inline `--config` JSON, writes
+  <dir>`**, which defines `SLUI_THEME_PACK_SOURCE` in the generated hooks
+  wrapper (`target/release/slui-installer-hooks.nsh`), writes
   `SLUI-Setup-<version>-theme-pack.exe`, and renames its NSIS payload so a later
   `--reuse-payload` cannot pick it up. Do not reintroduce a checked-in Tauri
   config or a repo-local pack directory for this.
+- **Never ship the theme pack as a Tauri `bundle.resources` entry.** The NSIS
+  template deletes every registered resource on uninstall, which makes "keep the
+  theme pack" impossible. `NSIS_HOOK_POSTINSTALL` copies it with `File /r`; only
+  the uninstall switch `/SLUI-THEME-PACK` removes `<dir>\theme-pack`.
+
+## Installer and uninstaller NSIS contract
+
+`src-tauri/windows/installer-hooks.nsh` is the single contract between the NSIS
+package and `installer/src-tauri`. Every switch the Rust side passes is parsed
+there with `${GetOptions}`; no switch may be a prefix of another or of a
+template switch (`/P /R /NS /ARGS /UPDATE`).
+
+| Switch | Passed by | Effect |
+| --- | --- | --- |
+| `/SLUI-STARTMENU`, `/SLUI-DESKTOP` | `install::nsis_args` (with `/NS`) | create that shortcut |
+| `/SLUI-THEME-PACK` | `uninstall::nsis_args` | `RMDir /r "$INSTDIR\theme-pack"` |
+| `/SLUI-APPDATA` | `uninstall::nsis_args` | sets the template's `$DeleteAppDataCheckboxState` |
+| `/SLUI-CLEANUP` | `uninstall::nsis_args` (relocated runs only) | `/REBOOTOK` deletion of `$EXEDIR\slui-uninstall.exe`, `$EXEDIR\uninstall.exe`, `$EXEDIR` |
+
+- The uninstaller runs NSIS as `<temp copy of uninstall.exe> /S [...] _?=<dir>`:
+  `_?=` last and unquoted, so the call waits and returns the real exit code.
+  Success is decided from the machine (entry gone, `slui.exe` gone, theme pack
+  gone when asked), never from exit code 0 alone.
+- `slui-uninstall.exe` never runs its UI from the install directory: started
+  there without arguments it copies itself to `%TEMP%\slui-setup-<pid>\` and
+  starts the copy with `--relocated` (working directory `%TEMP%`). Any other
+  argument string is forwarded verbatim to `uninstall.exe` (`/S` from tools,
+  `/UPDATE _?=<dir>` from the NSIS wizard). `QuietUninstallString` points at
+  `uninstall.exe /S` directly.
+- User data (`%APPDATA%` / `%LOCALAPPDATA%` `\com.slui.desktop`) is removed by
+  the non-elevated UI for the invoking user, after waiting (≤ 10 s, by process
+  handle) for the `slui.exe` / `msedgewebview2.exe` processes that NSIS closed.
+- Plain `npm run tauri build` defines nothing in the hooks and keeps the default
+  NSIS uninstaller; only `build-installer.mjs` adds the branded one.
+- E2E from Git Bash: set `MSYS_NO_PATHCONV=1` when passing NSIS switches, or
+  MSYS rewrites `/S` to `S:/` and the forwarded uninstaller opens its wizard.
+  A machine with `ConsentPromptBehaviorAdmin = 0` elevates without a UAC prompt,
+  so "UAC declined" cannot be exercised there.
 
 ## Client Foundation Contracts
 

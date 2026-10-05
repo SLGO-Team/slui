@@ -12,6 +12,11 @@ workspace = "../../src-tauri"
 name = "slui_setup_lib"
 crate-type = ["rlib"]
 
+[features]
+# Builds the branded uninstaller (slui-uninstall.exe) instead of the installer shell:
+# no embedded payload, uninstall UI. See src/uninstall.rs.
+uninstaller = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 serde_json = "1"
@@ -19,7 +24,7 @@ serde_json = "1"
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Diagnostics_ToolHelp", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Environment", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

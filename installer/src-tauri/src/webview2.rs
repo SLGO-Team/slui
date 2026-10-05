@@ -39,9 +39,9 @@ pub fn run_classic(session: &Session) -> i32 {
     }
 }
 
-fn message_box(text: &str) {
+pub fn message_box(text: &str) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
     let text = detect::wide(text);
-    let caption = detect::wide("SLUI 安装程序");
+    let caption = detect::wide(crate::ROLE.title());
     unsafe { MessageBoxW(std::ptr::null_mut(), text.as_ptr(), caption.as_ptr(), MB_OK | MB_ICONERROR) };
 }

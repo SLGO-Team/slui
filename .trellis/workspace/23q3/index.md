@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
-- **Last Active**: 2026-10-04
+- **Total Sessions**: 17
+- **Last Active**: 2026-10-05
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~410 | Active |
+| `journal-1.md` | ~432 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-10-05 | Branded uninstaller with optional theme pack / user data removal | `e09dd93` | `feat/uninstaller` |
 | 16 | 2026-10-04 | CI、分支保护与 release-please 发版流程 | `da9fa11`, `0e21299` | `ci/release-workflow` |
 | 15 | 2026-10-04 | 安装器界面重做与打包提速 | `d305d3d`, `f125bf1` | `main` |
 | 14 | 2026-10-03 | 修复玩家时钟偏快导致商店永远禁购 | `a01c2d9`, `6773b60` | `main` |

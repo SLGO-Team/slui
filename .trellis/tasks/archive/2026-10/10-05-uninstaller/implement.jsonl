@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Module layout; installer/ placement for new uninstall/ folder"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Forbidden patterns: no invoke in leaf components, no swallowed errors"}
+{"file": ".trellis/tasks/archive/2026-10/10-03-installer-shell/design.md", "reason": "Installer shell contracts, session/temp, WebView2 gate this task extends"}
