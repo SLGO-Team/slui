@@ -430,3 +430,25 @@ slui-uninstall.exe (installer crate, uninstaller feature) registered as Uninstal
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: CS2 HUD panels: planning + data channel
+<!-- trellis-session: v=2 fp=ca38ff002fcb99ef -->
+
+**Date**: 2026-10-05
+**Task**: CS2 HUD panels: planning + data channel
+**Branch**: `feat/hud-data-channel`
+
+### Summary
+
+Planned CS2 HUD panels (win panel+MVP, message zone, generator progress) as parent task 10-05-cs2-hud-panels with 4 children, using local CS2 reference captures. Delivered hud-data-channel: @slgo/protocol hud.messages/round.result + mock scenes (slui 855dfb2), sidecar relay with replay age adjustment (slgo-backend d77a68b), plugin publisher (SLGO 561ca78).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `855dfb2` | feat(protocol): add hud.messages and round.result events with mock scenes |
+
+### Status
+
+[OK] **Completed**

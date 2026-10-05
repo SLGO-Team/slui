@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Plugin-authoritative boundary, protocol package and client.features rules"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Parser/validation patterns for protocol payloads"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where protocol, mocks and smoke scripts live"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plugin -> sidecar -> client contract changes"}
+{"file": ".trellis/tasks/10-05-cs2-hud-panels/design.md", "reason": "Authoritative wire shapes and publisher rules"}

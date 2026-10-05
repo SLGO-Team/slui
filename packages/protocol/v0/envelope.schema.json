@@ -35,5 +35,13 @@
         "sent_at": { "type": "string", "minLength": 1, "format": "date-time" }
       }
     }
+  }, {
+    "if": { "properties": { "type": { "enum": ["hud.messages", "round.result"] } } },
+    "then": {
+      "required": ["sent_at"],
+      "properties": {
+        "sent_at": { "type": "string", "minLength": 1, "format": "date-time" }
+      }
+    }
   }]
 }

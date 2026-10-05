@@ -1,7 +1,8 @@
-import type { ChatSendCommand, MinimapInit, ServerRoute, SlgoCommand, SlgoEvent, SteamIdentity } from "../contracts/index.ts";
+import type { ChatSendCommand, MinimapInit, Role, ServerRoute, SlgoCommand, SlgoEvent, SteamIdentity } from "../contracts/index.ts";
 import { MockSidecarConnection } from "../platform/connection.ts";
 import { MAX_CHAT_LENGTH, chatLength } from "../features/chat/model.ts";
 import { createMinimapFrame, createMockMinimapInit, defaultMinimapPreviewOptions, mockMinimapInit, type MinimapPreviewOptions } from "./minimapFixtures.ts";
+import { createHudSceneFrame, hudSceneLoopMs, type HudScene } from "./hudScenes.ts";
 
 export class RealtimeMockProvider extends MockSidecarConnection {
   private readonly initialEvents: SlgoEvent[];
@@ -17,6 +18,10 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private attempt = 0;
   private lastChatAtMs = -Infinity;
   private chatIds = 0;
+  private hudScene: HudScene = "none";
+  private hudSceneRun = 0;
+  private hudSceneStartedAtMs = 0;
+  private lastHudPayloads: Partial<Record<"hud.messages" | "round.result", string>> = {};
 
   constructor(events: SlgoEvent[], viewerTeam: "team-a" | "team-b") {
     super();
@@ -36,7 +41,9 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     for (const event of this.initialEvents) {
       if (event.type === "minimap.init") this.emit("minimap.init", this.mapInit);
       else if (event.type === "minimap.positions") this.publishFrame(false);
-      else this.emit(event.type, event.payload);
+      // The scripted scene replaces the fixtures' empty board and panel.
+      else if (event.type === "hud.messages") this.restartHudScene();
+      else if (event.type !== "round.result") this.emit(event.type, event.payload);
     }
     this.timer = setInterval(() => {
       this.frame += 1;
@@ -45,6 +52,7 @@ export class RealtimeMockProvider extends MockSidecarConnection {
       if (this.frame % this.mapInit.position_update_hz === 0) {
         const hud = this.initialEvents.find((event) => event.type === "match.snapshot");
         if (hud) this.emit(hud.type, hud.payload);
+        this.tickHudScene();
       }
     }, 1000 / this.mapInit.position_update_hz);
   }
@@ -91,6 +99,45 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   }
 
   getMinimapInit(): MinimapInit { return this.mapInit; }
+
+  /** Plays a scripted hud.messages / round.result scene from its start (debug harness). */
+  configureHudScene(scene: HudScene) {
+    if (scene === this.hudScene) return;
+    this.hudScene = scene;
+    this.restartHudScene();
+  }
+
+  private viewerRole(): Role {
+    const hud = this.initialEvents.find((event) => event.type === "match.snapshot");
+    const team = hud?.type === "match.snapshot" ? hud.payload.teams.find((candidate) => candidate.team_id === this.viewerTeam) : undefined;
+    return team?.role ?? "ntf";
+  }
+
+  private restartHudScene() {
+    this.hudSceneRun += 1;
+    this.hudSceneStartedAtMs = Date.now();
+    this.lastHudPayloads = {};
+    this.publishHudScene();
+  }
+
+  /** Once a second, like the plugin's time-only re-sync; a finished scene starts over. */
+  private tickHudScene() {
+    const loopMs = hudSceneLoopMs(this.hudScene, this.viewerRole());
+    if (loopMs !== null && Date.now() - this.hudSceneStartedAtMs >= loopMs) this.restartHudScene();
+    else this.publishHudScene();
+  }
+
+  /** Publishes each snapshot whose content changed (the first publish of a run always goes out). */
+  private publishHudScene() {
+    if (!this.streamRoute) return;
+    const frame = createHudSceneFrame(this.hudScene, this.viewerRole(), Date.now() - this.hudSceneStartedAtMs, this.hudSceneRun);
+    for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result]] as const) {
+      const json = JSON.stringify(payload);
+      if (this.lastHudPayloads[type] === json) continue;
+      this.lastHudPayloads[type] = json;
+      this.emit(type, payload);
+    }
+  }
 
   /** Answers chat like the plugin's ChatManager: 120 text elements, one second between sends. */
   override async send(command: SlgoCommand) {

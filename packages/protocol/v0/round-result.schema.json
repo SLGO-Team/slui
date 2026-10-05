@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/round-result.schema.json",
+  "title": "SLGO round / match result panel payload (round.result)",
+  "description": "The viewer's win panel, or null once it ended early. visible_remaining_ms is the hold time left at the envelope sent_at (required for this type). Titles are viewer-relative and resolved by the plugin.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["panel"],
+  "properties": {
+    "panel": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["result_id", "winner_team", "is_match_end", "title", "subtitle_text", "mvp", "visible_remaining_ms"],
+          "properties": {
+            "result_id": { "description": "One per plugin ShowRoundResult call.", "type": "string", "minLength": 1, "pattern": "\\S" },
+            "winner_team": { "description": "null = draw, which only a match end can be.", "enum": ["ntf", "scp", null] },
+            "is_match_end": { "type": "boolean" },
+            "title": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "outcome"],
+              "properties": {
+                "text": { "$ref": "#/$defs/text" },
+                "outcome": { "description": "draw exactly when winner_team is null; observer for a viewer without a side.", "enum": ["won", "lost", "draw", "observer"] }
+              }
+            },
+            "subtitle_text": { "description": "The line under the title: the end reason today, a fun fact later.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/text" }] },
+            "mvp": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["player_id", "display_name", "reason_text", "music_kit_name"],
+                  "properties": {
+                    "player_id": { "description": "SteamID64; the avatar comes from the player's match.snapshot entry.", "type": "string", "minLength": 1, "pattern": "\\S" },
+                    "display_name": { "$ref": "#/$defs/text" },
+                    "reason_text": { "$ref": "#/$defs/text" },
+                    "music_kit_name": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/text" }] }
+                  }
+                }
+              ]
+            },
+            "visible_remaining_ms": { "type": "integer", "minimum": 0, "maximum": 86400000 }
+          },
+          "if": { "properties": { "winner_team": { "type": "null" } } },
+          "then": { "properties": { "is_match_end": { "const": true }, "title": { "properties": { "outcome": { "const": "draw" } } } } },
+          "else": { "properties": { "title": { "properties": { "outcome": { "enum": ["won", "lost", "observer"] } } } } }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "cs2-hud-panels",
+  "name": "cs2-hud-panels",
+  "title": "CS2 HUD panels: round-end, MVP, alerts, defuse",
+  "description": "Render the plugin's new CS2-style HUD content in SLUI: round-end win panel, MVP card, bottom alerts/hints, defuse card",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "23q3",
+  "assignee": "23q3",
+  "createdAt": "2026-10-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-05-hud-data-channel",
+    "10-05-win-panel",
+    "10-05-hud-alerts",
+    "10-05-hud-progress"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

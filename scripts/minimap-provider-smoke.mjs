@@ -71,6 +71,23 @@ for (const team of ["team-a", "team-b"]) {
   try {
     await connection.connect(route, identity);
     assert.equal(connection.getStatus(), "live");
+    {
+      // hud.messages / round.result flow through the parsed stream; the scripted scene replaces the empty resync state.
+      const latestOf = (type) => events.findLast((event) => event.type === type);
+      assert.deepEqual(latestOf("hud.messages").payload, { progress: null, alert: null, hint_high: null, hint_low: null });
+      assert.deepEqual(latestOf("round.result").payload, { panel: null });
+      const viewerRole = team === "team-a" ? "ntf" : "scp";
+      connection.configureHudScene("win-mvp-kills");
+      const panel = latestOf("round.result").payload.panel;
+      assert.equal(panel.winner_team, viewerRole);
+      assert.equal(panel.title.outcome, "won");
+      assert.equal(panel.mvp.reason_text, "最多击杀MVP（3杀）");
+      connection.configureHudScene("timeout");
+      assert.equal(latestOf("round.result").payload.panel, null, "a message scene clears the panel");
+      assert.equal(latestOf("hud.messages").payload.alert.countdown_remaining_ms > 57_000, true);
+      connection.configureHudScene("none");
+      assert.equal(latestOf("hud.messages").payload.alert, null);
+    }
     assert.equal(latest().payload.viewer.player_id, identity.steamId);
     assert.equal(latest().payload.viewer.team_id, team);
     assert.equal(latest().payload.positions.filter((p) => p.visibility === "self").length, 1);
