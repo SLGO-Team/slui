@@ -276,8 +276,9 @@ The win panel is a hand-built React feature under `src/features/winpanel`
   30px, opaque from 85px); avatar 72px with an 8px gap; details column of chip
   (21px, 18px black text, padding 0 6px), name (250x38, 28px condensed) and kit
   row (300x16, 12px bold + SLUI note icon). The avatar + details block is
-  centred as one piece, so the avatar sits at x 770 with a kit row and x 795
-  without one. The title shrinks its font to fit (Panorama `text-overflow:
+  centred as one piece and the details box keeps 300x75 without a music kit:
+  CS2 only drops the kit row (user, 2026-10-06), so the avatar stays at x 770
+  and the chip at y 294 either way. The title shrinks its font to fit (Panorama `text-overflow:
   shrink`), as do the subtitle and kit name; chip and name use ellipsis.
 - The Panorama `brightness` boosts on the name and kit text do not show in the
   captures and are not applied. The CS2 3D banner scene, glitch clip and

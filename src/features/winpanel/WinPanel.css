@@ -274,13 +274,16 @@
 }
 
 /* .MVP_Details: flow down, vertically centred (21 + 38 + 16 = 75px; capture chip top y 294). Labels
-   are top-aligned Panorama labels; line heights place the text where the capture has it. */
+   are top-aligned Panorama labels; line heights place the text where the capture has it. The
+   box stays 300x75 (the kit row's size) without a music kit: CS2 only drops the kit row, nothing
+   else moves. */
 .winpanel-mvp__details {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-start;
-  min-width: 0;
+  min-width: 300px;
+  height: 75px;
 }
 
 /* .MVP__Reason: winner-coloured chip, 21px tall, 18px black text, padding 0 6px. */

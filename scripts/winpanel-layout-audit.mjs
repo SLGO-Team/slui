@@ -122,9 +122,9 @@ for (const expected of SCENES) {
   nearX(audit.arrowLeft.x, 776, `${label} left chevron x`);
   nearX(audit.arrowRight.right, 1144, `${label} right chevron right`);
   nearY(audit.arrowLeft.y, 215, `${label} chevron y`);
-  // Subtitle row: 16px, 3px above the box bottom.
+  // Subtitle row: 16px, 1px above the box bottom (capture; Panorama's 3px sits 2px high).
   assert.ok(audit.subtitle?.text, `${label} subtitle`);
-  nearY(audit.subtitle.y, 251, `${label} subtitle y`);
+  nearY(audit.subtitle.y, 253, `${label} subtitle y`);
   nearSize(audit.subtitle.height, 16, `${label} subtitle height`);
 
   if (!expected.mvp) {
