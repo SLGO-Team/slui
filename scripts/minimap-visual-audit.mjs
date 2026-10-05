@@ -151,9 +151,10 @@ try {
       const result = await evaluate(`(() => {
         const rooms = [...document.querySelectorAll('.minimap-map__room')].map(room => {
           const image = room.querySelector('image');
-          const center = new DOMPoint(image.width.baseVal.value / 2, image.height.baseVal.value / 2)
-            .matrixTransform(image.transform.baseVal.consolidate().matrix);
-          return {id: room.dataset.roomId, x: center.x, y: center.y, transform: image.getAttribute('transform')};
+          // The CTM chains the room's static artwork transform with the camera group's.
+          const matrix = image.getCTM();
+          const center = new DOMPoint(image.width.baseVal.value / 2, image.height.baseVal.value / 2).matrixTransform(matrix);
+          return {id: room.dataset.roomId, x: center.x, y: center.y, transform: matrix.toString()};
         });
         return { rooms, labels: document.querySelectorAll('.minimap-radar__labels, .minimap-radar__map text').length };
       })()`);
@@ -273,7 +274,7 @@ try {
     }
     await capture("hcz-fixed", { availability: "live", camera: "follow", orientation: "fixed" });
     await configure({ orientation: "heading-up", motion: true });
-    const movingBefore = await evaluate('document.querySelector(".minimap-map__room image").getAttribute("transform")');
+    const movingBefore = await evaluate('document.querySelector(".minimap-map__camera").getAttribute("transform")');
     const samples = [];
     for (let index = 0; index < 8; index++) {
       await wait(80);
@@ -284,7 +285,7 @@ try {
       return initial && Math.hypot(initial.x - room.x, initial.y - room.y) > 0.01;
     })), "full room images follow actual camera motion");
     cameraMotion.push({ viewport: [width, height], samples });
-    assert.notEqual(await evaluate('document.querySelector(".minimap-map__room image").getAttribute("transform")'), movingBefore, "Live browser SVG must follow moving viewpoint");
+    assert.notEqual(await evaluate('document.querySelector(".minimap-map__camera").getAttribute("transform")'), movingBefore, "Live browser SVG must follow moving viewpoint");
     await configure({ motion: false });
     await capture("hcz-heading", { availability: "live", camera: "follow", orientation: "heading-up" });
     await configure({ zone: "Entrance", orientation: "fixed" });
@@ -478,7 +479,7 @@ try {
     const recovery = [];
     for (let sample = 0; sample < 12; sample += 1) {
       recovery.push(await evaluate(`(() => ({ time: performance.now(), scale: Number(document.querySelector('.minimap-radar').dataset.mapScale),
-        transform: document.querySelector('.minimap-map__room image').getAttribute('transform') }))()`));
+        transform: document.querySelector('.minimap-map__camera').getAttribute('transform') }))()`));
       if (sample < 11) await wait(450);
     }
     const recoveryStart = recovery[0];

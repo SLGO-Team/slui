@@ -46,8 +46,18 @@ values.
   never because plugin data such as `window_open` arrived.
 - A presentation clock (`setInterval` that dispatches or sets state) runs only
   while something on screen actually depends on time. Feature hooks live in
-  `App`, so every tick re-renders the whole overlay; the minimap's 32 ms clock
-  runs only while a position frame (`frame` / `pendingFrame`) exists.
+  `App`, so every tick re-renders the whole overlay. The minimap is the
+  exception: its state is an external store (`useMinimapFeature` in `App` only
+  dispatches) and `LiveMinimapRadar` subscribes with `useSyncExternalStore`, so
+  its `requestAnimationFrame` clock re-renders only the radar, and only while a
+  position frame (`frame` / `pendingFrame`) exists.
+- Motion that is interpolated between network frames is sampled on
+  `requestAnimationFrame`, never a fixed `setInterval`: a 32 ms interval beat
+  against the display and the 15 Hz position rate, so heading-up map rotation
+  advanced in steps that varied ~6x at constant turn speed. A large rotating
+  layer makes that judder obvious where a small marker hides it. Read `now()`
+  inside the callback; the frame-start timestamp can precede an event received
+  earlier in the same frame and step the clock backwards.
 - The overlay runs for hours. React 19's development build records a
   `performance.measure` with a props diff (~1 KB native memory) for every
   re-render with changed props, and the User Timing buffer never evicts them;
