@@ -670,5 +670,36 @@ for (const time of [200, 232, 267]) {
   assert.equal(overview.markers.length, 2);
   assert.equal(overview.markers.every((m) => m.hostile === false), true, "a team-less spectator has no enemies, only team colors");
 }
+// Playout: poses follow the plugin's capture time (`sent_at`), not arrival. Captures every 67 ms at a constant
+// 150 deg/s turn, arriving in the 61/61/79 ms pattern measured in game: every 240 Hz frame turns the same angle.
+{
+  const captureAt = Date.parse("2026-09-07T00:00:00.000Z");
+  const turning = (index) => {
+    const pose = { ...self, yaw_degrees: (index * 67 * 0.15) % 360 };
+    return { ...positions, viewpoint: { player_id: pose.player_id, x: pose.x, y: pose.y, z: pose.z, yaw_degrees: pose.yaw_degrees, zone: pose.zone,
+      room_id: pose.room_id }, positions: [pose, ...positions.positions.slice(1)] };
+  };
+  let arrival = 1000, playout = ready();
+  const arrivals = Array.from({ length: 40 }, (_, index) => (arrival += [61, 61, 79][index % 3]) + 5);
+  const steps = [];
+  let next = 0, previousYaw = null;
+  for (let time = arrivals[0]; time < arrivals.at(-1); time += 1000 / 240) {
+    while (next < arrivals.length && arrivals[next] <= time) {
+      playout = event(playout, "minimap.positions", turning(next), 3 + next, arrivals[next],
+        { sent_at: new Date(captureAt + next * 67).toISOString() });
+      next += 1;
+    }
+    playout = minimapReducer(playout, { type: "tick", nowMs: time });
+    const yaw = selectMinimap(playout, time, { orientation: "heading-up" }).camera.yaw;
+    if (previousYaw !== null && time > arrivals[6]) steps.push(shortestAngle(previousYaw, yaw, 1) - previousYaw);
+    previousYaw = yaw;
+  }
+  const expected = 0.15 * 1000 / 240;
+  assert.ok(steps.length > 400 && steps.every((step) => Math.abs(step - expected) < expected * 0.01),
+    "the heading-up camera turns evenly through uneven arrivals: no holds or jumps");
+  const waiting = minimapReducer(playout, { type: "tick", nowMs: arrivals.at(-1) + 200 });
+  assert.equal(selectMinimap(waiting, arrivals.at(-1) + 200, { orientation: "heading-up" }).camera.yaw, turning(next - 1).viewpoint.yaw_degrees,
+    "a frame later than the playout delay never extrapolates: the camera holds the newest capture until it arrives");
+}
 
-console.log("minimap model smoke: pinned generator and 29 SVGs/110 mappings; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, capability fallback, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites and observation-right following passed");
+console.log("minimap model smoke: pinned generator and 29 SVGs/110 mappings; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, capability fallback, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout and observation-right following passed");
