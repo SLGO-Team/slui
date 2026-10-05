@@ -408,3 +408,25 @@ PR CI（build-and-test、pr-title）、main Ruleset、release-please 草稿发�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: Branded uninstaller with optional theme pack / user data removal
+<!-- trellis-session: v=2 fp=7d5ffd9555cffa30 -->
+
+**Date**: 2026-10-05
+**Task**: Branded uninstaller with optional theme pack / user data removal
+**Branch**: `feat/uninstaller`
+
+### Summary
+
+slui-uninstall.exe (installer crate, uninstaller feature) registered as UninstallString; toggles for theme pack and user data (default keep); temp relocation + /SLUI-CLEANUP reboot deletion; theme pack moved from bundle.resources to NSIS hook File /r; E2E verified on dev PC except UAC-decline (ConsentPromptBehaviorAdmin=0).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e09dd93` | feat(installer): add a branded uninstaller with optional theme pack removal |
+
+### Status
+
+[OK] **Completed**
