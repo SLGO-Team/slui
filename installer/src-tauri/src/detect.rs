@@ -12,6 +12,15 @@ pub const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Unin
 pub const APP_EXE: &str = "slui.exe";
 /// Last path segment `pick_dir` appends unless the user already picked it.
 pub const APP_DIR_NAME: &str = "SLUI";
+/// The NSIS uninstaller in the install directory.
+pub const NSIS_UNINSTALLER_EXE: &str = "uninstall.exe";
+/// The branded uninstaller (this crate, `uninstaller` feature) in the install directory.
+pub const UNINSTALLER_EXE: &str = "slui-uninstall.exe";
+/// Theme pack directory inside the install directory (see src-tauri/src/theme_pack.rs).
+pub const THEME_PACK_DIR: &str = "theme-pack";
+/// SLUI's bundle identifier: the name of its data directories under %APPDATA% and
+/// %LOCALAPPDATA% (settings, WebView2 data).
+pub const APP_IDENTIFIER: &str = "com.slui.desktop";
 
 pub fn payload_version() -> &'static str {
     env!("SLUI_SETUP_VERSION")
@@ -87,15 +96,26 @@ pub fn strip_quotes(value: &str) -> &str {
 /// The installed SLUI, or `None` when the entry, either value, or `slui.exe` is missing
 /// (treated as a fresh install). currentUser (HKCU) entries are deliberately ignored.
 pub fn read_installed() -> Option<Installed> {
-    let version = read_hklm_string(UNINSTALL_KEY, "DisplayVersion")?;
-    let dir = read_hklm_string(UNINSTALL_KEY, "InstallLocation")?;
-    let dir = strip_quotes(&dir).trim_end_matches('\\').to_string();
-    let version = version.trim().to_string();
-    if version.is_empty() || dir.is_empty() || !Path::new(&dir).join(APP_EXE).is_file() {
+    let (version, dir) = read_entry()?;
+    if !Path::new(&dir).join(APP_EXE).is_file() {
         return None;
     }
     let relation = relation(&version, payload_version());
     Some(Installed { version, dir, relation })
+}
+
+/// `DisplayVersion` and the unquoted `InstallLocation` of the uninstall entry.
+pub fn read_entry() -> Option<(String, String)> {
+    let version = read_hklm_string(UNINSTALL_KEY, "DisplayVersion")?;
+    let dir = read_hklm_string(UNINSTALL_KEY, "InstallLocation")?;
+    let dir = strip_quotes(&dir).trim_end_matches('\\').to_string();
+    let version = version.trim().to_string();
+    (!version.is_empty() && !dir.is_empty()).then_some((version, dir))
+}
+
+/// Whether the uninstall entry still exists; NSIS deletes the whole key.
+pub fn entry_exists() -> bool {
+    read_hklm_string(UNINSTALL_KEY, "DisplayVersion").is_some()
 }
 
 pub(crate) fn wide(value: &str) -> Vec<u16> {
@@ -194,19 +214,32 @@ pub(crate) fn process_names() -> Vec<(u32, u32, String)> {
 
 /// `FOLDERID_ProgramFiles\SLUI`, the NSIS package's own default (`$PROGRAMFILES64\SLUI`).
 pub fn default_dir() -> String {
-    format!("{}\\{APP_DIR_NAME}", program_files().trim_end_matches('\\'))
+    let program_files = known_folder(&windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles)
+        .or_else(|| std::env::var("ProgramW6432").ok())
+        .unwrap_or_else(|| r"C:\Program Files".to_string());
+    format!("{}\\{APP_DIR_NAME}", program_files.trim_end_matches('\\'))
 }
 
-fn program_files() -> String {
+/// SLUI's data directories of the current user: `%APPDATA%\com.slui.desktop` (settings)
+/// and `%LOCALAPPDATA%\com.slui.desktop` (WebView2 data). Folders that cannot be
+/// resolved are left out.
+pub fn user_data_dirs() -> Vec<std::path::PathBuf> {
+    use windows_sys::Win32::UI::Shell::{FOLDERID_LocalAppData, FOLDERID_RoamingAppData};
+    [&FOLDERID_RoamingAppData, &FOLDERID_LocalAppData]
+        .into_iter()
+        .filter_map(known_folder)
+        .map(|folder| Path::new(&folder).join(APP_IDENTIFIER))
+        .collect()
+}
+
+fn known_folder(id: &windows_sys::core::GUID) -> Option<String> {
     use windows_sys::Win32::{
         System::Com::CoTaskMemFree,
-        UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath, KF_FLAG_DEFAULT},
+        UI::Shell::{SHGetKnownFolderPath, KF_FLAG_DEFAULT},
     };
 
     let mut path: windows_sys::core::PWSTR = std::ptr::null_mut();
-    let result = unsafe {
-        SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT as u32, std::ptr::null_mut(), &mut path)
-    };
+    let result = unsafe { SHGetKnownFolderPath(id, KF_FLAG_DEFAULT as u32, std::ptr::null_mut(), &mut path) };
     let mut resolved = None;
     if result >= 0 && !path.is_null() {
         let length = (0..).take_while(|&index| unsafe { *path.add(index) } != 0).count();
@@ -216,8 +249,6 @@ fn program_files() -> String {
         unsafe { CoTaskMemFree(path.cast()) };
     }
     resolved
-        .or_else(|| std::env::var("ProgramW6432").ok())
-        .unwrap_or_else(|| r"C:\Program Files".to_string())
 }
 
 /// Why a directory cannot take the install.
@@ -403,5 +434,13 @@ mod tests {
         let dir = default_dir();
         assert!(dir.ends_with(r"\SLUI"), "{dir}");
         assert!(normalize_dir(&dir).is_ok(), "{dir}");
+    }
+
+    #[test]
+    fn user_data_dirs_are_named_after_the_app_identifier() {
+        let dirs = user_data_dirs();
+        assert_eq!(dirs.len(), 2, "{dirs:?}");
+        assert!(dirs.iter().all(|dir| dir.ends_with(APP_IDENTIFIER)), "{dirs:?}");
+        assert_ne!(dirs[0], dirs[1]);
     }
 }

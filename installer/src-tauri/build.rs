@@ -12,7 +12,8 @@
 //!
 //! Without a payload, debug builds (UI development) compile with
 //! `cfg(slui_setup_no_payload)` and installing returns a `no_payload` failure;
-//! release builds refuse to compile.
+//! release builds refuse to compile. The `uninstaller` feature (slui-uninstall.exe)
+//! never embeds the package and is built without one in every profile.
 
 use std::{env, fs, path::PathBuf};
 
@@ -27,10 +28,12 @@ fn main() {
     println!("cargo:rerun-if-changed=app.manifest");
 
     let payload = env::var("SLUI_SETUP_PAYLOAD").ok().filter(|path| !path.trim().is_empty());
+    let uninstaller = env::var_os("CARGO_FEATURE_UNINSTALLER").is_some();
     let mut windows = tauri_build::WindowsAttributes::new().app_manifest(include_str!("app.manifest"));
     match payload {
+        Some(_) if uninstaller => fail("the uninstaller feature builds slui-uninstall.exe without a payload; unset SLUI_SETUP_PAYLOAD"),
         Some(path) => windows = windows.append_rc_content(embed_payload(PathBuf::from(path))),
-        None => no_payload(),
+        None => no_payload(uninstaller),
     }
 
     tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))
@@ -76,11 +79,11 @@ fn embed_payload(path: PathBuf) -> String {
     format!("SLUI_PAYLOAD RCDATA \"{}\"", plain.replace('\\', "\\\\"))
 }
 
-fn no_payload() {
-    if env::var("PROFILE").as_deref() == Ok("release") {
+fn no_payload(uninstaller: bool) {
+    if !uninstaller && env::var("PROFILE").as_deref() == Ok("release") {
         fail("release builds must embed the SLUI NSIS package; run `npm run installer:build:local` (or `npm run installer:build`) instead of building installer/ directly");
     }
-    // UI development: show the version of the SLUI app in this checkout.
+    // UI development and the uninstaller: the version of the SLUI app in this checkout.
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let config = manifest_dir.join("../../src-tauri/tauri.conf.json");
     println!("cargo:rerun-if-changed={}", config.display());

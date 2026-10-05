@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
 import { formatBytes, optionsGate, type Detect, type Shortcut, type State } from "../model.ts";
+import { Check } from "./Check.tsx";
 
 /** Install location and shortcuts, edited in place on the welcome screen. */
 export function Options({ state, detect, onDirChange, onBrowse, onShortcutChange }: {
@@ -36,16 +36,4 @@ export function Options({ state, detect, onDirChange, onBrowse, onShortcutChange
       </Check>
     </div>
   </section>;
-}
-
-function Check({ checked, onChange, children }: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  children: ReactNode;
-}) {
-  return <label className="setup-check">
-    <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-    <span className="setup-check__box" aria-hidden="true" />
-    {children}
-  </label>;
 }

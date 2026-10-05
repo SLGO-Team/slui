@@ -234,6 +234,8 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 .setup-options__status { min-width: 0; overflow: hidden; color: var(--home-muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .setup-options__status[data-tone="error"] { color: #ff8a8a; }
 .setup-options__checks { display: flex; flex-wrap: wrap; gap: 8px 28px; padding-top: 12px; border-top: 1px solid var(--home-line); }
+/* Uninstall options: the toggles are the whole section, one per row. */
+.setup-options__checks--list { flex-direction: column; gap: 10px; padding-top: 0; border-top: 0; }
 
 .setup-field { display: flex; gap: 8px; }
 .setup-input {
@@ -264,6 +266,7 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
   background: #142030;
   transition: background 120ms, border-color 120ms;
 }
+.setup-check__hint { margin-left: 4px; color: var(--home-muted); font-size: 12px; }
 .setup-check:hover .setup-check__box { border-color: #33475c; }
 .setup-check input:checked + .setup-check__box { border-color: var(--home-orange-lo); background: var(--home-orange-grad); }
 .setup-check input:checked + .setup-check__box::after {
