@@ -7,7 +7,11 @@ import { advanceDynamicZoom, dynamicZoomTarget, dynamicZoomTargets, type Dynamic
 
 type Source = { serverId: string; instanceId: string };
 type MapIdentity = Source & { roundId: string; mapId: string };
-type Frame = { payload: MinimapPositions; receivedAtMs: number };
+/** `sampledAtMs` is the plugin's capture time (envelope `sent_at`), on the server's clock. */
+type Frame = { payload: MinimapPositions; receivedAtMs: number; sampledAtMs: number };
+type ClockSample = Pick<Frame, "receivedAtMs" | "sampledAtMs">;
+/** The plugin-clock instant the radar shows, last advanced at local `updatedAtMs`. */
+type Playout = { renderAtMs: number; updatedAtMs: number };
 export type MinimapAvailability = "live" | "waiting-viewpoint" | "syncing" | "loading" | "stale" | "disconnected" | "invalid" | "incompatible";
 export type MinimapState = {
   connectionStatus: ConnectionStatus;
@@ -26,7 +30,14 @@ export type MinimapState = {
    */
   bombsites: readonly MinimapBombsite[];
   frame: Frame | null;
-  previousFrame: Frame | null;
+  /**
+   * Committed frames, oldest first, ending with `frame`: only those the playout can still interpolate
+   * from. Poses are only read for players the latest frame still authorizes, with matching visibility.
+   */
+  frames: readonly Frame[];
+  /** Receipt vs capture time of the frames in the last `PLAYOUT_WINDOW_MS`, for the playout delay. */
+  clock: readonly ClockSample[];
+  playout: Playout | null;
   pendingFrame: Frame | null;
   visibilityRevision: number;
   authorizationKey: string | null;
@@ -44,7 +55,7 @@ export type MinimapState = {
 export const initialMinimapState: MinimapState = {
   connectionStatus: "signed-out", source: null, baselineAccepted: false, sequence: -1,
   identity: null, init: null, knownMaps: {}, requestToken: 0, geometry: null, bombsites: [],
-  frame: null, previousFrame: null, pendingFrame: null, visibilityRevision: -1,
+  frame: null, frames: [], clock: [], playout: null, pendingFrame: null, visibilityRevision: -1,
   authorizationKey: null, availability: "syncing", focused: false, focusRevision: -1, scoreboardArmed: false,
   preferences: normalizeRadarPreferences(), alternateZoomRequested: false, alternateZoomArmed: false,
   dynamicZoom: null, radarUpdatedAtMs: 0,
@@ -65,7 +76,7 @@ export function minimapStaleAfterMs(init: MinimapInit | null): number {
 }
 
 function clearDynamic(state: MinimapState, availability: MinimapAvailability): MinimapState {
-  return { ...state, frame: null, previousFrame: null, pendingFrame: null, scoreboardArmed: false,
+  return { ...state, frame: null, frames: [], clock: [], playout: null, pendingFrame: null, scoreboardArmed: false,
     alternateZoomArmed: false, dynamicZoom: null, availability };
 }
 
@@ -100,7 +111,12 @@ function validRooms(frame: Frame, geometry: MapGeometry): boolean {
 function commitFrame(state: MinimapState, frame: Frame, nowMs: number): MinimapState {
   if (nowMs - frame.receivedAtMs > minimapStaleAfterMs(state.init)) return clearDynamic(state, "stale");
   if (!state.geometry || !validRooms(frame, state.geometry)) return clearDynamic(state, "invalid");
-  return { ...state, previousFrame: state.frame, frame, pendingFrame: null,
+  // A capture time that goes backwards (server clock step) starts a new timeline.
+  const continuous = state.frame !== null && frame.sampledAtMs >= state.frame.sampledAtMs;
+  const clock = continuous ? state.clock.filter((sample) => frame.receivedAtMs - sample.receivedAtMs <= PLAYOUT_WINDOW_MS) : [];
+  return { ...state, frame, frames: [...(continuous ? state.frames : []), frame].slice(-MAX_PLAYOUT_FRAMES),
+    clock: [...clock, { receivedAtMs: frame.receivedAtMs, sampledAtMs: frame.sampledAtMs }],
+    playout: continuous ? state.playout : null, pendingFrame: null,
     visibilityRevision: frame.payload.visibility_revision, authorizationKey: authorizationKey(frame.payload),
     scoreboardArmed: state.focused && (state.scoreboardArmed || !frame.payload.scoreboard_visible),
     alternateZoomArmed: state.focused && (state.alternateZoomArmed || !state.alternateZoomRequested),
@@ -115,10 +131,10 @@ function receivePositions(state: MinimapState, event: MinimapPositionsEvent, rec
   const key = authorizationKey(event.payload);
   if (event.payload.visibility_revision < state.visibilityRevision
     || (event.payload.visibility_revision === state.visibilityRevision && key !== state.authorizationKey)) return clearDynamic(next, "invalid");
-  const frame = { payload: event.payload, receivedAtMs };
+  const frame = { payload: event.payload, receivedAtMs, sampledAtMs: Date.parse(event.sent_at) };
   if (state.geometry && !validRooms(frame, state.geometry)) return clearDynamic(next, "invalid");
   return state.geometry ? commitFrame(next, frame, receivedAtMs)
-    : { ...next, frame: null, previousFrame: null, pendingFrame: frame, availability: "loading" };
+    : { ...next, frame: null, frames: [], clock: [], playout: null, pendingFrame: frame, availability: "loading" };
 }
 
 function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { type: "radar-options" }>): MinimapState {
@@ -181,6 +197,49 @@ function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { ty
     knownMaps: { ...state.knownMaps, [physicalKey]: descriptor }, ...NO_MAP };
 }
 
+// Poses are shown on the plugin's capture timeline, not by arrival: frames are captured every
+// ~67 ms but arrive unevenly (in game: 61/61/80 ms), so interpolating from each arrival held
+// and jumped the map every few frames. The playout runs behind the latest capture by the
+// worst recent transit delay plus the longest capture gap, so the next frame is normally
+// already there; it never extrapolates and holds at the newest pose if one is later than that.
+const PLAYOUT_WINDOW_MS = 3_000;
+/** The playout clock catches up with a moved target at most 5% faster or slower than real time, below what the eye notices. */
+const PLAYOUT_MAX_SLEW = 0.05;
+/** Beyond this the playout jumps instead of slewing (a resumed stream). */
+const PLAYOUT_SNAP_MS = 250;
+const MAX_PLAYOUT_FRAMES = 8;
+
+function playoutTarget(state: MinimapState, nowMs: number): number | null {
+  if (state.clock.length === 0) return null;
+  let gap = 1_000 / (state.init?.position_update_hz ?? 15), offset = Infinity;
+  state.clock.forEach((sample, index) => {
+    // The plugin-minus-local clock offset of the slowest recent frame.
+    offset = Math.min(offset, sample.sampledAtMs - sample.receivedAtMs);
+    if (index > 0) gap = Math.max(gap, sample.sampledAtMs - state.clock[index - 1].sampledAtMs);
+  });
+  return nowMs + offset - gap;
+}
+
+function advancePlayout(state: MinimapState, nowMs: number): Playout | null {
+  const target = playoutTarget(state, nowMs);
+  if (target === null) return null;
+  const previous = state.playout;
+  if (!previous || nowMs < previous.updatedAtMs) return { renderAtMs: target, updatedAtMs: nowMs };
+  const elapsed = nowMs - previous.updatedAtMs;
+  const predicted = previous.renderAtMs + elapsed;
+  const error = target - predicted;
+  if (Math.abs(error) > PLAYOUT_SNAP_MS) return { renderAtMs: target, updatedAtMs: nowMs };
+  const correction = Math.max(-PLAYOUT_MAX_SLEW * elapsed, Math.min(PLAYOUT_MAX_SLEW * elapsed, error));
+  return { renderAtMs: predicted + correction, updatedAtMs: nowMs };
+}
+
+/** Drops frames the playout has passed: it keeps the last capture at or before `renderAtMs` onward. */
+function playableFrames(frames: readonly Frame[], renderAtMs: number): readonly Frame[] {
+  let first = 0;
+  for (let index = 0; index < frames.length; index += 1) if (frames[index].sampledAtMs <= renderAtMs) first = index;
+  return first === 0 ? frames : frames.slice(first);
+}
+
 function radarContext(state: MinimapState, nowMs: number, preferences: RadarPreferences) {
   const frame = state.frame && nowMs - state.frame.receivedAtMs <= minimapStaleAfterMs(state.init) ? state.frame : null;
   const fullMap = Boolean(frame && state.focused && state.scoreboardArmed && frame.payload.scoreboard_visible);
@@ -195,7 +254,8 @@ function radarContext(state: MinimapState, nowMs: number, preferences: RadarPref
 }
 
 // One pure transition coordinates camera-only timers with the authoritative map
-// lifecycle. It stores scalars/identities, never a separate history of enemy poses.
+// lifecycle. It stores scalars/identities, never a separate history of enemy poses:
+// the playout's few buffered frames are read only under the latest frame's authorization.
 export function minimapReducer(state: MinimapState, action: MinimapAction): MinimapState {
   const nowMs = "nowMs" in action ? action.nowMs : action.type === "event" ? action.receivedAtMs
     : action.type === "diagnostic" ? action.diagnostic.receivedAtMs : state.radarUpdatedAtMs;
@@ -219,7 +279,9 @@ export function minimapReducer(state: MinimapState, action: MinimapAction): Mini
       targetScale: dynamicZoomTarget(next.geometry, context.viewpoint, context.positions, next.preferences, context.selectedScale),
       selectedScale: context.selectedScale, nowMs,
     }) : null;
-  return { ...next, dynamicZoom, radarUpdatedAtMs: nowMs };
+  const playout = context.frame ? advancePlayout(next, nowMs) : null;
+  return { ...next, dynamicZoom, playout, frames: playout ? playableFrames(next.frames, playout.renderAtMs) : next.frames,
+    radarUpdatedAtMs: nowMs };
 }
 
 const STATUS_LABELS: Record<MinimapAvailability, string> = {
@@ -260,10 +322,23 @@ export function shortestAngle(from: number, to: number, amount: number): number 
   return from + ((to - from + 540) % 360 - 180) * amount;
 }
 
-function interpolatePosition(position: MinimapPosition, previous: MinimapPosition | undefined, amount: number): MinimapPosition {
-  if (!previous || previous.status !== "live" || previous.zone !== position.zone || previous.visibility !== position.visibility || previous.team_id !== position.team_id) return position;
-  return { ...position, x: previous.x + (position.x - previous.x) * amount, z: previous.z + (position.z - previous.z) * amount,
-    yaw_degrees: shortestAngle(previous.yaw_degrees, position.yaw_degrees, amount) };
+/** The player's pose in a buffered frame, if it is the same live, equally visible marker as in the latest frame. */
+function bufferedPose(frame: Frame, latest: MinimapPosition): MinimapPosition | undefined {
+  const pose = frame.payload.positions.find((position) => position.player_id === latest.player_id);
+  return pose && pose.status === "live" && pose.zone === latest.zone && pose.visibility === latest.visibility
+    && pose.team_id === latest.team_id ? pose : undefined;
+}
+
+/** The latest marker at its pose at plugin time `renderAtMs`: interpolated between captures, never extrapolated. */
+function playoutPosition(latest: MinimapPosition, frames: readonly Frame[], renderAtMs: number | null): MinimapPosition {
+  const next = renderAtMs === null ? -1 : frames.findIndex((frame) => frame.sampledAtMs >= renderAtMs);
+  const to = next === -1 ? undefined : bufferedPose(frames[next], latest);
+  if (renderAtMs === null || !to) return latest;
+  const pose = (x: number, z: number, yaw: number) => ({ ...latest, x, y: to.y, z, yaw_degrees: yaw, room_id: to.room_id });
+  const from = next > 0 ? bufferedPose(frames[next - 1], latest) : undefined;
+  if (!from) return pose(to.x, to.z, to.yaw_degrees);
+  const amount = (renderAtMs - frames[next - 1].sampledAtMs) / (frames[next].sampledAtMs - frames[next - 1].sampledAtMs);
+  return pose(from.x + (to.x - from.x) * amount, from.z + (to.z - from.z) * amount, shortestAngle(from.yaw_degrees, to.yaw_degrees, amount));
 }
 
 /**
@@ -286,12 +361,11 @@ export function keycardOpacity(keycard: MinimapCommanderKeycard, receivedAtMs: n
 }
 
 function interpolatedRadarPoses(state: MinimapState, frame: Frame | null, nowMs: number) {
-  const previousById = new Map(state.previousFrame?.payload.positions.map((position) => [position.player_id, position]) ?? []);
-  const amount = frame ? Math.min(1, Math.max(0, (nowMs - frame.receivedAtMs) / Math.min(100, 1_000 / (state.init?.position_update_hz ?? 15)))) : 1;
+  const renderAtMs = state.playout ? state.playout.renderAtMs + (nowMs - state.playout.updatedAtMs) : null;
   // Only live markers are interpolated and may drive the camera or dynamic zoom; last-known and death
   // markers are frozen poses owned by the plugin's CS2 state machine.
   const positions = frame?.payload.positions.filter((position) => position.status === "live")
-    .map((position) => interpolatePosition(position, previousById.get(position.player_id), amount)) ?? [];
+    .map((position) => playoutPosition(position, state.frames, renderAtMs)) ?? [];
   const fading = frame ? frame.payload.positions.flatMap((position) => {
     const opacity = position.status === "live" ? null : markerOpacity(position, frame.receivedAtMs, nowMs);
     return opacity === null ? [] : [{ position, opacity }];

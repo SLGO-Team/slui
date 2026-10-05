@@ -174,6 +174,18 @@ last batched status can miss a connecting/baseline-required reset.
 - Renderer projects world `(x, -z)`. Yaw 0 is +Z; yaw 90 is +X. Following camera
   and followed marker consume the same interpolated pose, with shortest-angle
   interpolation and no extrapolation or interpolation from dead markers.
+- Live poses play out on the plugin's capture timeline (envelope `sent_at`),
+  never by arrival time. In game, captures were 67 ms apart (sd 1.9 ms) but
+  arrived 61/61/80 ms apart; a window anchored at each arrival held or jumped
+  on ~90% of turning frames. The playout instant is `now + min(sent - received)
+  - max(capture gap, 1000/hz)` over the last 3 s: the worst recent transit plus
+  one capture gap, so the next frame is normally already buffered. When the
+  target moves, the playout clock slews at most 5% off real time; it snaps only
+  beyond 250 ms, and restarts with the stream (stale, reset, a backwards
+  capture time). Past the newest capture it holds; it never extrapolates.
+  Buffered frames supply poses only for players the latest frame authorizes,
+  with the same live status, zone, visibility and team; frames the playout
+  has passed are dropped. Frozen markers, fades and staleness stay on receipt time.
 - Radar uses a stable 300px design panel with a 250px circle or 290px square
   within the shared 1920x1080 overlay scale, multiplied by radar-only `hudScale`.
   Shape is `forceSquare || (fullMap && squareWithScoreboard)`. Camera projection,
