@@ -220,7 +220,7 @@ Required boundary rules:
   (`CLIENT_FEATURE_HUD_MESSAGES` / `CLIENT_FEATURE_WIN_PANEL`) join
   `OVERLAY_CLIENT_FEATURES` only once their renderers exist. The mock provider
   plays scripted scenes from `src/mocks/hudScenes.ts`, selected by the HUD debug
-  `hudScene=` URL parameter.
+  `hudScene=` URL parameter; `hudSceneAt=<ms>` pins a scene moment for captures.
 - Minimap payloads contain a versioned map seed/descriptor and player
   positions already filtered for the authenticated player's in-game
   visibility. The client must never receive an omniscient player map and hide
@@ -275,7 +275,7 @@ request", "Sidecar session handshake", "Security boundary").
   `setFeatures` stores the latest `client.features` list; it is sent on change
   while `live` and after every accepted baseline when not empty, so callers
   never resend after a reconnect. `App.tsx` maps overlay `enabled` to
-  `["chat-input", "shop-menu", "top-hud"]` / `[]`: a disabled overlay keeps the
+  `["chat-input", "shop-menu", "top-hud", "win-panel"]` / `[]`: a disabled overlay keeps the
   session live, so it must withdraw the features explicitly or the plugin keeps
   ignoring Y, keeps refusing to open its in-game shop from B and keeps its own
   chat feed and top HUD hidden.

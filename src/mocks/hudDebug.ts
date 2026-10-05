@@ -71,6 +71,11 @@ export type HudDebugOptions = {
   background: HudDebugBackground;
   /** Scripted hud.messages / round.result scene the mock provider plays. */
   hudScene: HudScene;
+  /**
+   * Pins the scene at this many milliseconds after its start (URL `hudSceneAt`, no panel control):
+   * the provider keeps re-sending that moment and the win panel draws without animation, for captures.
+   */
+  hudSceneAt: number | null;
 };
 
 export const DEFAULT_HUD_DEBUG_OPTIONS: HudDebugOptions = {
@@ -82,6 +87,7 @@ export const DEFAULT_HUD_DEBUG_OPTIONS: HudDebugOptions = {
   availability: "live",
   background: "1",
   hudScene: "none",
+  hudSceneAt: null,
 };
 
 const ROUND_TIMING: Readonly<Record<RoundState, { remainingMs: number; paused: boolean }>> = {
@@ -150,7 +156,13 @@ export function readHudDebugOptions(search: string = window.location.search): Hu
       ? background
       : DEFAULT_HUD_DEBUG_OPTIONS.background,
     hudScene: readHudScene(params.get("hudScene")),
+    hudSceneAt: readHudSceneAt(params.get("hudSceneAt")),
   };
+}
+
+function readHudSceneAt(value: string | null): number | null {
+  if (value === null || !/^\d{1,6}$/.test(value)) return null;
+  return Number(value);
 }
 
 export function replaceHudDebugUrl(options: HudDebugOptions) {
@@ -163,6 +175,8 @@ export function replaceHudDebugUrl(options: HudDebugOptions) {
   url.searchParams.set("hudAvailability", options.availability);
   url.searchParams.set("previewBackground", options.background);
   url.searchParams.set("hudScene", options.hudScene);
+  if (options.hudSceneAt === null) url.searchParams.delete("hudSceneAt");
+  else url.searchParams.set("hudSceneAt", String(options.hudSceneAt));
   window.history.replaceState(window.history.state, "", url);
 }
 

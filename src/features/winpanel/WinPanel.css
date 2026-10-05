@@ -1,0 +1,388 @@
+/* Manual recreation of CS2 panorama/layout/hud/hudwinpanel.xml + styles/hud/hudwinpanel.css on the
+   1920x1080 canvas. Values marked "capture" come from 1920x1080 in-game screenshots, which win over
+   the Panorama sources. Stratum2 faces ("Stratum2 WinPanel*") are registered in src/shared/fonts.ts.
+   CJK text: CS2's fonts.conf falls back from Stratum2 to Noto Sans SC scaled by 0.9 (size-adjust);
+   light serves the medium/regular labels (the MVP chip), bold the bold ones (title, subtitle, kit). */
+@font-face {
+  font-family: "Noto Sans SC WinPanel";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-light.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Noto Sans SC WinPanel";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+/* Above the top HUD (z-index 2), below the shop (30) and chat (31); its own layer, so the team
+   counter never moves. */
+.winpanel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.winpanel-overlay *,
+.winpanel-overlay *::before,
+.winpanel-overlay *::after {
+  box-sizing: border-box;
+}
+
+.winpanel-canvas {
+  --winpanel-scale: 1;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  margin-left: -960px;
+  transform: scale(var(--winpanel-scale));
+  transform-origin: top center;
+}
+
+/* .WinPanelRoot: y winPanelPosY (190px), centred, flow down; fades over 0.3s ease-out. */
+.winpanel {
+  --winpanel-accent: rgb(226, 226, 226);
+  --winpanel-fill: rgba(54, 54, 56, 0.7);
+  --winpanel-mvp-accent: rgb(226, 226, 226);
+  --winpanel-mvp-fill: rgba(50, 50, 52, 0.94);
+  position: absolute;
+  top: 190px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.winpanel--leaving {
+  animation: winpanel-root-exit 0.3s ease-out forwards;
+}
+
+/* .WinPanel__Result: 400x80, 4px side bars in the accent, radius 3px, translucent fill with the
+   panel dot texture; .WinPanelTopSection margin-bottom 16px. Children are absolutely placed
+   (Panorama flow-children: none). */
+.winpanel-result {
+  position: relative;
+  width: 400px;
+  height: 80px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border-right: 4px solid var(--winpanel-accent);
+  border-left: 4px solid var(--winpanel-accent);
+  border-radius: 3px;
+  background: var(--winpanel-fill);
+  animation: winpanel-result-enter 0.25s ease-in both;
+}
+
+.winpanel-result::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: url("/assets/hud/dot-grid.png") 0 0 / 360px 360px;
+  opacity: 0.1;
+}
+
+.winpanel--leaving .winpanel-result {
+  animation: winpanel-result-exit 0.25s ease-in forwards;
+}
+
+/* .WinPanel__Result__Title: 340x60, centred above the 14px bottom margin. Capture: CJK glyphs are
+   40px (Noto at 0.9 x 44.4px) on a 48px pitch (letter-spacing 8px), ink y 206-241, centred on the
+   panel (hence top 1px, not Panorama's 3px); the trailing letter-spacing is cancelled with an equal
+   left padding. */
+.winpanel-result__title {
+  position: absolute;
+  top: 1px;
+  left: 26px;
+  width: 340px;
+  height: 60px;
+  overflow: hidden;
+  padding-left: 8px;
+  color: var(--winpanel-accent);
+  font: 700 44.4px/60px "Stratum2 WinPanel Title", "Noto Sans SC WinPanel", sans-serif;
+  letter-spacing: 8px;
+  text-align: center;
+  text-shadow: 0 0 8px #353535bb;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: winpanel-title-enter 0.25s ease-in both;
+}
+
+/* .WinPanel__Result__double-arrows: 16px tall, vertical centre above the 14px margin, 12px from the
+   bars; the left one is mirrored. They slide in from +25px after 0.5s (brightness 10 -> 1). */
+.winpanel-result__arrows {
+  --winpanel-arrow-flip: 1;
+  position: absolute;
+  top: 25px;
+  width: 14px;
+  height: 16px;
+  background-color: var(--winpanel-accent);
+  -webkit-mask: url("/assets/winpanel/double-arrows.svg") center / 14px 16px no-repeat;
+  mask: url("/assets/winpanel/double-arrows.svg") center / 14px 16px no-repeat;
+  transform: scaleX(var(--winpanel-arrow-flip));
+  animation: winpanel-arrows-enter 0.25s ease-in 0.5s both;
+}
+
+.winpanel-result__arrows--left {
+  --winpanel-arrow-flip: -1;
+  left: 12px;
+}
+
+.winpanel-result__arrows--right {
+  right: 12px;
+}
+
+/* .WinPanelRow--funfacts: bottom-aligned 16px row with 3px margins, 12px white. Capture: bold CJK,
+   ink y 255-264, 2px lower than the Panorama row puts it. Shows the plugin's subtitle_text (end
+   reason today, a fun fact later). */
+.winpanel-result__subtitle {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  left: 0;
+  height: 16px;
+  overflow: hidden;
+  padding: 0 8px;
+  color: #fff;
+  font: 700 12px/16px "Stratum2 WinPanel", "Noto Sans SC WinPanel", sans-serif;
+  text-align: center;
+  text-shadow: 0 0 8px #141414c7;
+  white-space: nowrap;
+  animation: winpanel-fade-in 0.25s ease-in both;
+}
+
+/* .MVP_section (non-premier): 640x90, radius 3px, both ends faded (capture: transparent to ~30px,
+   opaque from ~85px). The CS2 3D banner scene is replaced by the winner-tinted base plus two
+   SLUI-drawn checker layers masked in the winner colour that twinkle against each other. */
+.winpanel-mvp {
+  position: relative;
+  width: 640px;
+  height: 90px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--winpanel-mvp-fill);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, transparent 30px, #000 85px, #000 calc(100% - 85px), transparent calc(100% - 30px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, transparent 30px, #000 85px, #000 calc(100% - 85px), transparent calc(100% - 30px), transparent 100%);
+  animation: winpanel-mvp-enter 0.25s ease-in-out both;
+}
+
+.winpanel-mvp__checker {
+  position: absolute;
+  inset: 0;
+  background-color: var(--winpanel-mvp-accent);
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  -webkit-mask-size: 304px 95px;
+  mask-size: 304px 95px;
+}
+
+.winpanel-mvp__checker--a {
+  -webkit-mask-image: url("/assets/winpanel/checker-a.svg");
+  mask-image: url("/assets/winpanel/checker-a.svg");
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+  animation: winpanel-checker-a 3.2s ease-in-out infinite alternate;
+}
+
+.winpanel-mvp__checker--b {
+  -webkit-mask-image: url("/assets/winpanel/checker-b.svg");
+  mask-image: url("/assets/winpanel/checker-b.svg");
+  -webkit-mask-position: -95px 0;
+  mask-position: -95px 0;
+  animation: winpanel-checker-b 3.2s ease-in-out infinite alternate;
+}
+
+/* .MVP / .MVP__Winner: avatar + details, centred as one block (fit-children). */
+.winpanel-mvp__content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: winpanel-fade-in 0.1s ease-in-out both;
+}
+
+/* .MVP__Avatar: 72px square, 8px right margin, grey gradient behind the image. */
+.winpanel-mvp__avatar {
+  position: relative;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  margin-right: 8px;
+  overflow: hidden;
+  background: linear-gradient(#6d6d6d, #464646);
+}
+
+.winpanel-mvp__avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* .MVP_Details: flow down, vertically centred (21 + 38 + 16 = 75px; capture chip top y 294). Labels
+   are top-aligned Panorama labels; line heights place the text where the capture has it. */
+.winpanel-mvp__details {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+/* .MVP__Reason: winner-coloured chip, 21px tall, 18px black text, padding 0 6px. */
+.winpanel-mvp__reason {
+  max-width: 300px;
+  height: 21px;
+  overflow: hidden;
+  padding: 0 6px;
+  color: #000;
+  background: var(--winpanel-mvp-accent);
+  font: 500 18px/21px "Stratum2 WinPanel Condensed", "Noto Sans SC WinPanel", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* .MVP__WinnerName: 250x38, 28px condensed in the winner colour. Capture: cap top y 322; the
+   Panorama brightness 1.5 does not show (the name keeps the plain side colour). */
+.winpanel-mvp__name {
+  width: 250px;
+  height: 38px;
+  overflow: hidden;
+  color: var(--winpanel-mvp-accent);
+  font: 500 28px/36px "Stratum2 WinPanel Condensed", "Noto Sans SC WinPanel", sans-serif;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 4px #141414dc;
+  white-space: nowrap;
+}
+
+/* .MVP__MusicKit / .MVP__MusicKitName: 300x16, 12px in the winner colour (no visible brightness
+   boost in the capture); the trailing note is a SLUI-drawn icon instead of the CS2 glyph. Capture:
+   bold CJK, ink y 356-365. */
+.winpanel-mvp__kit {
+  display: flex;
+  align-items: flex-start;
+  width: 300px;
+  height: 16px;
+  color: var(--winpanel-mvp-accent);
+  font: 700 12px/18px "Stratum2 WinPanel", "Noto Sans SC WinPanel", sans-serif;
+  text-shadow: 0 2px 4px #141414ee;
+}
+
+.winpanel-mvp__kit-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.winpanel-mvp__kit-note {
+  flex: 0 0 8px;
+  align-self: center;
+  width: 8px;
+  height: 11px;
+  margin-left: 4px;
+  background-color: currentColor;
+  -webkit-mask: url("/assets/winpanel/music-note.svg") center / contain no-repeat;
+  mask: url("/assets/winpanel/music-note.svg") center / contain no-repeat;
+}
+
+/* .MVP__white: the strip flashes white and fades out after 0.25s. */
+.winpanel-mvp__white {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  animation: winpanel-white-out 0.25s ease-in-out 0.25s both;
+}
+
+/* Debug captures pin the final state. */
+.winpanel[data-still],
+.winpanel[data-still] * {
+  animation: none !important;
+}
+
+@keyframes winpanel-result-enter {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@keyframes winpanel-result-exit {
+  to {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@keyframes winpanel-root-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes winpanel-title-enter {
+  from {
+    transform: scale(1.5);
+  }
+}
+
+@keyframes winpanel-arrows-enter {
+  from {
+    filter: brightness(10);
+    transform: translateX(25px) scaleX(var(--winpanel-arrow-flip));
+  }
+}
+
+@keyframes winpanel-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes winpanel-mvp-enter {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes winpanel-white-out {
+  from {
+    opacity: 1;
+  }
+}
+
+@keyframes winpanel-checker-a {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.35;
+  }
+}
+
+@keyframes winpanel-checker-b {
+  from {
+    opacity: 0.35;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

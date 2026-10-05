@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="304" height="95" viewBox="0 0 304 95" fill="#fff">
+  <!-- SLUI-drawn win-panel MVP checker tile (layer A); used as a mask, so only alpha matters. -->
+  <rect x="77" y="1" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="96" y="1" width="17" height="17" fill-opacity="0.07"/>
+  <rect x="115" y="1" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="134" y="1" width="17" height="17" fill-opacity="0.11"/>
+  <rect x="96" y="20" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="115" y="20" width="17" height="17" fill-opacity="0.07"/>
+  <rect x="191" y="20" width="17" height="17" fill-opacity="0.11"/>
+  <rect x="229" y="20" width="17" height="17" fill-opacity="0.2"/>
+  <rect x="1" y="39" width="17" height="17" fill-opacity="0.11"/>
+  <rect x="115" y="39" width="17" height="17" fill-opacity="0.11"/>
+  <rect x="172" y="39" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="191" y="39" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="229" y="39" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="286" y="39" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="39" y="58" width="17" height="17" fill-opacity="0.07"/>
+  <rect x="96" y="58" width="17" height="17" fill-opacity="0.07"/>
+  <rect x="115" y="58" width="17" height="17" fill-opacity="0.2"/>
+  <rect x="172" y="58" width="17" height="17" fill-opacity="0.11"/>
+  <rect x="286" y="58" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="1" y="77" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="20" y="77" width="17" height="17" fill-opacity="0.15"/>
+  <rect x="58" y="77" width="17" height="17" fill-opacity="0.11"/>
+  <rect x="191" y="77" width="17" height="17" fill-opacity="0.11"/>
+  <rect x="229" y="77" width="17" height="17" fill-opacity="0.2"/>
+  <rect x="248" y="77" width="17" height="17" fill-opacity="0.2"/>
+  <rect x="286" y="77" width="17" height="17" fill-opacity="0.07"/>
+</svg>

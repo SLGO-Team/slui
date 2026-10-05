@@ -121,3 +121,27 @@ All boxes ≈ x 810-1110 (300 wide), dark translucent fill, centred white text.
   the ring and background wash red → yellow → green over the progress
   (`circle-full-to-empty`), so mid-progress captures are yellow. The icon pulses
   in `color-CT` (kit) or `color-icon-bomb` `#ffb136` (no kit).
+
+### Win panel: SLUI render vs captures (2026-10-05)
+
+Measured on headless-Chrome renders of the mock scenes (`hudSceneAt=2000`,
+no theme pack, so Stratum2 falls back to Barlow / Saira) against the T-win
+most-kills capture, 1920x1080:
+
+- Exact (+-0 px): title box 760-1160 / 190-270, CJK title glyph columns
+  871-904 / 918-953 / 965-1001 / 1013-1048 and rows 206-241, chevrons
+  776-789 and 1130-1143, subtitle ink rows 255-264, MVP strip top 286,
+  avatar 770-842 / 295-367 (with a kit row), chip rows 294-314, name cap top
+  322, kit ink rows 356-365. 1600x900 scales uniformly.
+- Deviations: Panorama places the title 2 px lower and the subtitle 2 px
+  higher than the captures show; SLUI follows the captures. The Panorama
+  `brightness` 1.5 / 1.3 on the MVP name and kit text is not visible in the
+  captures (the CT name is the plain side colour) and is not applied. The chip
+  is wider with the fallback fonts than with Stratum2 (text width only). The
+  title-box fill is a translucent tinted grey read from the captures, not
+  CS2's near-opaque `winPanelBgColorT/CT`. The 3D MVP banner scene is replaced
+  by two SLUI checker tiles that twinkle; the music-kit artwork overlapping the
+  avatar is dropped (no SLGO equivalent) and the trailing note glyph is a SLUI
+  icon. The CS2 glitch video layer is not recreated.
+- The exit is the root's 0.3 s fade plus the title box collapsing; Panorama's
+  1 s delayed MVP collapse is not replayed, so the strip leaves with the title.

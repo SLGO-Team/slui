@@ -82,6 +82,11 @@ for (const team of ["team-a", "team-b"]) {
       assert.equal(panel.winner_team, viewerRole);
       assert.equal(panel.title.outcome, "won");
       assert.equal(panel.mvp.reason_text, "最多击杀MVP（3杀）");
+      // Debug captures pin a scene moment (hudSceneAt): a new run of the same scene at that time.
+      connection.configureHudScene("win-mvp-kills", 2_000);
+      const pinned = latestOf("round.result").payload.panel;
+      assert.equal(pinned.visible_remaining_ms, 5_000);
+      assert.notEqual(pinned.result_id, panel.result_id);
       connection.configureHudScene("timeout");
       assert.equal(latestOf("round.result").payload.panel, null, "a message scene clears the panel");
       assert.equal(latestOf("hud.messages").payload.alert.countdown_remaining_ms > 57_000, true);

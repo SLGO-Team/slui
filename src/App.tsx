@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
 import {
@@ -15,6 +15,9 @@ import { createChatCommand, validateChatBody, type ChatCloseReason } from "./fea
 import { resolveChatSelf } from "./features/chat/presentation";
 import { hudVariantFor, playerSlotColors, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
 import { useChatFeature } from "./features/chat/useChatFeature";
+import { WinPanel } from "./features/winpanel/WinPanel";
+import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
+import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
 import { ShopDebugPanel } from "./mocks/ShopDebugPanel";
 import { createShopDebugState, readShopDebugOptions, replaceShopDebugUrl } from "./mocks/shopDebug";
@@ -40,7 +43,7 @@ import { createOverlayStateSource, createSessionStatusPublisher, type OverlaySta
 import "./App.css";
 
 /** Plugin features the enabled overlay takes over (reported via client.features). */
-const OVERLAY_CLIENT_FEATURES = [CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD] as const;
+const OVERLAY_CLIENT_FEATURES = [CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL] as const;
 
 // Mocks only in the explicit `mock` mode (npm run dev:mock).
 const BACKEND = readBackendConfig(import.meta.env);
@@ -96,6 +99,7 @@ function App() {
   // The real control plane accepts only the local-steamid claim.
   const proof = useMemo(() => createIdentityProofProvider(MOCK_BACKEND && import.meta.env.VITE_ENABLE_MOCK_VERIFIED_PROOF === "true"), []);
   const [hudState, dispatchHud] = useReducer(roundHudReducer, initialRoundHudState);
+  const [winPanelState, dispatchWinPanel] = useReducer(winPanelReducer, initialWinPanelState);
   const shopFeature = useShopFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
@@ -113,7 +117,9 @@ function App() {
   const overlayController = useMemo(() => createOverlayWindowController(), []);
 
   const handleEvent = useCallback((event: SlgoEvent) => {
-    dispatchHud({ type: "event", event, receivedAtMs: Date.now() });
+    const receivedAtMs = Date.now();
+    dispatchHud({ type: "event", event, receivedAtMs });
+    dispatchWinPanel({ type: "event", event, receivedAtMs });
     shopFeature.receiveEvent(event);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
@@ -236,8 +242,8 @@ function App() {
   }, [mockConnection, minimapOptions]);
 
   useEffect(() => {
-    if (HUD_DEBUG_ENABLED) mockConnection?.configureHudScene(debugOptions.hudScene);
-  }, [mockConnection, debugOptions.hudScene]);
+    if (HUD_DEBUG_ENABLED) mockConnection?.configureHudScene(debugOptions.hudScene, debugOptions.hudSceneAt);
+  }, [mockConnection, debugOptions.hudScene, debugOptions.hudSceneAt]);
 
   useEffect(() => {
     if (!HUD_DEBUG_ENABLED || !mockConnection) return;
@@ -385,6 +391,10 @@ function App() {
   const closeShop = useCallback(() => setShopOpen(false), []);
   const localSteamId = session.identity?.steamId ?? null;
   const hudVariant = pinnedHudVariant ?? hudVariantFor(hud, localSteamId);
+  // The MVP avatar comes from the displayed roster (the debug HUD's in the mock build).
+  const winPanelRoster = useMemo(() => winPanelRosterFromHud(hud), [hud]);
+  const winPanel = useMemo(() => selectWinPanel(winPanelState, nowMs, winPanelRoster), [nowMs, winPanelRoster, winPanelState]);
+  const winPanelStill = HUD_DEBUG_ENABLED && debugOptions.hudSceneAt !== null;
   const minimapPlayerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
   const chatSelf = useMemo(() => resolveChatSelf(
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
@@ -414,6 +424,7 @@ function App() {
         playerMeta={playerMeta}
         variant={hudVariant}
       />
+      <WinPanel panel={winPanel} still={winPanelStill} />
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
         renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")

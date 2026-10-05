@@ -231,3 +231,66 @@ The chat panel is a hand-built React feature under `src/features/chat`
   `CHAT_PREVIEW_URL`, default `http://localhost:1430/...`; Vite may not listen
   on 127.0.0.1) at 1920x1080 and a smaller 16:9 size before accepting a
   visual change.
+
+## 10. Win-panel-specific replication rules
+
+The win panel is a hand-built React feature under `src/features/winpanel`
+(`model.ts`, `presentation.ts`, `WinPanel.tsx` / `WinPanel.css`), recreating
+`layout/hud/hudwinpanel.xml` and `styles/hud/hudwinpanel.css` for `round.result`.
+
+- Data: `winPanelReducer` keeps the latest panel of the baseline's instance
+  with its local receive time; `selectWinPanel(state, nowMs, roster)` hides it
+  when the interpolated `visible_remaining_ms` reaches 0. `panel: null` hides
+  it at once. A result that ended (null frame, local expiry or replaced by a
+  newer result) never comes back from a late replay; a replay of the showing result only refreshes its
+  hold time and keeps `shownAtMs`, and the component is keyed by `resultId`,
+  so a replay never re-runs the enter animation. A baseline of another server
+  or instance clears the panel; a reconnect to the same instance keeps it.
+- Title, subtitle and MVP texts are the plugin's (`title.text`,
+  `subtitle_text`, `reason_text`, `music_kit_name`); SLUI never derives a
+  title from `winner_team`.
+- Colours live in `presentation.ts` (`winPanelColors`) and reach the DOM only
+  as CSS variables on `.winpanel` (`--winpanel-accent`, `--winpanel-fill`,
+  `--winpanel-mvp-accent`, `--winpanel-mvp-fill`). `won` / `observer`: the
+  winner's `ROLE_COLORS` and a dark team-tinted translucent fill; `lost`: CS2
+  `negativeColor` `#DB4437` on a neutral grey fill; `draw`: neutral. The MVP
+  strip (chip, name, kit row, checker squares, base) always follows the winner,
+  as CS2's `--Win--T/CT` classes do. An SCP win and loss differ by text and fill
+  only (SCP red and the loss red are nearly equal; user decision 2026-10-05).
+- Geometry at 1080p, verified against the captures: title box 400x80 at
+  x 760 / y 190 with 4px side bars and radius 3px; title 44.4px (CJK 40px after
+  the 0.9 Noto scaling), letter-spacing 8px with an equal left padding so the
+  text stays centred, CJK ink y 206-241; chevrons 14x16 SLUI SVG 12px inside
+  the bars at y 215, left one mirrored; subtitle 12px bold white, ink y 255-264;
+  MVP strip 640x90 at y 286, ends faded by a CSS gradient mask (transparent to
+  30px, opaque from 85px); avatar 72px with an 8px gap; details column of chip
+  (21px, 18px black text, padding 0 6px), name (250x38, 28px condensed) and kit
+  row (300x16, 12px bold + SLUI note icon). The avatar + details block is
+  centred as one piece, so the avatar sits at x 770 with a kit row and x 795
+  without one. The title shrinks its font to fit (Panorama `text-overflow:
+  shrink`), as do the subtitle and kit name; chip and name use ellipsis.
+- The Panorama `brightness` boosts on the name and kit text do not show in the
+  captures and are not applied. The CS2 3D banner scene and music-kit artwork
+  are replaced by SLUI drawings: two checker tiles
+  (`public/assets/winpanel/checker-a.svg` / `checker-b.svg`) masked in the
+  winner colour that twinkle against each other, and `music-note.svg`.
+- Transitions are CSS animations started at mount, never driven by the 250 ms
+  UI clock: title box scaleX 0 -> 1 with opacity (0.25s ease-in), title
+  scale 1.5 -> 1 (0.25s), chevrons slide in from +25px at brightness 10 after
+  0.5s, subtitle fade-in, MVP strip scaleX 0 -> 1 (0.25s) under a white flash
+  that fades after 0.25s. Exit: the last view stays mounted for 0.3s while the
+  root fades (`.WinPanelRoot` 0.3s ease-out) and the title box collapses.
+- Fonts: `Stratum2 WinPanel Title` (condensed bold, cap-centred), `Stratum2
+  WinPanel` (bold) and `Stratum2 WinPanel Condensed` (medium) in
+  `src/shared/fonts.ts`; CJK falls back to `Noto Sans SC WinPanel` declared in
+  `WinPanel.css` (light for medium labels, bold otherwise, `size-adjust: 90%`).
+- Layering: `.winpanel-overlay` is its own fixed layer at z-index 5 (above the
+  top HUD, below shop and chat) on a 1920x1080 canvas scaled by
+  `useOverlayScale`; the team counter never moves.
+- Mock preview: `npm run dev:mock`, `?hudScene=<scene>&viewerTeam=team-a|team-b`;
+  add `&hudSceneAt=<ms>` to pin the scene at that moment (the provider re-sends
+  it every second and the panel draws without animation) for captures and for
+  `npm run winpanel-layout-audit` (CDP on port 9223, preview at
+  `WINPANEL_PREVIEW_URL`, default `http://localhost:1430/`; viewport from
+  `WINPANEL_VIEWPORT_WIDTH/HEIGHT`). Run it at 1920x1080 and a smaller 16:9
+  size before accepting a visual change.

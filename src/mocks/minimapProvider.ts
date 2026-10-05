@@ -21,6 +21,8 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private hudScene: HudScene = "none";
   private hudSceneRun = 0;
   private hudSceneStartedAtMs = 0;
+  /** Debug captures: the scene stays at this moment (ms after its start) instead of playing. */
+  private hudSceneAtMs: number | null = null;
   private lastHudPayloads: Partial<Record<"hud.messages" | "round.result", string>> = {};
 
   constructor(events: SlgoEvent[], viewerTeam: "team-a" | "team-b") {
@@ -100,10 +102,11 @@ export class RealtimeMockProvider extends MockSidecarConnection {
 
   getMinimapInit(): MinimapInit { return this.mapInit; }
 
-  /** Plays a scripted hud.messages / round.result scene from its start (debug harness). */
-  configureHudScene(scene: HudScene) {
-    if (scene === this.hudScene) return;
+  /** Plays a scripted hud.messages / round.result scene from its start, or pins it at `atMs` (debug harness). */
+  configureHudScene(scene: HudScene, atMs: number | null = null) {
+    if (scene === this.hudScene && atMs === this.hudSceneAtMs) return;
     this.hudScene = scene;
+    this.hudSceneAtMs = atMs;
     this.restartHudScene();
   }
 
@@ -122,6 +125,12 @@ export class RealtimeMockProvider extends MockSidecarConnection {
 
   /** Once a second, like the plugin's time-only re-sync; a finished scene starts over. */
   private tickHudScene() {
+    if (this.hudSceneAtMs !== null) {
+      // A pinned moment is re-sent unchanged, so its remaining times never run out on the client.
+      this.lastHudPayloads = {};
+      this.publishHudScene();
+      return;
+    }
     const loopMs = hudSceneLoopMs(this.hudScene, this.viewerRole());
     if (loopMs !== null && Date.now() - this.hudSceneStartedAtMs >= loopMs) this.restartHudScene();
     else this.publishHudScene();
@@ -130,7 +139,8 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   /** Publishes each snapshot whose content changed (the first publish of a run always goes out). */
   private publishHudScene() {
     if (!this.streamRoute) return;
-    const frame = createHudSceneFrame(this.hudScene, this.viewerRole(), Date.now() - this.hudSceneStartedAtMs, this.hudSceneRun);
+    const elapsedMs = this.hudSceneAtMs ?? Date.now() - this.hudSceneStartedAtMs;
+    const frame = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
     for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result]] as const) {
       const json = JSON.stringify(payload);
       if (this.lastHudPayloads[type] === json) continue;
