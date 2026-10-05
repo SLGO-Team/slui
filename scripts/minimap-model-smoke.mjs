@@ -46,7 +46,7 @@ const result = await build({
 const context = { atob };
 runInNewContext(result.outputFiles[0].text, context);
 const { generateFixture, resolveMinimapSync, mapDescriptorKey, minimapReducer, initialMinimapState,
-  selectMinimap, createRadarCamera, worldToRadar, roomArtworkToRadar, createRoomArtwork,
+  selectMinimap, createRadarCamera, worldToRadar, roomArtworkToWorld, cameraToRadar, createRoomArtwork,
   positionMarker, shortestAngle, parseEvent, normalizeRadarPreferences, DEFAULT_RADAR_PREFERENCES,
   CS2_REFERENCE_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES, dynamicZoomTarget, advanceDynamicZoom } = context.minimapTest;
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -131,8 +131,13 @@ for (const [prefabName, sides] of Object.entries(asymmetricRooms)) {
     const art = createRoomArtwork(prefabName, origin, quarter * 90, { x: 15, z: 15 });
     for (const cameraYaw of [0, 37, 90]) {
       const camera = { center: origin, yaw: cameraYaw, scale: 2, mode: "follow", zone: room.zone.name, shape: "circle", viewSize: 250 };
-      const [a, b, c, d, e, f] = roomArtworkToRadar(art, camera).slice(7, -1).split(" ").map(Number);
-      const screenPixel = ([u, v]) => ({ x: a * u + c * v + e, y: b * u + d * v + f });
+      // The rendered chain: room artwork -> projected world (static) -> radar (camera group).
+      const affine = (transform) => {
+        const [a, b, c, d, e, f] = transform.slice(7, -1).split(" ").map(Number);
+        return ({ x, y }) => ({ x: a * x + c * y + e, y: b * x + d * y + f });
+      };
+      const toWorld = affine(roomArtworkToWorld(art)), toRadar = affine(cameraToRadar(camera));
+      const screenPixel = ([u, v]) => toRadar(toWorld({ x: u, y: v }));
       const center = screenPixel([128, 128]);
       assert.ok(Math.hypot(center.x - 125, center.y - 125) < 1e-8, "full canvas pivot stays registered to room/marker center");
       for (const side of sides) {

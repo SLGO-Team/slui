@@ -72,13 +72,23 @@ export function worldToRadar(point: WorldPoint, camera: RadarCamera): { x: numbe
   return { x: camera.viewSize / 2 + projected.x * camera.scale, y: camera.viewSize / 2 + projected.y * camera.scale };
 }
 
-export function roomArtworkToRadar(artwork: RoomArtwork, camera: RadarCamera): string {
-  // Derive the SVG affine transform from the same corners used for overview bounds.
-  const origin = worldToRadar(artwork.corners[0], camera);
-  const right = worldToRadar(artwork.corners[1], camera);
-  const bottom = worldToRadar(artwork.corners[3], camera);
-  return `matrix(${(right.x - origin.x) / artwork.width} ${(right.y - origin.y) / artwork.width} ${
-    (bottom.x - origin.x) / artwork.height} ${(bottom.y - origin.y) / artwork.height} ${origin.x} ${origin.y})`;
+/**
+ * The room artwork's static SVG transform into projected world space `(x, -z)`, derived from the
+ * same corners used for overview bounds. `cameraToRadar` then maps that space onto the radar, so a
+ * camera move rewrites one transform instead of every room's.
+ */
+export function roomArtworkToWorld(artwork: RoomArtwork): string {
+  const [origin, right, , bottom] = artwork.corners;
+  return `matrix(${(right.x - origin.x) / artwork.width} ${(origin.z - right.z) / artwork.width} ${
+    (bottom.x - origin.x) / artwork.height} ${(origin.z - bottom.z) / artwork.height} ${origin.x} ${-origin.z})`;
+}
+
+/** `worldToRadar` as an SVG transform of projected world space `(x, -z)`. */
+export function cameraToRadar(camera: RadarCamera): string {
+  const origin = worldToRadar({ x: 0, z: 0 }, camera);
+  const unitX = worldToRadar({ x: 1, z: 0 }, camera);
+  const unitY = worldToRadar({ x: 0, z: -1 }, camera);
+  return `matrix(${unitX.x - origin.x} ${unitX.y - origin.y} ${unitY.x - origin.x} ${unitY.y - origin.y} ${origin.x} ${origin.y})`;
 }
 
 export function clampToRadar(point: WorldPoint, camera: RadarCamera): RadarPoint {

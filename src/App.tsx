@@ -28,7 +28,7 @@ import { WebSocketSidecarConnection } from "./platform/connection";
 import { readBackendConfig } from "./platform/backend";
 import { createIdentityProofProvider, LocalSteamIdentity } from "./platform/identity";
 import { useClientSession } from "./app/useClientSession";
-import { MinimapRadar } from "./features/minimap/MinimapRadar";
+import { LiveMinimapRadar } from "./features/minimap/MinimapRadar";
 import { useMinimapFeature } from "./features/minimap/useMinimapFeature";
 import { defaultMinimapPreviewOptions, readMinimapPreviewOptions, type MinimapPreviewOptions } from "./mocks/minimapFixtures";
 import { createPreviewGameForegroundSource, subscribeGameForeground } from "./platform/gameForeground";
@@ -98,10 +98,7 @@ function App() {
   const [hudState, dispatchHud] = useReducer(roundHudReducer, initialRoundHudState);
   const shopFeature = useShopFeature();
   const chatFeature = useChatFeature();
-  const minimapFeature = useMinimapFeature({ preferences: minimapOptions,
-    controls: { alternateZoomActive: minimapOptions.alternateZoomActive },
-    renderCapabilities: { pageBackdrop: (previewBackground === "1" || previewBackground === "2")
-      && !("__TAURI_INTERNALS__" in window) } });
+  const minimapFeature = useMinimapFeature();
   const previewFocus = useMemo(() => createPreviewGameForegroundSource(true), []);
   const [nowMs, setNowMs] = useState(Date.now);
   // The player opens the shop with its hotkey; window_open alone never opens it.
@@ -413,7 +410,11 @@ function App() {
         playerMeta={playerMeta}
         variant={hudVariant}
       />
-      <MinimapRadar radar={minimapFeature.view} playerColors={minimapPlayerColors} />
+      <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
+        controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
+        renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")
+          && !("__TAURI_INTERNALS__" in window) }}
+        playerColors={minimapPlayerColors} />
       <ShopPanel
         shop={displayedShop}
         role={shopRole}

@@ -1,7 +1,9 @@
-import { useId, type CSSProperties } from "react";
+import { memo, useId, type CSSProperties } from "react";
 import { useOverlayScale } from "../../shared/overlay";
 import type { MinimapViewModel, RadarBombsite, RadarKeycard } from "./model";
-import { roomArtworkToRadar, type RadarMarker } from "./camera";
+import type { MapGeometry } from "./resolver";
+import { cameraToRadar, roomArtworkToWorld, type RadarCamera, type RadarMarker } from "./camera";
+import { useMinimapView, type MinimapStore, type RadarControls, type RadarPreferences, type RadarRenderCapabilities } from "./useMinimapFeature";
 import { PLAYER_COLORS } from "../hud/presentation";
 import "./MinimapRadar.css";
 
@@ -19,6 +21,31 @@ function ColorWash({ id, rgb }: { id: string; rgb: readonly [number, number, num
     <feColorMatrix type="matrix" values={`${rgb[0] / 255} 0 0 0 0  0 ${rgb[1] / 255} 0 0 0  0 0 ${rgb[2] / 255} 0 0  0 0 0 1 0`} />
   </filter>;
 }
+
+// The filters and the room layer depend only on the map, not the camera, so a per-frame camera
+// update re-renders neither: it rewrites the one camera transform above the rooms.
+const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
+  return <svg className="minimap-radar__filters" width="0" height="0" aria-hidden="true"><defs>
+    <ColorWash id={`${id}-hcz`} rgb={[80, 92, 91]} />
+    <ColorWash id={`${id}-entrance`} rgb={[90, 96, 80]} />
+    <ColorWash id={`${id}-ntf`} rgb={[30, 210, 255]} />
+    <ColorWash id={`${id}-scp`} rgb={[236, 105, 114]} />
+    <ColorWash id={`${id}-enemy`} rgb={[255, 25, 25]} />
+    <ColorWash id={`${id}-self`} rgb={[255, 255, 255]} />
+    <ColorWash id={`${id}-bombzone`} rgb={[255, 204, 0]} />
+    {SLOT_COLORS.map((color) => <ColorWash key={color} id={`${id}-${slotFilterKey(color)}`} rgb={rgbOf(color)} />)}
+  </defs></svg>;
+});
+
+const MapRooms = memo(function MapRooms({ geometry, activeZone, filterPrefix }: {
+  geometry: MapGeometry; activeZone: RadarCamera["zone"]; filterPrefix: string }) {
+  return geometry.rooms.map((room) => <g key={room.id} className="minimap-map__room" data-room-id={room.id} data-zone={room.zone}
+    data-prefab={room.prefabName} data-active={activeZone === null || activeZone === room.zone}
+    filter={`url(#${filterPrefix}-${room.zone === "Entrance" ? "entrance" : "hcz"})`}>
+    <image href={room.artwork.href} width={room.artwork.width} height={room.artwork.height}
+      transform={roomArtworkToWorld(room.artwork)} preserveAspectRatio="xMidYMid meet" />
+  </g>);
+});
 
 function FrozenMarker({ marker, className, wash }: { marker: RadarMarker; className: string; wash: string }) {
   // CS2 PI_Ghost / PI_Death: frozen pose, no heading, alpha fades out; the ghost uses the offmap arrow at the edge,
@@ -108,16 +135,7 @@ export function MinimapRadar({ radar, playerColors = {} }: { radar: MinimapViewM
         data-map-scale={radar.activeMapScale} data-alternate-zoom={radar.alternateZoomActive} data-dynamic-zoom={radar.dynamicZoomActive}
         style={{ "--radar-hud-scale": radar.preferences.hudScale, "--radar-view-size": `${viewSize}px`,
           "--radar-background-alpha": radar.preferences.backgroundAlpha } as CSSProperties}>
-        <svg className="minimap-radar__filters" width="0" height="0" aria-hidden="true"><defs>
-          <ColorWash id={`${id}-hcz`} rgb={[80, 92, 91]} />
-          <ColorWash id={`${id}-entrance`} rgb={[90, 96, 80]} />
-          <ColorWash id={`${id}-ntf`} rgb={[30, 210, 255]} />
-          <ColorWash id={`${id}-scp`} rgb={[236, 105, 114]} />
-          <ColorWash id={`${id}-enemy`} rgb={[255, 25, 25]} />
-          <ColorWash id={`${id}-self`} rgb={[255, 255, 255]} />
-          <ColorWash id={`${id}-bombzone`} rgb={[255, 204, 0]} />
-          {SLOT_COLORS.map((color) => <ColorWash key={color} id={`${id}-${slotFilterKey(color)}`} rgb={rgbOf(color)} />)}
-        </defs></svg>
+        <RadarFilters id={id} />
         <div className="minimap-radar__viewport">
           <div className="minimap-radar__background" />
           <svg className="minimap-radar__map" width={viewSize} height={viewSize} viewBox={`0 0 ${viewSize} ${viewSize}`} aria-hidden="true">
@@ -126,12 +144,9 @@ export function MinimapRadar({ radar, playerColors = {} }: { radar: MinimapViewM
                 : <circle cx={viewSize / 2} cy={viewSize / 2} r={viewSize / 2 - 1} />}
             </clipPath></defs>
             <g clipPath={`url(#${id}-clip)`}>
-              {geometry && camera ? geometry.rooms.map((room) => <g key={room.id} className="minimap-map__room" data-room-id={room.id} data-zone={room.zone}
-                data-prefab={room.prefabName} data-active={camera.zone === null || camera.zone === room.zone}
-                filter={`url(#${id}-${room.zone === "Entrance" ? "entrance" : "hcz"})`}>
-                <image href={room.artwork.href} width={room.artwork.width} height={room.artwork.height}
-                  transform={roomArtworkToRadar(room.artwork, camera)} preserveAspectRatio="xMidYMid meet" />
-              </g>) : null}
+              {geometry && camera ? <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
+                <MapRooms geometry={geometry} activeZone={camera.zone} filterPrefix={id} />
+              </g> : null}
             </g>
           </svg>
           <div className="minimap-radar__markers" aria-hidden="true">
@@ -151,4 +166,11 @@ export function MinimapRadar({ radar, playerColors = {} }: { radar: MinimapViewM
       </section>
     </div>
   </div>;
+}
+
+/** The radar bound to the minimap store: its per-frame clock re-renders this subtree, not the overlay. */
+export function LiveMinimapRadar({ store, preferences, controls, renderCapabilities, playerColors }: { store: MinimapStore;
+  preferences?: Partial<RadarPreferences>; controls?: Partial<RadarControls>; renderCapabilities?: Partial<RadarRenderCapabilities>;
+  playerColors?: Readonly<Record<string, string>> }) {
+  return <MinimapRadar radar={useMinimapView(store, { preferences, controls, renderCapabilities })} playerColors={playerColors} />;
 }

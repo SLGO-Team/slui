@@ -194,7 +194,9 @@ last batched status can miss a connecting/baseline-required reset.
 - Each supported room's full 256x256 SVG canvas occupies its 15x15 world grid
   cell with the center anchor. In projected world `(x,-z)`, the equivalent
   image transform is `translate(x,-z) rotate(rotationY) scale(15/256)` with
-  image origin `(-128,-128)`. Do not add the artwork's native 180-degree
+  image origin `(-128,-128)`. That transform is static (`roomArtworkToWorld`);
+  the camera is one `cameraToRadar` transform on the `.minimap-map__camera`
+  group above the memoized rooms, so a camera move rewrites one attribute. Do not add the artwork's native 180-degree
   correction after changing projections or stretch the drawn area to the
   grid. Full-map bounds
   must include rotated full-canvas corners, not the former chamber squares.
@@ -303,7 +305,8 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
 - Room-art checks cover all 110 supported-zone template entries, including
   holiday variants, exact local asset hashes, asymmetric connector directions
   at quarter-turn rotations, distinct checkpoint halves, and full-map bounds.
-  Browser movement assertions must inspect the rendered room image transform,
+  Browser movement assertions must inspect the rendered room image CTM
+  (artwork and camera transforms combined),
   and the visual audit must verify bundled SVG loading as well as DOM counts.
 - Bombsites: contract smoke covers valid (A/B, empty, null room, all 26) and
   malformed inits (missing / non-array / 27 entries, duplicate, `"AB"`, lowercase,
