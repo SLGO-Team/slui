@@ -14,6 +14,7 @@ import {
 } from "../features/hud/model";
 import type { HudPresentationVariant } from "../features/hud/presentation";
 import { mockMatchSnapshot, projectMockLoadout, scpMockVitals } from "./provider";
+import { readHudScene, type HudScene } from "./hudScenes";
 
 export const HUD_DEBUG_ROUND_STATES = [
   "Idle",
@@ -68,6 +69,8 @@ export type HudDebugOptions = {
   preset: HudDebugPreset;
   availability: HudDebugAvailability;
   background: HudDebugBackground;
+  /** Scripted hud.messages / round.result scene the mock provider plays. */
+  hudScene: HudScene;
 };
 
 export const DEFAULT_HUD_DEBUG_OPTIONS: HudDebugOptions = {
@@ -78,6 +81,7 @@ export const DEFAULT_HUD_DEBUG_OPTIONS: HudDebugOptions = {
   preset: "standard",
   availability: "live",
   background: "1",
+  hudScene: "none",
 };
 
 const ROUND_TIMING: Readonly<Record<RoundState, { remainingMs: number; paused: boolean }>> = {
@@ -145,6 +149,7 @@ export function readHudDebugOptions(search: string = window.location.search): Hu
     background: includesValue(HUD_DEBUG_BACKGROUNDS, background)
       ? background
       : DEFAULT_HUD_DEBUG_OPTIONS.background,
+    hudScene: readHudScene(params.get("hudScene")),
   };
 }
 
@@ -157,6 +162,7 @@ export function replaceHudDebugUrl(options: HudDebugOptions) {
   url.searchParams.set("hudPreset", options.preset);
   url.searchParams.set("hudAvailability", options.availability);
   url.searchParams.set("previewBackground", options.background);
+  url.searchParams.set("hudScene", options.hudScene);
   window.history.replaceState(window.history.state, "", url);
 }
 

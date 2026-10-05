@@ -236,6 +236,10 @@ function App() {
   }, [mockConnection, minimapOptions]);
 
   useEffect(() => {
+    if (HUD_DEBUG_ENABLED) mockConnection?.configureHudScene(debugOptions.hudScene);
+  }, [mockConnection, debugOptions.hudScene]);
+
+  useEffect(() => {
     if (!HUD_DEBUG_ENABLED || !mockConnection) return;
     const control: NonNullable<Window["__SLUI_MINIMAP_DEBUG__"]> = {
       configure: (options) => setMinimapOptions((current) => ({ ...current, ...options })),

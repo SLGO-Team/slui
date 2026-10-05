@@ -46,6 +46,8 @@ Payload schemas:
 - [minimap-init.schema.json](./minimap-init.schema.json)
 - [minimap-positions.schema.json](./minimap-positions.schema.json)
 - [shop-snapshot.schema.json](./shop-snapshot.schema.json)
+- [hud-messages.schema.json](./hud-messages.schema.json)
+- [round-result.schema.json](./round-result.schema.json)
 - [command.schema.json](./command.schema.json)
 - [command-result.schema.json](./command-result.schema.json)
 - [session-open.schema.json](./session-open.schema.json)
@@ -71,6 +73,8 @@ Payload schemas:
 | sidecar -> client | `command.result` | Authoritative success or rejection |
 | sidecar -> client | `chat.message` | Plugin-defined chat message |
 | sidecar -> client | `chat.notice` | Plugin notice in the chat history (no sender) |
+| sidecar -> client | `hud.messages` | The viewer's bottom-centre message slots (progress, alert, high/low hint) |
+| sidecar -> client | `round.result` | The viewer's round / match result panel (win panel, MVP) |
 
 The shop and chat payloads intentionally remain plugin-defined. SLUI must not
 reimplement their permissions or success rules.
@@ -123,6 +127,56 @@ Every `minimap.positions` event is a complete visibility-filtered frame, not a
 delta. When an entity is omitted from the next accepted frame, its marker must
 be removed. Stale positions survive only as the explicit, plugin-authored
 `last-known` markers defined below; the client never keeps an omitted marker.
+
+## HUD messages and round result
+
+`hud.messages` and `round.result` carry the plugin's message board
+(`HudMessageBoard`) and win panel (`RoundResultModel`). They are new event
+types: older clients skip them (`unsupported-event-type`), so no handshake
+change is needed. Both require envelope `sent_at`. Both are snapshots: the
+sidecar caches the latest per recipient and replays it after the baseline,
+with every `*_remaining_ms` reduced by the time the frame spent in its cache
+(clamped at 0) and `sent_at` moved forward by the same amount.
+
+Timing: every `*_ms` value is an integer in `0..86400000` and means
+"milliseconds remaining at `sent_at`". The client interpolates it from its own
+receive time only; it never compares `sent_at` with the local clock.
+
+Text is resolved by the plugin (`HudMessageCatalog`): parameters are filled
+in, rich-text tags never appear, and SLUI keeps no catalog of its own. `text`
+is not blank, at most 256 UTF-16 code units, and may contain line breaks. A
+countdown is not filled in: the text keeps the literal token
+`{time_remaining}` and `countdown_remaining_ms` carries its value, which the
+client draws as `m:ss`. `countdown_remaining_ms` is non-null exactly when the
+text contains the token. `key` (`^[A-Za-z0-9_]{1,96}$`, a CS2 localisation key
+or `SLGO_*`) and `tone` are style hooks only; `key` is never shown.
+
+`hud.messages` (one recipient per publish) has exactly the four slots
+`progress`, `alert`, `hint_high`, `hint_low` (top to bottom on screen), each
+`null` or `{ message_id, key, text, tone, visible_remaining_ms,
+countdown_remaining_ms }`. `progress` additionally has `progress: {
+remaining_ms, total_ms }` with `total_ms > 0` and `remaining_ms <= total_ms`.
+`visible_remaining_ms` is `null` for a message that stays until replaced or
+cleared. `message_id` changes on every board write. `tone` is one of
+`default`, `success`, `warning`, `info`, `gold`, `match_point`,
+`final_round`, `ntf_team`, `scp_team` (`HUD_TONES`). A structural change
+(slot appears or disappears, key, text or tone changes) is published at once;
+a time-only change at most once per second per player.
+
+`round.result` is `{ panel: null }` (no panel, or it ended early: new round,
+match restart) or `{ panel: { result_id, winner_team, is_match_end, title:
+{ text, outcome }, subtitle_text, mvp, visible_remaining_ms } }`. The title is
+viewer-relative and resolved by the plugin, so a result goes out in up to three
+audience variants (NTF participants, SCP participants, everyone else).
+`winner_team` is `ntf`, `scp` or `null` (draw, only at a match end);
+`outcome` is `won` / `lost` for a participant, `observer` for a viewer without
+a side and `draw` exactly when `winner_team` is `null`. `subtitle_text` is the
+line under the title (the end reason today). `mvp` is `null` or `{ player_id,
+display_name, reason_text, music_kit_name }`; the avatar comes from the
+player's `match.snapshot` entry. The client also hides the panel when
+`visible_remaining_ms` runs out, so a lost `panel: null` cannot pin it.
+
+Every object rejects unknown fields.
 
 ## Minimap payload v5
 
@@ -308,6 +362,11 @@ Known features:
   round timer and team counts for this player (restored as soon as the
   feature is withdrawn). Sent together with the two above while the overlay
   is enabled.
+- `hud-messages`: SLUI owns the bottom-centre message zone (all four
+  `hud.messages` slots), so the plugin hides its own hints there for this
+  player.
+- `win-panel`: SLUI owns the round / match result panel (`round.result`), so
+  the plugin hides its own result card for this player.
 
 A sidecar that predates the frame logs and drops it like an invalid command;
 the session stays open. The sidecar answers `failed` itself if the plugin is

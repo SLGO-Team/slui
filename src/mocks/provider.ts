@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatNotice, MatchPlayer, MatchPlayerLoadout, MatchSnapshot, ProtocolEnvelope, ShopSnapshot, SlgoEvent } from "../contracts";
+import type { ChatMessage, ChatNotice, HudMessagesSnapshot, MatchPlayer, MatchPlayerLoadout, MatchSnapshot, ProtocolEnvelope, RoundResultSnapshot, ShopSnapshot, SlgoEvent } from "../contracts";
 import { RealtimeMockProvider } from "./minimapProvider.ts";
 import { mockMinimapInit, mockMinimapPositions } from "./minimapFixtures.ts";
 export { mockMinimapInit, mockMinimapPositions } from "./minimapFixtures.ts";
@@ -248,6 +248,10 @@ export const mockChatNotices: ChatNotice[] = [
   { notice_id: "notice-2", segments: [{ text: "击杀奖励 ", tone: "default" }, { text: "+300$", tone: "money" }], sent_at: new Date("2026-08-25T12:00:04.000Z").toISOString() },
 ];
 
+/** The plugin's resync state with nothing on screen; RealtimeMockProvider replaces both with the `hudScene` script. */
+export const mockHudMessages: HudMessagesSnapshot = { progress: null, alert: null, hint_high: null, hint_low: null };
+export const mockRoundResult: RoundResultSnapshot = { panel: null };
+
 export const mockEvents: SlgoEvent[] = [
   envelope("sidecar.baseline", 1, { baseline: true }),
   envelope("match.snapshot", 2, mockMatchSnapshot),
@@ -259,6 +263,8 @@ export const mockEvents: SlgoEvent[] = [
   envelope("chat.message", 8, mockChatHistory[1]),
   envelope("chat.notice", 9, mockChatNotices[1]),
   envelope("chat.message", 10, mockChatHistory[2]),
+  envelope("hud.messages", 11, mockHudMessages),
+  envelope("round.result", 12, mockRoundResult),
 ] as SlgoEvent[];
 
 function publicMockPlayer(player: MatchPlayer): MatchPlayer {

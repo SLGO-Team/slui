@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Manual CS2 recreation rules, assets, fonts, audits"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component patterns"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Reducer/selector and UI clock patterns"}
+{"file": ".trellis/tasks/10-05-cs2-hud-panels/design.md", "reason": "Wire shapes and SLUI rendering rules"}
+{"file": ".trellis/tasks/10-05-cs2-hud-panels/research/cs2-reference-capture.md", "reason": "Measured layout and behaviour from CS2 captures"}

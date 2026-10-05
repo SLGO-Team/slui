@@ -257,6 +257,72 @@ export type ChatNotice = {
 export const MAX_CHAT_NOTICE_SEGMENTS = 8;
 export const MAX_CHAT_NOTICE_LENGTH = 512;
 
+/** Semantic style of a HUD message (plugin `HudTone`); the client maps it to its own palette. */
+export const HUD_TONES = ["default", "success", "warning", "info", "gold", "match_point", "final_round", "ntf_team", "scp_team"] as const;
+export type HudTone = (typeof HUD_TONES)[number];
+/** Longest HUD text (UTF-16 code units, as JS `length` and C# `string.Length` count). */
+export const MAX_HUD_TEXT_LENGTH = 256;
+/** Upper bound of every HUD `*_ms` value (one day). */
+export const MAX_HUD_REMAINING_MS = 86_400_000;
+/** Literal token the plugin leaves in `text` for the client to draw as a local `m:ss` countdown. */
+export const HUD_TIME_REMAINING_TOKEN = "{time_remaining}";
+
+/**
+ * One slot of the plugin's per-player message board. All times are remaining milliseconds at the envelope's
+ * `sent_at`, interpolated with the client's receive time only.
+ */
+export type HudSlotMessage = {
+  /** Plugin board sequence; changes on every write, including countdown rewrites. */
+  message_id: string;
+  /** Catalog key (CS2 localisation key or SLGO_*); a style hook only, never shown. */
+  key: string;
+  /** Plugin-resolved plain text (may contain `\n`); may contain `HUD_TIME_REMAINING_TOKEN`. */
+  text: string;
+  tone: HudTone;
+  /** Time until the message expires on its own; null = until replaced or cleared. */
+  visible_remaining_ms: number | null;
+  /** Value of `{time_remaining}`; non-null exactly when `text` contains the token. */
+  countdown_remaining_ms: number | null;
+};
+export type HudProgress = { remaining_ms: number; total_ms: number };
+export type HudProgressMessage = HudSlotMessage & { progress: HudProgress };
+/** `hud.messages`: the viewer's four message slots, top to bottom on screen (CS2 progress bar, alerts, high and low hints). */
+export type HudMessagesSnapshot = {
+  progress: HudProgressMessage | null;
+  alert: HudSlotMessage | null;
+  hint_high: HudSlotMessage | null;
+  hint_low: HudSlotMessage | null;
+};
+
+export type RoundResultTeam = "ntf" | "scp";
+/** Viewer-relative outcome: `draw` exactly when `winner_team` is null, `observer` for a viewer without a side. */
+export type RoundResultOutcome = "won" | "lost" | "draw" | "observer";
+export const ROUND_RESULT_OUTCOMES = ["won", "lost", "draw", "observer"] as const satisfies readonly RoundResultOutcome[];
+export type RoundResultMvp = {
+  /** SteamID64; the avatar comes from the player's `match.snapshot` entry. */
+  player_id: string;
+  display_name: string;
+  /** Plugin-resolved award label, e.g. 最多击杀MVP（3杀）. */
+  reason_text: string;
+  music_kit_name: string | null;
+};
+export type RoundResultPanel = {
+  /** One per plugin ShowRoundResult call. */
+  result_id: string;
+  /** null = draw, which only a match end can be. */
+  winner_team: RoundResultTeam | null;
+  is_match_end: boolean;
+  /** Plugin-resolved, viewer-relative title. */
+  title: { text: string; outcome: RoundResultOutcome };
+  /** The line under the title (end reason today, a fun fact later). */
+  subtitle_text: string | null;
+  mvp: RoundResultMvp | null;
+  /** Panel hold time left at `sent_at`. */
+  visible_remaining_ms: number;
+};
+/** `round.result`: the win panel, or null once it ended early (new round, match restart). */
+export type RoundResultSnapshot = { panel: RoundResultPanel | null };
+
 export type ShopPurchaseCommand = {
   kind: "command.shop.purchase";
   command_id: string;
@@ -282,12 +348,16 @@ export type BaselineEvent = ProtocolEnvelope<{ baseline: true }, "sidecar.baseli
 export type MatchSnapshotEvent = ProtocolEnvelope<MatchSnapshot, "match.snapshot"> & { sent_at: string };
 export type MinimapInitEvent = ProtocolEnvelope<MinimapInit, "minimap.init"> & { round_id: string; sent_at: string };
 export type MinimapPositionsEvent = ProtocolEnvelope<MinimapPositions, "minimap.positions"> & { round_id: string; sent_at: string };
+export type HudMessagesEvent = ProtocolEnvelope<HudMessagesSnapshot, "hud.messages"> & { sent_at: string };
+export type RoundResultEvent = ProtocolEnvelope<RoundResultSnapshot, "round.result"> & { sent_at: string };
 
 export type SlgoEvent =
   | BaselineEvent
   | MatchSnapshotEvent
   | MinimapInitEvent
   | MinimapPositionsEvent
+  | HudMessagesEvent
+  | RoundResultEvent
   | ProtocolEnvelope<ShopSnapshot, "shop.snapshot">
   | ProtocolEnvelope<ChatMessage, "chat.message">
   | ProtocolEnvelope<ChatNotice, "chat.notice">
@@ -422,6 +492,10 @@ export const CLIENT_FEATURE_CHAT_INPUT = "chat-input";
 export const CLIENT_FEATURE_SHOP_MENU = "shop-menu";
 /** SLUI owns the top HUD (score, round clock, team counts) for this player. */
 export const CLIENT_FEATURE_TOP_HUD = "top-hud";
+/** SLUI owns the bottom-centre message zone (all four `hud.messages` slots) for this player. */
+export const CLIENT_FEATURE_HUD_MESSAGES = "hud-messages";
+/** SLUI owns the round / match result panel (`round.result`) for this player. */
+export const CLIENT_FEATURE_WIN_PANEL = "win-panel";
 export const MAX_CLIENT_FEATURES = 16;
 const MAX_CLIENT_FEATURE_LENGTH = 64;
 const CLIENT_FEATURE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -704,6 +778,65 @@ export function parseChatNotice(payload: unknown): ParseResult<ChatNotice> {
   return { ok: true, value: payload as unknown as ChatNotice };
 }
 
+const HUD_KEY = /^[A-Za-z0-9_]{1,96}$/;
+const HUD_MESSAGES_KEYS = new Set(["progress", "alert", "hint_high", "hint_low"]);
+const HUD_SLOT_KEYS = new Set(["message_id", "key", "text", "tone", "visible_remaining_ms", "countdown_remaining_ms"]);
+const HUD_PROGRESS_SLOT_KEYS = new Set([...HUD_SLOT_KEYS, "progress"]);
+const HUD_PROGRESS_KEYS = new Set(["remaining_ms", "total_ms"]);
+const ROUND_RESULT_KEYS = new Set(["panel"]);
+const ROUND_RESULT_PANEL_KEYS = new Set(["result_id", "winner_team", "is_match_end", "title", "subtitle_text", "mvp", "visible_remaining_ms"]);
+const ROUND_RESULT_TITLE_KEYS = new Set(["text", "outcome"]);
+const ROUND_RESULT_MVP_KEYS = new Set(["player_id", "display_name", "reason_text", "music_kit_name"]);
+
+/** Plain HUD text: not blank, at most `MAX_HUD_TEXT_LENGTH` UTF-16 code units. */
+const isHudText = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MAX_HUD_TEXT_LENGTH;
+/** An integer millisecond value in `0..MAX_HUD_REMAINING_MS`. */
+const isHudMs = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= MAX_HUD_REMAINING_MS;
+
+function isHudSlotMessage(value: unknown, withProgress: boolean): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, withProgress ? HUD_PROGRESS_SLOT_KEYS : HUD_SLOT_KEYS)) return false;
+  if (!isNonEmptyString(value.message_id) || typeof value.key !== "string" || !HUD_KEY.test(value.key) || !isHudText(value.text)) return false;
+  if (!(HUD_TONES as readonly unknown[]).includes(value.tone)) return false;
+  if (value.visible_remaining_ms !== null && !isHudMs(value.visible_remaining_ms)) return false;
+  // The countdown exists exactly when the text has a token to draw it into.
+  const hasToken = value.text.includes(HUD_TIME_REMAINING_TOKEN);
+  if (hasToken ? !isHudMs(value.countdown_remaining_ms) : value.countdown_remaining_ms !== null) return false;
+  if (!withProgress) return true;
+  const progress = value.progress;
+  return isRecord(progress) && hasOnlyKeys(progress, HUD_PROGRESS_KEYS)
+    && isHudMs(progress.remaining_ms) && isHudMs(progress.total_ms)
+    && progress.total_ms > 0 && progress.remaining_ms <= progress.total_ms;
+}
+
+/** `hud.messages` payload: all four slots present, each null or a strict message; only `progress` carries a progress bar. */
+export function parseHudMessages(payload: unknown): ParseResult<HudMessagesSnapshot> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, HUD_MESSAGES_KEYS) || HUD_MESSAGES_KEYS.size !== Object.keys(payload).length) return error("invalid-payload", "HUD messages need exactly progress, alert, hint_high and hint_low");
+  for (const slot of HUD_MESSAGES_KEYS) {
+    const message = payload[slot];
+    if (message !== null && !isHudSlotMessage(message, slot === "progress")) return error("invalid-payload", `HUD message ${slot} is invalid`);
+  }
+  return { ok: true, value: payload as unknown as HudMessagesSnapshot };
+}
+
+/** `round.result` payload: `{ panel: null }` or a strict panel whose outcome agrees with its winner. */
+export function parseRoundResult(payload: unknown): ParseResult<RoundResultSnapshot> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, ROUND_RESULT_KEYS) || !Object.prototype.hasOwnProperty.call(payload, "panel")) return error("invalid-payload", "Round result needs exactly panel");
+  const panel = payload.panel;
+  if (panel === null) return { ok: true, value: { panel: null } };
+  if (!isRecord(panel) || !hasOnlyKeys(panel, ROUND_RESULT_PANEL_KEYS) || !isNonEmptyString(panel.result_id) || typeof panel.is_match_end !== "boolean" || !isHudMs(panel.visible_remaining_ms)) return error("invalid-payload", "Round result panel is invalid");
+  if (panel.winner_team !== null && !isRole(panel.winner_team)) return error("invalid-payload", "Round result winner is invalid");
+  // SLGO rounds always have a winner; only a match can end in a draw.
+  if (panel.winner_team === null && !panel.is_match_end) return error("invalid-payload", "Only a match end can be a draw");
+  if (panel.subtitle_text !== null && !isHudText(panel.subtitle_text)) return error("invalid-payload", "Round result subtitle is invalid");
+  const title = panel.title;
+  if (!isRecord(title) || !hasOnlyKeys(title, ROUND_RESULT_TITLE_KEYS) || !isHudText(title.text) || !(ROUND_RESULT_OUTCOMES as readonly unknown[]).includes(title.outcome)) return error("invalid-payload", "Round result title is invalid");
+  if ((title.outcome === "draw") !== (panel.winner_team === null)) return error("invalid-payload", "Round result outcome is draw exactly when there is no winner");
+  const mvp = panel.mvp;
+  if (mvp !== null && (!isRecord(mvp) || !hasOnlyKeys(mvp, ROUND_RESULT_MVP_KEYS) || !isNonEmptyString(mvp.player_id) || !isHudText(mvp.display_name) || !isHudText(mvp.reason_text)
+    || (mvp.music_kit_name !== null && !isHudText(mvp.music_kit_name)))) return error("invalid-payload", "Round result MVP is invalid");
+  return { ok: true, value: payload as unknown as RoundResultSnapshot };
+}
+
 export function parseCommandResult(payload: unknown): ParseResult<CommandResult> {
   if (!isRecord(payload) || !isNonEmptyString(payload.command_id) || !["command.shop.purchase", "command.chat.send"].includes(String(payload.command_kind)) || !["accepted", "rejected", "duplicate", "failed"].includes(String(payload.status))) return error("invalid-payload", "Command result is invalid");
   if (payload.reason !== undefined && typeof payload.reason !== "string") return error("invalid-payload", "Command result reason is invalid");
@@ -744,6 +877,12 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
     case "shop.snapshot": payloadResult = parseShopSnapshot(envelope.payload); break;
     case "chat.message": payloadResult = parseChatMessage(envelope.payload); break;
     case "chat.notice": payloadResult = parseChatNotice(envelope.payload); break;
+    case "hud.messages":
+    case "round.result":
+      // Remaining times are counted from sent_at, so the frame needs one.
+      if (envelope.sent_at === undefined) return error("invalid-envelope", "HUD message and round result timestamps are required", envelope.event_id);
+      payloadResult = envelope.type === "hud.messages" ? parseHudMessages(envelope.payload) : parseRoundResult(envelope.payload);
+      break;
     case "command.result": payloadResult = parseCommandResult(envelope.payload); break;
     // Newer sidecars may add event types; clients skip them instead of desynchronising.
     default: return error("unsupported-event-type", `Unsupported event type: ${envelope.type}`, envelope.event_id);

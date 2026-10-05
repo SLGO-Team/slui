@@ -202,6 +202,25 @@ Required boundary rules:
   becomes `null` / unknown; it is never inferred as `100`.
 - `match.snapshot`, shop state, chat events, and minimap updates are derived
   from SLGO plugin semantics. The client does not reinterpret game rules.
+- `hud.messages` (the four message-zone slots `progress` / `alert` /
+  `hint_high` / `hint_low`) and `round.result` (`{ panel }`, the win panel) are
+  per-viewer snapshots from the plugin's `HudMessageBoard` and
+  `RoundResultModel` (`parseHudMessages` / `parseRoundResult`; wire rules in
+  `packages/protocol/v0/README.md` "HUD messages and round result"). Text is
+  plugin-resolved plain text: SLUI keeps no catalog and never resolves keys;
+  `key` and `tone` (`HUD_TONES`) only pick styles. A countdown stays as the
+  literal `{time_remaining}` token with `countdown_remaining_ms`, drawn locally
+  as `m:ss`. The win-panel title is viewer-relative and resolved by the plugin
+  (up to three audience variants per result); SLUI never re-derives it from
+  `winner_team`. Every `*_remaining_ms` is the time left at `sent_at` (required
+  for both types) and is interpolated from the local receive time only; the
+  client also drops the panel or a message when its remaining time runs out, so
+  a lost clearing frame cannot pin it. The sidecar ages replayed snapshots by
+  their cache time. Feature names `hud-messages` / `win-panel`
+  (`CLIENT_FEATURE_HUD_MESSAGES` / `CLIENT_FEATURE_WIN_PANEL`) join
+  `OVERLAY_CLIENT_FEATURES` only once their renderers exist. The mock provider
+  plays scripted scenes from `src/mocks/hudScenes.ts`, selected by the HUD debug
+  `hudScene=` URL parameter.
 - Minimap payloads contain a versioned map seed/descriptor and player
   positions already filtered for the authenticated player's in-game
   visibility. The client must never receive an omniscient player map and hide
@@ -492,6 +511,9 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
 | A loadout item id has no icon | Skip that icon; never draw a placeholder |
 | Match snapshot repeats a team id or role | Reject the payload as `invalid-payload` |
 | Match snapshot omits `sent_at` | Reject the event as `invalid-envelope` |
+| `hud.messages` / `round.result` omits `sent_at` | Reject the event as `invalid-envelope` |
+| HUD message has an unknown field or tone, text blank or over 256 UTF-16 units, a `{time_remaining}` token without `countdown_remaining_ms` (or the reverse), non-integer or out-of-range ms, or progress `remaining_ms > total_ms` | Reject the payload as `invalid-payload` |
+| Round result is a draw outside a match end, or `outcome` is `draw` without a null `winner_team` (or the reverse) | Reject the payload as `invalid-payload` |
 | Friendly health is absent or null | Render an explicit unknown state; never infer a numeric value |
 | HUD source changes by `server_id` or `instance_id` | Clear the prior frame, require a new baseline, and show restarted/syncing state |
 | `settings.json` is missing, not JSON, not an object, or has an unknown `version` | Back up unreadable files, fall back to radar defaults, keep running |

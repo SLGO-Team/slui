@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/hud-messages.schema.json",
+  "title": "SLGO HUD message zone snapshot payload (hud.messages)",
+  "description": "The viewer's four message slots. All *_ms values are remaining milliseconds at the envelope sent_at (required for this type). The runtime parser also checks progress.remaining_ms <= progress.total_ms and counts text length in UTF-16 code units.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["progress", "alert", "hint_high", "hint_low"],
+  "properties": {
+    "progress": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/progressMessage" }] },
+    "alert": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/message" }] },
+    "hint_high": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/message" }] },
+    "hint_low": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/message" }] }
+  },
+  "$defs": {
+    "ms": { "type": "integer", "minimum": 0, "maximum": 86400000 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
+    "messageFields": {
+      "type": "object",
+      "required": ["message_id", "key", "text", "tone", "visible_remaining_ms", "countdown_remaining_ms"],
+      "properties": {
+        "message_id": { "description": "Plugin board sequence; changes on every write, including countdown rewrites.", "type": "string", "minLength": 1, "pattern": "\\S" },
+        "key": { "description": "Catalog key (CS2 localisation key or SLGO_*); a style hook only, never shown.", "type": "string", "pattern": "^[A-Za-z0-9_]{1,96}$" },
+        "text": { "description": "Plugin-resolved plain text without rich-text tags; may contain line breaks and the literal token {time_remaining}.", "$ref": "#/$defs/text" },
+        "tone": { "enum": ["default", "success", "warning", "info", "gold", "match_point", "final_round", "ntf_team", "scp_team"] },
+        "visible_remaining_ms": { "description": "Time until the message expires on its own; null = until replaced or cleared.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ms" }] },
+        "countdown_remaining_ms": { "description": "Value of {time_remaining}; non-null exactly when text contains the token.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ms" }] }
+      },
+      "if": { "properties": { "text": { "pattern": "\\{time_remaining\\}" } } },
+      "then": { "properties": { "countdown_remaining_ms": { "$ref": "#/$defs/ms" } } },
+      "else": { "properties": { "countdown_remaining_ms": { "type": "null" } } }
+    },
+    "message": {
+      "allOf": [{ "$ref": "#/$defs/messageFields" }],
+      "unevaluatedProperties": false
+    },
+    "progressMessage": {
+      "allOf": [{ "$ref": "#/$defs/messageFields" }],
+      "required": ["progress"],
+      "properties": {
+        "progress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["remaining_ms", "total_ms"],
+          "properties": {
+            "remaining_ms": { "description": "At most total_ms.", "$ref": "#/$defs/ms" },
+            "total_ms": { "type": "integer", "minimum": 1, "maximum": 86400000 }
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}

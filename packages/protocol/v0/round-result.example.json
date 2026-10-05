@@ -1,0 +1,27 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-round-result-1",
+  "server_id": "slgo-local-7777",
+  "instance_id": "instance-2026-08-18-1645",
+  "round_id": "round-7",
+  "sequence": 15,
+  "type": "round.result",
+  "sent_at": "2026-08-18T08:48:02Z",
+  "payload": {
+    "panel": {
+      "result_id": "result-7",
+      "winner_team": "ntf",
+      "is_match_end": false,
+      "title": { "text": "回合胜利", "outcome": "won" },
+      "subtitle_text": "发电机已过载",
+      "mvp": {
+        "player_id": "76561198000000100",
+        "display_name": "Nova",
+        "reason_text": "最多击杀MVP（3杀）",
+        "music_kit_name": null
+      },
+      "visible_remaining_ms": 7000
+    }
+  }
+}

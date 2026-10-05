@@ -1,19 +1,25 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  CLIENT_FEATURE_HUD_MESSAGES,
+  CLIENT_FEATURE_WIN_PANEL,
   EventSequenceGuard,
+  HUD_TONES,
   canUsePlayerScopedFeatures,
   canOpenPlayerScopedStream,
   parseClientFeatures,
   parseCommand,
   parseEvent,
   parseEnvelope,
+  parseHudMessages,
   parseMatchSnapshot,
   parseMinimapPositions,
+  parseRoundResult,
   parseRoute,
   parseShopSnapshot,
 } from "../src/contracts/index.ts";
 import { MockSidecarConnection } from "../src/platform/connection.ts";
+import { HUD_SCENES, createHudSceneFrame, hudSceneLoopMs, readHudScene } from "../src/mocks/hudScenes.ts";
 import {
   clientSessionReducer,
   initialClientSessionState,
@@ -445,6 +451,119 @@ assert.equal(parseEvent(chatEnvelope("chat.notice", { ...notice, segments: [{ te
 assert.equal(parseEvent(chatEnvelope("chat.notice", { ...notice, segments: [{ text: "a".repeat(300), tone: "default" }, { text: "a".repeat(213), tone: "muted" }] })).ok, false, "at most 512 characters");
 assert.equal(parseEvent(chatEnvelope("chat.notice", { ...notice, notice_id: "" })).ok, false);
 assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupported-event-type");
+
+{
+  // hud.messages / round.result (packages/protocol/v0/README.md "HUD messages and round result").
+  const readExample = (name) => JSON.parse(readFileSync(new URL(`../packages/protocol/v0/${name}.example.json`, import.meta.url), "utf8"));
+  const hudExample = readExample("hud-messages");
+  const resultExample = readExample("round-result");
+  const parsedHud = parseEvent(hudExample);
+  assert.equal(parsedHud.ok, true, "the v0 hud.messages example parses");
+  assert.equal(parsedHud.value.payload.alert.countdown_remaining_ms, 58_000);
+  assert.deepEqual(parsedHud.value.payload.progress.progress, { remaining_ms: 2765, total_ms: 7000 });
+  const parsedResult = parseEvent(resultExample);
+  assert.equal(parsedResult.ok, true, "the v0 round.result example parses");
+  assert.equal(parsedResult.value.payload.panel.mvp.reason_text, "最多击杀MVP（3杀）");
+  assert.deepEqual(HUD_TONES, ["default", "success", "warning", "info", "gold", "match_point", "final_round", "ntf_team", "scp_team"]);
+  assert.equal(CLIENT_FEATURE_HUD_MESSAGES, "hud-messages");
+  assert.equal(CLIENT_FEATURE_WIN_PANEL, "win-panel");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_WIN_PANEL] }).ok, true);
+
+  const hud = hudExample.payload;
+  const withHud = (payload) => ({ ...hudExample, payload });
+  const withAlert = (alert) => withHud({ ...hud, alert: { ...hud.alert, ...alert } });
+  const withProgress = (progress) => withHud({ ...hud, progress: { ...hud.progress, progress } });
+  assert.equal(parseEvent({ ...hudExample, sent_at: undefined }).error.code, "invalid-envelope", "hud.messages requires sent_at");
+  assert.equal(parseEvent(withHud({ progress: null, alert: null, hint_high: null, hint_low: null })).ok, true, "an empty board is valid");
+  assert.equal(parseHudMessages({ progress: null, alert: null, hint_high: null }).ok, false, "every slot is required");
+  assert.equal(parseHudMessages({ ...hud, extra: null }).ok, false, "unknown slot");
+  assert.equal(parseEvent(withAlert({ extra: 1 })).ok, false, "unknown message field");
+  assert.equal(parseEvent(withHud({ ...hud, alert: { ...hud.alert, progress: { remaining_ms: 1, total_ms: 2 } } })).ok, false, "only the progress slot carries a progress bar");
+  assert.equal(parseEvent(withHud({ ...hud, progress: { ...hud.progress, progress: undefined } })).ok, false, "the progress slot needs its bar");
+  assert.equal(parseEvent(withProgress({ remaining_ms: 1, total_ms: 2, extra: 0 })).ok, false, "unknown progress field");
+  assert.equal(parseEvent(withAlert({ tone: "gold" })).ok, true);
+  assert.equal(parseEvent(withAlert({ tone: "red" })).ok, false, "bad tone");
+  assert.equal(parseEvent(withAlert({ tone: "matchPoint" })).ok, false, "tones are snake_case");
+  assert.equal(parseEvent(withAlert({ countdown_remaining_ms: null })).ok, false, "token without countdown");
+  assert.equal(parseEvent(withAlert({ text: "比赛开始", countdown_remaining_ms: 5000 })).ok, false, "countdown without token");
+  assert.equal(parseEvent(withAlert({ text: "比赛开始", countdown_remaining_ms: null })).ok, true);
+  assert.equal(parseEvent(withProgress({ remaining_ms: 7001, total_ms: 7000 })).ok, false, "progress remaining > total");
+  assert.equal(parseEvent(withProgress({ remaining_ms: 0, total_ms: 0 })).ok, false, "total_ms must be positive");
+  assert.equal(parseEvent(withProgress({ remaining_ms: 0, total_ms: 7000 })).ok, true);
+  for (const bad of [1.5, -1, 86_400_001, "100", true]) {
+    assert.equal(parseEvent(withAlert({ countdown_remaining_ms: bad })).ok, false, `countdown ${JSON.stringify(bad)} is rejected`);
+    assert.equal(parseEvent(withAlert({ visible_remaining_ms: bad })).ok, false, `visible ${JSON.stringify(bad)} is rejected`);
+    assert.equal(parseEvent(withProgress({ remaining_ms: bad, total_ms: 7000 })).ok, false, `progress remaining ${JSON.stringify(bad)} is rejected`);
+  }
+  assert.equal(parseEvent(withProgress({ remaining_ms: 1000, total_ms: 2000.5 })).ok, false, "non-integer total_ms");
+  assert.equal(parseEvent(withAlert({ text: "" })).ok, false, "empty text");
+  assert.equal(parseEvent(withAlert({ text: "   " })).ok, false, "blank text");
+  assert.equal(parseEvent(withAlert({ text: "赛".repeat(257), countdown_remaining_ms: null })).ok, false, "overlong text");
+  assert.equal(parseEvent(withAlert({ text: "赛".repeat(256), countdown_remaining_ms: null })).ok, true, "256 characters fit");
+  assert.equal(parseEvent(withAlert({ text: "发电机已被启动。\n离过载还剩 40 秒。", countdown_remaining_ms: null })).ok, true, "line breaks are allowed");
+  assert.equal(parseEvent(withAlert({ key: "SLGO-Alert" })).ok, false, "key outside the catalog pattern");
+  assert.equal(parseEvent(withAlert({ key: "A".repeat(97) })).ok, false, "overlong key");
+  assert.equal(parseEvent(withAlert({ message_id: "" })).ok, false, "empty message id");
+
+  const panel = resultExample.payload.panel;
+  const withPanel = (overrides) => ({ ...resultExample, payload: { panel: { ...panel, ...overrides } } });
+  assert.equal(parseEvent({ ...resultExample, sent_at: undefined }).error.code, "invalid-envelope", "round.result requires sent_at");
+  assert.equal(parseEvent({ ...resultExample, payload: { panel: null } }).value.payload.panel, null, "panel null ends the panel");
+  assert.equal(parseRoundResult({}).ok, false, "panel is required");
+  assert.equal(parseRoundResult({ panel: null, extra: 1 }).ok, false, "unknown result field");
+  assert.equal(parseEvent(withPanel({ extra: 1 })).ok, false, "unknown panel field");
+  assert.equal(parseEvent(withPanel({ mvp: null, subtitle_text: null })).ok, true, "a win without MVP or subtitle");
+  assert.equal(parseEvent(withPanel({ title: { text: "回合败北", outcome: "lost" }, mvp: null })).ok, true);
+  assert.equal(parseEvent(withPanel({ title: { text: "NTF获胜", outcome: "observer" } })).ok, true);
+  assert.equal(parseEvent(withPanel({ title: { text: "回合胜利", outcome: "victory" } })).ok, false, "bad outcome");
+  assert.equal(parseEvent(withPanel({ title: { text: "回合胜利", outcome: "won", extra: 1 } })).ok, false, "unknown title field");
+  assert.equal(parseEvent(withPanel({ title: { text: "", outcome: "won" } })).ok, false, "empty title");
+  assert.equal(parseEvent(withPanel({ winner_team: "team-a" })).ok, false, "winner is a side, not a match team");
+  assert.equal(parseEvent(withPanel({ winner_team: null, is_match_end: true, title: { text: "平局", outcome: "draw" } })).ok, true, "a match can end in a draw");
+  assert.equal(parseEvent(withPanel({ winner_team: null, is_match_end: false, title: { text: "平局", outcome: "draw" } })).ok, false, "a round cannot be a draw");
+  assert.equal(parseEvent(withPanel({ winner_team: null, is_match_end: true })).ok, false, "a draw needs the draw outcome");
+  assert.equal(parseEvent(withPanel({ title: { text: "平局", outcome: "draw" } })).ok, false, "the draw outcome needs a draw");
+  assert.equal(parseEvent(withPanel({ subtitle_text: "" })).ok, false, "an absent subtitle is null, not empty");
+  assert.equal(parseEvent(withPanel({ visible_remaining_ms: 7000.5 })).ok, false, "non-integer hold time");
+  assert.equal(parseEvent(withPanel({ visible_remaining_ms: null })).ok, false, "the panel always has a hold time");
+  assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, display_name: "" } })).ok, false, "mvp with empty name");
+  assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, reason_text: " " } })).ok, false, "mvp with blank reason");
+  assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, player_id: "" } })).ok, false, "mvp without player");
+  assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, music_kit_name: "" } })).ok, false, "an absent music kit is null");
+  assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, music_kit_name: "收容失效" } })).ok, true);
+  assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, extra: 1 } })).ok, false, "unknown mvp field");
+}
+
+{
+  // Every scripted mock HUD scene is a valid plugin frame at any moment, for both sides.
+  for (const viewerRole of ["ntf", "scp"]) {
+    for (const scene of HUD_SCENES) {
+      const loopMs = hudSceneLoopMs(scene, viewerRole);
+      for (const elapsedMs of [0, 999, 1_500, 2_999, 3_000, 5_000, 6_999, 7_000, 9_000, 45_000, 60_000]) {
+        const frame = createHudSceneFrame(scene, viewerRole, elapsedMs, 3);
+        assert.equal(parseHudMessages(frame.messages).ok, true, `${scene} messages at ${elapsedMs} ms (${viewerRole})`);
+        assert.equal(parseRoundResult(frame.result).ok, true, `${scene} result at ${elapsedMs} ms (${viewerRole})`);
+      }
+      if (scene === "none") assert.equal(loopMs, null);
+    }
+  }
+  assert.equal(readHudScene("timeout"), "timeout");
+  assert.equal(readHudScene("bogus"), "none");
+  assert.equal(readHudScene(null), "none");
+  const win = createHudSceneFrame("win-mvp-kills", "scp", 0);
+  assert.equal(win.result.panel.winner_team, "scp");
+  assert.equal(win.result.panel.visible_remaining_ms, 7_000);
+  assert.equal(createHudSceneFrame("win-mvp-kills", "scp", 2_500).result.panel.visible_remaining_ms, 4_500);
+  assert.equal(createHudSceneFrame("win-mvp-kills", "scp", 7_000).result.panel, null, "the panel ends after the plugin hold time");
+  assert.equal(createHudSceneFrame("lost", "ntf", 0).result.panel.winner_team, "scp");
+  assert.equal(createHudSceneFrame("match-draw", "ntf", 0).result.panel.title.outcome, "draw");
+  const timeout = createHudSceneFrame("timeout", "ntf", 1_500).messages.alert;
+  assert.equal(timeout.countdown_remaining_ms, 56_500);
+  assert.notEqual(timeout.message_id, createHudSceneFrame("timeout", "ntf", 2_500).messages.alert.message_id, "a countdown rewrite is a new board write");
+  const progress = createHudSceneFrame("generator-shutdown-progress", "scp", 4_235).messages.progress;
+  assert.deepEqual(progress.progress, { remaining_ms: 2_765, total_ms: 7_000 });
+  assert.equal(createHudSceneFrame("hint-low-keycard", "ntf", 6_000).messages.hint_low, null, "a low hint lives six seconds");
+}
 
 const minimapFrame = {
   minimap_schema_version: 5, map_id: "map-1", visibility_revision: 1,

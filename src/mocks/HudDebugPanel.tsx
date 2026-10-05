@@ -7,6 +7,7 @@ import {
   HUD_DEBUG_ROUND_STATES,
   type HudDebugOptions,
 } from "./hudDebug";
+import { HUD_SCENES, HUD_SCENE_LABELS } from "./hudScenes";
 import "./HudDebugPanel.css";
 
 type DebugOption<T extends string> = {
@@ -145,6 +146,12 @@ export function HudDebugPanel({
           value={options.background}
           options={HUD_DEBUG_BACKGROUNDS.map((value) => ({ value, label: BACKGROUND_LABELS[value] }))}
           onChange={(value) => update("background", value)}
+        />
+        <DebugSelect
+          label="提示"
+          value={options.hudScene}
+          options={HUD_SCENES.map((value) => ({ value, label: HUD_SCENE_LABELS[value] }))}
+          onChange={(value) => update("hudScene", value)}
         />
       </div>
     </aside>
