@@ -83,6 +83,7 @@ export type MatchPlayer = {
   /** SCP-079 auxiliary power and its cap (viewer's own team, alive SCP-079 only); 079 has no health or shield. */
   aux_power?: number | null;
   max_aux_power?: number | null;
+  /** Kills in the current round (the top HUD skulls, as in CS2), reset when the buy phase starts; not the match total. */
   kills?: number;
   /** Viewer's own team only; `null` for an offline teammate. Absent for the other team and for spectators. */
   loadout?: MatchPlayerLoadout | null;
