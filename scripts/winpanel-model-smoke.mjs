@@ -11,6 +11,17 @@ import {
   winPanelRemainingMs,
 } from "../src/features/winpanel/model.ts";
 import {
+  CHECKER_HEIGHT,
+  CHECKER_RUN_MS,
+  CHECKER_SQUARE_SIZE,
+  CHECKER_WIDTH,
+  checkerAlpha,
+  checkerEnvelope,
+  checkerExitAlpha,
+  checkerSeed,
+  checkerSquares,
+} from "../src/features/winpanel/checker.ts";
+import {
   WIN_PANEL_LOSS_COLOR,
   WIN_PANEL_MVP_FILLS,
   WIN_PANEL_NEUTRAL_COLOR,
@@ -187,5 +198,35 @@ for (const scene of HUD_SCENES) {
 }
 assert.equal(createHudSceneFrame("lost", "ntf", 2_000).result.panel.title.outcome, "lost");
 assert.deepEqual(winPanelColors("won", createHudSceneFrame("win-mvp-kills", "scp", 0).result.panel.winner_team).accent, ROLE_COLORS.scp);
+
+// Checker (recording): 5 rows on a 19.32px pitch centred on the strip, a gap on the vertical centre line.
+const squares = checkerSquares();
+assert.deepEqual([...new Set(squares.map((square) => square.row))], [0, 1, 2, 3, 4]);
+const middle = squares.filter((square) => square.row === 2);
+assert.ok(Math.abs(middle[0].y + CHECKER_SQUARE_SIZE / 2 - CHECKER_HEIGHT / 2) < 1e-9);
+assert.ok(middle.some((square) => Math.abs(square.x + CHECKER_SQUARE_SIZE + 1.16 - CHECKER_WIDTH / 2) < 1e-9));
+assert.ok(squares.every((square) => square.x + CHECKER_SQUARE_SIZE > 0 && square.x < CHECKER_WIDTH));
+// Envelope: 350ms rise, hold until 1s, linear fade until 1.95s.
+assert.equal(checkerEnvelope(-1), 0);
+assert.equal(checkerEnvelope(175), 0.5);
+assert.equal(checkerEnvelope(700), 1);
+assert.ok(Math.abs(checkerEnvelope(1_475) - 0.5) < 1e-9);
+assert.equal(checkerEnvelope(1_950), 0);
+// Deterministic per result; about 60 % of the squares light on a pass; nothing before the strip or after 9 s.
+const seed = checkerSeed("win-mvp-kills-0");
+assert.equal(seed, checkerSeed("win-mvp-kills-0"));
+assert.notEqual(seed, checkerSeed("win-mvp-kills-1"));
+assert.ok(squares.every((square) => checkerAlpha(seed, square, -1) === 0 && checkerAlpha(seed, square, CHECKER_RUN_MS) === 0));
+const rowMean = (row, ms) => {
+  const inRow = squares.filter((square) => square.row === row);
+  return inRow.reduce((sum, square) => sum + checkerAlpha(seed, square, ms), 0) / inRow.length;
+};
+// The wave climbs one row every 468ms (2.34s per cycle): the one dark row moves up and wraps to the bottom.
+const darkestRow = (ms) => [0, 1, 2, 3, 4].reduce((best, row) => (rowMean(row, ms) < rowMean(best, ms) ? row : best), 0);
+assert.deepEqual([2_600, 3_068, 3_536, 4_004, 4_472].map(darkestRow), [2, 1, 0, 4, 3]);
+assert.ok(rowMean(4, 2_600) > 0.08);
+const lit = squares.filter((square) => checkerExitAlpha(seed, square) > 0).length / squares.length;
+assert.ok(lit > 0.45 && lit < 0.75, `exit pattern lit share ${lit}`);
+assert.ok(squares.every((square) => checkerExitAlpha(seed, square) <= 0.26 * 1.65 * 1.12 + 1e-9));
 
 console.log("win panel model smoke passed");

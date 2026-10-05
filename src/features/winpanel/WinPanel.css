@@ -52,7 +52,17 @@
   transform-origin: top center;
 }
 
-/* .WinPanelRoot: y winPanelPosY (190px), centred, flow down; fades over 0.3s ease-out. */
+/* .WinPanelRoot: y winPanelPosY (190px), centred, flow down.
+   Motion (all times from mount, measured frame by frame on a 60 fps in-game recording):
+   0-230ms     title box opens from its centre (scaleX) while fading in, white inside
+   230-245ms   title box fully white; the white fades out by 410ms
+   320-653ms   glitch over the title (10 frames at 30 fps, the last three fading)
+   560-730ms   chevrons slide in 19px from behind the side bars, brightness 1.5 -> 1
+   990-1220ms  subtitle fades in
+   990-1230ms  MVP strip opens from its centre as a white bar; the white fades out 1260-1430ms
+   990ms+      checker wave (checker.ts), stopped 9s after the strip entrance
+   exit        title box turns white and collapses in 200ms; the strip widens to 1.85x, turns white
+               and collapses by 220ms (WIN_PANEL_EXIT_MS) */
 .winpanel {
   --winpanel-accent: rgb(226, 226, 226);
   --winpanel-fill: rgba(54, 54, 56, 0.7);
@@ -65,10 +75,6 @@
   flex-direction: column;
   align-items: center;
   width: 100%;
-}
-
-.winpanel--leaving {
-  animation: winpanel-root-exit 0.3s ease-out forwards;
 }
 
 /* .WinPanel__Result: 400x80, 4px side bars in the accent, radius 3px, translucent fill with the
@@ -84,7 +90,9 @@
   border-left: 4px solid var(--winpanel-accent);
   border-radius: 3px;
   background: var(--winpanel-fill);
-  animation: winpanel-result-enter 0.25s ease-in both;
+  animation:
+    winpanel-open 230ms cubic-bezier(0.3, 0.1, 0.7, 1) both,
+    winpanel-fade-in 230ms cubic-bezier(0.2, 0.1, 0.4, 0.9) both;
 }
 
 .winpanel-result::before {
@@ -96,7 +104,33 @@
 }
 
 .winpanel--leaving .winpanel-result {
-  animation: winpanel-result-exit 0.25s ease-in forwards;
+  animation: winpanel-result-exit 200ms linear forwards;
+}
+
+/* White wash inside the side bars: covers the box while it opens, then clears to reveal the title. */
+.winpanel-result__white {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  animation: winpanel-result-white 410ms linear both;
+}
+
+.winpanel--leaving .winpanel-result__white {
+  opacity: 1;
+  animation: none;
+}
+
+/* Glitch frames over the title in a light tint of the accent (SLUI-drawn sprite, 10 frames of
+   400x80 stepped at 30 fps); hidden outside its 333ms run. */
+.winpanel-result__glitch {
+  position: absolute;
+  inset: 0;
+  background-color: color-mix(in srgb, var(--winpanel-accent) 62%, #fff);
+  opacity: 0;
+  -webkit-mask: url("/assets/winpanel/title-glitch.svg") 0 0 / 392px 800px no-repeat;
+  mask: url("/assets/winpanel/title-glitch.svg") 0 0 / 392px 800px no-repeat;
+  animation: winpanel-glitch 333ms steps(10) 320ms;
 }
 
 /* .WinPanel__Result__Title: 340x60, centred above the 14px bottom margin. Capture: CJK glyphs are
@@ -115,16 +149,16 @@
   font: 700 44.4px/60px "Stratum2 WinPanel Title", "Noto Sans SC WinPanel", sans-serif;
   letter-spacing: 8px;
   text-align: center;
-  text-shadow: 0 0 8px #353535bb;
   text-transform: uppercase;
   white-space: nowrap;
-  animation: winpanel-title-enter 0.25s ease-in both;
 }
 
 /* .WinPanel__Result__double-arrows: 16px tall, vertical centre above the 14px margin, 12px from the
-   bars; the left one is mirrored. They slide in from +25px after 0.5s (brightness 10 -> 1). */
+   bars; the left one is mirrored. Recording: both slide inwards from 19px outside (clipped by the
+   bars), brightened, as the glitch ends. */
 .winpanel-result__arrows {
   --winpanel-arrow-flip: 1;
+  --winpanel-arrow-out: 19px;
   position: absolute;
   top: 25px;
   width: 14px;
@@ -133,11 +167,12 @@
   -webkit-mask: url("/assets/winpanel/double-arrows.svg") center / 14px 16px no-repeat;
   mask: url("/assets/winpanel/double-arrows.svg") center / 14px 16px no-repeat;
   transform: scaleX(var(--winpanel-arrow-flip));
-  animation: winpanel-arrows-enter 0.25s ease-in 0.5s both;
+  animation: winpanel-arrows-enter 170ms cubic-bezier(0.2, 0.2, 0.6, 1) 560ms both;
 }
 
 .winpanel-result__arrows--left {
   --winpanel-arrow-flip: -1;
+  --winpanel-arrow-out: -19px;
   left: 12px;
 }
 
@@ -159,50 +194,51 @@
   color: #fff;
   font: 700 12px/16px "Stratum2 WinPanel", "Noto Sans SC WinPanel", sans-serif;
   text-align: center;
-  text-shadow: 0 0 8px #141414c7;
   white-space: nowrap;
-  animation: winpanel-fade-in 0.25s ease-in both;
+  animation: winpanel-fade-in 230ms linear 990ms both;
 }
 
 /* .MVP_section (non-premier): 640x90, radius 3px, both ends faded (capture: transparent to ~30px,
-   opaque from ~85px). The CS2 3D banner scene is replaced by the winner-tinted base plus two
-   SLUI-drawn checker layers masked in the winner colour that twinkle against each other. */
+   opaque from ~85px). The CS2 3D banner scene is replaced by the winner-tinted base plus the
+   SLUI-drawn checker canvas in the winner colour (checker.ts). Opens from its centre under a white
+   wash ~1s after the title. */
 .winpanel-mvp {
   position: relative;
   width: 640px;
   height: 90px;
+  animation: winpanel-open 240ms cubic-bezier(0.4, 0.2, 0.7, 1) 990ms both;
+}
+
+.winpanel--leaving .winpanel-mvp {
+  animation: none;
+}
+
+/* The band (base + checker) and the white wash carry the faded ends. On exit only they widen to
+   1.85x and collapse; the avatar and texts just fade (recording). */
+.winpanel-mvp__band,
+.winpanel-mvp__white {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   border-radius: 3px;
-  background: var(--winpanel-mvp-fill);
   -webkit-mask-image: linear-gradient(90deg, transparent 0, transparent 30px, #000 85px, #000 calc(100% - 85px), transparent calc(100% - 30px), transparent 100%);
   mask-image: linear-gradient(90deg, transparent 0, transparent 30px, #000 85px, #000 calc(100% - 85px), transparent calc(100% - 30px), transparent 100%);
-  animation: winpanel-mvp-enter 0.25s ease-in-out both;
+}
+
+.winpanel-mvp__band {
+  background: var(--winpanel-mvp-fill);
+}
+
+.winpanel--leaving .winpanel-mvp__band {
+  animation: winpanel-mvp-exit 220ms forwards;
 }
 
 .winpanel-mvp__checker {
   position: absolute;
-  inset: 0;
-  background-color: var(--winpanel-mvp-accent);
-  -webkit-mask-repeat: repeat;
-  mask-repeat: repeat;
-  -webkit-mask-size: 304px 95px;
-  mask-size: 304px 95px;
-}
-
-.winpanel-mvp__checker--a {
-  -webkit-mask-image: url("/assets/winpanel/checker-a.svg");
-  mask-image: url("/assets/winpanel/checker-a.svg");
-  -webkit-mask-position: 0 0;
-  mask-position: 0 0;
-  animation: winpanel-checker-a 3.2s ease-in-out infinite alternate;
-}
-
-.winpanel-mvp__checker--b {
-  -webkit-mask-image: url("/assets/winpanel/checker-b.svg");
-  mask-image: url("/assets/winpanel/checker-b.svg");
-  -webkit-mask-position: -95px 0;
-  mask-position: -95px 0;
-  animation: winpanel-checker-b 3.2s ease-in-out infinite alternate;
+  top: 0;
+  left: 0;
+  width: 640px;
+  height: 90px;
 }
 
 /* .MVP / .MVP__Winner: avatar + details, centred as one block (fit-children). */
@@ -212,7 +248,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: winpanel-fade-in 0.1s ease-in-out both;
+}
+
+.winpanel--leaving .winpanel-mvp__content {
+  animation: winpanel-fade-out 70ms linear forwards;
 }
 
 /* .MVP__Avatar: 72px square, 8px right margin, grey gradient behind the image. */
@@ -266,7 +305,6 @@
   color: var(--winpanel-mvp-accent);
   font: 500 28px/36px "Stratum2 WinPanel Condensed", "Noto Sans SC WinPanel", sans-serif;
   text-overflow: ellipsis;
-  text-shadow: 0 2px 4px #141414dc;
   white-space: nowrap;
 }
 
@@ -280,7 +318,6 @@
   height: 16px;
   color: var(--winpanel-mvp-accent);
   font: 700 12px/18px "Stratum2 WinPanel", "Noto Sans SC WinPanel", sans-serif;
-  text-shadow: 0 2px 4px #141414ee;
 }
 
 .winpanel-mvp__kit-name {
@@ -301,13 +338,17 @@
   mask: url("/assets/winpanel/music-note.svg") center / contain no-repeat;
 }
 
-/* .MVP__white: the strip flashes white and fades out after 0.25s. */
+/* .MVP__white: the strip opens fully white; the white clears 270-440ms into the strip entrance. */
 .winpanel-mvp__white {
-  position: absolute;
-  inset: 0;
   background: #fff;
   opacity: 0;
-  animation: winpanel-white-out 0.25s ease-in-out 0.25s both;
+  animation: winpanel-mvp-white 440ms linear 990ms both;
+}
+
+.winpanel--leaving .winpanel-mvp__white {
+  animation:
+    winpanel-mvp-exit 220ms forwards,
+    winpanel-mvp-white-exit 150ms linear forwards;
 }
 
 /* Debug captures pin the final state. */
@@ -316,36 +357,9 @@
   animation: none !important;
 }
 
-@keyframes winpanel-result-enter {
+@keyframes winpanel-open {
   from {
-    opacity: 0;
     transform: scaleX(0);
-  }
-}
-
-@keyframes winpanel-result-exit {
-  to {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-}
-
-@keyframes winpanel-root-exit {
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes winpanel-title-enter {
-  from {
-    transform: scale(1.5);
-  }
-}
-
-@keyframes winpanel-arrows-enter {
-  from {
-    filter: brightness(10);
-    transform: translateX(25px) scaleX(var(--winpanel-arrow-flip));
   }
 }
 
@@ -355,34 +369,101 @@
   }
 }
 
-@keyframes winpanel-mvp-enter {
+@keyframes winpanel-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes winpanel-result-white {
+  0%,
+  60% {
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 1);
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes winpanel-glitch {
   from {
+    opacity: 1;
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+
+  to {
+    opacity: 1;
+    -webkit-mask-position: 0 -800px;
+    mask-position: 0 -800px;
+  }
+}
+
+@keyframes winpanel-arrows-enter {
+  0% {
+    opacity: 0;
+    filter: brightness(1.5);
+    transform: translateX(var(--winpanel-arrow-out)) scaleX(var(--winpanel-arrow-flip));
+  }
+
+  1% {
+    opacity: 1;
+  }
+
+  60% {
+    filter: brightness(1.45);
+  }
+
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+    transform: scaleX(var(--winpanel-arrow-flip));
+  }
+}
+
+@keyframes winpanel-mvp-white {
+  0%,
+  61% {
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 1);
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes winpanel-result-exit {
+  to {
+    opacity: 0.55;
     transform: scaleX(0);
   }
 }
 
-@keyframes winpanel-white-out {
-  from {
-    opacity: 1;
+@keyframes winpanel-mvp-exit {
+  0%,
+  30% {
+    transform: scaleX(1.85);
+    animation-timing-function: ease-in-out;
+  }
+
+  100% {
+    transform: scaleX(0);
   }
 }
 
-@keyframes winpanel-checker-a {
-  from {
-    opacity: 1;
+@keyframes winpanel-mvp-white-exit {
+  0% {
+    opacity: 0;
   }
 
-  to {
-    opacity: 0.35;
-  }
-}
-
-@keyframes winpanel-checker-b {
-  from {
-    opacity: 0.35;
+  45% {
+    opacity: 0.6;
   }
 
-  to {
-    opacity: 1;
+  100% {
+    opacity: 0.9;
   }
 }

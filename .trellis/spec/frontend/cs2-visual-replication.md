@@ -52,6 +52,16 @@ When static source and observed output disagree, the in-game screenshot wins.
 
 ### Assets, fonts and avatars
 
+- **No text shadows on new UI.** Do not add `text-shadow` (or a `drop-shadow`
+  filter on text) to a new panel, even when the Panorama CSS declares one:
+  Panorama's shadows do not read as shadows in game, and the browser version
+  looks wrong. The user rejected this on every new panel (2026-10-05, win
+  panel); add one only if the user asks for it.
+- **Animations come from observed motion.** Static screenshots and Panorama CSS
+  are not enough to recreate an animated panel (3D particle backgrounds,
+  transitions whose Panorama transform order differs from CSS). Capture a
+  short in-game recording and step through it frame by frame before building
+  or accepting the motion.
 - Player slots render typed Steam `avatar_url` values.
 - Missing or failed avatars reveal a stable side-specific fallback.
 - Mock fixtures must not use CS2 tournament-player photographs.
@@ -270,16 +280,30 @@ The win panel is a hand-built React feature under `src/features/winpanel`
   without one. The title shrinks its font to fit (Panorama `text-overflow:
   shrink`), as do the subtitle and kit name; chip and name use ellipsis.
 - The Panorama `brightness` boosts on the name and kit text do not show in the
-  captures and are not applied. The CS2 3D banner scene and music-kit artwork
-  are replaced by SLUI drawings: two checker tiles
-  (`public/assets/winpanel/checker-a.svg` / `checker-b.svg`) masked in the
-  winner colour that twinkle against each other, and `music-note.svg`.
-- Transitions are CSS animations started at mount, never driven by the 250 ms
-  UI clock: title box scaleX 0 -> 1 with opacity (0.25s ease-in), title
-  scale 1.5 -> 1 (0.25s), chevrons slide in from +25px at brightness 10 after
-  0.5s, subtitle fade-in, MVP strip scaleX 0 -> 1 (0.25s) under a white flash
-  that fades after 0.25s. Exit: the last view stays mounted for 0.3s while the
-  root fades (`.WinPanelRoot` 0.3s ease-out) and the title box collapses.
+  captures and are not applied. The CS2 3D banner scene, glitch clip and
+  music-kit artwork are replaced by SLUI drawings: the checker canvas
+  (`checker.ts`), `title-glitch.svg` (procedural 10-image sprite used as a
+  mask in a light tint of the accent) and `music-note.svg`.
+- Motion is measured frame by frame from an in-game recording (numbers in the
+  parent task's `research/cs2-reference-capture.md`, "Win panel motion
+  (recording)"); keep the timeline at the top of `WinPanel.css` in sync. CSS
+  animations start at mount and are never driven by the 250 ms UI clock:
+  title box opens from its centre (0-230ms) under a white wash that clears by
+  410ms, glitch sprite 320-653ms (`steps(10)`), chevrons slide inwards 19px
+  from behind the side bars at brightness 1.5 (560-730ms), subtitle fades in
+  and the MVP strip opens as a white bar at 990ms (white clears 1260-1430ms).
+  No title scale-in, no root fade.
+- Checker: `checker.ts` is a pure model (17px squares, 19.32px pitch, 5 rows;
+  a wave climbs one row per 468ms, 2.34s per pass; ~60 % of the squares light
+  per pass at random levels, brighter near the ends; rise 350ms, hold to 1s,
+  fade to 1.95s; stops 9s after the strip entrance). `MvpChecker` draws it on
+  a canvas with `requestAnimationFrame` and reads its clock from the strip's
+  `winpanel-open` CSS animation, so canvas and CSS stay in step; the pattern is
+  seeded by `resultId`. Stills (`hudSceneAt`) draw it at 3.3s.
+- Exit (`.winpanel--leaving`, `WIN_PANEL_EXIT_MS` 240): the title box turns
+  white and collapses in 200ms; the strip band (`.winpanel-mvp__band` + white)
+  jumps to scaleX 1.85 with a still lit checker, whitens and collapses by
+  220ms, while the avatar and texts only fade (never stretched).
 - Fonts: `Stratum2 WinPanel Title` (condensed bold, cap-centred), `Stratum2
   WinPanel` (bold) and `Stratum2 WinPanel Condensed` (medium) in
   `src/shared/fonts.ts`; CJK falls back to `Noto Sans SC WinPanel` declared in
