@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/SLGO-Team/slui/compare/v0.2.2...v0.3.0) (2026-10-05)
+
+
+### Features
+
+* **installer:** add a branded uninstaller with optional theme pack removal ([#12](https://github.com/SLGO-Team/slui/issues/12)) ([38de6cd](https://github.com/SLGO-Team/slui/commit/38de6cd8c85c5fb53be896a4603ea692dacd56ab))
+
+
+### Bug Fixes
+
+* **minimap:** play poses out on the plugin's capture timeline ([#11](https://github.com/SLGO-Team/slui/issues/11)) ([6e28557](https://github.com/SLGO-Team/slui/commit/6e285573e9952050237693da3fde32f0f6ebc760))
+* **minimap:** rotate the heading-up map smoothly ([#9](https://github.com/SLGO-Team/slui/issues/9)) ([8f497de](https://github.com/SLGO-Team/slui/commit/8f497de7e4bbf6f4fe959473b77da24986f26667))
+
 ## [0.2.2](https://github.com/SLGO-Team/slui/compare/v0.2.1...v0.2.2) (2026-10-04)
 
 
