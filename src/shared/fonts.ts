@@ -130,6 +130,8 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
     pack: stratum("stratum2condensed-medium.otf", null),
     fallback: sairaCondensed("medium", NATURAL),
   },
+  // Message zone (MessageZone.css): stratum-medium-tf labels, vertically centred like Panorama.
+  { family: "Stratum2 Messages", weight: 500, pack: stratum("stratum2-medium.otf", CAP_CENTERED), fallback: barlow("Medium", CAP_CENTERED, true) },
 ];
 
 export type ResolvedFontFace = {
