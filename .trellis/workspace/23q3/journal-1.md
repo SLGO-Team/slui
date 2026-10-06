@@ -519,3 +519,25 @@ Rendered CS2's defuse card for generator start/shutdown from the hud.messages pr
 ### Status
 
 [OK] **Completed**
+
+
+## Session 22: CS2 HUD panels integration
+<!-- trellis-session: v=2 fp=a8a1df34fd338d49 -->
+
+**Date**: 2026-10-06
+**Task**: CS2 HUD panels integration
+**Branch**: `chore/archive-cs2-hud-panels`
+
+### Summary
+
+Parent integration review of the CS2 HUD panels: all children merged, live test on production passed with a SLUI main build, capture cfg deleted, parent archived.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2cd1b57` | feat(hudmessages): render the CS2 generator progress card and take over the message zone (#17) |
+
+### Status
+
+[OK] **Completed**

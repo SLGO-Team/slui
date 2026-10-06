@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-10-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~521 | Active |
+| `journal-1.md` | ~543 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-10-06 | CS2 HUD panels integration | `2cd1b57` | `chore/archive-cs2-hud-panels` |
 | 21 | 2026-10-06 | CS2 generator progress card | `d8c5c97`, `4a3e21c` | `feat/hud-progress` |
 | 20 | 2026-10-06 | CS2 HUD alerts and hints | `db8d14b` | `feat/hud-alerts` |
 | 19 | 2026-10-05 | CS2 win panel | `f3f269f` | `feat/win-panel` |
