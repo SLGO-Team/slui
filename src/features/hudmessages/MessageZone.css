@@ -58,7 +58,9 @@
 .hudmsg {
   --hudmsg-gold: rgb(236, 189, 87);
   --hudmsg-bar: var(--hudmsg-gold);
-  --hudmsg-fill: rgba(65, 65, 65, 0.33);
+  /* Captures: grey ~65 at ~0.33 on a world blur. Without the blur (the overlay cannot read the game
+     behind it) a denser fill with the same mean suppresses the scene detail (user review 2026-10-06). */
+  --hudmsg-fill: rgba(62, 62, 62, 0.6);
   --hudmsg-glitch: color-mix(in srgb, var(--hudmsg-bar) 55%, #fff);
   position: absolute;
   left: 810px;
@@ -78,7 +80,7 @@
   /* .high-priority: bars washed red, glitch negativeColor, hud-blur-bg-color fill (captures: the
      scene behind darkens to ~0.48). */
   --hudmsg-bar: rgb(255, 24, 0);
-  --hudmsg-fill: rgba(0, 0, 0, 0.52);
+  --hudmsg-fill: rgba(16, 16, 16, 0.7);
   --hudmsg-glitch: color-mix(in srgb, #db4437 60%, #fff);
 }
 

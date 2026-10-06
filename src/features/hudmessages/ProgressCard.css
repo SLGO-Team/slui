@@ -75,8 +75,10 @@
   transform-origin: top center;
 }
 
-/* .hud-progress-bar: 500x120, radius 10px, centred, top y 630 (recording x 710-1209, y 630-749). The
-   hud-blur-bg-color fill reads as black at ~0.43 over the scene. */
+/* .hud-progress-bar: 500x120, radius 10px, centred, top y 630 (recording x 710-1209, y 630-749). In
+   game the hud-blur-bg-color fill (black ~0.43 measured) sits on a world blur. The overlay window
+   cannot read, so cannot blur, the game behind it; a denser grey keeps the recorded mean darkness while
+   suppressing the scene detail the blur removes (user review 2026-10-06). */
 .hudprogress {
   position: absolute;
   top: 630px;
@@ -91,7 +93,7 @@
   inset: 0;
   overflow: hidden;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.43);
+  background: rgba(34, 34, 34, 0.72);
   animation:
     hudprogress-p var(--hudprogress-duration) linear var(--hudprogress-delay) both,
     hudprogress-colors var(--hudprogress-duration) linear var(--hudprogress-delay) both;

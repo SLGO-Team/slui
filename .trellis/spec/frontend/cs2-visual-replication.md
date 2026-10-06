@@ -346,9 +346,13 @@ reducer and has its own card.
   shadow; padding 7.5 / 10.5px instead of Panorama's 8 / 8px because the CJK fallback sits ~1.75px
   below the cap-centred Latin baseline (CJK ink then matches the captures to the pixel).
 - Colours (captures): side bars 2px at both ends; low hint gold `rgb(236, 189, 87)`, alert the same gold
-  at 0.5 (its bars are additive in Panorama), high hint `rgb(255, 24, 0)`. Fill: alert and low hint
-  `rgba(65, 65, 65, 0.33)` (the scene darkens only slightly and dark scenes lighten), high hint
-  `rgba(0, 0, 0, 0.52)` (`hud-blur-bg-color`). Panorama's world blur and dot texture are not recreated.
+  at 0.5 (its bars are additive in Panorama), high hint `rgb(255, 24, 0)`. Fill: in game the
+  captures read grey ~65 at ~0.33 (alert, low hint) and black ~0.52 (high hint) on Panorama's world
+  blur. The overlay window cannot read, so cannot blur, the game behind it (`backdrop-filter` only sees
+  the page), so the fills are denser with about the same mean to suppress the scene detail the blur
+  removes (user review 2026-10-06): `rgba(62, 62, 62, 0.6)` and `rgba(16, 16, 16, 0.7)`. Never use
+  `backdrop-filter`: it would blur the mock preview's page background and misrepresent the game. The dot
+  texture is not recreated.
 - Motion (recording, numbers in the parent task's research file, "Message zone motion"): enter for all
   three, box opens from its centre in 233ms (`cubic-bezier(0.3, 0.05, 0.65, 0.9)`) under 0.92 white
   that clears 250-470ms, text fades in from 233ms, a 30 fps glitch (`message-glitch.svg`, SLUI-drawn,
@@ -383,7 +387,9 @@ card).
   upgrade (CS2 defuse kit), the keycard otherwise. `progressViewerFromHud` finds the local player in the
   viewer team (the debug build falls back to that team's first player, since the mock identity is a
   team-a player). The card has no local expiry: at 0 it shows `00:00.000` until the plugin clears it.
-- Geometry at 1080p (recording, +-1px): card 500x120 at x 710 / y 630, radius 10px, fill black 0.43;
+- Geometry at 1080p (recording, +-1px): card 500x120 at x 710 / y 630, radius 10px, fill
+  `rgba(34, 34, 34, 0.72)` (recorded black ~0.43 on the world blur, made denser for the missing blur,
+  see section 11);
   4px side bars; the layout row (ring, info) is centred horizontally, so the ring moves with the title
   width, but top-aligned: ring 95px 10px under the card top (centre y 687.5), 8px track
   `rgba(128,128,128,.25)`, 82% inner border 2px `#00000049`, icon 50x50 centred; info 96px high with
