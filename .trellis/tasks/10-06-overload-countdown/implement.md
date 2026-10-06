@@ -6,7 +6,7 @@ the HUD panels).
 1. [x] slui `packages/protocol`: token constant, parser rule, contract smoke cases.
 2. [x] slui renderer: `formatHudSeconds`, selector, mock scene, model smoke cases.
 3. [x] backend: IPC v1 fixtures (valid + invalid), README; `bun run lint`, `bun test`.
-4. [x] plugin: catalog entry + factory, `HudMessageCatalog` token, board standing low hint + tests,
+4. [x] plugin: catalog entry + factory, `HudMessageCatalog` token, board standing high hint + tests,
        `GeneratorUI` wiring (activation / deactivation / overload / reset), `SidecarHudRules` + validator
        tests; `dotnet test`.
 5. [x] Specs: slui `system-boundaries.md` + `cs2-visual-replication.md` §11, backend README, plugin
