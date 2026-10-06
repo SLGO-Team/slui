@@ -157,10 +157,10 @@ assert.deepEqual(HUD_GENERATOR_PULSE_SECONDS, { slow: 0.8, medium: 0.5, fast: 0.
 }
 
 {
-  // Pause: the pause clock counts down although the phase is paused at 0.
+  // Pause: the timer shows the pause glyph, not the pause countdown (that one is in the alert slot).
   const { hud } = hudFor({ pause_remaining_ms: 45_000, phase_paused: true, phase_remaining_ms: 0 }, receivedAt + 4_000);
   assert.equal(hud.clockMode, "pause");
-  assert.equal(hud.clockSeconds, 41);
+  assert.equal(hud.clockSeconds, 0);
   assert.equal(hud.generatorPulse, null, "no blink tier outside the generator mode");
   assert.equal(hud.paused, true);
   assert.equal(hud.phaseClockSeconds, 0, "the paused phase clock stays frozen");

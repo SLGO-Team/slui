@@ -605,8 +605,9 @@
   mix-blend-mode: plus-lighter;
 }
 
+/* CS2 .teamcounter_timer.teamcounter_red_timer: plain red, drawn additively like the digits. */
 .hud-scoreboard__timer--warning {
-  color: #e14d43;
+  color: red;
 }
 
 /*
@@ -636,20 +637,6 @@
   100% {
     opacity: 0.5;
   }
-}
-
-/* Tactical pause countdown: yellow seconds and a small label. */
-.hud-scoreboard__timer--pause {
-  gap: 2px;
-  color: #f2c94c;
-}
-
-.hud-scoreboard__timer-label {
-  flex: none;
-  font-family: "Microsoft YaHei", "Noto Sans SC", sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 12px;
 }
 
 .hud-scoreboard__scores {

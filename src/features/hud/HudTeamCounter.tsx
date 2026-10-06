@@ -258,7 +258,8 @@ type HudClockProps = Pick<
 
 function RoundClock({ clockMode, clockSeconds, generatorPulse, paused }: HudClockProps) {
   // The timer box keeps its size in every mode so the scores and counts never move.
-  const warning = clockMode === "round" && clockSeconds <= 10 && !paused;
+  // CS2 reds the timer (teamcounter_red_timer) in its last 10 s and while the match is paused.
+  const warning = (clockMode === "round" && clockSeconds <= 10 && !paused) || clockMode === "pause";
   const className = `hud-scoreboard__timer hud-scoreboard__timer--${clockMode}${warning ? " hud-scoreboard__timer--warning" : ""}`;
   if (clockMode === "hidden") return <div className={className} data-clock-mode={clockMode} />;
   if (clockMode === "generator") {
@@ -277,10 +278,17 @@ function RoundClock({ clockMode, clockSeconds, generatorPulse, paused }: HudCloc
       </div>
     );
   }
+  if (clockMode === "pause") {
+    // CS2 replaces the digits with "❚❚" while m_bMatchWaitingForResume is set (a tactical timeout sets it).
+    return (
+      <div className={className} data-clock-mode={clockMode}>
+        <span className="hud-scoreboard__timer-value" role="img" aria-label="暂停">❚❚</span>
+      </div>
+    );
+  }
   return (
     <div className={className} data-clock-mode={clockMode}>
       <span className="hud-scoreboard__timer-value">{formatRoundClock(clockSeconds)}</span>
-      {clockMode === "pause" ? <span className="hud-scoreboard__timer-label">暂停</span> : null}
     </div>
   );
 }
