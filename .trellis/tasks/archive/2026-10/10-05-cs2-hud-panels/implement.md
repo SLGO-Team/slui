@@ -22,16 +22,16 @@ tree currently has an unrelated uncommitted change in
 
 ## Integration review (parent)
 
-- [ ] Mock preview: every captured state renders together (win panel over the
+- [x] Mock preview: every captured state renders together (win panel over the
       team counter, message zone, progress card) without overlap at 1920x1080
       and one smaller 16:9 size.
-- [ ] Compare each state against the local reference captures
+- [x] Compare each state against the local reference captures
       (`research/cs2-reference-capture.md` lists them) and record deviations.
-- [ ] Live test with the user on a real server: alerts, hints, generator
+- [x] Live test with the user on a real server: alerts, hints, generator
       start/shutdown card, round win/loss + MVP, match end; toggle the overlay
       off and confirm plugin hints return.
-- [ ] Specs updated in all three repos (AC6).
-- [ ] Delete the CS2 capture cfg (`<CS2>/game/csgo/cfg/slui_ref.cfg`) once the
+- [x] Specs updated in all three repos (AC6).
+- [x] Delete the CS2 capture cfg (`<CS2>/game/csgo/cfg/slui_ref.cfg`) once the
       user no longer needs it (ask first).
 
 ## Validation commands
@@ -40,3 +40,11 @@ tree currently has an unrelated uncommitted change in
   plus the new layout/visual audit scripts.
 - slgo-backend: `bun run lint`, `bun test`.
 - SLGO plugin: `dotnet test` (solution root).
+
+## Outcome (2026-10-06)
+
+All four children merged (slui #13, #15, #16, #17; backend d77a68b; plugin 561ca78) and released to
+production (backend and plugin); the user ran a SLUI build of main against production and the live test
+passed. Visual decision during review: the overlay cannot blur the game behind panels, so the
+message-zone and progress fills are denser than the captured translucent fills. The capture cfg was
+deleted (the user's CS2 key config may still bind F9 to bot_place; `unbind F9` in the console).
