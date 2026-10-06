@@ -52,17 +52,18 @@ const nearScale = (design) => design * scale;
 const SLOT_Y = { alert: 750, hint_high: 802, hint_low: 868 };
 const GOLD = "rgb(236, 189, 87)";
 const BAR = { alert: "rgba(236, 189, 87, 0.5)", hint_high: "rgb(255, 24, 0)", hint_low: GOLD };
-// Viewer team-a plays NTF in the mock roster; texts at hudSceneAt 2000.
+// Viewer team-a plays NTF in the mock roster; texts at hudSceneAt 2000 unless `at` says otherwise.
 const SCENES = [
   { scene: "match-point", slots: { alert: { text: "赛点", lines: 1, tone: "match_point" } } },
   { scene: "final-round", slots: { alert: { text: "最终局", lines: 1, tone: "final_round" } } },
   { scene: "warmup", slots: { alert: { text: "热身时间 0:43", lines: 1 } } },
   { scene: "timeout", slots: { alert: { text: "SCP 队暂停还剩 0:56", lines: 1 } } },
   { scene: "pause-high-hint", slots: { alert: { text: "NTF 队暂停还剩 0:28", lines: 1 }, hint_high: { text: "当前无法购买", lines: 1 } } },
-  { scene: "hint-high-two-line", slots: { hint_high: { text: "发电机已被启动。\n离过载还剩 40 秒。", lines: 2 } } },
+  // CS2 bomb planted: a two-line high hint, then the standing overload countdown in the same slot.
+  { scene: "generator-started", slots: { hint_high: { text: "发电机已被启动。\n离过载还剩 40 秒。", lines: 2 } } },
+  { scene: "generator-started", at: 8_000, slots: { hint_high: { text: "离过载还剩 32 秒", lines: 1 } } },
   { scene: "hint-low-keycard", slots: { hint_low: { text: "你捡起了指挥官钥匙卡。", lines: 1 } } },
   { scene: "hint-low-dropped", slots: { hint_low: { text: "您已扔掉 E-11 SR", lines: 1 } } },
-  { scene: "generator-started", slots: { hint_low: { text: "发电机已被启动。\n离过载还剩 40 秒。", lines: 2 } } },
   { scene: "generator-start-progress", slots: {}, progress: { text: "你正在启动发电机。", icon: "keycard" } },
   { scene: "generator-shutdown-progress", slots: {}, progress: { text: "你正在关闭发电机。", icon: "keycard" } },
   // Team b's first mock player carries the generator upgrade: the CS2 defuse-kit look.
@@ -115,7 +116,7 @@ const measure = `JSON.stringify((() => {
     count: document.querySelectorAll(".hudmsg").length,
     counter: document.querySelector(".hud-team-counter")?.getBoundingClientRect().y ?? null,
     generatedNodeCount: document.querySelectorAll("[data-panorama-tag]").length,
-    hasRawBindingText: /#SFUI_|#Panorama_|\\{[sdg]:|\\{time_remaining\\}|(?:SFUI|CSGO|SLGO)_[A-Za-z]/.test(document.body.innerText),
+    hasRawBindingText: /#SFUI_|#Panorama_|\\{[sdg]:|\\{(?:time|seconds)_remaining\\}|(?:SFUI|CSGO|SLGO)_[A-Za-z]/.test(document.body.innerText),
   };
 })())`;
 
@@ -126,7 +127,7 @@ for (const expected of SCENES) {
   url.searchParams.set("hudDebug", "0");
   url.searchParams.set("shopDebug", "0");
   url.searchParams.set("hudScene", expected.scene);
-  url.searchParams.set("hudSceneAt", "2000");
+  url.searchParams.set("hudSceneAt", String(expected.at ?? 2_000));
   url.searchParams.set("viewerTeam", expected.viewerTeam ?? "team-a");
   await call("Page.navigate", { url: url.href });
   const slotCount = Object.keys(expected.slots).length;
@@ -142,7 +143,7 @@ for (const expected of SCENES) {
       break;
     }
   }
-  const label = `${expected.scene}${expected.viewerTeam ? ` (${expected.viewerTeam})` : ""}`;
+  const label = `${expected.scene}${expected.at ? ` @${expected.at}` : ""}${expected.viewerTeam ? ` (${expected.viewerTeam})` : ""}`;
   assert.ok(audit, `${label}: the message slots never appeared`);
   results.push({ scene: label, ...audit });
 

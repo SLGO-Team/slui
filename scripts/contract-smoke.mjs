@@ -501,6 +501,10 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseEvent(withAlert({ text: "赛".repeat(257), countdown_remaining_ms: null })).ok, false, "overlong text");
   assert.equal(parseEvent(withAlert({ text: "赛".repeat(256), countdown_remaining_ms: null })).ok, true, "256 characters fit");
   assert.equal(parseEvent(withAlert({ text: "发电机已被启动。\n离过载还剩 40 秒。", countdown_remaining_ms: null })).ok, true, "line breaks are allowed");
+  // Seconds countdown ({seconds_remaining}): same field, one token kind per text.
+  assert.equal(parseEvent(withAlert({ text: "离过载还剩 {seconds_remaining} 秒", countdown_remaining_ms: 34_000 })).ok, true, "seconds token with countdown");
+  assert.equal(parseEvent(withAlert({ text: "离过载还剩 {seconds_remaining} 秒", countdown_remaining_ms: null })).ok, false, "seconds token without countdown");
+  assert.equal(parseEvent(withAlert({ text: "{time_remaining} / {seconds_remaining}", countdown_remaining_ms: 34_000 })).ok, false, "both token kinds");
   assert.equal(parseEvent(withAlert({ key: "SLGO-Alert" })).ok, false, "key outside the catalog pattern");
   assert.equal(parseEvent(withAlert({ key: "A".repeat(97) })).ok, false, "overlong key");
   assert.equal(parseEvent(withAlert({ message_id: "" })).ok, false, "empty message id");

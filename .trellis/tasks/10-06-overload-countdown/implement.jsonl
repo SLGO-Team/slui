@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "hud.messages wire contract"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "message zone rules (section 11)"}

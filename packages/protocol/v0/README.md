@@ -145,10 +145,11 @@ receive time only; it never compares `sent_at` with the local clock.
 Text is resolved by the plugin (`HudMessageCatalog`): parameters are filled
 in, rich-text tags never appear, and SLUI keeps no catalog of its own. `text`
 is not blank, at most 256 UTF-16 code units, and may contain line breaks. A
-countdown is not filled in: the text keeps the literal token
-`{time_remaining}` and `countdown_remaining_ms` carries its value, which the
-client draws as `m:ss`. `countdown_remaining_ms` is non-null exactly when the
-text contains the token. `key` (`^[A-Za-z0-9_]{1,96}$`, a CS2 localisation key
+countdown is not filled in: the text keeps a literal token and
+`countdown_remaining_ms` carries its value. `{time_remaining}` is drawn as
+`m:ss`, `{seconds_remaining}` as the whole seconds rounded up (`40`, ..., `1`,
+`0`); a text uses one kind only. `countdown_remaining_ms` is non-null exactly
+when the text contains a token. `key` (`^[A-Za-z0-9_]{1,96}$`, a CS2 localisation key
 or `SLGO_*`) and `tone` are style hooks only; `key` is never shown.
 
 `hud.messages` (one recipient per publish) has exactly the four slots

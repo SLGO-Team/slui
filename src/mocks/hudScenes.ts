@@ -33,7 +33,6 @@ export const HUD_SCENES = [
   "hint-low-keycard",
   "hint-low-dropped",
   "generator-started",
-  "hint-high-two-line",
   "generator-start-progress",
   "generator-shutdown-progress",
   "all-slots",
@@ -56,8 +55,7 @@ export const HUD_SCENE_LABELS: Readonly<Record<HudScene, string>> = {
   timeout: "暂停倒计时",
   "hint-low-keycard": "低优先级 钥匙卡",
   "hint-low-dropped": "低优先级 丢弃",
-  "generator-started": "发电机已启动",
-  "hint-high-two-line": "高优先级 两行",
+  "generator-started": "发电机已启动 + 过载倒计时",
   "generator-start-progress": "启动发电机进度",
   "generator-shutdown-progress": "关闭发电机进度",
   "all-slots": "四槽同时",
@@ -72,13 +70,17 @@ const RESULT_HOLD_MS = 7_000;
 /** Plugin `HintHigh` / `HintLow` lifetimes. */
 const HINT_HIGH_MS = 3_000;
 const HINT_LOW_MS = 6_000;
+/** Plugin generator-started hint lifetime and overload delay. */
+const GENERATOR_STARTED_MS = 6_000;
+const GENERATOR_OVERLOAD_MS = 40_000;
 /** Pause before a finished scene starts over, so previews keep showing it. */
 const LOOP_GAP_MS = 1_500;
 
 type SlotName = keyof HudMessagesSnapshot;
 
-/** A message at scene start; times count down from here. */
+/** A message from `startMs` (default 0) into the scene; its times count down from there. */
 type ScriptedMessage = {
+  startMs?: number;
   key: string;
   text: string;
   tone: HudTone;
@@ -98,8 +100,11 @@ type ScriptedPanel = {
   musicKit?: string | null;
 };
 
+/** One message, or messages that follow each other in the slot (each from its `startMs`). */
+type SlotScript = ScriptedMessage | readonly ScriptedMessage[];
+
 type SceneScript = {
-  messages?: Partial<Record<SlotName, ScriptedMessage>>;
+  messages?: Partial<Record<SlotName, SlotScript>>;
   panel?: ScriptedPanel;
 };
 
@@ -136,10 +141,19 @@ function sceneScript(scene: HudScene, viewerRole: Role): SceneScript {
     case "timeout": return { messages: { alert: { key: "CSGO_Notice_Alert_Timeout", text: `${sideName(opponent)} 队暂停还剩 {time_remaining}`, tone: "info", visibleMs: null, countdownMs: 58_000 } } };
     case "hint-low-keycard": return { messages: { hint_low: { key: "SLGO_Notice_Got_Commander_Keycard", text: "你捡起了指挥官钥匙卡。", tone: "gold", visibleMs: HINT_LOW_MS } } };
     case "hint-low-dropped": return { messages: { hint_low: { key: "SFUI_Notice_YouDroppedWeapon", text: "您已扔掉 E-11 SR", tone: "default", visibleMs: HINT_LOW_MS } } };
-    // The plugin puts the CS2 "bomb planted" two-liner in the low slot.
-    case "generator-started": return { messages: { hint_low: { key: "SLGO_Notice_Generator_Started", text: "发电机已被启动。\n离过载还剩 40 秒。", tone: "default", visibleMs: HINT_LOW_MS } } };
-    // Layout fixture: the CS2 high hint is two lines tall for the planted bomb (see the capture notes).
-    case "hint-high-two-line": return { messages: { hint_high: { key: "SLGO_Notice_Generator_Started", text: "发电机已被启动。\n离过载还剩 40 秒。", tone: "warning", visibleMs: HINT_HIGH_MS } } };
+    // CS2's "bomb planted" two-liner is a high hint; the plugin shows it for 6 s, then the standing
+    // overload countdown takes the slot until the generator overloads (40 s after the start).
+    case "generator-started": return { messages: { hint_high: [
+      { key: "SLGO_Notice_Generator_Started", text: "发电机已被启动。\n离过载还剩 40 秒。", tone: "warning", visibleMs: GENERATOR_STARTED_MS },
+      {
+        startMs: GENERATOR_STARTED_MS,
+        key: "SLGO_Notice_Generator_Overload_Countdown",
+        text: "离过载还剩 {seconds_remaining} 秒",
+        tone: "warning",
+        visibleMs: null,
+        countdownMs: GENERATOR_OVERLOAD_MS - GENERATOR_STARTED_MS,
+      },
+    ] } };
     case "generator-start-progress": return { messages: { progress: { key: "SLGO_Progress_Generator_Start", text: "你正在启动发电机。", tone: "default", visibleMs: null, progress: { remainingMs: 10_000, totalMs: 10_000 } } } };
     case "generator-shutdown-progress": return { messages: { progress: { key: "SLGO_Progress_Generator_Shutdown", text: "你正在关闭发电机。", tone: "default", visibleMs: null, progress: { remainingMs: 7_000, totalMs: 7_000 } } } };
     case "all-slots": return { messages: {
@@ -151,18 +165,20 @@ function sceneScript(scene: HudScene, viewerRole: Role): SceneScript {
   }
 }
 
-/** When a scripted message leaves the board on its own (expiry, countdown or progress end); null = never. */
+/** When a scripted message leaves the board on its own (expiry, countdown or progress end), from scene start; null = never. */
 function messageEndMs(message: ScriptedMessage): number | null {
   const ends = [message.visibleMs, message.countdownMs, message.progress?.remainingMs]
     .filter((value): value is number => value !== undefined && value !== null);
-  return ends.length > 0 ? Math.min(...ends) : null;
+  return ends.length > 0 ? (message.startMs ?? 0) + Math.min(...ends) : null;
 }
+
+const slotMessages = (script: SlotScript): readonly ScriptedMessage[] => Array.isArray(script) ? script : [script as ScriptedMessage];
 
 /** Length of one scene run before it starts over, or null for a scene that never changes on its own. */
 export function hudSceneLoopMs(scene: HudScene, viewerRole: Role): number | null {
   const script = sceneScript(scene, viewerRole);
   const ends = [
-    ...Object.values(script.messages ?? {}).map(messageEndMs),
+    ...Object.values(script.messages ?? {}).flatMap((slot) => slotMessages(slot).map(messageEndMs)),
     script.panel ? RESULT_HOLD_MS : null,
   ].filter((value): value is number => value !== null);
   return ends.length > 0 ? Math.max(...ends) + LOOP_GAP_MS : null;
@@ -170,12 +186,17 @@ export function hudSceneLoopMs(scene: HudScene, viewerRole: Role): number | null
 
 const remaining = (startMs: number, elapsedMs: number) => Math.max(0, Math.round(startMs - elapsedMs));
 
-function messageAt(scene: HudScene, slot: SlotName, message: ScriptedMessage, elapsedMs: number, run: number): HudSlotMessage | HudProgressMessage | null {
+function messageAt(scene: HudScene, slot: SlotName, script: SlotScript, sceneElapsedMs: number, run: number): HudSlotMessage | HudProgressMessage | null {
+  // The latest message that has started; a following one replaces it.
+  const started = slotMessages(script).filter((candidate) => (candidate.startMs ?? 0) <= sceneElapsedMs);
+  const message = started[started.length - 1];
+  if (!message) return null;
   const end = messageEndMs(message);
-  if (end !== null && elapsedMs >= end) return null;
+  if (end !== null && sceneElapsedMs >= end) return null;
+  const elapsedMs = sceneElapsedMs - (message.startMs ?? 0);
   const timed = message.countdownMs !== undefined || message.progress !== undefined;
   // Like the plugin board, a countdown or progress rewrite is a new write with a new id.
-  const id = `${scene}-${run}-${slot}${timed ? `-${Math.floor(elapsedMs / 1000)}` : ""}`;
+  const id = `${scene}-${run}-${slot}-${started.length}${timed ? `-${Math.floor(elapsedMs / 1000)}` : ""}`;
   const base: HudSlotMessage = {
     message_id: id,
     key: message.key,
