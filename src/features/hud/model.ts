@@ -42,7 +42,7 @@ export type HudViewerPlayerView = HudPlayerView & {
 /**
  * What the top-HUD timer shows, in priority order: nothing outside a running phase
  * (matching the plugin HUD), the generator overload countdown, the tactical pause
- * countdown, else the phase clock.
+ * glyph, else the phase clock.
  */
 export type HudClockMode = "hidden" | "generator" | "pause" | "round";
 
@@ -88,7 +88,7 @@ export type RoundHudViewModel = RoundHudStatus & ({
   round: number;
   maxRounds: number;
   clockMode: HudClockMode;
-  /** Seconds left on the timer that clockMode selects (0 when hidden; the generator mode draws no digits). */
+  /** Seconds left on the timer that clockMode selects (0 when hidden or paused; the generator mode draws no digits). */
   clockSeconds: number;
   /** Keycard blink tier while clockMode is "generator", else null. */
   generatorPulse: HudGeneratorPulse | null;
@@ -225,12 +225,15 @@ export function hudClockMode(snapshot: HudSnapshotFrame["snapshot"]): HudClockMo
   return "round";
 }
 
-/** Milliseconds left on the timer that clockMode shows; the pause clock counts down although the phase is paused. */
+/**
+ * Milliseconds left on the timer that clockMode shows. A pause shows no time: CS2 swaps the timer
+ * for a red pause glyph and the timeout countdown lives in the alert slot.
+ */
 export function clockRemainingMilliseconds(frame: HudSnapshotFrame, mode: HudClockMode, nowMs: number): number {
   switch (mode) {
-    case "hidden": return 0;
+    case "hidden":
+    case "pause": return 0;
     case "generator": return interpolateRemainingMs(frame, frame.snapshot.generator_remaining_ms ?? 0, nowMs);
-    case "pause": return interpolateRemainingMs(frame, frame.snapshot.pause_remaining_ms ?? 0, nowMs);
     case "round": return remainingMilliseconds(frame, nowMs);
   }
 }
