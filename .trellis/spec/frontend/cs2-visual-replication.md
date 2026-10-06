@@ -367,3 +367,42 @@ reducer and has its own card.
   `all-slots`; `hudSceneAt` pins them without animation. Run `npm run hudmessages-layout-audit` (CDP on
   port 9223, preview at `HUDMESSAGES_PREVIEW_URL`, viewport from `HUDMESSAGES_VIEWPORT_WIDTH/HEIGHT`)
   at 1920x1080 and a smaller 16:9 size before accepting a visual change.
+
+## 12. Progress-card-specific replication rules
+
+The generator progress card is `src/features/hudmessages/ProgressCard.tsx` / `ProgressCard.css`,
+recreating `CSGOHudProgressBar` (`hudprogressbar.xml` / `hudprogressbar.css`, CS2's defuse card) for the
+`progress` slot of `hud.messages`, for both starting and shutting down a generator (CS2 has no plant
+card).
+
+- Data: the shared reducer keeps a `progressAnchor` (local end time, total, key, revision). A time-only
+  re-sync within `HUD_PROGRESS_RESYNC_MS` (250) keeps it; a larger drift, another key or total, or a new
+  appearance re-anchors it. `selectProgressCard(state, viewer)` returns the card with `endsAtMs`,
+  `animationKey` (changes on re-anchor) and the icon: `KeycardNTFCommander.svg` for a start, and for a
+  shutdown the SLUI `wire-cutters.svg` when the local player's `match.snapshot` loadout has the generator
+  upgrade (CS2 defuse kit), the keycard otherwise. `progressViewerFromHud` finds the local player in the
+  viewer team (the debug build falls back to that team's first player, since the mock identity is a
+  team-a player). The card has no local expiry: at 0 it shows `00:00.000` until the plugin clears it.
+- Geometry at 1080p (recording, +-1px): card 500x120 at x 710 / y 630, radius 10px, fill black 0.43;
+  4px side bars; the layout row (ring, info) is centred horizontally, so the ring moves with the title
+  width, but top-aligned: ring 95px 10px under the card top (centre y 687.5), 8px track
+  `rgba(128,128,128,.25)`, 82% inner border 2px `#00000049`, icon 50x50 centred; info 96px high with
+  margins 0 10px, title 18px bold (CJK in `Noto Sans SC Progress` bold at `size-adjust: 84%`, measured
+  14.4px per glyph; ink y 647-661), margin-right 8px; countdown `mm:ss.mmm` plus Panorama's trailing space,
+  `Stratum2 Progress Monodigit` 18px white at 0.86, right-aligned, digits ink y 716-727.
+- Progress motion: one CSS timeline per anchor (duration = total, negative delay = elapsed at mount),
+  never driven by the UI clock: registered custom properties (`@property`) `--hudprogress-p` (linear)
+  drive the ring arc (a conic mask growing from the bottom both ways, linear in progress) and the side
+  glow; `--hudprogress-side/ring/glow-color` run red -> yellow -> green with ease-in-out in each half
+  (recorded results: bars `rgb(255,102,73)` / `rgb(253,244,65)` / `rgb(84,174,68)`, ring
+  `rgb(252,112,92)` / `rgb(254,236,80)` / `rgb(100,168,80)`). The glow from each side is the side colour
+  at 0.2 with a gaussian falloff exp(-(x / L)^2), L = 400px x progress (a flat wash past ~70 %), drawn as
+  a 250px gaussian mask scaled by 4 x progress. The countdown text is written every animation frame.
+- Icon pulse (0.8s loop): keycard between `rgb(243,194,128)` and near white, 5% larger at 90%;
+  wire cutters in the viewer's `ROLE_COLORS` at brightness 1 -> 1.5, 0.95 -> 1 scale and 2px offset.
+- Enter: none (the card shows at once). Exit: when the slot clears with the countdown within 250ms of
+  zero, CS2's success zoom (scale 1 -> 1.3 and brightness 2 over 400ms ease-in, fading out in 250ms);
+  otherwise a 400ms fade (Panorama's `--visible` transition). CS2's cancel shake is not recreated (never
+  observed).
+- Mock preview: `hudScene=generator-start-progress` / `generator-shutdown-progress` (`viewerTeam=team-b`
+  for the wire cutters) and `all-slots`; `npm run hudmessages-layout-audit` covers the card too.

@@ -4,6 +4,7 @@ import {
   type HudProgressMessage,
   type HudSlotMessage,
   type HudTone,
+  type Role,
   type SlgoEvent,
 } from "../../contracts/index.ts";
 
@@ -34,13 +35,35 @@ export type HudMessagesState = {
   };
   /** Per slot, the `message_id` that last ended (cleared or ran out); a late replay of it stays hidden. */
   ended: Record<HudSlotName, string | null>;
+  /** Timeline the progress card animates on; re-syncs within `HUD_PROGRESS_RESYNC_MS` keep it. */
+  progressAnchor: HudProgressAnchor | null;
   nextAppearance: number;
 };
+
+/** Local timeline of the shown progress: the card's CSS animations are fixed from it. */
+export type HudProgressAnchor = {
+  appearance: number;
+  key: string;
+  totalMs: number;
+  /** Local time the progress reaches its end. */
+  endsAtMs: number;
+  /** Changes whenever the timeline is re-anchored (new key, total, or a re-sync off by more than the tolerance). */
+  revision: number;
+};
+
+/** Progress re-syncs closer than this to the running timeline keep it, so the ring never jumps (design 250 ms). */
+export const HUD_PROGRESS_RESYNC_MS = 250;
 
 const EMPTY_SLOTS: HudMessagesState["slots"] = { progress: null, alert: null, hint_high: null, hint_low: null };
 const NONE_ENDED: HudMessagesState["ended"] = { progress: null, alert: null, hint_high: null, hint_low: null };
 
-export const initialHudMessagesState: HudMessagesState = { source: null, slots: EMPTY_SLOTS, ended: NONE_ENDED, nextAppearance: 1 };
+export const initialHudMessagesState: HudMessagesState = {
+  source: null,
+  slots: EMPTY_SLOTS,
+  ended: NONE_ENDED,
+  progressAnchor: null,
+  nextAppearance: 1,
+};
 
 export type HudMessagesAction = { type: "event"; event: SlgoEvent; receivedAtMs: number };
 
@@ -125,7 +148,21 @@ export function hudMessagesReducer(state: HudMessagesState, action: HudMessagesA
     hint_high: slot("hint_high", state.slots.hint_high, payload.hint_high),
     hint_low: slot("hint_low", state.slots.hint_low, payload.hint_low),
   };
-  return { ...state, slots, ended, nextAppearance };
+  return { ...state, slots, ended, progressAnchor: nextProgressAnchor(state.progressAnchor, slots.progress), nextAppearance };
+}
+
+function nextProgressAnchor(previous: HudProgressAnchor | null, entry: HudSlotEntry<HudProgressMessage> | null): HudProgressAnchor | null {
+  if (entry === null) return null;
+  const { progress, key } = entry.message;
+  const endsAtMs = entry.receivedAtMs + progress.remaining_ms;
+  if (
+    previous !== null
+    && previous.appearance === entry.appearance
+    && previous.key === key
+    && previous.totalMs === progress.total_ms
+    && Math.abs(previous.endsAtMs - endsAtMs) <= HUD_PROGRESS_RESYNC_MS
+  ) return previous;
+  return { appearance: entry.appearance, key, totalMs: progress.total_ms, endsAtMs, revision: (previous?.revision ?? 0) + 1 };
 }
 
 /** Message-zone slots drawn by `MessageZone` (the progress slot has its own card). */
@@ -180,5 +217,68 @@ export function selectMessageZone(state: HudMessagesState, nowMs: number): HudMe
     alert: messageView("alert", state.slots.alert, nowMs),
     hintHigh: messageView("hint_high", state.slots.hint_high, nowMs),
     hintLow: messageView("hint_low", state.slots.hint_low, nowMs),
+  };
+}
+
+/** Plugin keys of the two generator progress messages (`HudMessages.GeneratorProgress`). */
+export const HUD_PROGRESS_GENERATOR_START_KEY = "SLGO_Progress_Generator_Start";
+export const HUD_PROGRESS_GENERATOR_SHUTDOWN_KEY = "SLGO_Progress_Generator_Shutdown";
+
+/** The local player as the progress card needs it (role and generator upgrade from match.snapshot). */
+export type HudProgressViewer = { role: Role; hasGeneratorUpgrade: boolean };
+
+/**
+ * CS2 icon choice: starting a generator shows the keycard (CS2 has no plant card, the defuse-without-kit
+ * C4 look stands in); shutting one down shows the wire cutters with the generator upgrade (CS2 defuse kit),
+ * the keycard without it.
+ */
+export type HudProgressIcon = "keycard" | "wire-cutters";
+
+export type HudProgressCardView = {
+  /** React key of the card: one mount per appearance. */
+  id: string;
+  /** Key of the animated body: changes when the timeline is re-anchored. */
+  animationKey: string;
+  key: string;
+  text: string;
+  icon: HudProgressIcon;
+  /** Role whose colour washes the wire cutters (CS2 `color-CT`), null without a known viewer. */
+  iconRole: Role | null;
+  totalMs: number;
+  /** Local time the progress ends (the countdown reaches 00:00.000 and waits for the clearing frame). */
+  endsAtMs: number;
+  /** `remaining_ms` exactly as last sent: debug stills draw it without interpolation. */
+  sentRemainingMs: number;
+};
+
+export function hudProgressIcon(key: string, viewer: HudProgressViewer | null): HudProgressIcon {
+  return key === HUD_PROGRESS_GENERATOR_SHUTDOWN_KEY && viewer?.hasGeneratorUpgrade === true ? "wire-cutters" : "keycard";
+}
+
+/** CS2 `{t:d:duration}.{s:milliseconds}` countdown: `mm:ss.mmm`, truncated to the millisecond. */
+export function formatHudProgressCountdown(remainingMs: number): string {
+  const ms = Math.max(0, Math.floor(remainingMs));
+  const seconds = Math.floor(ms / 1000);
+  const pad = (value: number, width: number) => value.toString().padStart(width, "0");
+  return `${pad(Math.floor(seconds / 60), 2)}:${pad(seconds % 60, 2)}.${pad(ms % 1000, 3)}`;
+}
+
+/** The progress card to draw; it stays (at 00:00.000) until the plugin clears the slot. */
+export function selectProgressCard(state: HudMessagesState, viewer: HudProgressViewer | null): HudProgressCardView | null {
+  const entry = state.slots.progress;
+  const anchor = state.progressAnchor;
+  if (entry === null || anchor === null) return null;
+  const { message } = entry;
+  const icon = hudProgressIcon(message.key, viewer);
+  return {
+    id: `progress-${entry.appearance}`,
+    animationKey: `progress-${entry.appearance}-${anchor.revision}`,
+    key: message.key,
+    text: message.text,
+    icon,
+    iconRole: icon === "wire-cutters" && viewer !== null ? viewer.role : null,
+    totalMs: anchor.totalMs,
+    endsAtMs: anchor.endsAtMs,
+    sentRemainingMs: message.progress.remaining_ms,
   };
 }

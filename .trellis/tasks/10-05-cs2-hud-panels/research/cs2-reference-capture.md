@@ -284,3 +284,35 @@ plugin's expiry.
 
 Not visible in the recording: rich colour spans (CS2 colours skin names; the
 plugin sends plain text), warning icon in the high hint.
+
+### Progress card (recording)
+
+A clean 10 s defuse without kit (card from 211.0 s to the zoom at ~221.05 s,
+「你在没有拆弹器的情况下拆除炸弹。」), stepped at 60 fps; p = elapsed / 10 s.
+
+- Card x 710-1209, y 630-749, appears at full opacity in one frame (no fade
+  in). Fill reads as black ~0.43 over the sand (base (99, 86, 76) over
+  (172, 153, 136)).
+- Ring: outer x 773-867, 8px stroke, centre (821.5, 687.5), i.e. top-aligned
+  10px under the card; the arc grows from the bottom in both directions,
+  linear in p (20 % covers +-36 deg, 50 % the lower half). Track 8px light
+  grey (+13 over the fill).
+- Side bars 4px. Bar colour vs p (each half eased in and out, CSS
+  `ease-in-out` fits): red (255, 102, 73) -> yellow (253, 244, 65) at 50 % ->
+  green (84, 174, 68); ring arc (252, 112, 92) -> (254, 236, 80) ->
+  (100, 168, 80). Additive in Panorama (`green` is #008000 there).
+- Side glow: per side ~exp(-(x / L)^2) of the side colour at ~0.2 (normal
+  blend fits: R drops when green takes over), L ~ 400px x p (fitted 15, 61,
+  99, 107, 168, 208px at p 0.05-0.55); the two sides make a flat wash from
+  ~70 %.
+- Icon: C4 ink 37x52 (50px box), pulse period 0.8 s between (243, 194, 128)
+  and white, phase not tied to the card (CS2 loops it from panel creation).
+- Text: title ink y 647-661, x 899-1128 (14.4px per CJK glyph, i.e. smaller
+  than the 0.9 Noto scaling of the other panels); countdown `00:09.984`
+  updates every frame, digits ink y 716-727, right edge 1141, colour white at
+  ~0.86; the layout row is centred on its content width (ring left gap 63px).
+- End: the countdown holds `00:00.000` ~4 frames, then the card zooms
+  (bottom edge 749 -> 761 in ~180 ms, i.e. ~1.2x) brightening, and is gone
+  by ~0.25 s: CS2 `hudProgressBarSuccessZoom` (1.3x, brightness 2, 0.4 s)
+  under a faster fade.
+- Planting shows no card (captures); no cancel was recorded.
