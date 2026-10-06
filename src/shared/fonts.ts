@@ -132,6 +132,14 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
   },
   // Message zone (MessageZone.css): stratum-medium-tf labels, vertically centred like Panorama.
   { family: "Stratum2 Messages", weight: 500, pack: stratum("stratum2-medium.otf", CAP_CENTERED), fallback: barlow("Medium", CAP_CENTERED, true) },
+  // Progress card (ProgressCard.css): bold title, monodigit countdown (digits only; the rest falls back).
+  { family: "Stratum2 Progress", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
+  {
+    family: "Stratum2 Progress Monodigit",
+    weight: 700,
+    pack: stratum("stratum2bold_monodigit.ttf", CAP_CENTERED),
+    fallback: barlow("Bold", CAP_CENTERED, true),
+  },
 ];
 
 export type ResolvedFontFace = {

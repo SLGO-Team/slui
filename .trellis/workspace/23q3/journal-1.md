@@ -496,3 +496,26 @@ Rendered the CS2 bottom-centre message zone (alert, high and low hints) from hud
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: CS2 generator progress card
+<!-- trellis-session: v=2 fp=767a665c6f7e5f65 -->
+
+**Date**: 2026-10-06
+**Task**: CS2 generator progress card
+**Branch**: `feat/hud-progress`
+
+### Summary
+
+Rendered CS2's defuse card for generator start/shutdown from the hud.messages progress slot (anchored CSS timeline, colours, glow, icon by generator upgrade, success zoom), measured from the recording; declared hud-messages; denser message-zone/progress fills since the overlay cannot blur the game. PR #17 approved.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d8c5c97` | feat(hudmessages): render the CS2 generator progress card and take over the message zone |
+| `4a3e21c` | fix(hudmessages): denser message-zone and progress fills in place of the world blur |
+
+### Status
+
+[OK] **Completed**

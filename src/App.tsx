@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
 import {
@@ -16,7 +16,9 @@ import { resolveChatSelf } from "./features/chat/presentation";
 import { hudVariantFor, playerSlotColors, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
 import { useChatFeature } from "./features/chat/useChatFeature";
 import { MessageZone } from "./features/hudmessages/MessageZone";
-import { hudMessagesReducer, initialHudMessagesState, selectMessageZone } from "./features/hudmessages/model";
+import { hudMessagesReducer, initialHudMessagesState, selectMessageZone, selectProgressCard } from "./features/hudmessages/model";
+import { progressViewerFromHud } from "./features/hudmessages/presentation";
+import { ProgressCard } from "./features/hudmessages/ProgressCard";
 import { WinPanel } from "./features/winpanel/WinPanel";
 import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
@@ -45,7 +47,13 @@ import { createOverlayStateSource, createSessionStatusPublisher, type OverlaySta
 import "./App.css";
 
 /** Plugin features the enabled overlay takes over (reported via client.features). */
-const OVERLAY_CLIENT_FEATURES = [CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL] as const;
+const OVERLAY_CLIENT_FEATURES = [
+  CLIENT_FEATURE_CHAT_INPUT,
+  CLIENT_FEATURE_SHOP_MENU,
+  CLIENT_FEATURE_TOP_HUD,
+  CLIENT_FEATURE_WIN_PANEL,
+  CLIENT_FEATURE_HUD_MESSAGES,
+] as const;
 
 // Mocks only in the explicit `mock` mode (npm run dev:mock).
 const BACKEND = readBackendConfig(import.meta.env);
@@ -400,6 +408,13 @@ function App() {
   const winPanel = useMemo(() => selectWinPanel(winPanelState, nowMs, winPanelRoster), [nowMs, winPanelRoster, winPanelState]);
   const hudSceneStill = HUD_DEBUG_ENABLED && debugOptions.hudSceneAt !== null;
   const messageZone = useMemo(() => selectMessageZone(hudMessagesState, nowMs), [hudMessagesState, nowMs]);
+  // The mock identity is a team-a player; the debug build reads team-b's loadout from its first player.
+  const progressPlayerId = HUD_DEBUG_ENABLED && hud.hasSnapshot
+    && !hud.teams.some((team) => team.relation === "viewer" && team.players.some((player) => player.player_id === localSteamId))
+    ? hud.teams.find((team) => team.relation === "viewer")?.players[0]?.player_id ?? localSteamId
+    : localSteamId;
+  const progressViewer = useMemo(() => progressViewerFromHud(hud, progressPlayerId), [hud, progressPlayerId]);
+  const progressCard = useMemo(() => selectProgressCard(hudMessagesState, progressViewer), [hudMessagesState, progressViewer]);
   const minimapPlayerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
   const chatSelf = useMemo(() => resolveChatSelf(
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
@@ -430,6 +445,7 @@ function App() {
         variant={hudVariant}
       />
       <WinPanel panel={winPanel} still={hudSceneStill} />
+      <ProgressCard card={progressCard} still={hudSceneStill} />
       <MessageZone zone={messageZone} still={hudSceneStill} />
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-// Message-zone geometry (alerts, high and low hints) against the 1920x1080 CS2 captures and recording
+// Message-zone geometry (alerts, high and low hints, the generator progress card) against the 1920x1080 CS2 captures and recording
 // (hudalerts.css / hudhinttext.css), in a CDP-enabled browser on port 9223 showing the mock preview
 // (`npm run dev:mock`). Each scene is pinned with `hudSceneAt`, which also turns the animations off.
 // Vite listens on localhost, which may not include 127.0.0.1.
@@ -45,6 +45,7 @@ const near = (actual, expected, label, tolerance = 0.5) =>
 const nearX = (actual, designX, label, tolerance) => near(actual, canvasX + designX * scale, label, tolerance);
 const nearY = (actual, designY, label, tolerance) => near(actual, designY * scale, label, tolerance);
 const nearSize = (actual, design, label, tolerance) => near(actual, design * scale, label, tolerance);
+const nearScale = (design) => design * scale;
 
 // Captures: every box x 810-1109 (300 wide); alert y 750, high hint y 802, low hint y 868; one line
 // 40px, two lines 60px (lines 21px apart).
@@ -62,8 +63,13 @@ const SCENES = [
   { scene: "hint-low-keycard", slots: { hint_low: { text: "你捡起了指挥官钥匙卡。", lines: 1 } } },
   { scene: "hint-low-dropped", slots: { hint_low: { text: "您已扔掉 E-11 SR", lines: 1 } } },
   { scene: "generator-started", slots: { hint_low: { text: "发电机已被启动。\n离过载还剩 40 秒。", lines: 2 } } },
+  { scene: "generator-start-progress", slots: {}, progress: { text: "你正在启动发电机。", icon: "keycard" } },
+  { scene: "generator-shutdown-progress", slots: {}, progress: { text: "你正在关闭发电机。", icon: "keycard" } },
+  // Team b's first mock player carries the generator upgrade: the CS2 defuse-kit look.
+  { scene: "generator-shutdown-progress", viewerTeam: "team-b", slots: {}, progress: { text: "你正在关闭发电机。", icon: "wire-cutters" } },
   {
     scene: "all-slots",
+    progress: { text: "你正在关闭发电机。", icon: "keycard" },
     slots: {
       alert: { text: "赛点", lines: 1, tone: "match_point" },
       hint_high: { text: "你的购买时间已过", lines: 1 },
@@ -88,8 +94,24 @@ const measure = `JSON.stringify((() => {
       tone: node.dataset.tone, flash: node.classList.contains("hudmsg--flash"), still: node.dataset.still ?? null,
     };
   }
+  const card = document.querySelector(".hudprogress");
+  const rect = (selector) => {
+    const box = card?.querySelector(selector)?.getBoundingClientRect();
+    return box ? { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom } : null;
+  };
+  const progress = card ? {
+    card: rect(".hudprogress__body"), circle: rect(".hudprogress__circle"),
+    // The icon pulses with a transform: its layout box, not the transformed one.
+    iconSize: card.querySelector(".hudprogress__icon").offsetWidth,
+    info: rect(".hudprogress__info"), side: rect(".hudprogress__side--left"),
+    title: card.querySelector(".hudprogress__title").innerText,
+    countdown: card.querySelector(".hudprogress__countdown").textContent,
+    iconKind: card.dataset.icon, still: card.querySelector(".hudprogress__body").dataset.still ?? null,
+    titleShadow: getComputedStyle(card.querySelector(".hudprogress__title")).textShadow,
+  } : null;
   return {
     slots,
+    progress,
     count: document.querySelectorAll(".hudmsg").length,
     counter: document.querySelector(".hud-team-counter")?.getBoundingClientRect().y ?? null,
     generatedNodeCount: document.querySelectorAll("[data-panorama-tag]").length,
@@ -105,20 +127,22 @@ for (const expected of SCENES) {
   url.searchParams.set("shopDebug", "0");
   url.searchParams.set("hudScene", expected.scene);
   url.searchParams.set("hudSceneAt", "2000");
-  url.searchParams.set("viewerTeam", "team-a");
+  url.searchParams.set("viewerTeam", expected.viewerTeam ?? "team-a");
   await call("Page.navigate", { url: url.href });
   const slotCount = Object.keys(expected.slots).length;
   let audit = null;
   // A cold Vite load imports the overlay lazily; wait for every slot and the fonts.
   for (let attempt = 0; attempt < 60; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 250));
-    const ready = await evaluate(`document.querySelectorAll('.hudmsg').length === ${slotCount} && document.fonts.status === 'loaded'`);
+    const ready = await evaluate(`document.querySelectorAll('.hudmsg').length === ${slotCount}
+      && (document.querySelector('.hudprogress') !== null) === ${expected.progress !== undefined}
+      && document.fonts.status === 'loaded'`);
     if (ready) {
       audit = JSON.parse(await evaluate(measure));
       break;
     }
   }
-  const label = expected.scene;
+  const label = `${expected.scene}${expected.viewerTeam ? ` (${expected.viewerTeam})` : ""}`;
   assert.ok(audit, `${label}: the message slots never appeared`);
   results.push({ scene: label, ...audit });
 
@@ -142,6 +166,31 @@ for (const expected of SCENES) {
     near(actual.barWidth, 2, `${name} side bar width`);
     nearX(actual.rightBarRight, 1110, `${name} right bar edge`);
     assert.equal(actual.flash, slot === "alert" && (want.tone === "match_point" || want.tone === "final_round"), `${name} flash`);
+  }
+  if (expected.progress) {
+    const { progress } = audit;
+    assert.ok(progress, `${label}: progress card rendered`);
+    assert.equal(progress.still, "true", `${label}: pinned scene draws without animation`);
+    // Card 500x120 at x 710 / y 630, 4px side bars (recording).
+    nearX(progress.card.x, 710, `${label} card x`);
+    nearY(progress.card.y, 630, `${label} card y`);
+    nearSize(progress.card.width, 500, `${label} card width`);
+    nearSize(progress.card.height, 120, `${label} card height`);
+    nearSize(progress.side.width, 4, `${label} side bar width`);
+    // Ring 95px, 10px under the card top (centre y 687.5); icon 50px centred in it.
+    nearSize(progress.circle.width, 95, `${label} ring width`);
+    nearY(progress.circle.y, 640, `${label} ring y`);
+    near(progress.iconSize, 50, `${label} icon size (canvas px)`);
+    // The layout is centred as one row: ring margin 10 (left) and info margin 10 (right) are equal gaps.
+    near(progress.circle.x - nearScale(10) - progress.card.x, progress.card.right - progress.info.right - nearScale(10), `${label} layout centred`, 1);
+    assert.equal(progress.title, expected.progress.text, `${label} title`);
+    assert.match(progress.countdown, /^\d\d:\d\d\.\d{3} $/, `${label} countdown mm:ss.mmm`);
+    assert.equal(progress.iconKind, expected.progress.icon, `${label} icon`);
+    assert.equal(progress.titleShadow, "none", `${label}: no text shadow`);
+    // The card ends where the alert slot starts.
+    assert.ok(progress.card.bottom <= SLOT_Y.alert * scale + 0.5, `${label}: card overlaps the alert slot`);
+  } else {
+    assert.equal(audit.progress, null, `${label}: no progress card`);
   }
   // Fixed slots never overlap.
   const boxes = Object.values(audit.slots).sort((a, b) => a.y - b.y);

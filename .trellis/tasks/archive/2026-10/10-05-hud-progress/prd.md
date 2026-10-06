@@ -25,8 +25,11 @@ Render the `progress` slot of `hud.messages` as CS2's defuse progress card
   C4 icon). Icon pulse animation per CS2 (0.8 s).
 - P4 Countdown text interpolated locally; at 0 the card waits for the clearing
   frame (it does not disappear on its own).
-- P5 The card hides when the slot clears; CS2's finished zoom is not required
-  (the plugin does not distinguish success from cancel).
+- P5 The card hides when the slot clears. Recording (2026-10-06): CS2 plays
+  `hudProgressBarSuccessZoom` when the defuse completes; the plugin does not
+  say success or cancel, so SLUI zooms when the clear arrives with the
+  countdown within the 250 ms re-sync tolerance of zero (the card already
+  shows ~00:00.000) and fades otherwise.
 - P6 If `10-05-hud-alerts` is already merged, add `hud-messages` to
   `OVERLAY_CLIENT_FEATURES`; otherwise leave it to that task.
 

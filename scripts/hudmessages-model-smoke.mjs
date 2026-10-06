@@ -3,9 +3,13 @@ import { parseHudMessages } from "../packages/protocol/src/index.ts";
 import { createHudSceneFrame, HUD_SCENES } from "../src/mocks/hudScenes.ts";
 import {
   formatHudCountdown,
+  formatHudProgressCountdown,
+  HUD_PROGRESS_RESYNC_MS,
   hudMessagesReducer,
+  hudProgressIcon,
   initialHudMessagesState,
   selectMessageZone,
+  selectProgressCard,
 } from "../src/features/hudmessages/model.ts";
 
 // Message zone (`hud.messages` alert and hint slots): appearance, replacement, expiry, countdown,
@@ -157,5 +161,75 @@ const allSlots = reduce(reduce(initialHudMessagesState, baseline(), 0), board(cr
 zone = selectMessageZone(allSlots, 40_000);
 assert.ok(zone.alert && zone.hintHigh && zone.hintLow);
 assert.equal(allSlots.slots.progress.message.key, "SLGO_Progress_Generator_Shutdown");
+
+// Progress card (`progress` slot): anchored timeline, re-sync tolerance, icon choice, countdown, clear.
+assert.equal(HUD_PROGRESS_RESYNC_MS, 250);
+assert.equal(formatHudProgressCountdown(9_984), "00:09.984");
+assert.equal(formatHudProgressCountdown(4_984.9), "00:04.984");
+assert.equal(formatHudProgressCountdown(65_007), "01:05.007");
+assert.equal(formatHudProgressCountdown(0), "00:00.000");
+assert.equal(formatHudProgressCountdown(-40), "00:00.000");
+
+const shutdown = (remaining, overrides = {}) => ({
+  message_id: `p-${remaining}`,
+  key: "SLGO_Progress_Generator_Shutdown",
+  text: "你正在关闭发电机。",
+  tone: "default",
+  visible_remaining_ms: null,
+  countdown_remaining_ms: null,
+  progress: { remaining_ms: remaining, total_ms: 7_000 },
+  ...overrides,
+});
+const start = (remaining) => ({ ...shutdown(remaining), message_id: `s-${remaining}`, key: "SLGO_Progress_Generator_Start", text: "你正在启动发电机。", progress: { remaining_ms: remaining, total_ms: 10_000 } });
+assert.equal(parseHudMessages(board({ progress: shutdown(7_000) }).payload).ok, true);
+
+// Icons: start = keycard; shutdown = wire cutters only with the generator upgrade (CS2 defuse kit).
+assert.equal(hudProgressIcon("SLGO_Progress_Generator_Start", { role: "scp", hasGeneratorUpgrade: true }), "keycard");
+assert.equal(hudProgressIcon("SLGO_Progress_Generator_Shutdown", { role: "scp", hasGeneratorUpgrade: true }), "wire-cutters");
+assert.equal(hudProgressIcon("SLGO_Progress_Generator_Shutdown", { role: "scp", hasGeneratorUpgrade: false }), "keycard");
+assert.equal(hudProgressIcon("SLGO_Progress_Generator_Shutdown", null), "keycard");
+
+const upgraded = { role: "scp", hasGeneratorUpgrade: true };
+let progressState = reduce(reduce(initialHudMessagesState, baseline(), 0), board({ progress: shutdown(7_000) }), 50_000);
+let card = selectProgressCard(progressState, upgraded);
+assert.ok(card);
+assert.equal(card.text, "你正在关闭发电机。");
+assert.equal(card.icon, "wire-cutters");
+assert.equal(card.iconRole, "scp");
+assert.equal(card.totalMs, 7_000);
+assert.equal(card.endsAtMs, 57_000);
+assert.equal(card.sentRemainingMs, 7_000);
+assert.equal(selectProgressCard(progressState, { role: "scp", hasGeneratorUpgrade: false }).iconRole, null);
+const { id: cardId, animationKey } = card;
+
+// A time-only rewrite within the tolerance keeps the running animation; the end time stays anchored.
+progressState = reduce(progressState, board({ progress: shutdown(5_900) }), 51_150);
+card = selectProgressCard(progressState, upgraded);
+assert.equal(card.id, cardId);
+assert.equal(card.animationKey, animationKey);
+assert.equal(card.endsAtMs, 57_000, "re-syncs within 250 ms never re-time the ring");
+assert.equal(card.sentRemainingMs, 5_900);
+// A re-sync off by more than the tolerance re-anchors (same card, new animation key).
+progressState = reduce(progressState, board({ progress: shutdown(5_000) }), 51_300);
+card = selectProgressCard(progressState, upgraded);
+assert.equal(card.id, cardId);
+assert.notEqual(card.animationKey, animationKey);
+assert.equal(card.endsAtMs, 56_300);
+// The card stays at its end until the plugin clears it (no local expiry).
+progressState = reduce(progressState, board({ progress: shutdown(0) }), 56_400);
+assert.ok(selectProgressCard(progressState, upgraded));
+assert.equal(selectProgressCard(reduce(progressState, board({}), 56_500), upgraded), null);
+// Switching to another progress (start) in the same appearance re-anchors with the new total.
+const switchedProgress = reduce(progressState, board({ progress: start(10_000) }), 57_000);
+card = selectProgressCard(switchedProgress, upgraded);
+assert.equal(card.id, cardId);
+assert.equal(card.icon, "keycard");
+assert.equal(card.totalMs, 10_000);
+assert.equal(card.endsAtMs, 67_000);
+// Another instance clears the card.
+assert.equal(selectProgressCard(reduce(switchedProgress, baseline("instance-b"), 57_100), upgraded), null);
+// A new appearance after a clear is a new card.
+const again = reduce(reduce(progressState, board({}), 56_500), board({ progress: shutdown(7_000, { message_id: "p-new" }) }), 60_000);
+assert.notEqual(selectProgressCard(again, upgraded).id, cardId);
 
 console.log("hudmessages model smoke passed");
