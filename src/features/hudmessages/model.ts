@@ -1,4 +1,5 @@
 import {
+  HUD_SECONDS_REMAINING_TOKEN,
   HUD_TIME_REMAINING_TOKEN,
   type HudMessagesSnapshot,
   type HudProgressMessage,
@@ -88,10 +89,27 @@ export function hudCountdownRemainingMs(entry: HudSlotEntry, nowMs: number): num
   return countdown === null ? null : Math.max(0, countdown - Math.max(0, nowMs - entry.receivedAtMs));
 }
 
-/** CS2 countdown `m:ss`, rounded up to the second like the plugin's `HudMessageCatalog.FormatTimeRemaining`. */
+/** Whole seconds left, rounded up like the plugin's `HudMessageCatalog.FormatTimeRemaining`. */
+export function hudCountdownSeconds(remainingMs: number): number {
+  return remainingMs <= 0 ? 0 : Math.ceil(remainingMs / 1000);
+}
+
+/** CS2 countdown `m:ss` (`{time_remaining}`). */
 export function formatHudCountdown(remainingMs: number): string {
-  const seconds = remainingMs <= 0 ? 0 : Math.ceil(remainingMs / 1000);
+  const seconds = hudCountdownSeconds(remainingMs);
   return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, "0")}`;
+}
+
+/** Plain seconds (`{seconds_remaining}`), e.g. 「离过载还剩 34 秒。」. */
+export function formatHudSeconds(remainingMs: number): string {
+  return String(hudCountdownSeconds(remainingMs));
+}
+
+/** The message text with its countdown token (either kind) drawn at `remainingMs`. */
+export function drawHudCountdown(text: string, remainingMs: number): string {
+  return text
+    .split(HUD_TIME_REMAINING_TOKEN).join(formatHudCountdown(remainingMs))
+    .split(HUD_SECONDS_REMAINING_TOKEN).join(formatHudSeconds(remainingMs));
 }
 
 type SlotStep<M extends HudSlotMessage> = { entry: HudSlotEntry<M> | null; ended: string | null };
@@ -176,7 +194,7 @@ export type HudMessageView = {
   /** React key: one mount (and one enter animation) per appearance; replacements keep it. */
   id: string;
   key: string;
-  /** Plugin text with `{time_remaining}` drawn as the local `m:ss` countdown; may contain `\n`. */
+  /** Plugin text with its countdown token drawn locally (`m:ss` or seconds); may contain `\n`. */
   text: string;
   tone: HudTone;
   /** CS2 `FlashAnim` run: restarts when a flash-tone alert's key changes. */
@@ -197,7 +215,7 @@ function messageView(slot: HudMessageZoneSlot, entry: HudSlotEntry | null, nowMs
   if (entry === null || !hudSlotVisibleAt(entry, nowMs)) return null;
   const { message } = entry;
   const countdown = hudCountdownRemainingMs(entry, nowMs);
-  const text = countdown === null ? message.text : message.text.split(HUD_TIME_REMAINING_TOKEN).join(formatHudCountdown(countdown));
+  const text = countdown === null ? message.text : drawHudCountdown(message.text, countdown);
   const flashes = slot === "alert" && FLASH_TONES.has(message.tone);
   return {
     slot,

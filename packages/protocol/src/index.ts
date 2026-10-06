@@ -266,6 +266,8 @@ export const MAX_HUD_TEXT_LENGTH = 256;
 export const MAX_HUD_REMAINING_MS = 86_400_000;
 /** Literal token the plugin leaves in `text` for the client to draw as a local `m:ss` countdown. */
 export const HUD_TIME_REMAINING_TOKEN = "{time_remaining}";
+/** Literal token for the same countdown drawn as whole seconds rounded up (`40`, ..., `1`, `0`). */
+export const HUD_SECONDS_REMAINING_TOKEN = "{seconds_remaining}";
 
 /**
  * One slot of the plugin's per-player message board. All times are remaining milliseconds at the envelope's
@@ -281,7 +283,7 @@ export type HudSlotMessage = {
   tone: HudTone;
   /** Time until the message expires on its own; null = until replaced or cleared. */
   visible_remaining_ms: number | null;
-  /** Value of `{time_remaining}`; non-null exactly when `text` contains the token. */
+  /** Value of the countdown token; non-null exactly when `text` contains one. */
   countdown_remaining_ms: number | null;
 };
 export type HudProgress = { remaining_ms: number; total_ms: number };
@@ -798,9 +800,11 @@ function isHudSlotMessage(value: unknown, withProgress: boolean): boolean {
   if (!isNonEmptyString(value.message_id) || typeof value.key !== "string" || !HUD_KEY.test(value.key) || !isHudText(value.text)) return false;
   if (!(HUD_TONES as readonly unknown[]).includes(value.tone)) return false;
   if (value.visible_remaining_ms !== null && !isHudMs(value.visible_remaining_ms)) return false;
-  // The countdown exists exactly when the text has a token to draw it into.
-  const hasToken = value.text.includes(HUD_TIME_REMAINING_TOKEN);
-  if (hasToken ? !isHudMs(value.countdown_remaining_ms) : value.countdown_remaining_ms !== null) return false;
+  // The countdown exists exactly when the text has a token to draw it into, of one kind only.
+  const hasClock = value.text.includes(HUD_TIME_REMAINING_TOKEN);
+  const hasSeconds = value.text.includes(HUD_SECONDS_REMAINING_TOKEN);
+  if (hasClock && hasSeconds) return false;
+  if (hasClock || hasSeconds ? !isHudMs(value.countdown_remaining_ms) : value.countdown_remaining_ms !== null) return false;
   if (!withProgress) return true;
   const progress = value.progress;
   return isRecord(progress) && hasOnlyKeys(progress, HUD_PROGRESS_KEYS)

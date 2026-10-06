@@ -541,3 +541,25 @@ Parent integration review of the CS2 HUD panels: all children merged, live test 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: Generator overload countdown
+<!-- trellis-session: v=2 fp=8519e2c55204a4f9 -->
+
+**Date**: 2026-10-06
+**Task**: Generator overload countdown
+**Branch**: `feat/overload-countdown`
+
+### Summary
+
+Generator-started hint moved to the high slot (as CS2 bomb planted) and followed by a standing 'N seconds to overload' countdown in the same slot; new {seconds_remaining} wire token across slui protocol, backend fixtures (691b61b) and plugin (0aec80d). Live test passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `db39284` | feat(hudmessages): draw the seconds countdown token and script the overload countdown |
+
+### Status
+
+[OK] **Completed**

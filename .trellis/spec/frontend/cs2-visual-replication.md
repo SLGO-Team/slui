@@ -333,7 +333,7 @@ reducer and has its own card.
   that appearance across replacements: CS2 swaps the text in place, so a new key in a showing slot never
   re-runs the enter animation (recording). `selectMessageZone(state, nowMs)` hides a message once its
   interpolated `visible_remaining_ms` runs out, even before the clearing frame, and draws
-  `{time_remaining}` as `m:ss` rounded up (`formatHudCountdown`, same rule as the plugin's
+  `{time_remaining}` as `m:ss` and `{seconds_remaining}` as whole seconds, both rounded up (`formatHudCountdown` / `formatHudSeconds`, same rule as the plugin's
   `HudMessageCatalog.FormatTimeRemaining`); a countdown at 0 stays `0:00` until the plugin clears it.
   The `message_id` that last left a slot never comes back from a late replay. A baseline of another
   server or instance clears the board; a reconnect to the same instance keeps it.
@@ -367,7 +367,8 @@ reducer and has its own card.
 - Layering: `.hudmsg-overlay` is a fixed layer at z-index 4 on a 1920x1080 canvas scaled by
   `useOverlayScale`; slots are fixed and never stack.
 - Mock preview: the `hudScene` scenes `warmup`, `match-point`, `final-round`, `pause-high-hint`,
-  `timeout`, `hint-low-keycard`, `hint-low-dropped`, `generator-started`, `hint-high-two-line` and
+  `timeout`, `hint-low-keycard`, `hint-low-dropped`, `generator-started` (the two-line high hint for 6 s,
+  then the standing 「离过载还剩 N 秒」 countdown in the same slot; `hudSceneAt=8000` pins the countdown) and
   `all-slots`; `hudSceneAt` pins them without animation. Run `npm run hudmessages-layout-audit` (CDP on
   port 9223, preview at `HUDMESSAGES_PREVIEW_URL`, viewport from `HUDMESSAGES_VIEWPORT_WIDTH/HEIGHT`)
   at 1920x1080 and a smaller 16:9 size before accepting a visual change.

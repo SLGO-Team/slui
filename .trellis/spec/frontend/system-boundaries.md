@@ -209,7 +209,7 @@ Required boundary rules:
   `packages/protocol/v0/README.md` "HUD messages and round result"). Text is
   plugin-resolved plain text: SLUI keeps no catalog and never resolves keys;
   `key` and `tone` (`HUD_TONES`) only pick styles. A countdown stays as the
-  literal `{time_remaining}` token with `countdown_remaining_ms`, drawn locally
+  literal `{time_remaining}` (`m:ss`) or `{seconds_remaining}` (whole seconds, one kind per text) token with `countdown_remaining_ms`, drawn locally
   as `m:ss`. The win-panel title is viewer-relative and resolved by the plugin
   (up to three audience variants per result); SLUI never re-derives it from
   `winner_team`. Every `*_remaining_ms` is the time left at `sent_at` (required
@@ -512,7 +512,7 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
 | Match snapshot repeats a team id or role | Reject the payload as `invalid-payload` |
 | Match snapshot omits `sent_at` | Reject the event as `invalid-envelope` |
 | `hud.messages` / `round.result` omits `sent_at` | Reject the event as `invalid-envelope` |
-| HUD message has an unknown field or tone, text blank or over 256 UTF-16 units, a `{time_remaining}` token without `countdown_remaining_ms` (or the reverse), non-integer or out-of-range ms, or progress `remaining_ms > total_ms` | Reject the payload as `invalid-payload` |
+| HUD message has an unknown field or tone, text blank or over 256 UTF-16 units, a countdown token (`{time_remaining}` / `{seconds_remaining}`) without `countdown_remaining_ms` (or the reverse), both token kinds in one text, non-integer or out-of-range ms, or progress `remaining_ms > total_ms` | Reject the payload as `invalid-payload` |
 | Round result is a draw outside a match end, or `outcome` is `draw` without a null `winner_team` (or the reverse) | Reject the payload as `invalid-payload` |
 | Friendly health is absent or null | Render an explicit unknown state; never infer a numeric value |
 | HUD source changes by `server_id` or `instance_id` | Clear the prior frame, require a new baseline, and show restarted/syncing state |

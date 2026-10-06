@@ -3,6 +3,7 @@ import { parseHudMessages } from "../packages/protocol/src/index.ts";
 import { createHudSceneFrame, HUD_SCENES } from "../src/mocks/hudScenes.ts";
 import {
   formatHudCountdown,
+  formatHudSeconds,
   formatHudProgressCountdown,
   HUD_PROGRESS_RESYNC_MS,
   hudMessagesReducer,
@@ -123,6 +124,44 @@ zone = selectMessageZone(state, 21_100);
 assert.equal(zone.alert.id, alertId);
 assert.equal(zone.alert.text, "NTF 队暂停还剩 0:57");
 assert.equal(zone.alert.flash, null, "only match point and final round flash");
+
+// Seconds countdown ({seconds_remaining}): plain whole seconds, rounded up like the plugin.
+assert.equal(formatHudSeconds(34_000), "34");
+assert.equal(formatHudSeconds(33_001), "34");
+assert.equal(formatHudSeconds(1), "1");
+assert.equal(formatHudSeconds(0), "0");
+assert.equal(formatHudSeconds(-5), "0");
+const overload = message({
+  message_id: "30",
+  key: "SLGO_Notice_Generator_Overload_Countdown",
+  text: "离过载还剩 {seconds_remaining} 秒",
+  tone: "warning",
+  visible_remaining_ms: null,
+  countdown_remaining_ms: 34_000,
+});
+assert.equal(parseHudMessages(board({ hint_high: overload }).payload).ok, true);
+state = reduce(reduce(initialHudMessagesState, baseline(), 0), board({ hint_high: overload }), 25_000);
+assert.equal(selectMessageZone(state, 25_000).hintHigh.text, "离过载还剩 34 秒");
+assert.equal(selectMessageZone(state, 26_000).hintHigh.text, "离过载还剩 33 秒");
+assert.equal(selectMessageZone(state, 120_000).hintHigh.text, "离过载还剩 0 秒", "stays at 0 until cleared");
+
+// Mock generator-started: the two-line high hint for 6 s, then the standing countdown in the same slot.
+{
+  const at = (ms) => createHudSceneFrame("generator-started", "ntf", ms).messages;
+  assert.equal(at(1_000).hint_high.key, "SLGO_Notice_Generator_Started");
+  assert.equal(at(1_000).hint_low, null);
+  assert.equal(at(6_000).hint_high.key, "SLGO_Notice_Generator_Overload_Countdown");
+  assert.equal(at(8_000).hint_high.countdown_remaining_ms, 32_000);
+  assert.equal(at(40_000).hint_high, null, "gone at the overload");
+  // The started hint runs out first, so the countdown is a new appearance (it enters on its own).
+  let sceneState = reduce(reduce(initialHudMessagesState, baseline(), 0), board(at(5_900)), 5_900);
+  const startedId = selectMessageZone(sceneState, 5_900).hintHigh.id;
+  assert.equal(selectMessageZone(sceneState, 6_000).hintHigh, null, "the started hint expires locally at 6 s");
+  sceneState = reduce(sceneState, board(at(6_000)), 6_050);
+  const countdownView = selectMessageZone(sceneState, 6_050).hintHigh;
+  assert.notEqual(countdownView.id, startedId);
+  assert.equal(countdownView.text, "离过载还剩 34 秒");
+}
 
 // Flash: match point and final round play CS2's FlashAnim; a key change restarts it, a rewrite does not.
 const matchPoint = message({ message_id: "20", key: "SFUI_Notice_Alert_Match_Point", text: "赛点", tone: "match_point", visible_remaining_ms: 5_000 });
