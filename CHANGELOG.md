@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/SLGO-Team/slui/compare/v0.3.0...v0.4.0) (2026-10-06)
+
+
+### Features
+
+* **hudmessages:** render CS2 bottom-centre alerts and hints ([#16](https://github.com/SLGO-Team/slui/issues/16)) ([3cba3ab](https://github.com/SLGO-Team/slui/commit/3cba3ab31e83431a2984109ab1a6a3ece8fed21b))
+* **hudmessages:** render the CS2 generator progress card and take over the message zone ([#17](https://github.com/SLGO-Team/slui/issues/17)) ([2cd1b57](https://github.com/SLGO-Team/slui/commit/2cd1b57bbd157db0aa406a1190d2d36d8a960ccc))
+* **hudmessages:** show the generator overload countdown in the high hint slot ([#20](https://github.com/SLGO-Team/slui/issues/20)) ([87602aa](https://github.com/SLGO-Team/slui/commit/87602aa1efaebe0130138171cf892d32faac0e56))
+* **protocol:** add hud.messages and round.result events ([#13](https://github.com/SLGO-Team/slui/issues/13)) ([66edd65](https://github.com/SLGO-Team/slui/commit/66edd657d6e3c3f4b63e838a7f7ff24fa97e4bc2))
+* **winpanel:** render the CS2 round result panel with MVP ([#15](https://github.com/SLGO-Team/slui/issues/15)) ([c41fd27](https://github.com/SLGO-Team/slui/commit/c41fd277acf407a3ef058a91ebf45c053d348687))
+
+
+### Bug Fixes
+
+* **hud:** show CS2's red pause glyph on the timer during a tactical pause ([#18](https://github.com/SLGO-Team/slui/issues/18)) ([9c4bb5f](https://github.com/SLGO-Team/slui/commit/9c4bb5f5d1dacbd472dd824966754bbda4578e47))
+
 ## [0.3.0](https://github.com/SLGO-Team/slui/compare/v0.2.2...v0.3.0) (2026-10-05)
 
 
