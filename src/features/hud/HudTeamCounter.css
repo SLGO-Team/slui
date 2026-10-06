@@ -605,8 +605,9 @@
   mix-blend-mode: plus-lighter;
 }
 
+/* CS2 .teamcounter_timer.teamcounter_red_timer: plain red, drawn additively like the digits. */
 .hud-scoreboard__timer--warning {
-  color: #e14d43;
+  color: red;
 }
 
 /*

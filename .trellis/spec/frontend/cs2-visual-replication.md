@@ -109,7 +109,7 @@ execute the discarded generator.
 | Timer mode `hidden` (Idle, WaitingForPlayers, RoundEnd) | Keep the 84x32 timer box empty; scores and counts do not move |
 | Timer mode `generator` | No digits: only `KeycardNTFCommander.svg`, centered in the 84x32 box, masked to CS2 `.bomb_planted` red `#b80000` and blinking with the `bombDet` keyframes (opacity 0.5 -> 1 -> 0.5, ease-in-out); period 0.8 / 0.5 / 0.3 s (`BombPlantedPulse__Slow/Medium/Fast`) for interpolated `generator_remaining_ms` > 20 s / 10-20 s / <= 10 s (`generatorPulseTier`; CS2's native thresholds unverified); the animation restarts only when the tier changes; no expanding lines layer |
 | Timer mode `pause` | No digits and no label: `❚❚` (U+275A x2) in the warning red, like CS2's client timer, which sets that text plus `teamcounter_red_timer` while `m_bMatchWaitingForResume` is set during freeze time (a tactical timeout sets it). The timeout countdown belongs to the alert slot only |
-| Timer mode `round` | Phase clock; warning red at 10 s or less unless paused |
+| Timer mode `round` | Phase clock; warning red at 10 s or less unless paused. The warning red is CS2's `teamcounter_red_timer` `color: red` (pure `#ff0000`), shared with the pause glyph |
 | Dead teammate loadout | Money only; offline teammates show no equipment |
 | Non-positive viewport dimension | Use a stable scale of 1 |
 | 16:9 viewport below baseline | Uniformly scale the whole overlay |
