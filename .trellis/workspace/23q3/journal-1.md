@@ -474,3 +474,25 @@ Implemented 10-05-win-panel: WinPanel feature (model/presentation/component), SL
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: CS2 HUD alerts and hints
+<!-- trellis-session: v=2 fp=f091361fd609b453 -->
+
+**Date**: 2026-10-06
+**Task**: CS2 HUD alerts and hints
+**Branch**: `feat/hud-alerts`
+
+### Summary
+
+Rendered the CS2 bottom-centre message zone (alert, high and low hints) from hud.messages: shared reducer/selector, geometry and colours matched to 1080p captures, motion measured from the in-game recording incl. FlashAnim; layout audit and model smoke; PR #16 approved visually.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `db8d14b` | feat(hudmessages): render CS2 bottom-centre alerts and hints |
+
+### Status
+
+[OK] **Completed**
