@@ -1,0 +1,159 @@
+import assert from "node:assert/strict";
+
+// Message-zone geometry (alerts, high and low hints) against the 1920x1080 CS2 captures and recording
+// (hudalerts.css / hudhinttext.css), in a CDP-enabled browser on port 9223 showing the mock preview
+// (`npm run dev:mock`). Each scene is pinned with `hudSceneAt`, which also turns the animations off.
+// Vite listens on localhost, which may not include 127.0.0.1.
+// Usage: HUDMESSAGES_VIEWPORT_WIDTH=1600 HUDMESSAGES_VIEWPORT_HEIGHT=900 npm run hudmessages-layout-audit
+const previewOrigin = process.env.HUDMESSAGES_PREVIEW_URL ?? "http://localhost:1430/";
+const viewportWidth = Number(process.env.HUDMESSAGES_VIEWPORT_WIDTH ?? 1920);
+const viewportHeight = Number(process.env.HUDMESSAGES_VIEWPORT_HEIGHT ?? 1080);
+const targets = await (await fetch("http://127.0.0.1:9223/json")).json();
+// Any page will do: the audit navigates it to the preview.
+const target = targets.find((candidate) => candidate.type === "page");
+if (!target) throw new Error("No CDP page target was found");
+
+const socket = new WebSocket(target.webSocketDebuggerUrl);
+await new Promise((resolve, reject) => {
+  socket.addEventListener("open", resolve, { once: true });
+  socket.addEventListener("error", reject, { once: true });
+});
+let nextId = 1;
+const call = (method, params) => new Promise((resolve, reject) => {
+  const id = nextId++;
+  const onMessage = (event) => {
+    const message = JSON.parse(event.data);
+    if (message.id !== id) return;
+    socket.removeEventListener("message", onMessage);
+    resolve(message);
+  };
+  socket.addEventListener("message", onMessage);
+  socket.addEventListener("error", reject, { once: true });
+  socket.send(JSON.stringify({ id, method, params }));
+});
+const evaluate = async (expression) => {
+  const response = await call("Runtime.evaluate", { expression, returnByValue: true });
+  if (response.result?.exceptionDetails) throw new Error(JSON.stringify(response.result.exceptionDetails));
+  return response.result?.result?.value;
+};
+
+const scale = Math.min(viewportWidth / 1920, viewportHeight / 1080);
+// The 1920x1080 canvas is centred horizontally and anchored to the top.
+const canvasX = viewportWidth / 2 - 960 * scale;
+const near = (actual, expected, label, tolerance = 0.5) =>
+  assert.ok(Math.abs(actual - expected) < tolerance, `${label}: ${actual} vs ${expected}`);
+const nearX = (actual, designX, label, tolerance) => near(actual, canvasX + designX * scale, label, tolerance);
+const nearY = (actual, designY, label, tolerance) => near(actual, designY * scale, label, tolerance);
+const nearSize = (actual, design, label, tolerance) => near(actual, design * scale, label, tolerance);
+
+// Captures: every box x 810-1109 (300 wide); alert y 750, high hint y 802, low hint y 868; one line
+// 40px, two lines 60px (lines 21px apart).
+const SLOT_Y = { alert: 750, hint_high: 802, hint_low: 868 };
+const GOLD = "rgb(236, 189, 87)";
+const BAR = { alert: "rgba(236, 189, 87, 0.5)", hint_high: "rgb(255, 24, 0)", hint_low: GOLD };
+// Viewer team-a plays NTF in the mock roster; texts at hudSceneAt 2000.
+const SCENES = [
+  { scene: "match-point", slots: { alert: { text: "赛点", lines: 1, tone: "match_point" } } },
+  { scene: "final-round", slots: { alert: { text: "最终局", lines: 1, tone: "final_round" } } },
+  { scene: "warmup", slots: { alert: { text: "热身时间 0:43", lines: 1 } } },
+  { scene: "timeout", slots: { alert: { text: "SCP 队暂停还剩 0:56", lines: 1 } } },
+  { scene: "pause-high-hint", slots: { alert: { text: "NTF 队暂停还剩 0:28", lines: 1 }, hint_high: { text: "当前无法购买", lines: 1 } } },
+  { scene: "hint-high-two-line", slots: { hint_high: { text: "发电机已被启动。\n离过载还剩 40 秒。", lines: 2 } } },
+  { scene: "hint-low-keycard", slots: { hint_low: { text: "你捡起了指挥官钥匙卡。", lines: 1 } } },
+  { scene: "hint-low-dropped", slots: { hint_low: { text: "您已扔掉 E-11 SR", lines: 1 } } },
+  { scene: "generator-started", slots: { hint_low: { text: "发电机已被启动。\n离过载还剩 40 秒。", lines: 2 } } },
+  {
+    scene: "all-slots",
+    slots: {
+      alert: { text: "赛点", lines: 1, tone: "match_point" },
+      hint_high: { text: "你的购买时间已过", lines: 1 },
+      hint_low: { text: "你捡起了指挥官钥匙卡。", lines: 1 },
+    },
+  },
+];
+
+const measure = `JSON.stringify((() => {
+  const slots = {};
+  for (const node of document.querySelectorAll(".hudmsg")) {
+    const box = node.querySelector(".hudmsg__box").getBoundingClientRect();
+    const text = node.querySelector(".hudmsg__text");
+    const leftBar = getComputedStyle(node.querySelector(".hudmsg__bar--left"));
+    const rightBar = node.querySelector(".hudmsg__bar--right").getBoundingClientRect();
+    slots[node.dataset.hudmsg] = {
+      x: box.x, y: box.y, width: box.width, height: box.height,
+      text: text.innerText, color: getComputedStyle(text).color, textShadow: getComputedStyle(text).textShadow,
+      lineHeight: parseFloat(getComputedStyle(text).lineHeight),
+      textHeight: text.getBoundingClientRect().height,
+      bar: leftBar.backgroundColor, barWidth: parseFloat(leftBar.width), rightBarRight: rightBar.right,
+      tone: node.dataset.tone, flash: node.classList.contains("hudmsg--flash"), still: node.dataset.still ?? null,
+    };
+  }
+  return {
+    slots,
+    count: document.querySelectorAll(".hudmsg").length,
+    counter: document.querySelector(".hud-team-counter")?.getBoundingClientRect().y ?? null,
+    generatedNodeCount: document.querySelectorAll("[data-panorama-tag]").length,
+    hasRawBindingText: /#SFUI_|#Panorama_|\\{[sdg]:|\\{time_remaining\\}|(?:SFUI|CSGO|SLGO)_[A-Za-z]/.test(document.body.innerText),
+  };
+})())`;
+
+await call("Emulation.setDeviceMetricsOverride", { width: viewportWidth, height: viewportHeight, deviceScaleFactor: 1, mobile: false });
+const results = [];
+for (const expected of SCENES) {
+  const url = new URL(previewOrigin);
+  url.searchParams.set("hudDebug", "0");
+  url.searchParams.set("shopDebug", "0");
+  url.searchParams.set("hudScene", expected.scene);
+  url.searchParams.set("hudSceneAt", "2000");
+  url.searchParams.set("viewerTeam", "team-a");
+  await call("Page.navigate", { url: url.href });
+  const slotCount = Object.keys(expected.slots).length;
+  let audit = null;
+  // A cold Vite load imports the overlay lazily; wait for every slot and the fonts.
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const ready = await evaluate(`document.querySelectorAll('.hudmsg').length === ${slotCount} && document.fonts.status === 'loaded'`);
+    if (ready) {
+      audit = JSON.parse(await evaluate(measure));
+      break;
+    }
+  }
+  const label = expected.scene;
+  assert.ok(audit, `${label}: the message slots never appeared`);
+  results.push({ scene: label, ...audit });
+
+  assert.equal(audit.count, slotCount, `${label}: slot count`);
+  for (const [slot, want] of Object.entries(expected.slots)) {
+    const actual = audit.slots[slot];
+    const name = `${label} ${slot}`;
+    assert.ok(actual, `${name}: rendered`);
+    assert.equal(actual.still, "true", `${name}: pinned scene draws without animation`);
+    nearX(actual.x, 810, `${name} x`);
+    nearSize(actual.width, 300, `${name} width`);
+    nearY(actual.y, SLOT_Y[slot], `${name} y`);
+    nearSize(actual.height, want.lines === 1 ? 40 : 60, `${name} height`);
+    // Computed styles are canvas pixels (before the overlay scale).
+    near(actual.lineHeight, 21, `${name} line pitch`);
+    nearSize(actual.textHeight, want.lines === 1 ? 40 : 60, `${name} text block`);
+    assert.equal(actual.text, want.text, `${name} text`);
+    assert.equal(actual.color, "rgb(255, 255, 255)", `${name} text colour`);
+    assert.equal(actual.textShadow, "none", `${name}: no text shadow`);
+    assert.equal(actual.bar, BAR[slot], `${name} side bar colour`);
+    near(actual.barWidth, 2, `${name} side bar width`);
+    nearX(actual.rightBarRight, 1110, `${name} right bar edge`);
+    assert.equal(actual.flash, slot === "alert" && (want.tone === "match_point" || want.tone === "final_round"), `${name} flash`);
+  }
+  // Fixed slots never overlap.
+  const boxes = Object.values(audit.slots).sort((a, b) => a.y - b.y);
+  for (let index = 1; index < boxes.length; index += 1) {
+    assert.ok(boxes[index - 1].y + boxes[index - 1].height <= boxes[index].y + 0.5, `${label}: slots overlap`);
+  }
+  // The zone is its own layer: the team counter stays at the top.
+  assert.ok(audit.counter !== null, `${label}: team counter rendered`);
+  nearY(audit.counter, 6, `${label} team counter y`);
+  assert.equal(audit.generatedNodeCount, 0, `${label}: generated nodes`);
+  assert.equal(audit.hasRawBindingText, false, `${label}: raw key or binding text`);
+}
+socket.close();
+console.log(JSON.stringify(results, null, 2));
+console.log(`message zone layout audit: ${viewportWidth}x${viewportHeight} ok (${SCENES.length} scenes)`);

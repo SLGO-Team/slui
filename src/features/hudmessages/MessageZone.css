@@ -1,0 +1,365 @@
+/* CS2 bottom-centre message zone: CSGOHudAlerts (hudalerts.xml / hudalerts.css) and CSGOHudHintText
+   (hudhinttext.xml / hudhinttext.css) in .HudBottomCenter--float (hud.css), on the 1920x1080 canvas.
+   Geometry, colours and motion are read from 1080p in-game captures and a recording (the capture wins
+   over the Panorama CSS); see .trellis/spec/frontend/cs2-visual-replication.md.
+   CJK text: CS2's fonts.conf falls back from Stratum2 to Noto Sans SC scaled by 0.9 (size-adjust); the
+   medium labels use the light cut, as in the win panel. Both files are SIL OFL (THIRD_PARTY_NOTICES.md).
+
+   Motion (recording, t = first frame of the box):
+   enter     0-233ms    box opens from its centre (scaleX), white over it at 0.92
+             233-483ms  text fades in under the white
+             250-470ms  white clears
+             300-633ms  glitch (10 images at 30 fps) in a light tint of the bar colour, last ones fading
+   alert     exit: text fades 0-250ms, box turns white 250-400ms, holds, collapses 500-750ms
+   flash     match point / final round: CS2 FlashAnim, opacity 0.85 -> 0.65 over 2.1s, and before the
+             expiry a flash to 1 and a fade to 0 (518ms); the exit then shows the white box only
+   hint      exit: collapses to its centre and fades in 200ms (ease-in), text gone in 100ms */
+@font-face {
+  font-family: "Noto Sans SC Messages";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-light.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+.hudmsg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hudmsg-overlay *,
+.hudmsg-overlay *::before,
+.hudmsg-overlay *::after {
+  box-sizing: border-box;
+}
+
+.hudmsg-canvas {
+  --hudmsg-scale: 1;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  margin-left: -960px;
+  transform: scale(var(--hudmsg-scale));
+  transform-origin: top center;
+}
+
+/* alert-width 300px, centred (x 810-1109). Panorama y offsets inside the float panel (alert 120px,
+   hints 170 / 236px + 2px margin) land 2px above the captures; the captures win: alert y 750, high
+   hint y 802, low hint y 868. Each box is 40px for one line and grows with the text (the hint text
+   panel caps at 60px, two lines). */
+.hudmsg {
+  --hudmsg-gold: rgb(236, 189, 87);
+  --hudmsg-bar: var(--hudmsg-gold);
+  --hudmsg-fill: rgba(65, 65, 65, 0.33);
+  --hudmsg-glitch: color-mix(in srgb, var(--hudmsg-bar) 55%, #fff);
+  position: absolute;
+  left: 810px;
+  width: 300px;
+}
+
+.hudmsg--alert {
+  top: 750px;
+  /* The alert side bars are additive in Panorama; over any scene they read as the gold at half
+     strength (captures). */
+  --hudmsg-bar: rgba(236, 189, 87, 0.5);
+  --hudmsg-glitch: color-mix(in srgb, var(--hudmsg-gold) 55%, #fff);
+}
+
+.hudmsg--high {
+  top: 802px;
+  /* .high-priority: bars washed red, glitch negativeColor, hud-blur-bg-color fill (captures: the
+     scene behind darkens to ~0.48). */
+  --hudmsg-bar: rgb(255, 24, 0);
+  --hudmsg-fill: rgba(0, 0, 0, 0.52);
+  --hudmsg-glitch: color-mix(in srgb, #db4437 60%, #fff);
+}
+
+.hudmsg--low {
+  top: 868px;
+}
+
+.hudmsg__box {
+  position: relative;
+  min-height: 40px;
+  border-radius: 3px;
+  overflow: hidden;
+  transform-origin: center;
+  animation: hudmsg-open 233ms cubic-bezier(0.3, 0.05, 0.65, 0.9) both;
+}
+
+.hudmsg__fill,
+.hudmsg__white,
+.hudmsg__glitch {
+  position: absolute;
+  inset: 0;
+}
+
+.hudmsg__fill {
+  background: var(--hudmsg-fill);
+}
+
+.hudmsg__white {
+  background: #fff;
+  opacity: 0;
+  animation: hudmsg-white-enter 470ms linear both;
+}
+
+.hudmsg__glitch {
+  background-color: var(--hudmsg-glitch);
+  opacity: 0;
+  -webkit-mask: url("/assets/hudmessages/message-glitch.svg") 0 0 / 300px 400px no-repeat;
+  mask: url("/assets/hudmessages/message-glitch.svg") 0 0 / 300px 400px no-repeat;
+  animation: hudmsg-glitch 333ms steps(10) 300ms, hudmsg-glitch-fade 333ms linear 300ms;
+}
+
+/* .alert-bar-side / .hud-hint-bar-side: 2px, full height, both ends. */
+.hudmsg__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--hudmsg-bar);
+}
+
+.hudmsg__bar--left {
+  left: 0;
+}
+
+.hudmsg__bar--right {
+  right: 0;
+}
+
+/* #AlertText / .hud-hint__label: 18px stratum-medium-tf, padding 8px 24px, centred, white. No text
+   shadow (spec: never on new panels). Captures: lines 21px apart, CJK ink centred in the box (one
+   line y 763-776 of 750-789; two lines 815-827 / 836-848 of 802-861). The CJK fallback sits ~1.75px
+   below the cap-centred Latin baseline, so the padding is 7.5 / 10.5px instead of 8 / 8. */
+.hudmsg__text {
+  position: relative;
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 7.5px 24px 10.5px;
+  color: #fff;
+  font-family: "Stratum2 Messages", "Noto Sans SC Messages", sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 21px;
+  text-align: center;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  animation: hudmsg-text-enter 250ms ease-in 233ms both;
+}
+
+.hudmsg--hint .hudmsg__text {
+  max-height: 60px;
+  overflow: hidden;
+}
+
+/* FlashAnim (hudalerts.css): the opening 2.1s settle, then (when the plugin gives a lifetime) the
+   closing flash timed to end at the expiry. */
+.hudmsg--flash {
+  animation: hudmsg-flash-settle 2109ms linear both;
+}
+
+.hudmsg--flash-close {
+  animation:
+    hudmsg-flash-settle 2109ms linear both,
+    hudmsg-flash-close 518ms linear var(--hudmsg-flash-close-delay, 0ms) forwards;
+}
+
+/* Alert exit: the text fades, the box turns white, holds, then collapses (reverse of the opening). */
+.hudmsg--alert.hudmsg--leaving .hudmsg__box {
+  animation: hudmsg-close 250ms cubic-bezier(0.35, 0.1, 0.7, 0.95) 500ms both;
+}
+
+.hudmsg--alert.hudmsg--leaving .hudmsg__white {
+  animation: hudmsg-white-exit 500ms linear both;
+}
+
+.hudmsg--alert.hudmsg--leaving .hudmsg__text {
+  animation: hudmsg-text-exit 250ms ease-in both;
+}
+
+/* A flash alert has already faded out: the white box appears 250ms later without the text. */
+.hudmsg--flash.hudmsg--leaving {
+  animation: hudmsg-hidden 250ms step-end both;
+}
+
+.hudmsg--flash.hudmsg--leaving .hudmsg__text {
+  animation: none;
+  opacity: 0;
+}
+
+/* Hint exit: no white; the box collapses and fades, the text is gone first. */
+.hudmsg--hint.hudmsg--leaving {
+  animation: hudmsg-fade-out 200ms ease-in both;
+}
+
+.hudmsg--hint.hudmsg--leaving .hudmsg__box {
+  animation: hudmsg-close 200ms cubic-bezier(0.42, 0, 1, 1) both;
+}
+
+.hudmsg--hint.hudmsg--leaving .hudmsg__text {
+  animation: hudmsg-text-exit 100ms ease-in both;
+}
+
+.hudmsg--leaving .hudmsg__glitch {
+  animation: none;
+}
+
+.hudmsg[data-still="true"],
+.hudmsg[data-still="true"] * {
+  animation: none !important;
+}
+
+@keyframes hudmsg-open {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes hudmsg-close {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* 0.92 white until 250ms, cleared by 470ms (eased at both ends). */
+@keyframes hudmsg-white-enter {
+  0%,
+  53.2% {
+    opacity: 0.92;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hudmsg-white-exit {
+  0%,
+  50% {
+    opacity: 0;
+  }
+
+  80%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes hudmsg-text-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hudmsg-text-exit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes hudmsg-glitch {
+  from {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+
+  to {
+    -webkit-mask-position: 0 -400px;
+    mask-position: 0 -400px;
+  }
+}
+
+@keyframes hudmsg-glitch-fade {
+  0%,
+  60% {
+    opacity: 0.32;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* FlashAnim 0-57%: 0.85 (3-6%), 0.8 (14%), 0.65 (57%) of 3.7s. */
+@keyframes hudmsg-flash-settle {
+  0%,
+  10.5% {
+    opacity: 0.85;
+  }
+
+  24.6% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 0.65;
+  }
+}
+
+/* FlashAnim 86-100% of 3.7s: 0.65, 1 (89%), 0.65 (92%), 0. */
+@keyframes hudmsg-flash-close {
+  0% {
+    opacity: 0.65;
+  }
+
+  21.4% {
+    opacity: 1;
+  }
+
+  42.9% {
+    opacity: 0.65;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hudmsg-hidden {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hudmsg-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}

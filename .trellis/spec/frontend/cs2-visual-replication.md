@@ -319,3 +319,51 @@ The win panel is a hand-built React feature under `src/features/winpanel`
   `WINPANEL_PREVIEW_URL`, default `http://localhost:1430/`; viewport from
   `WINPANEL_VIEWPORT_WIDTH/HEIGHT`). Run it at 1920x1080 and a smaller 16:9
   size before accepting a visual change.
+
+## 11. Message-zone-specific replication rules
+
+The bottom-centre message zone is a hand-built React feature under `src/features/hudmessages`
+(`model.ts`, `MessageZone.tsx` / `MessageZone.css`), recreating `CSGOHudAlerts` and the two
+`CSGOHudHintText` panels (`hudalerts.css`, `hudhinttext.css`, `hud.css` `.HudBottomCenter--float`)
+for the `alert`, `hint_high` and `hint_low` slots of `hud.messages`. The `progress` slot shares the
+reducer and has its own card.
+
+- Data: `hudMessagesReducer` keeps the latest message per slot of the baseline's instance with its
+  local receive time. A slot appears when it goes from empty (or locally expired) to showing and keeps
+  that appearance across replacements: CS2 swaps the text in place, so a new key in a showing slot never
+  re-runs the enter animation (recording). `selectMessageZone(state, nowMs)` hides a message once its
+  interpolated `visible_remaining_ms` runs out, even before the clearing frame, and draws
+  `{time_remaining}` as `m:ss` rounded up (`formatHudCountdown`, same rule as the plugin's
+  `HudMessageCatalog.FormatTimeRemaining`); a countdown at 0 stays `0:00` until the plugin clears it.
+  The `message_id` that last left a slot never comes back from a late replay. A baseline of another
+  server or instance clears the board; a reconnect to the same instance keeps it.
+- Texts are the plugin's; tones only select behaviour (`match_point` / `final_round` alerts flash),
+  never colour: every capture shows white text.
+- Geometry at 1080p (captures win over Panorama, whose float offsets land 2px high): every box
+  x 810-1109 (300 wide), radius 3px; alert y 750, high hint y 802, low hint y 868; one line 40px, two
+  lines 60px (hint text panel max-height 60px); lines 21px apart. Text 18px `Stratum2 Messages`
+  (stratum-medium-tf) with CJK in `Noto Sans SC Messages` (light, `size-adjust: 90%`), white, no text
+  shadow; padding 7.5 / 10.5px instead of Panorama's 8 / 8px because the CJK fallback sits ~1.75px
+  below the cap-centred Latin baseline (CJK ink then matches the captures to the pixel).
+- Colours (captures): side bars 2px at both ends; low hint gold `rgb(236, 189, 87)`, alert the same gold
+  at 0.5 (its bars are additive in Panorama), high hint `rgb(255, 24, 0)`. Fill: alert and low hint
+  `rgba(65, 65, 65, 0.33)` (the scene darkens only slightly and dark scenes lighten), high hint
+  `rgba(0, 0, 0, 0.52)` (`hud-blur-bg-color`). Panorama's world blur and dot texture are not recreated.
+- Motion (recording, numbers in the parent task's research file, "Message zone motion"): enter for all
+  three, box opens from its centre in 233ms (`cubic-bezier(0.3, 0.05, 0.65, 0.9)`) under 0.92 white
+  that clears 250-470ms, text fades in from 233ms, a 30 fps glitch (`message-glitch.svg`, SLUI-drawn,
+  used as a mask in a light tint of the bar colour; red for the high hint) 300-633ms. Alert exit
+  (`HUD_ALERT_EXIT_MS` 750): text fades 0-250ms, box turns white 250-400ms, collapses 500-750ms. Hint
+  exit (`HUD_HINT_EXIT_MS` 200): collapses and fades (ease-in), text gone in 100ms, no white.
+  `match_point` / `final_round` alerts play CS2's `FlashAnim` around the plugin's lifetime: opacity
+  0.85 -> 0.65 over 2.1s, then a flash to 1 and a fade to 0 ending at the expiry (518ms, delay fixed
+  from the flash start, never re-timed by the UI clock); their exit skips the text fade and shows the
+  white box after 250ms. A message starts its exit at its own expiry time (a timer), not on the next
+  250ms tick.
+- Layering: `.hudmsg-overlay` is a fixed layer at z-index 4 on a 1920x1080 canvas scaled by
+  `useOverlayScale`; slots are fixed and never stack.
+- Mock preview: the `hudScene` scenes `warmup`, `match-point`, `final-round`, `pause-high-hint`,
+  `timeout`, `hint-low-keycard`, `hint-low-dropped`, `generator-started`, `hint-high-two-line` and
+  `all-slots`; `hudSceneAt` pins them without animation. Run `npm run hudmessages-layout-audit` (CDP on
+  port 9223, preview at `HUDMESSAGES_PREVIEW_URL`, viewport from `HUDMESSAGES_VIEWPORT_WIDTH/HEIGHT`)
+  at 1920x1080 and a smaller 16:9 size before accepting a visual change.

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-10-05
+- **Total Sessions**: 20
+- **Last Active**: 2026-10-06
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~476 | Active |
+| `journal-1.md` | ~498 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-10-06 | CS2 HUD alerts and hints | `db8d14b` | `feat/hud-alerts` |
 | 19 | 2026-10-05 | CS2 win panel | `f3f269f` | `feat/win-panel` |
 | 18 | 2026-10-05 | CS2 HUD panels: planning + data channel | `855dfb2` | `feat/hud-data-channel` |
 | 17 | 2026-10-05 | Branded uninstaller with optional theme pack / user data removal | `e09dd93` | `feat/uninstaller` |

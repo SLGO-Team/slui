@@ -229,3 +229,58 @@ directly; remaining differences: the glitch images are procedurally drawn
 (not CS2's clip), the checker squares are flat (no faint darker gap lines or
 corner ticks between lit squares), and the exit is driven by the plugin's
 hold time ending instead of the round-start event.
+
+### Message zone motion (recording)
+
+Same local recording, stepped at 60 fps (+-17 ms). Events: 「比赛开始」 alert
+(enter ~127.2 s, exit ~130.6 s; again ~190 s), 「赛点」 alert (~167.6-171.6 s,
+FlashAnim), low hints (「您已扔掉 AK-47」 ~162 s, a run of replacements
+~178-184 s, exit ~184.75 s), two-line high hint 「炸弹已被安放。/离引爆还剩
+120 秒。」 (~193.5 s). t = first frame of the box.
+
+Geometry and colour (stills): every box x 810-1109; alert y 750-789, low hint
+868-907, two-line high hint 802-861; CJK ink rows 763-776 (alert), 881-894
+(low), 815-827 / 836-848 (two lines, 21 px pitch); Latin caps share the CJK
+ink centre. Bars 2 px at x 810-811 / 1108-1109: low hint (236, 189, 87)
+opaque; alert bars blend to the gold at ~0.5 over both bright and dark scenes;
+high hint (255, 23, 0). Fill: scene behind the alert / low hint keeps 0.87-1.03
+of its brightness and dark scenes get lighter (fits grey ~65 at ~0.33); the
+high hint scene drops to 0.48.
+
+Enter (alert and both hints alike):
+
+- 0-233 ms: box opens from its centre, full height, width per frame 4, 16,
+  32, 54, 82, 106, 138, 166, 196, 224, 244, 270, 286, 296, 300; fits
+  `cubic-bezier(0.3, 0.05, 0.65, 0.9)` (first frame at ~8 ms). Inside it is
+  white (~0.92 over the scene); the bars show over the white.
+- Text visible faintly under the white from ~233 ms.
+- White alpha 0.92 to ~250 ms, then 0.86 (267), 0.79 (300), 0.58 (350),
+  0.30 (400), 0.14 (433), 0.07 (450), ~0 (500).
+- Glitch ~300-650 ms: 30 fps, tall slabs and stepped partial bars of a pale
+  tint of the bar colour (pale gold; pale red for the high hint), denser at
+  the box ends, fading over the last ~150 ms.
+
+Replacement: a showing slot swaps to the next message's text in one frame
+(low hints, five replacements ~178-184 s); no animation.
+
+Alert exit (「比赛开始」, t = exit start): text fades 0-250 ms (box unchanged),
+box turns white 250-400 ms, holds to ~500 ms, collapses 500-750 ms with the
+enter curve reversed (width 296, 286, 268, 248, 220, 193, 164, 138, 108, 82,
+54, 34, 16, 4).
+
+Low hint exit: no white. The box (text scaled with it) collapses to its
+centre in ~170-200 ms, ease-in (half width 150, 146, 136, 118, 98, 74, 51, 0
+per ~17-33 ms), while it fades (bar strength ~117 -> ~30); the text is gone
+after ~50-100 ms.
+
+「赛点」 (tone match point): CS2 `FlashAnim` (3.7 s) confirmed by timing: normal
+enter, text brightness falls slowly over ~2 s (opacity 0.85 -> 0.65), at
+3.18 s it brightens (89 % keyframe, opacity 1) and fades out by ~3.45 s; at
+3.68 s (animation end) the white box appears without text, holds ~240 ms and
+collapses like the alert exit. 「比赛开始」 (default tone) does not flash.
+The plugin's match point lasts 5 s (`SpecialRoundNotificationManager`), so
+SLUI stretches the 0.65 plateau and times the closing flash to end at the
+plugin's expiry.
+
+Not visible in the recording: rich colour spans (CS2 colours skin names; the
+plugin sends plain text), warning icon in the high hint.

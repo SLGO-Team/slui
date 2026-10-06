@@ -15,6 +15,8 @@ import { createChatCommand, validateChatBody, type ChatCloseReason } from "./fea
 import { resolveChatSelf } from "./features/chat/presentation";
 import { hudVariantFor, playerSlotColors, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
 import { useChatFeature } from "./features/chat/useChatFeature";
+import { MessageZone } from "./features/hudmessages/MessageZone";
+import { hudMessagesReducer, initialHudMessagesState, selectMessageZone } from "./features/hudmessages/model";
 import { WinPanel } from "./features/winpanel/WinPanel";
 import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
@@ -100,6 +102,7 @@ function App() {
   const proof = useMemo(() => createIdentityProofProvider(MOCK_BACKEND && import.meta.env.VITE_ENABLE_MOCK_VERIFIED_PROOF === "true"), []);
   const [hudState, dispatchHud] = useReducer(roundHudReducer, initialRoundHudState);
   const [winPanelState, dispatchWinPanel] = useReducer(winPanelReducer, initialWinPanelState);
+  const [hudMessagesState, dispatchHudMessages] = useReducer(hudMessagesReducer, initialHudMessagesState);
   const shopFeature = useShopFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
@@ -120,6 +123,7 @@ function App() {
     const receivedAtMs = Date.now();
     dispatchHud({ type: "event", event, receivedAtMs });
     dispatchWinPanel({ type: "event", event, receivedAtMs });
+    dispatchHudMessages({ type: "event", event, receivedAtMs });
     shopFeature.receiveEvent(event);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
@@ -394,7 +398,8 @@ function App() {
   // The MVP avatar comes from the displayed roster (the debug HUD's in the mock build).
   const winPanelRoster = useMemo(() => winPanelRosterFromHud(hud), [hud]);
   const winPanel = useMemo(() => selectWinPanel(winPanelState, nowMs, winPanelRoster), [nowMs, winPanelRoster, winPanelState]);
-  const winPanelStill = HUD_DEBUG_ENABLED && debugOptions.hudSceneAt !== null;
+  const hudSceneStill = HUD_DEBUG_ENABLED && debugOptions.hudSceneAt !== null;
+  const messageZone = useMemo(() => selectMessageZone(hudMessagesState, nowMs), [hudMessagesState, nowMs]);
   const minimapPlayerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
   const chatSelf = useMemo(() => resolveChatSelf(
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
@@ -424,7 +429,8 @@ function App() {
         playerMeta={playerMeta}
         variant={hudVariant}
       />
-      <WinPanel panel={winPanel} still={winPanelStill} />
+      <WinPanel panel={winPanel} still={hudSceneStill} />
+      <MessageZone zone={messageZone} still={hudSceneStill} />
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
         renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")

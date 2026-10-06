@@ -15,8 +15,11 @@ CS2's `CSGOHudAlerts` and `CSGOHudHintText` (high/low).
   low hint y ~868-907. Slots are fixed, not stacked; any combination can be
   visible at once.
 - A2 Alert: dark translucent box, thin gold side bars (CS2 default HUD
-  colour), centred white 18 px text; a new alert (new key, or the slot was
-  empty) plays CS2's white flash; countdown rewrites of the same key do not.
+  colour), centred white 18 px text; a slot that goes from empty to showing
+  plays CS2's enter (opens from the centre under white, glitch). Recording
+  (2026-10-06): a replacement in a showing slot swaps the text in place without
+  animation, so neither a new key nor a countdown rewrite re-runs it; match
+  point / final round play CS2's `FlashAnim` (restarted on a key change).
 - A3 High hint: red left bar, white text, wraps to two lines.
 - A4 Low hint: gold side bars like the alert, white text.
 - A5 `{time_remaining}` renders as `m:ss` from the interpolated
