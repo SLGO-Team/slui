@@ -12,4 +12,4 @@ the HUD panels).
 5. [x] Specs: slui `system-boundaries.md` + `cs2-visual-replication.md` §11, backend README, plugin
        `hud-semantic-model.md` / `sidecar-ipc.md`.
 6. [x] slui `npm run lint`, `npm test`, `npm run build:local`, `npm run tauri:check`.
-7. [ ] Deploy (user) and live test.
+7. [x] Deploy (user) and live test (passed 2026-10-06).

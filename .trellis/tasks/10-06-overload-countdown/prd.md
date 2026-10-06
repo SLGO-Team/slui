@@ -36,14 +36,14 @@ SLUI and in the plugin's own Hint UI. Source: user request 2026-10-06 after the 
 
 ## Acceptance Criteria
 
-- [ ] AC1 After a generator starts: 6 s started hint, then 「离过载还剩 N 秒」 ticking down each second in
+- [x] AC1 After a generator starts: 6 s started hint, then 「离过载还剩 N 秒」 ticking down each second in
       the high-hint slot until overload / shutdown / round reset; same in plugin Hint UI and SLUI.
-- [ ] AC2 Another high hint during the countdown replaces it for its lifetime; afterwards the countdown is
+- [x] AC2 Another high hint during the countdown replaces it for its lifetime; afterwards the countdown is
       back with the correct number. Low hints show at the same time in their own slot.
-- [ ] AC3 Shutdown: 「发电机已被成功关闭。」 shows and the countdown is gone; it does not come back.
-- [ ] AC4 Protocol, IPC schema/fixtures, plugin self-check and SLUI parser agree on the seconds token;
+- [x] AC3 Shutdown: 「发电机已被成功关闭。」 shows and the countdown is gone; it does not come back.
+- [x] AC4 Protocol, IPC schema/fixtures, plugin self-check and SLUI parser agree on the seconds token;
       contract tests cover valid and invalid examples in all three repos.
-- [ ] AC5 Lint / tests / builds pass in all three repos; specs updated; live test with the user.
+- [x] AC5 Lint / tests / builds pass in all three repos; specs updated; live test with the user.
 
 ## Out of Scope
 
