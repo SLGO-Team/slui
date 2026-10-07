@@ -1,5 +1,8 @@
 import type {
+  HudAmmo,
+  HudKillKind,
   HudMessagesSnapshot,
+  HudStatusSnapshot,
   HudProgressMessage,
   HudSlotMessage,
   HudTone,
@@ -36,6 +39,10 @@ export const HUD_SCENES = [
   "generator-start-progress",
   "generator-shutdown-progress",
   "all-slots",
+  "bottom-kills",
+  "bottom-fire",
+  "bottom-balance",
+  "bottom-dead",
 ] as const;
 export type HudScene = typeof HUD_SCENES[number];
 
@@ -59,6 +66,10 @@ export const HUD_SCENE_LABELS: Readonly<Record<HudScene, string>> = {
   "generator-start-progress": "启动发电机进度",
   "generator-shutdown-progress": "关闭发电机进度",
   "all-slots": "四槽同时",
+  "bottom-kills": "底部 击杀卡片 1-14",
+  "bottom-fire": "底部 开火与换弹",
+  "bottom-balance": "底部 余额变化",
+  "bottom-dead": "底部 死亡（隐藏）",
 };
 
 export function readHudScene(value: string | null): HudScene {
@@ -156,6 +167,10 @@ function sceneScript(scene: HudScene, viewerRole: Role): SceneScript {
     ] } };
     case "generator-start-progress": return { messages: { progress: { key: "SLGO_Progress_Generator_Start", text: "你正在启动发电机。", tone: "default", visibleMs: null, progress: { remainingMs: 10_000, totalMs: 10_000 } } } };
     case "generator-shutdown-progress": return { messages: { progress: { key: "SLGO_Progress_Generator_Shutdown", text: "你正在关闭发电机。", tone: "default", visibleMs: null, progress: { remainingMs: 7_000, totalMs: 7_000 } } } };
+    case "bottom-kills":
+    case "bottom-fire":
+    case "bottom-balance":
+    case "bottom-dead": return {};
     case "all-slots": return { messages: {
       progress: { key: "SLGO_Progress_Generator_Shutdown", text: "你正在关闭发电机。", tone: "default", visibleMs: null, progress: { remainingMs: 7_000, totalMs: 7_000 } },
       alert: { key: "SFUI_Notice_Alert_Match_Point", text: "赛点", tone: "match_point", visibleMs: null },
@@ -176,6 +191,8 @@ const slotMessages = (script: SlotScript): readonly ScriptedMessage[] => Array.i
 
 /** Length of one scene run before it starts over, or null for a scene that never changes on its own. */
 export function hudSceneLoopMs(scene: HudScene, viewerRole: Role): number | null {
+  const bottomLoop = BOTTOM_LOOP_MS[scene];
+  if (bottomLoop !== undefined) return bottomLoop;
   const script = sceneScript(scene, viewerRole);
   const ends = [
     ...Object.values(script.messages ?? {}).flatMap((slot) => slotMessages(slot).map(messageEndMs)),
@@ -229,7 +246,61 @@ function panelAt(scene: HudScene, panel: ScriptedPanel, viewerRole: Role, elapse
   };
 }
 
-export type HudSceneFrame = { messages: HudMessagesSnapshot; result: RoundResultSnapshot };
+/** Local player overrides the debug HUD applies to its match.snapshot (balance, life). */
+export type HudSceneSelf = { money: number | null; alive: boolean };
+
+export type HudSceneFrame = { messages: HudMessagesSnapshot; result: RoundResultSnapshot; status: HudStatusSnapshot; self: HudSceneSelf };
+
+/** E-11 SR (the mock local player's rifle): 40-round magazine, SLGO bound reserve 120. */
+const MOCK_CLIP_MAX = 40;
+const MOCK_RESERVE = 120;
+const mockAmmo = (clip: number, reserve: number): HudAmmo => ({ clip, clip_max: MOCK_CLIP_MAX, reserve, reserve_icon: "bullet" });
+
+/** Kill times of `bottom-kills` (recording pace, with the ace flare's 2 s before the sixth kill). */
+const BOTTOM_KILL_TIMES_MS = [600, 2_000, 3_400, 4_800, 6_200, 9_000, 10_400, 11_800, 13_200, 14_600, 16_000, 17_400, 18_800, 20_200];
+const BOTTOM_KILL_KINDS: readonly HudKillKind[] = ["default", "default", "grenade", "default", "default", "default", "shock", "default", "default", "grenade", "default", "default", "default", "default"];
+/** `bottom-fire`: 10 shots per second from 0.8 s, a reload at 5.5 s, then half a magazine. */
+const FIRE_START_MS = 800;
+const FIRE_INTERVAL_MS = 100;
+const RELOAD_AT_MS = 5_500;
+const SECOND_BURST_MS = 6_500;
+/** `bottom-balance`: purchases down to $0, a kill reward, then the next round's money. */
+const BALANCE_STEPS: readonly (readonly [number, number])[] = [
+  [0, 16_000], [1_500, 13_300], [3_000, 13_000], [4_500, 10_950], [6_000, 8_550], [7_500, 500], [9_000, 0],
+  [10_500, 300], [12_000, 3_550], [13_500, 16_000],
+];
+
+/** Bottom-HUD scenes and their loop lengths; every other scene keeps a full magazine and no kills. */
+const BOTTOM_LOOP_MS: Partial<Record<HudScene, number>> = {
+  "bottom-kills": 23_000,
+  "bottom-fire": 10_000,
+  "bottom-balance": 15_000,
+};
+
+function bottomStatusAt(scene: HudScene, viewerRole: Role, elapsedMs: number): HudStatusSnapshot {
+  // SCPs hold no firearm.
+  const armed = (ammo: HudAmmo): HudAmmo | null => viewerRole === "ntf" ? ammo : null;
+  if (scene === "bottom-kills") {
+    const count = BOTTOM_KILL_TIMES_MS.filter((at) => at <= elapsedMs).length;
+    return { ammo: armed(mockAmmo(MOCK_CLIP_MAX, MOCK_RESERVE)), round_kills: BOTTOM_KILL_KINDS.slice(0, count) };
+  }
+  if (scene === "bottom-fire") {
+    if (elapsedMs < RELOAD_AT_MS) {
+      const shots = Math.max(0, Math.min(MOCK_CLIP_MAX, Math.floor((elapsedMs - FIRE_START_MS) / FIRE_INTERVAL_MS) + 1));
+      return { ammo: armed(mockAmmo(MOCK_CLIP_MAX - shots, MOCK_RESERVE)), round_kills: [] };
+    }
+    const shots = Math.max(0, Math.min(MOCK_CLIP_MAX / 2, Math.floor((elapsedMs - SECOND_BURST_MS) / FIRE_INTERVAL_MS) + 1));
+    return { ammo: armed(mockAmmo(MOCK_CLIP_MAX - shots, MOCK_RESERVE - MOCK_CLIP_MAX)), round_kills: [] };
+  }
+  return { ammo: armed(mockAmmo(MOCK_CLIP_MAX, MOCK_RESERVE)), round_kills: [] };
+}
+
+function bottomSelfAt(scene: HudScene, elapsedMs: number): HudSceneSelf {
+  if (scene === "bottom-dead") return { money: null, alive: false };
+  if (scene !== "bottom-balance") return { money: null, alive: true };
+  const step = [...BALANCE_STEPS].reverse().find(([at]) => at <= elapsedMs);
+  return { money: step ? step[1] : null, alive: true };
+}
 
 /**
  * The plugin's view of a scene `elapsedMs` into run number `run`: expired messages and the finished panel are
@@ -249,5 +320,7 @@ export function createHudSceneFrame(scene: HudScene, viewerRole: Role, elapsedMs
       hint_low: slot("hint_low"),
     },
     result: { panel: script.panel ? panelAt(scene, script.panel, viewerRole, elapsedMs, run) : null },
+    status: bottomStatusAt(scene, viewerRole, elapsedMs),
+    self: bottomSelfAt(scene, elapsedMs),
   };
 }

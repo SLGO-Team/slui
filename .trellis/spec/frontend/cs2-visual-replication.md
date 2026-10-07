@@ -413,3 +413,50 @@ card).
   observed).
 - Mock preview: `hudScene=generator-start-progress` / `generator-shutdown-progress` (`viewerTeam=team-b`
   for the wire cutters) and `all-slots`; `npm run hudmessages-layout-audit` covers the card too.
+
+## 13. Bottom-HUD-specific replication rules
+
+The bottom HUD is a hand-built React feature under `src/features/bottomhud` (`model.ts`, `presentation.ts`,
+`BottomHud.tsx` / `BottomHud.css`), recreating CS2's `hudhealthammocenter` for SLGO: the balance takes the
+health/armor slot (CS2's separate bottom-left money panel is not drawn), the round's kill cards fan above the
+centre emblem, and the right block shows the clip and the reserve rounds (SLGO counts rounds, CS2 magazines).
+Measurements and motion are in the task research file `cs2-bottom-hud-motion.md` (archived with
+`10-07-cs2-bottom-hud`); keep the timeline at the top of `BottomHud.css` in sync.
+
+- Data: `selectBottomHud(hud, status, localPlayerId)` is null (nothing drawn) without a snapshot or viewer
+  team, when the local player is not on it or has no loadout, and while they are dead (user decision
+  2026-10-07: no spectator panel). Balance = `loadout.money`; ammo and kills from `hud.status`. The debug
+  build uses the same local player as the progress card, and the `bottom-*` scenes may override its balance
+  and life (`RealtimeMockProvider.hudSceneSelf`).
+- Colour: every washed element (numbers, strokes, ring, emblem, card art) uses `ROLE_COLORS[role]` through
+  `--bhud-wash` (user decision 2026-10-07, like the win panel), never CS2's T gold / CT blue. White SLUI art
+  is drawn through a CSS mask in that colour.
+- Geometry at 1080p (recording, Panorama for proportions): row 800 x 72 at x 560 / y 992, circle 64px centred
+  at (960, 1028) with a 2px ring and a `rgba(0,0,0,0.5)` fill (denser than CS2's blur, see section 11); strokes
+  1px, 184px each from the circle outwards; numbers `Stratum2 HUD Timer` 42px; balance right edge at x 710 in
+  at least six odometer cells (CS2 pads to "$16000"); clip label 70px from x 1192 with a 65 x 4 bar (1px black
+  border) 14px above the row bottom; reserve 32px then an 18px reserve icon.
+- Kill cards: every card is a 48 x 126 canvas drawn 152px high centred on the circle centre, so the Panorama
+  fan (`KILL_FAN`, exact `translate3d` + `rotateZ` per count, 0.2 s transition) turns about the circle. Kills
+  1-5 fan out (the fifth is the ace card: spade and skull, no number), from 6 one counter card shows the count.
+  Only the top card shows its number (an upper card hides the others in game); the card layer has a hole over
+  the circle. Pips: `default` skull, `grenade` burst, `shock` bolt (user decision: only these three).
+- Motion (CSS animations started on mount and WAAPI on data changes, never the 250 ms UI clock): Panorama
+  `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens; a light
+  column along the new card's angle (kills 1-5), sparks (2-5), a skyline flare (4-5), the ace flare 2 s after
+  kill 5; at kill 6 the fan collapses behind the circle and the counter rises with a halo. Shot: `jitter-number`
+  50 ms; reload: the reserve icon drops and returns (300 ms); weapon change: 0.75 -> 1 in 100 ms; balance: each
+  character rolls on its strip to the new symbol (`ODOMETER_SYMBOLS`, ~520 ms, `cubic-bezier(0.2, 0.15, 0.6,
+  1)`, measured). A first view or a shrinking kill list (new round) never animates.
+- Low clip (<= 20 % of `clip_max`, recording 6/30 red, 7/30 normal): the number keeps the team colour with a
+  blurred red copy behind it (CS2's red glow, clearly visible in game; not a `text-shadow`), the bar fill
+  turns red.
+- Assets (`public/assets/bottomhud/`, SLUI-drawn): `kill-card(-ace).svg`, `kill-pip-*.svg`,
+  `reserve-bullet|shotgun-shell|revolver-loader.svg` (traced to the in-game look; shotgun and revolver get their
+  own icon, other firearms the pre-magazine CS2 single round), `emblem-ntf|scp.svg` (new drawings).
+- Layering: `.bhud-overlay` is a fixed layer at z-index 3 on the scaled 1920x1080 canvas.
+- Mock preview: `hudScene=bottom-kills` (kills 1-14 with all three pips), `bottom-fire` (a magazine to red and
+  a reload), `bottom-balance` (balance rolls), `bottom-dead` (hidden); `viewerTeam=team-b` shows the SCP side
+  (no firearm). Run `npm run bottomhud-layout-audit` (CDP on port 9223, preview at `BOTTOMHUD_PREVIEW_URL`,
+  viewport from `BOTTOMHUD_VIEWPORT_WIDTH/HEIGHT`) at 1920x1080 and a smaller 16:9 size before accepting a
+  visual change.

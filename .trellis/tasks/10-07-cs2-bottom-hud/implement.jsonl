@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "CS2 replication rules: no text shadow, motion from recordings, asset rules, overlay scale"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "wire contracts and client features"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "feature folder layout"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "required checks"}
+{"file": ".trellis/tasks/10-07-cs2-bottom-hud/research/cs2-bottom-hud-motion.md", "reason": "recorded layout and motion"}

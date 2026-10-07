@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="126" viewBox="0 0 48 126" fill="none">
+  <!-- SLUI-drawn fifth kill card: frame and a spade with a skull cut out. -->
+  <rect x="10.6" y="9" width="26.8" height="36.8" rx="3.8" stroke="#fff" stroke-width="1.2"/>
+  <g transform="translate(24 26.4) scale(1.2) translate(-24 -26.4)">
+  <path fill="#fff" fill-rule="evenodd" d="M24 16.6C24 16.6 32.4 22.6 32.4 28C32.4 31.2 29.7 32.8 27.2 31.4C26.4 31 25.8 30.4 25.3 29.8L26.9 36.2H21.1L22.7 29.8C22.2 30.4 21.6 31 20.8 31.4C18.3 32.8 15.6 31.2 15.6 28C15.6 22.6 24 16.6 24 16.6Z
+    M20.2 25.7A3.8 3.8 0 1 1 27.8 25.7V27.3C27.8 28.3 27.1 28.7 26.4 28.8V30.2H21.6V28.8C20.9 28.7 20.2 28.3 20.2 27.3Z"/>
+  <path fill="#fff" d="M21.4 26.3a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0ZM24.4 26.3a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0ZM24 27.6L23.4 28.6H24.6Z"/>
+  </g>
+</svg>

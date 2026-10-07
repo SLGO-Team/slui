@@ -2,7 +2,7 @@ import type { ChatSendCommand, MinimapInit, Role, ServerRoute, SlgoCommand, Slgo
 import { MockSidecarConnection } from "../platform/connection.ts";
 import { MAX_CHAT_LENGTH, chatLength } from "../features/chat/model.ts";
 import { createMinimapFrame, createMockMinimapInit, defaultMinimapPreviewOptions, mockMinimapInit, type MinimapPreviewOptions } from "./minimapFixtures.ts";
-import { createHudSceneFrame, hudSceneLoopMs, type HudScene } from "./hudScenes.ts";
+import { createHudSceneFrame, hudSceneLoopMs, type HudScene, type HudSceneSelf } from "./hudScenes.ts";
 
 export class RealtimeMockProvider extends MockSidecarConnection {
   private readonly initialEvents: SlgoEvent[];
@@ -23,7 +23,9 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private hudSceneStartedAtMs = 0;
   /** Debug captures: the scene stays at this moment (ms after its start) instead of playing. */
   private hudSceneAtMs: number | null = null;
-  private lastHudPayloads: Partial<Record<"hud.messages" | "round.result", string>> = {};
+  private lastHudPayloads: Partial<Record<"hud.messages" | "round.result" | "hud.status", string>> = {};
+  /** hud.status changes with every shot, so it is checked far more often than the 1 s scene re-sync. */
+  private statusTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(events: SlgoEvent[], viewerTeam: "team-a" | "team-b") {
     super();
@@ -57,6 +59,7 @@ export class RealtimeMockProvider extends MockSidecarConnection {
         this.tickHudScene();
       }
     }, 1000 / this.mapInit.position_update_hz);
+    this.statusTimer = setInterval(() => this.publishHudStatus(), 25);
   }
 
   override async disconnect() {
@@ -136,12 +139,29 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     else this.publishHudScene();
   }
 
+  /** Local player overrides of the playing scene (balance, life) for the debug HUD's match.snapshot. */
+  hudSceneSelf(): HudSceneSelf {
+    const elapsedMs = this.hudSceneAtMs ?? Date.now() - this.hudSceneStartedAtMs;
+    return createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun).self;
+  }
+
+  /** Like the plugin: hud.status goes out whenever it changed. */
+  private publishHudStatus() {
+    if (!this.streamRoute) return;
+    const elapsedMs = this.hudSceneAtMs ?? Date.now() - this.hudSceneStartedAtMs;
+    const { status } = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
+    const json = JSON.stringify(status);
+    if (this.lastHudPayloads["hud.status"] === json) return;
+    this.lastHudPayloads["hud.status"] = json;
+    this.emit("hud.status", status);
+  }
+
   /** Publishes each snapshot whose content changed (the first publish of a run always goes out). */
   private publishHudScene() {
     if (!this.streamRoute) return;
     const elapsedMs = this.hudSceneAtMs ?? Date.now() - this.hudSceneStartedAtMs;
     const frame = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
-    for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result]] as const) {
+    for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result], ["hud.status", frame.status]] as const) {
       const json = JSON.stringify(payload);
       if (this.lastHudPayloads[type] === json) continue;
       this.lastHudPayloads[type] = json;
@@ -206,6 +226,8 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private stopStream() {
     if (this.timer !== undefined) clearInterval(this.timer);
     this.timer = undefined;
+    if (this.statusTimer !== undefined) clearInterval(this.statusTimer);
+    this.statusTimer = undefined;
     this.streamRoute = null;
   }
 }

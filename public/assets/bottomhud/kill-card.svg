@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="126" viewBox="0 0 48 126" fill="none">
+  <!-- SLUI-drawn kill card frame: the card sits at the top of a 48x126 canvas whose centre is the HUD circle centre. -->
+  <rect x="10.6" y="9" width="26.8" height="36.8" rx="3.8" stroke="#fff" stroke-width="1.2"/>
+</svg>
