@@ -435,25 +435,34 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
   at (960, 1028) with a 2px ring and a `rgba(0,0,0,0.5)` fill (denser than CS2's blur, see section 11); strokes
   1px, 184px each from the circle outwards; numbers `Stratum2 HUD Timer` 42px; balance right edge at x 710 in
   at least six odometer cells (CS2 pads to "$16000"); clip label 70px from x 1192 with a 65 x 4 bar (1px black
-  border) 14px above the row bottom; reserve 32px then an 18px reserve icon.
+  border) 14px above the row bottom; reserve 32px then a 26px reserve icon (user review 2026-10-07: 18px read
+  too small for the slim round).
 - Kill cards: every card is a 48 x 126 canvas drawn 152px high centred on the circle centre, so the Panorama
   fan (`KILL_FAN`, exact `translate3d` + `rotateZ` per count, 0.2 s transition) turns about the circle. Kills
   1-5 fan out (the fifth is the ace card: spade and skull, no number), from 6 one counter card shows the count.
   Only the top card shows its number (an upper card hides the others in game); the card layer has a hole over
   the circle. Pips: `default` skull, `grenade` burst, `shock` bolt (user decision: only these three).
-- Motion (CSS animations started on mount and WAAPI on data changes, never the 250 ms UI clock): Panorama
-  `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens; a light
-  column along the new card's angle (kills 1-5), sparks (2-5), a skyline flare (4-5), the ace flare 2 s after
-  kill 5; at kill 6 the fan collapses behind the circle and the counter rises with a halo. Shot: `jitter-number`
-  50 ms; reload: the reserve icon drops and returns (300 ms); weapon change: 0.75 -> 1 in 100 ms; balance: each
-  character rolls on its strip to the new symbol (`ODOMETER_SYMBOLS`, ~520 ms, `cubic-bezier(0.2, 0.15, 0.6,
-  1)`, measured). A first view or a shrinking kill list (new round) never animates.
-- Low clip (<= 20 % of `clip_max`, recording 6/30 red, 7/30 normal): the number keeps the team colour with a
-  blurred red copy behind it (CS2's red glow, clearly visible in game; not a `text-shadow`), the bar fill
-  turns red.
+- Motion (CSS animations started on mount, WAAPI and one canvas on data changes, never the 250 ms UI clock):
+  Panorama `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens; a
+  light column along the new card's angle (kills 1-5; kill 5 holds it to ~950 ms). CS2's particle spectrum is
+  `spectrum.ts`, a canvas painted every animation frame from the time since the kill: bars dancing along the
+  strokes like an audio visualiser with a glow mound and rising sparks (kills 2-5, growing with the count);
+  kill 5 settles low and wide, then at 2.0 s flashes the row again (not the circle fill: the emblem stays
+  readable), draws a mirrored spindle of bars with a wide glow and tall streaks over the cards, and leaves a thin
+  waveform until 3.0 s. Static CSS streaks were rejected in review: the bars must move. At kill 6 the fan
+  collapses behind the circle and the counter rises with a halo. Shot: the remounted clip label pops for 3 frames
+  (scale 1.15 up-left and paler, then 4px down), drawn with colour, not a brightness filter (a filter turns the
+  team colour white and blurs the digits). Reload: the reserve icon drops and returns (300 ms); weapon change:
+  0.75 -> 1 in 100 ms; balance: each character rolls on its strip to the new symbol (`ODOMETER_SYMBOLS`, ~520 ms,
+  `cubic-bezier(0.2, 0.15, 0.6, 1)`, measured). A first view or a shrinking kill list (new round) never animates.
+- Low clip (<= 20 % of `clip_max`, recording 6/30 red, 7/30 normal): the number keeps the team colour over a
+  soft orange-red halo (two blurred stroked copies, 4px/4px and 8px/9px, after Panorama's 9px strength-2.5
+  shadow; a tight rim reads as an outline and was rejected), the bar fill turns red.
 - Assets (`public/assets/bottomhud/`, SLUI-drawn): `kill-card(-ace).svg`, `kill-pip-*.svg`,
   `reserve-bullet|shotgun-shell|revolver-loader.svg` (traced to the in-game look; shotgun and revolver get their
-  own icon, other firearms the pre-magazine CS2 single round), `emblem-ntf|scp.svg` (new drawings).
+  own icon, other firearms the pre-magazine CS2 single round), `emblem-ntf|scp.svg` (new drawings; the SCP
+  emblem is three claw scratches, ragged at the top and tapering to a point, generated as polygons; plain
+  curved lines read as scribbles).
 - Layering: `.bhud-overlay` is a fixed layer at z-index 3 on the scaled 1920x1080 canvas.
 - Mock preview: `hudScene=bottom-kills` (kills 1-14 with all three pips), `bottom-fire` (a magazine to red and
   a reload), `bottom-balance` (balance rolls), `bottom-dead` (hidden); `viewerTeam=team-b` shows the SCP side

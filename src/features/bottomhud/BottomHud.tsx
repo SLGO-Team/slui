@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { HudAmmo, HudKillKind, HudReserveIcon, Role } from "../../contracts/index.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
@@ -15,6 +15,16 @@ import {
   type KillCardsView,
   type KillCardView,
 } from "./presentation.ts";
+import {
+  barSeedsFor,
+  drawKillSpectrum,
+  seededRandom,
+  sparksFor,
+  spectrumDurationMs,
+  SPECTRUM_HEIGHT,
+  SPECTRUM_LINE_Y,
+  SPECTRUM_WIDTH,
+} from "./spectrum.ts";
 import "./BottomHud.css";
 
 const ASSETS = "/assets/bottomhud";
@@ -43,13 +53,6 @@ const DISC_FLASH_KEYFRAMES: Keyframe[] = [
   { opacity: 0, offset: 0.93 },
   { opacity: 0, offset: 1 },
 ];
-/** Panorama `jitter-number` on every shot (50 ms). */
-const JITTER_KEYFRAMES: Keyframe[] = [
-  { transform: "scale(1.15) translate(-3px, -4px)", filter: "brightness(3)" },
-  { transform: "scale(1) translate(0, -2px)", filter: "brightness(5)", offset: 0.25 },
-  { transform: "scale(1) translate(3px, 5px)", filter: "brightness(3)", offset: 0.5 },
-  { transform: "none", filter: "brightness(1)" },
-];
 /** Panorama `reload` (0.3 s ease-in): the reserve icon drops out and comes back from above. */
 const RELOAD_KEYFRAMES: Keyframe[] = [
   { transform: "translateY(0)", offset: 0 },
@@ -64,16 +67,8 @@ const animate = (element: Element | null, keyframes: Keyframe[], duration: numbe
   element?.animate(keyframes, { duration, easing });
 };
 
-/** Deterministic pseudo-random numbers for one burst's particles (the same kill always draws the same sparks). */
-function seeded(seed: number): () => number {
-  let state = (seed * 2654435761) >>> 0 || 1;
-  return () => {
-    state ^= state << 13;
-    state ^= state >>> 17;
-    state ^= state << 5;
-    return ((state >>> 0) % 10_000) / 10_000;
-  };
-}
+/** The kill-5 flash repeats the row flash 2.0 s after the kill (recording). */
+const ACE_FLASH_DELAY_MS = 2_000;
 
 type Burst = {
   id: number;
@@ -137,48 +132,54 @@ function KillCards({ cards, burst }: { cards: KillCardsView; burst: Burst | null
   );
 }
 
-/** Light column, sparks and the flares along the strokes of one kill (particle systems in CS2, drawn shapes here). */
-function KillBurst({ burst }: { burst: Burst }) {
-  const random = seeded(burst.id * 97 + burst.count);
+/** The bars, glow and sparks of one kill, painted every animation frame from the time since the kill. */
+function KillSpectrum({ count, seed, scale }: { count: number; seed: number; scale: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { seeds, sparks } = useMemo(() => {
+    const random = seededRandom(seed);
+    return { seeds: barSeedsFor(random), sparks: sparksFor(count, random) };
+  }, [count, seed]);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return undefined;
+    // Backing store in device pixels: the canvas sits on the scaled 1920x1080 overlay.
+    const ratio = Math.max(1, scale * window.devicePixelRatio);
+    canvas.width = Math.round(SPECTRUM_WIDTH * ratio);
+    canvas.height = Math.round(SPECTRUM_HEIGHT * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const wash = getComputedStyle(canvas).color;
+    const colors = { core: `color-mix(in srgb, ${wash} 55%, #fff)`, glow: wash };
+    // Canvas does not resolve color-mix(): mix it once through a probe.
+    const probe = document.createElement("span");
+    probe.style.color = colors.core;
+    canvas.parentElement?.appendChild(probe);
+    colors.core = getComputedStyle(probe).color;
+    probe.remove();
+    const startedAt = performance.now();
+    const duration = spectrumDurationMs(count);
+    let frame = 0;
+    const paint = (now: number) => {
+      const t = now - startedAt;
+      drawKillSpectrum(ctx, count, t, seeds, sparks, colors);
+      if (t < duration) frame = requestAnimationFrame(paint);
+    };
+    frame = requestAnimationFrame(paint);
+    return () => cancelAnimationFrame(frame);
+  }, [count, scale, seeds, sparks]);
+  return <canvas ref={canvasRef} className="bhud-burst__spectrum" style={{ top: -SPECTRUM_LINE_Y, left: -SPECTRUM_WIDTH / 2 }} />;
+}
+
+/** Light column along the new card, the spectrum, and the halo of the counter card (particle systems in CS2). */
+function KillBurst({ burst, scale }: { burst: Burst; scale: number }) {
   const fanned = burst.count <= MAX_FANNED_KILLS;
-  const sparks = fanned && burst.count >= 2 ? Array.from({ length: 6 + burst.count * 2 }, () => ({
-    x: (random() * 2 - 1) * (60 + burst.count * 14),
-    y: 4 + random() * 22,
-    rise: 18 + random() * 46,
-    delay: 60 + random() * 260,
-    size: 2 + random() * 2.5,
-  })) : [];
-  const streaks = (count: number, reach: number, height: number) => Array.from({ length: count }, (_, index) => {
-    const side = index % 2 === 0 ? -1 : 1;
-    const along = random();
-    return { x: side * (36 + along * reach), height: height * (0.25 + 0.75 * (1 - along) * random() + 0.15 * random()), delay: random() * 160 };
-  });
-  const skyline = fanned && burst.count >= 4 ? streaks(burst.count === 5 ? 34 : 22, burst.count === 5 ? 120 : 90, burst.count === 5 ? 46 : 32) : [];
-  const ace = burst.count === MAX_FANNED_KILLS ? streaks(56, 250, 62) : [];
   return (
-    <div className="bhud-burst" aria-hidden="true">
+    <div className={`bhud-burst${burst.count === MAX_FANNED_KILLS ? " bhud-burst--ace" : ""}`} aria-hidden="true">
       {fanned ? (
         <div className="bhud-burst__column" style={poseStyle(burst.pose)}><span className="bhud-burst__beam" /></div>
       ) : null}
+      {spectrumDurationMs(burst.count) > 0 ? <KillSpectrum count={burst.count} seed={burst.id * 97 + burst.count} scale={scale} /> : null}
       {burst.collapsing ? <span className="bhud-burst__halo" /> : null}
-      {sparks.map((spark, index) => (
-        <span key={`s${index}`} className="bhud-burst__spark" style={{
-          "--bhud-x": `${spark.x}px`, "--bhud-y": `${-spark.y}px`, "--bhud-rise": `${-spark.rise}px`,
-          "--bhud-size": `${spark.size}px`, animationDelay: `${spark.delay}ms`,
-        } as CSSProperties} />
-      ))}
-      {skyline.length > 0 ? <span className="bhud-burst__glow" /> : null}
-      {skyline.map((streak, index) => (
-        <span key={`k${index}`} className="bhud-burst__streak" style={{
-          "--bhud-x": `${streak.x}px`, "--bhud-h": `${streak.height}px`, animationDelay: `${streak.delay + 200}ms`,
-        } as CSSProperties} />
-      ))}
-      {ace.length > 0 ? <span className="bhud-burst__ace-glow" /> : null}
-      {ace.map((streak, index) => (
-        <span key={`a${index}`} className="bhud-burst__streak bhud-burst__streak--ace" style={{
-          "--bhud-x": `${streak.x}px`, "--bhud-h": `${streak.height}px`, animationDelay: `${streak.delay + 2000}ms`,
-        } as CSSProperties} />
-      ))}
     </div>
   );
 }
@@ -202,9 +203,14 @@ function Odometer({ balance }: { balance: number }) {
 
 function Weapon({ ammo, still }: { ammo: HudAmmo; still: boolean }) {
   const blockRef = useRef<HTMLDivElement>(null);
-  const clipRef = useRef<HTMLSpanElement>(null);
   const iconRef = useRef<HTMLSpanElement>(null);
   const previous = useRef(ammo);
+  // A shot remounts the label with the pop class (Panorama `jitter-number`); a reload or a new weapon does not.
+  const [shot, setShot] = useState({ clip: ammo.clip, count: 0, pop: false });
+  if (shot.clip !== ammo.clip) {
+    const fired = !still && ammo.clip < shot.clip;
+    setShot({ clip: ammo.clip, count: shot.count + 1, pop: fired });
+  }
   useEffect(() => {
     const before = previous.current;
     previous.current = ammo;
@@ -213,15 +219,19 @@ function Weapon({ ammo, still }: { ammo: HudAmmo; still: boolean }) {
       animate(blockRef.current, WEAPON_CHANGE_KEYFRAMES, 100, "ease-in-out");
       return;
     }
-    if (ammo.clip < before.clip) animate(clipRef.current, JITTER_KEYFRAMES, 50, "ease-out");
-    else if (ammo.clip > before.clip && ammo.reserve < before.reserve) animate(iconRef.current, RELOAD_KEYFRAMES, 300, "ease-in");
+    if (ammo.clip > before.clip && ammo.reserve < before.reserve) animate(iconRef.current, RELOAD_KEYFRAMES, 300, "ease-in");
   }, [ammo, still]);
   const low = isLowClip(ammo);
   return (
     <div ref={blockRef} className={`bhud-weapon${low ? " bhud-weapon--low" : ""}`} data-low={low ? "true" : undefined}>
       <div className="bhud-weapon__clip">
-        {low ? <span className="bhud-weapon__clip-glow" aria-hidden="true">{ammo.clip}</span> : null}
-        <span ref={clipRef} className="bhud-weapon__clip-label">{ammo.clip}</span>
+        {low ? (
+          <span key={`g${shot.count}`} className={`bhud-weapon__clip-glow${shot.pop ? " bhud-weapon__clip-glow--pop" : ""}`} aria-hidden="true">
+            <span className="bhud-weapon__glow bhud-weapon__glow--wide">{ammo.clip}</span>
+            <span className="bhud-weapon__glow bhud-weapon__glow--tight">{ammo.clip}</span>
+          </span>
+        ) : null}
+        <span key={shot.count} className={`bhud-weapon__clip-label${shot.pop ? " bhud-weapon__clip-label--pop" : ""}`}>{ammo.clip}</span>
         <span className="bhud-weapon__bar" aria-hidden="true">
           <span className="bhud-weapon__bar-fill" style={{ width: `${clipBarFraction(ammo) * 100}%` }} />
         </span>
@@ -234,7 +244,7 @@ function Weapon({ ammo, still }: { ammo: HudAmmo; still: boolean }) {
   );
 }
 
-function BottomHudRow({ view, still }: { view: BottomHudView; still: boolean }) {
+function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: boolean; scale: number }) {
   const litRef = useRef<HTMLDivElement>(null);
   const discRef = useRef<HTMLSpanElement>(null);
   const [tracked, setTracked] = useState(() => ({ kills: view.kills, burst: null as Burst | null, seq: 0 }));
@@ -263,14 +273,17 @@ function BottomHudRow({ view, still }: { view: BottomHudView; still: boolean }) 
     if (burst === null) return;
     animate(litRef.current, ON_KILL_KEYFRAMES, 700);
     animate(discRef.current, DISC_FLASH_KEYFRAMES, 700);
+    if (burst.count !== MAX_FANNED_KILLS) return;
+    // The second flash brightens the row only: the emblem stays readable on its dark circle (recording).
+    litRef.current?.animate(ON_KILL_KEYFRAMES, { duration: 700, delay: ACE_FLASH_DELAY_MS });
   }, [burst]);
 
   const cards = killCardsFor(view.kills);
   return (
     <div className="bhud" data-role={view.role} data-still={still ? "true" : undefined}
       style={{ "--bhud-wash": ROLE_COLORS[view.role] } as CSSProperties}>
+      {burst !== null ? <KillBurst key={burst.id} burst={burst} scale={scale} /> : null}
       <KillCards cards={cards} burst={burst} />
-      {burst !== null ? <KillBurst key={burst.id} burst={burst} /> : null}
       <div ref={litRef} className="bhud__lit">
         <span className="bhud__stroke bhud__stroke--left" aria-hidden="true" />
         <span className="bhud__stroke bhud__stroke--right" aria-hidden="true" />
@@ -302,7 +315,7 @@ export function BottomHud({ view, still = false }: BottomHudProps) {
   return (
     <section className="bhud-overlay" aria-label="底部状态栏">
       <div className="bhud-canvas" style={{ "--bhud-scale": scale } as CSSProperties}>
-        {view ? <BottomHudRow view={view} still={still} /> : null}
+        {view ? <BottomHudRow view={view} still={still} scale={scale} /> : null}
       </div>
     </section>
   );

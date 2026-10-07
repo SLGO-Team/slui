@@ -9,6 +9,7 @@ import {
   odometerRows,
 } from "../src/features/bottomhud/presentation.ts";
 import { createHudSceneFrame } from "../src/mocks/hudScenes.ts";
+import { seededRandom, sparksFor, spectrumDurationMs, spectrumFrame } from "../src/features/bottomhud/spectrum.ts";
 import { parseHudStatus } from "../src/contracts/index.ts";
 
 const envelope = (type, payload, { serverId = "slgo-1", instanceId = "instance-1", sequence = 2 } = {}) => ({
@@ -105,6 +106,22 @@ const status = { ammo: { clip: 23, clip_max: 30, reserve: 90, reserve_icon: "bul
   assert.equal(createHudSceneFrame("bottom-balance", "ntf", 9_100).self.money, 0);
   assert.equal(createHudSceneFrame("bottom-dead", "ntf", 0).self.alive, false);
   assert.deepEqual(createHudSceneFrame("none", "ntf", 0).self, { money: null, alive: true });
+}
+
+{
+  // Kill spectrum: kills 2-4 one-sided and short, kill 5 mirrored at the 2.0 s flash and done by 3.0 s.
+  assert.equal(spectrumDurationMs(1), 0, "the first kill has no spectrum");
+  assert.equal(spectrumDurationMs(6), 0, "the counter card has no spectrum");
+  assert.equal(spectrumFrame(3, 0).up.amp, 0, "starts flat");
+  assert.ok(spectrumFrame(4, 400).up.amp > spectrumFrame(2, 400).up.amp, "the mound grows with the count");
+  assert.equal(spectrumFrame(4, 400).down.amp, 0, "kills 2-4 never mirror");
+  assert.equal(spectrumFrame(4, 1_200).up.amp, 0, "kills 2-4 end by 1.1 s");
+  assert.ok(spectrumFrame(5, 400).up.amp > 40, "the ace mound");
+  assert.equal(spectrumFrame(5, 1_500).down.amp, 0, "no mirror before the flash");
+  assert.ok(spectrumFrame(5, 2_150).down.amp > 20 && spectrumFrame(5, 2_150).streaks > 30, "the 2.0 s flash mirrors the bars");
+  assert.equal(spectrumFrame(5, 3_000).up.amp, 0, "gone by 3.0 s");
+  assert.equal(sparksFor(5, seededRandom(1)).length > sparksFor(2, seededRandom(1)).length, true);
+  assert.deepEqual(sparksFor(3, seededRandom(7)), sparksFor(3, seededRandom(7)), "the same kill draws the same sparks");
 }
 
 console.log("bottomhud model smoke: ok");

@@ -1,0 +1,226 @@
+/**
+ * The kill "spectrum" CS2 draws with a particle system (ui_hud_kill_streaks_base): thin bars dancing along the
+ * strokes like an audio visualiser, a glow mound behind the cards and sparks rising above them. Recreated as a
+ * canvas drawn every animation frame from the time since the kill (recording, research file "Kill burst"):
+ *
+ * kills 2-4  a one-sided mound of bars around the circle that grows with the kill count, sparks 80-600ms
+ * kill 5     phase A (0-1s): the biggest mound, widening along the strokes; phase B (1-2s): it settles low and
+ *            wide; phase C (2.0-2.7s): a flash, a mirrored spindle of bars above and below the line with a glow
+ *            and tall streaks over the cards, then a thin waveform that fades by 3.0s
+ *
+ * Pure: `spectrumFrame` gives the envelopes for a moment, `drawKillSpectrum` paints them; the component only
+ * owns the canvas and the clock.
+ */
+
+/** Canvas box around the circle centre, in 1080p canvas pixels. */
+export const SPECTRUM_WIDTH = 640;
+export const SPECTRUM_HEIGHT = 240;
+/** The stroke line inside the canvas (the circle centre). */
+export const SPECTRUM_LINE_Y = 160;
+/** Bar pitch along the stroke. */
+const BAR_PITCH = 2;
+
+/** One envelope of bars: peak height (px) at the centre and the gaussian half-width (px). */
+type Lobe = { amp: number; sigma: number };
+
+export type SpectrumFrame = {
+  /** Bars rising above the line. */
+  up: Lobe;
+  /** Bars hanging below the line (only the kill-5 flash mirrors them). */
+  down: Lobe;
+  /** Soft glow behind the bars: opacity 0-1, horizontal and vertical radius. */
+  glow: { alpha: number; rx: number; ry: number };
+  /** Tall streaks over the cards (kill-5 flash), peak height. */
+  streaks: number;
+};
+
+const NONE: SpectrumFrame = { up: { amp: 0, sigma: 1 }, down: { amp: 0, sigma: 1 }, glow: { alpha: 0, rx: 1, ry: 1 }, streaks: 0 };
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+/** 0 before `start`, 1 after `end`, smooth in between. */
+const ramp = (t: number, start: number, end: number) => {
+  const x = clamp01((t - start) / (end - start));
+  return x * x * (3 - 2 * x);
+};
+const lerp = (a: number, b: number, x: number) => a + (b - a) * x;
+
+/** How long a kill's spectrum lasts (ms). */
+export function spectrumDurationMs(count: number): number {
+  if (count === 5) return 3_000;
+  if (count >= 2 && count <= 4) return 1_100;
+  return 0;
+}
+
+/** Envelopes `t` ms after kill number `count` (2-5; others draw nothing). */
+export function spectrumFrame(count: number, t: number): SpectrumFrame {
+  if (count < 2 || count > 5 || t < 0 || t >= spectrumDurationMs(count)) return NONE;
+  if (count < 5) {
+    // Kills 2-4: the mound grows with the count; up 60-240ms, holds, gone by 1.1s.
+    const level = ramp(t, 60, 240) * (1 - ramp(t, 650, 1_100));
+    const amp = [0, 0, 20, 32, 46][count] * level;
+    const sigma = [0, 0, 48, 56, 66][count];
+    return { up: { amp, sigma }, down: { amp: 0, sigma: 1 }, glow: { alpha: 0.9 * level, rx: sigma * 1.6, ry: amp * 0.85 + 6 }, streaks: 0 };
+  }
+  // Kill 5, phases A/B: the big mound, then low and wide until the flash.
+  const rise = ramp(t, 60, 260);
+  const settle = ramp(t, 900, 1_700);
+  const beforeFlash = 1 - ramp(t, 1_960, 2_020);
+  const moundAmp = lerp(62, 22, settle) * rise * beforeFlash;
+  const moundSigma = lerp(lerp(62, 92, ramp(t, 200, 900)), 135, settle);
+  // Phase C: the flash at 2.0s, peak to ~2.25s, gone by 2.7s, a thin waveform left until 3.0s.
+  const flash = ramp(t, 1_990, 2_050) * (1 - ramp(t, 2_250, 2_700));
+  const tail = ramp(t, 2_500, 2_650) * (1 - ramp(t, 2_750, 3_000));
+  const flashSigma = lerp(70, 105, ramp(t, 2_000, 2_300));
+  const flashAmp = 40 * flash + 7 * tail;
+  const flashLobeSigma = flash > 0 ? flashSigma : 135;
+  return {
+    up: flashAmp > moundAmp ? { amp: flashAmp, sigma: flashLobeSigma } : { amp: moundAmp, sigma: moundSigma },
+    down: { amp: 36 * flash + 6 * tail, sigma: flashLobeSigma },
+    glow: {
+      alpha: Math.max(0.95 * rise * beforeFlash * (1 - 0.5 * settle), flash),
+      rx: flash > 0.05 ? lerp(125, 165, ramp(t, 2_000, 2_300)) : moundSigma * 1.5,
+      ry: flash > 0.05 ? 32 : moundAmp * 0.9 + 8,
+    },
+    streaks: Math.max(62 * flash, 34 * ramp(t, 900, 1_300) * beforeFlash),
+  };
+}
+
+/** Rising sparks: a fixed set per kill, spawned 80-450ms after it (kills 2-5). */
+export type Spark = { x: number; y: number; bornMs: number; lifeMs: number; rise: number; size: number; phase: number };
+
+export function sparksFor(count: number, random: () => number): Spark[] {
+  if (count < 2 || count > 5) return [];
+  return Array.from({ length: [0, 0, 14, 22, 30, 44][count] }, () => ({
+    // Over the fan, mostly left of the column (which covers the right).
+    x: -58 + random() * 80,
+    y: -16 - random() * 36,
+    bornMs: 70 + random() * 450,
+    lifeMs: 450 + random() * 550,
+    rise: 40 + random() * (count === 5 ? 110 : 70),
+    size: 1.1 + random() * 1.1,
+    phase: random() * Math.PI * 2,
+  }));
+}
+
+/** Deterministic pseudo-random numbers (the same kill always draws the same spectrum). */
+export function seededRandom(seed: number): () => number {
+  let state = (seed * 2654435761) >>> 0 || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return ((state >>> 0) % 100_000) / 100_000;
+  };
+}
+
+/** Per-bar phases and speeds for the dancing heights. */
+export type BarSeeds = { phase: Float32Array; speed: Float32Array; weight: Float32Array };
+
+export function barSeedsFor(random: () => number): BarSeeds {
+  const count = Math.ceil(SPECTRUM_WIDTH / BAR_PITCH) + 1;
+  const phase = new Float32Array(count);
+  const speed = new Float32Array(count);
+  const weight = new Float32Array(count);
+  for (let index = 0; index < count; index += 1) {
+    phase[index] = random() * Math.PI * 2;
+    speed[index] = 14 + random() * 26;
+    weight[index] = 0.35 + random() * 0.65;
+  }
+  return { phase, speed, weight };
+}
+
+/** Height factor (0-1) of bar `index` at time `t` ms: two beating sines, like an audio visualiser. */
+function dance(seeds: BarSeeds, index: number, t: number): number {
+  const s = t / 1000;
+  const a = Math.abs(Math.sin(seeds.speed[index] * s + seeds.phase[index]));
+  const b = 0.55 + 0.45 * Math.sin(seeds.speed[index] * 0.37 * s + seeds.phase[index] * 1.7);
+  return seeds.weight[index] * (0.25 + 0.75 * a * b);
+}
+
+export type SpectrumColors = { core: string; glow: string };
+
+/**
+ * Paints one moment of a kill's spectrum into a context already scaled to canvas pixels
+ * (`SPECTRUM_WIDTH` x `SPECTRUM_HEIGHT`).
+ */
+export function drawKillSpectrum(ctx: CanvasRenderingContext2D, count: number, t: number, seeds: BarSeeds, sparks: readonly Spark[], colors: SpectrumColors): void {
+  ctx.clearRect(0, 0, SPECTRUM_WIDTH, SPECTRUM_HEIGHT);
+  const frame = spectrumFrame(count, t);
+  const cx = SPECTRUM_WIDTH / 2;
+  const cy = SPECTRUM_LINE_Y;
+  ctx.globalCompositeOperation = "lighter";
+
+  if (frame.glow.alpha > 0.01) {
+    // A wide soft haze, then a brighter inner mound; only above the line unless the flash mirrors the bars.
+    for (const [scaleX, scaleY, alpha] of [[1.35, 1.3, 0.75], [0.8, 0.85, 1]] as const) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(frame.glow.rx * scaleX, frame.glow.ry * scaleY);
+      const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      gradient.addColorStop(0, colors.core);
+      gradient.addColorStop(0.5, colors.glow);
+      gradient.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = frame.glow.alpha * alpha;
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      if (frame.down.amp > 0.5) ctx.arc(0, 0, 1, 0, Math.PI * 2);
+      else ctx.rect(-1, -1, 2, 1);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  const drawLobe = (lobe: Lobe, direction: -1 | 1) => {
+    if (lobe.amp < 0.5) return;
+    ctx.fillStyle = colors.core;
+    const reach = Math.min(cx - 2, lobe.sigma * 2.6);
+    for (let index = 0; index * BAR_PITCH <= SPECTRUM_WIDTH; index += 1) {
+      const x = index * BAR_PITCH - cx;
+      if (Math.abs(x) > reach) continue;
+      const envelope = Math.exp(-((x / lobe.sigma) ** 2));
+      const height = lobe.amp * envelope * dance(seeds, index, t + (direction === 1 ? 97 : 0));
+      if (height < 0.6) continue;
+      ctx.globalAlpha = 0.5 + 0.5 * envelope;
+      if (direction === -1) ctx.fillRect(cx + x - 0.7, cy - height, 1.4, height);
+      else ctx.fillRect(cx + x - 0.7, cy, 1.4, height);
+    }
+  };
+  drawLobe(frame.up, -1);
+  drawLobe(frame.down, 1);
+
+  if (frame.streaks > 0.5) {
+    // Tall, thin streaks rising over the fan.
+    for (let index = 0; index < 34; index += 1) {
+      const x = -44 + index * 2.6;
+      const height = 30 + frame.streaks * dance(seeds, index * 7, t) * Math.exp(-((x / 40) ** 2));
+      const gradient = ctx.createLinearGradient(0, cy - height - 40, 0, cy);
+      gradient.addColorStop(0, "rgba(0,0,0,0)");
+      gradient.addColorStop(0.6, colors.core);
+      gradient.addColorStop(1, colors.core);
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = gradient;
+      ctx.fillRect(cx + x - 0.6, cy - height - 40, 1.2, height + 40);
+    }
+  }
+
+  for (const spark of sparks) {
+    const age = t - spark.bornMs;
+    if (age < 0 || age > spark.lifeMs) continue;
+    const life = age / spark.lifeMs;
+    // Rises fast, slows down, twinkles, fades out.
+    const y = cy + spark.y - spark.rise * (1 - (1 - life) ** 2);
+    const alpha = (life < 0.15 ? life / 0.15 : 1 - (life - 0.15) / 0.85) * (0.65 + 0.35 * Math.sin(age / 40 + spark.phase));
+    ctx.globalAlpha = clamp01(alpha) * 0.35;
+    ctx.fillStyle = colors.glow;
+    ctx.beginPath();
+    ctx.arc(cx + spark.x, y, spark.size * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = clamp01(alpha);
+    ctx.fillStyle = colors.core;
+    ctx.beginPath();
+    ctx.arc(cx + spark.x, y, spark.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+}

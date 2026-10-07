@@ -9,15 +9,15 @@
    circle    blurred fill reads light grey to 250ms, normal by ~650ms
    card      new card: brightness 6 like the row; its white wash holds to 250ms and clears by 1050ms
    column    light column behind the new card along its angle: grows 17-67ms, full by 200ms, holds to
-             670ms, gone by 1000ms (kills 1-5)
-   sparks    kills 2-5: sparks rise from the strokes, 60-560ms
-   skyline   kills 4-5: glow and thin streaks along the strokes near the circle, 200-900ms
-   ace       kill 5: a wide flare along both strokes 2.0s later, 50-700ms
+             670ms, gone by 1000ms (kills 1-4); kill 5 holds to 950ms, gone by 1100ms
+   spectrum  kills 2-5: a canvas (spectrum.ts) of bars dancing along the strokes, a glow mound and rising
+             sparks; kill 5 adds the flash at 2.0s (row and circle flash again, a mirrored spindle of bars,
+             tall streaks over the cards) and a thin waveform until 3.0s
    counter   kill 6: the fan collapses behind the circle (100ms), the counter card rises (70ms), a halo
              around the circle 230-700ms; later kills flash the circle and card only
-   Shot: the clip jitters 50ms. Reload: the reserve icon drops and returns (300ms). Balance: each character
-   rolls to its new symbol in ~520ms. No text shadows (spec); the low-clip red glow is a blurred copy of the
-   number, as visible in game. */
+   Shot: the new clip number pops (bigger and paler, then a step down) for 3 frames. Reload: the reserve icon drops and returns (300ms). Balance: each character
+   rolls to its new symbol in ~520ms. No text shadows (spec); the low-clip red glow is drawn by blurred red copies
+   of the number hugging the glyph, as visible in game. */
 
 .bhud-overlay {
   position: fixed;
@@ -107,7 +107,7 @@
 }
 
 .bhud__disc-flash {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.62);
   opacity: 0;
 }
 
@@ -198,11 +198,36 @@
   transform-origin: 50% 50%;
 }
 
-/* Low clip: Panorama's red glow (0 0 9px #DD0000, strong in game) behind the washed number. */
-.bhud-weapon__clip-glow {
-  color: #dd0000;
-  -webkit-text-stroke: 7px #dd0000;
+.bhud-weapon__clip-label--pop,
+.bhud-weapon__clip-glow--pop {
+  animation: bhud-shot 50ms linear both;
+}
+
+.bhud[data-still] .bhud-weapon__clip-label--pop,
+.bhud[data-still] .bhud-weapon__clip-glow--pop {
+  animation: none;
+}
+
+/* Low clip: Panorama's red glow (0 0 9px #DD0000, strength 2.5) hugs the glyph in game: a tight red rim
+   and a softer halo, both behind the washed number. */
+.bhud-weapon__glow {
+  position: absolute;
+  inset: 0;
+  color: #e83000;
+}
+
+/* Panorama blurs the shadow by 9px at strength 2.5: a soft orange-red halo, no hard rim. */
+.bhud-weapon__glow--tight {
+  -webkit-text-stroke: 4px #e83000;
   filter: blur(4px);
+  opacity: 0.9;
+}
+
+.bhud-weapon__glow--wide {
+  color: #dd1a00;
+  -webkit-text-stroke: 8px #dd1a00;
+  filter: blur(9px);
+  opacity: 0.75;
 }
 
 /* #AmmoClipBar: 65 x 4 with a black 1px border, 14px above the panel bottom, anchored left. */
@@ -245,9 +270,9 @@
 
 .bhud-weapon__icon {
   display: block;
-  width: 18px;
-  height: 18px;
-  margin: -2px 0 0 4px;
+  width: 26px;
+  height: 26px;
+  margin: -1px 0 0 4px;
 }
 
 /* Kill cards: each card art is a 48 x 126 canvas drawn 152px high and centred on the circle centre, so the
@@ -367,72 +392,30 @@
 .bhud-burst__beam {
   position: absolute;
   left: 9px;
-  top: -170px;
+  top: -270px;
   width: 40px;
-  height: 216px;
+  height: 316px;
   background:
-    linear-gradient(to right, transparent 0, color-mix(in srgb, var(--bhud-light) 70%, transparent) 1px, transparent 3px,
-      transparent calc(100% - 3px), color-mix(in srgb, var(--bhud-light) 70%, transparent) calc(100% - 1px), transparent 100%),
-    linear-gradient(to top, color-mix(in srgb, var(--bhud-light) 85%, transparent) 0%,
-      color-mix(in srgb, var(--bhud-wash) 70%, transparent) 30%, color-mix(in srgb, var(--bhud-wash) 35%, transparent) 70%, transparent 100%);
+    linear-gradient(to right, color-mix(in srgb, var(--bhud-light) 90%, transparent) 0, transparent 2px,
+      transparent calc(100% - 2px), color-mix(in srgb, var(--bhud-light) 90%, transparent) 100%),
+    linear-gradient(to top, color-mix(in srgb, var(--bhud-light) 95%, transparent) 0%,
+      color-mix(in srgb, var(--bhud-wash) 85%, transparent) 25%, color-mix(in srgb, var(--bhud-wash) 60%, transparent) 70%,
+      color-mix(in srgb, var(--bhud-wash) 25%, transparent) 100%);
+  -webkit-mask: linear-gradient(to top, #000 70%, transparent);
+  mask: linear-gradient(to top, #000 70%, transparent);
   transform-origin: 50% 100%;
   animation: bhud-beam 1000ms linear both;
 }
 
-.bhud-burst__spark {
+.bhud-burst--ace .bhud-burst__beam {
+  animation: bhud-beam-ace 1100ms linear both;
+}
+
+.bhud-burst__spectrum {
   position: absolute;
-  left: var(--bhud-x);
-  top: var(--bhud-y);
-  width: var(--bhud-size);
-  height: var(--bhud-size);
-  margin: calc(var(--bhud-size) / -2) 0 0 calc(var(--bhud-size) / -2);
-  border-radius: 50%;
-  background: var(--bhud-light);
-  box-shadow: 0 0 4px var(--bhud-wash);
-  animation: bhud-spark 500ms ease-out both;
-}
-
-.bhud-burst__glow,
-.bhud-burst__ace-glow {
-  position: absolute;
-  background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--bhud-light) 75%, transparent) 0%,
-    color-mix(in srgb, var(--bhud-wash) 35%, transparent) 40%, transparent 72%);
-}
-
-.bhud-burst__glow {
-  left: -150px;
-  top: -26px;
-  width: 300px;
-  height: 27px;
-  animation: bhud-glow 900ms linear both;
-}
-
-.bhud-burst__ace-glow {
-  left: -270px;
-  top: -30px;
-  width: 540px;
-  height: 46px;
-  background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--bhud-light) 85%, transparent) 0%,
-    color-mix(in srgb, var(--bhud-wash) 45%, transparent) 40%, transparent 72%);
-  animation: bhud-ace 700ms linear 2000ms both;
-}
-
-.bhud-burst__streak {
-  position: absolute;
-  left: var(--bhud-x);
-  top: calc(-1 * var(--bhud-h));
-  width: 1.5px;
-  height: var(--bhud-h);
-  background: linear-gradient(to top, var(--bhud-light), transparent);
-  transform-origin: 50% 100%;
-  animation: bhud-streak 500ms ease-out both;
-}
-
-.bhud-burst__streak--ace {
-  top: calc(-0.7 * var(--bhud-h));
-  height: calc(var(--bhud-h) * 1.15);
-  background: linear-gradient(to top, transparent, var(--bhud-light) 30%, transparent);
-  animation-duration: 650ms;
+  width: 640px;
+  height: 240px;
+  color: var(--bhud-wash);
 }
 
 .bhud-burst__halo {
@@ -472,35 +455,23 @@
 }
 
 @keyframes bhud-beam {
-  0% { transform: scaleY(0.12); opacity: 0.5; }
-  6.7% { transform: scaleY(1); opacity: 0.8; }
+  0% { transform: scaleY(0.12); opacity: 0.6; }
+  6.7% { transform: scaleY(1); opacity: 0.85; }
   20%, 67% { transform: scaleY(1); opacity: 1; }
   100% { transform: scaleY(1); opacity: 0; }
 }
 
-@keyframes bhud-spark {
-  0% { transform: translateY(0); opacity: 0; }
-  20% { opacity: 1; }
-  100% { transform: translateY(var(--bhud-rise)); opacity: 0; }
+@keyframes bhud-beam-ace {
+  0% { transform: scaleY(0.12); opacity: 0.6; }
+  6% { transform: scaleY(1); opacity: 0.85; }
+  18%, 86% { transform: scaleY(1); opacity: 1; }
+  100% { transform: scaleY(1); opacity: 0; }
 }
 
-@keyframes bhud-glow {
-  0%, 22% { opacity: 0; }
-  40%, 78% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-@keyframes bhud-ace {
-  0% { opacity: 0; transform: scaleX(0.4); }
-  10% { opacity: 1; transform: scaleX(1); }
-  57% { opacity: 1; }
-  100% { opacity: 0; transform: scaleX(1); }
-}
-
-@keyframes bhud-streak {
-  0% { transform: scaleY(0); opacity: 0; }
-  30% { transform: scaleY(1); opacity: 1; }
-  100% { transform: scaleY(0.6); opacity: 0; }
+@keyframes bhud-shot {
+  0%, 33% { transform: scale(1.15) translate(-3px, -4px); color: color-mix(in srgb, var(--bhud-wash) 45%, #fff); }
+  34%, 66% { transform: translate(1px, 4px); color: color-mix(in srgb, var(--bhud-wash) 70%, #fff); }
+  67%, 100% { transform: none; color: var(--bhud-wash); }
 }
 
 @keyframes bhud-halo {

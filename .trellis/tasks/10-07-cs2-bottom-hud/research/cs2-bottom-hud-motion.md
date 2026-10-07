@@ -108,3 +108,20 @@ viewed locally from the game package as reference only; SLUI redraws what it nee
   reads as a brief hold on each passing digit.
 - Width: digits right-aligned in a fixed number of cells (CS2 pads to the width of "$16000"); fewer digits
   leave blank cells on the left.
+
+### Kill 5 in detail (second pass, after review)
+
+- 0-1 s: the column is opaque and bright, holds to ~950ms, gone by ~1100ms. Sparks: ~20-40 small dots over
+  the fan, mostly left of the column, rising 40-150px with a twinkle, 70-1000ms. Spectrum: a dense golden
+  haze mound around the circle (up to ~45-60px, +-70px) made of thin bars whose heights flicker every frame
+  like an audio visualiser; it widens along the strokes.
+- 1-2 s: the mound settles low and wide (+-130px) with tall thin streaks over the cards.
+- 2.0 s: the row flashes again (the emblem stays visible on its circle), a lens-shaped glow +-120-160px wide and
+  +-25-30px high with bars mirrored above and below the line, tall streaks over the cards; fades by ~2.7s, a thin
+  waveform along the line until ~3.0s.
+
+### Shot and low clip in detail
+
+- Shot (60 fps): frame 1 the new number is ~1.15x, shifted up-left and pale (gold -> pale yellow, not white);
+  frame 2 normal size ~4px lower; frame 3 normal.
+- Low clip: the glyph keeps its colour; a soft orange-red halo hugs it (Panorama 9px, strength 2.5), no hard rim.
