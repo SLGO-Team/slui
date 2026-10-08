@@ -1,4 +1,5 @@
-import { particleTexture, type ParticleTextureName } from "./textures.ts";
+import type { PanelRenderer } from "./gl.ts";
+import type { ParticleTextureName } from "./textures.ts";
 
 /**
  * A small particle engine for CS2's kill-streak effects (particles/ui/ammohealthcenter/ui_hud_kill_streaks_*),
@@ -7,7 +8,7 @@ import { particleTexture, type ParticleTextureName } from "./textures.ts";
  * sits 600 units in front of the origin with a 41 degree horizontal field of view (hudhealthammocenter.xml), so
  * one world unit is 2.005 px and z = 28 is the HUD line; +x points left on screen.
  *
- * Source 2 conventions used here: lifespans in seconds, `bias(x, b) = x ^ (ln b / ln 0.5)`, FadeAndKill fades
+ * Source 2 conventions used here: lifespans in seconds, `bias(x, b) = x / ((1 - x)(1 / b - 2) + 1)`, FadeAndKill fades
  * in over 0-0.5 of the life and out over 0.5-1 unless set, the continuous emitter's default rate is 100/s.
  */
 
@@ -27,8 +28,16 @@ export const toScreenX = (x: number) => CENTER_X - x * UNIT;
 export const toScreenY = (z: number) => LINE_Y - (z - LINE_Z) * UNIT;
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-export const bias = (x: number, b: number) => (b === 0.5 ? x : Math.pow(x, Math.log(b) / Math.log(0.5)));
+/** The engine's bias curve (0.5 is the identity). */
+export function bias(x: number, b: number): number {
+  if (b <= 0) return 0;
+  if (b >= 1) return 1;
+  return x / ((1 - x) * (1 / b - 2) + 1);
+}
 const lerp = (a: number, b: number, x: number) => a + (b - a) * x;
+
+/** `x` wrapped into 0..period (PF_INPUT_MODE_LOOPED). */
+export const loop = (x: number, period: number) => x - Math.floor(x / period) * period;
 
 /** Piecewise-linear lookup of a Source 2 curve (its spline points; the slopes are not needed at this size). */
 export function curve(points: readonly (readonly [number, number])[], x: number): number {
@@ -55,10 +64,8 @@ export function seededRandom(seed: number): () => number {
 }
 
 export type Particle = {
-  /** Pool slot when created (Source 2 PARTICLE_NUMBER), wrapping at the system's particle limit. */
+  /** Creation index (Source 2 PARTICLE_NUMBER; the systems' curves over it loop, PF_INPUT_MODE_LOOPED). */
   number: number;
-  /** Creation order, for path assignment. */
-  serial: number;
   born: number;
   life: number;
   x: number;
@@ -69,8 +76,10 @@ export type Particle = {
   radius: number;
   alpha0: number;
   alpha: number;
-  /** Grey level of the particle colour (the panel's wash tints it with the team colour). */
-  grey: number;
+  /** Particle colour, linear RGB (the panel's wash multiplies it by the team colour). */
+  color: Rgb;
+  /** The colour at creation (ColorInterpolate fades from it). */
+  color0: Rgb;
   rotation: number;
   texture: ParticleTextureName;
   /** Trail target and length factor (beam). */
@@ -80,13 +89,24 @@ export type Particle = {
   trail: number;
 };
 
+export type Rgb = readonly [number, number, number];
+export const WHITE: Rgb = [1, 1, 1];
+
 export type RenderPass = {
-  texture: ParticleTextureName;
+  /** "sequence": the particle's own texture (RandomSequence). */
+  texture: ParticleTextureName | "sequence";
   radiusScale: number;
   overbright: number;
   /** Sprites are squares; trails stretch the texture from the particle towards its target. */
   kind: "sprite" | "trail";
   lengthScale?: number;
+  forwardShift?: number;
+  /** m_flDesaturation: 1 draws the particle colour as grey. */
+  desaturation?: number;
+  /** m_bSaturateColorPreAlphaBlend (default on): overbright x colour clips at 1 before the alpha. */
+  saturate?: boolean;
+  /** m_flAddSelfAmount: the colour is scaled by 1 + this after the saturate. */
+  addSelf?: number;
 };
 
 export type SystemSpec = {
@@ -104,10 +124,10 @@ export type SystemSpec = {
   passes: readonly RenderPass[];
 };
 
-export function newParticle(number: number, serial: number, born: number): Particle {
+export function newParticle(number: number, born: number): Particle {
   return {
-    number, serial, born, life: 1, x: 0, z: 0, vx: 0, vz: 0, radius0: 1, radius: 1, alpha0: 1, alpha: 1, grey: 1, rotation: 0,
-    texture: "glow", trailX: 0, trailZ: 0, trail0: 0, trail: 0,
+    number, born, life: 1, x: 0, z: 0, vx: 0, vz: 0, radius0: 1, radius: 1, alpha0: 1, alpha: 1, color: WHITE, color0: WHITE, rotation: 0,
+    texture: "glow05", trailX: 0, trailZ: 0, trail0: 0, trail: 0,
   };
 }
 
@@ -133,8 +153,7 @@ export class ParticleSystem {
     const spec = this.spec;
     const spawn = (bornAt: number) => {
       if (this.particles.length >= spec.maxParticles) return;
-      // PARTICLE_NUMBER: the slot in the system's pool, which wraps at the particle limit.
-      const particle = newParticle(this.emitted % spec.maxParticles, this.emitted, bornAt);
+      const particle = newParticle(this.emitted, bornAt);
       this.emitted += 1;
       spec.init(particle, this.random, bornAt);
       particle.radius = particle.radius0;
@@ -169,82 +188,55 @@ export class ParticleSystem {
     return this.lastT !== null && this.lastT > this.spec.duration && this.particles.length === 0 && this.emitted > 0;
   }
 
-  draw(ctx: CanvasRenderingContext2D, tint: (name: ParticleTextureName) => HTMLCanvasElement): void {
+  draw(renderer: PanelRenderer): void {
     for (const pass of this.spec.passes) {
-      const texture = tint(pass.texture);
       for (const particle of this.particles) {
-        const strength = particle.alpha * particle.grey * pass.overbright;
-        if (strength <= 0.002) continue;
+        const texture = pass.texture === "sequence" ? particle.texture : pass.texture;
+        const alpha = particle.alpha * (1 + (pass.addSelf ?? 0));
+        if (alpha <= 1e-4) continue;
+        const paint = { color: tint(particle.color, pass.overbright, pass.desaturation ?? 0), alpha, saturate: pass.saturate ?? true };
         const x = toScreenX(particle.x);
         const y = toScreenY(particle.z);
         if (pass.kind === "sprite") {
-          const size = particle.radius * pass.radiusScale * UNIT * 2;
-          drawAdditive(ctx, texture, strength, () => {
-            ctx.translate(x, y);
-            ctx.rotate((-particle.rotation * Math.PI) / 180);
-            ctx.drawImage(texture, -size / 2, -size / 2, size, size);
-          });
-        } else {
-          // A band from the particle towards its target, as wide as the particle.
-          const tx = toScreenX(particle.trailX);
-          const ty = toScreenY(particle.trailZ);
-          const length = Math.hypot(tx - x, ty - y) * particle.trail * (pass.lengthScale ?? 1);
-          // Trail width: calibrated on the recording's ~45 px column (radius 18 at the start).
-          const width = particle.radius * pass.radiusScale * UNIT * 1.25;
-          const angle = Math.atan2(tx - x, -(ty - y));
-          drawAdditive(ctx, texture, strength, () => {
-            ctx.translate(x, y);
-            ctx.rotate(angle);
-            ctx.drawImage(texture, -width / 2, -length, width, length);
-          });
+          // Source 2 roll turns the sprite counter-clockwise as seen from the camera.
+          renderer.sprite(texture, x, y, particle.radius * pass.radiusScale * UNIT, (particle.rotation * Math.PI) / 180, paint);
+          continue;
         }
+        // A trail from the particle (head, texture v = 0) towards its target, as wide as the particle's diameter.
+        const tx = toScreenX(particle.trailX);
+        const ty = toScreenY(particle.trailZ);
+        const distance = Math.hypot(tx - x, ty - y);
+        if (distance < 1e-3) continue;
+        const length = distance * particle.trail * (pass.lengthScale ?? 1);
+        const half = particle.radius * pass.radiusScale * UNIT;
+        const ax = (tx - x) / distance;
+        const ay = (ty - y) / distance;
+        // m_flForwardShift moves the trail towards the head by that share of its length.
+        const shift = (pass.forwardShift ?? 0) * length;
+        const hx = x - ax * shift;
+        const hy = y - ay * shift;
+        const ex = hx + ax * length;
+        const ey = hy + ay * length;
+        // Across (-ay, ax) is the trail's left when looking from head to tail; texture u runs right to left.
+        renderer.quad(texture, [
+          [hx + ay * half, hy - ax * half], [hx - ay * half, hy + ax * half],
+          [ex - ay * half, ey + ax * half], [ex + ay * half, ey - ax * half],
+        ], paint);
       }
     }
   }
+}
+
+/** A particle colour scaled by `strength`, desaturated towards its luminance. */
+function tint([r, g, b]: Rgb, strength: number, desaturation: number): Rgb {
+  const grey = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return [lerp(r, grey, desaturation) * strength, lerp(g, grey, desaturation) * strength, lerp(b, grey, desaturation) * strength];
 }
 
 /**
- * Gain of the additive panel before tone mapping. CS2 adds the overbright particles in HDR and tone-maps the
- * panel; here they add at this gain into the 8-bit canvas and the canvas is tone-mapped by an SVG filter
- * (`TONE_TABLE`, (1 - e^(-4x)) / (1 - e^-4)), which lifts faint needles and compresses overlaps instead of clipping
- * them to white. Calibrated on the recording.
+ * Exposure of the panel's tone map, 1 - e^(-exposure x light): CS2 blends the overbright particles in linear HDR and
+ * tone-maps the panel, so overlaps compress instead of clipping. Calibrated on the recording.
  */
-export const PANEL_GAIN = 0.25;
-export const TONE_TABLE = "0.000 0.225 0.401 0.537 0.644 0.727 0.791 0.842 0.881 0.911 0.935 0.954 0.968 0.979 0.988 0.995 1.000";
-
-/** Additive draw; strengths above 1 (Source 2 overbright) stack extra passes. */
-function drawAdditive(ctx: CanvasRenderingContext2D, _texture: HTMLCanvasElement, strength: number, paint: () => void) {
-  let remaining = Math.min(strength * PANEL_GAIN, 3);
-  while (remaining > 0.002) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, remaining);
-    paint();
-    ctx.restore();
-    remaining -= 1;
-  }
-}
-
-/** White textures tinted once per colour. */
-export function tinter(color: string): (name: ParticleTextureName) => HTMLCanvasElement {
-  const cache = new Map<ParticleTextureName, HTMLCanvasElement>();
-  return (name) => {
-    let tinted = cache.get(name);
-    if (!tinted) {
-      const source = particleTexture(name);
-      tinted = document.createElement("canvas");
-      tinted.width = source.width;
-      tinted.height = source.height;
-      const ctx = tinted.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(source, 0, 0);
-        ctx.globalCompositeOperation = "source-in";
-        ctx.fillStyle = color;
-        ctx.fillRect(0, 0, tinted.width, tinted.height);
-      }
-      cache.set(name, tinted);
-    }
-    return tinted;
-  };
-}
+export const PANEL_EXPOSURE = 1.5;
 
 export { clamp01, lerp };

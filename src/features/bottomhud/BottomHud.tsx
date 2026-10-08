@@ -14,7 +14,8 @@ import {
   type KillCardsView,
   type KillCardView,
 } from "./presentation.ts";
-import { PANEL_HEIGHT, PANEL_LEFT, PANEL_TOP, PANEL_WIDTH, TONE_TABLE } from "./particles/engine.ts";
+import { PANEL_EXPOSURE, PANEL_HEIGHT, PANEL_LEFT, PANEL_TOP, PANEL_WIDTH } from "./particles/engine.ts";
+import { PanelRenderer } from "./particles/gl.ts";
 import { createKillParticles, KILL_PARTICLE_SECONDS } from "./particles/render.ts";
 import "./BottomHud.css";
 
@@ -120,50 +121,48 @@ function KillCards({ cards, burst }: { cards: KillCardsView; burst: Burst | null
   );
 }
 
+/** The team colour as display RGB 0..1 (the panel's wash). */
+function washOf(color: string): [number, number, number] {
+  const channels = color.match(/[\d.]+/g)?.slice(0, 3).map((value) => Number(value) / 255);
+  return channels?.length === 3 ? [channels[0], channels[1], channels[2]] : [1, 1, 1];
+}
+
 /**
- * One kill's CS2 particle effects (particles/kill-streak systems), simulated and painted every animation frame
- * into a canvas laid over CS2's 900 x 500 particle panel, from the time since the kill.
+ * One kill's CS2 particle effects (particles/kill-streak systems), simulated and rendered every animation frame
+ * into a WebGL canvas laid over CS2's 900 x 500 particle panel, from the time since the kill. Without WebGL2 float
+ * render targets the kill plays without particles.
  */
 function KillParticles({ count, seed, scale }: { count: number; seed: number; scale: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return undefined;
+    if (!canvas) return undefined;
     // Backing store in device pixels: the canvas sits on the scaled 1920x1080 overlay.
-    const ratio = Math.max(1, scale * window.devicePixelRatio);
-    canvas.width = Math.round(PANEL_WIDTH * ratio);
-    canvas.height = Math.round(PANEL_HEIGHT * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const paint = createKillParticles(count, seed, getComputedStyle(canvas).color);
+    const renderer = PanelRenderer.create(canvas, PANEL_WIDTH, PANEL_HEIGHT, Math.max(1, scale * window.devicePixelRatio));
+    if (!renderer) return undefined;
+    const wash = washOf(getComputedStyle(canvas).color);
+    const paint = createKillParticles(count, seed);
     const startedAt = performance.now();
     let frame = 0;
     const tick = (now: number) => {
       const t = (now - startedAt) / 1000;
-      paint(ctx, t);
-      if (t < KILL_PARTICLE_SECONDS) frame = requestAnimationFrame(tick);
-      else ctx.clearRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+      if (t >= KILL_PARTICLE_SECONDS) {
+        renderer.clear();
+        return;
+      }
+      renderer.begin();
+      paint(renderer, t);
+      renderer.end(wash, PANEL_EXPOSURE);
+      frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      renderer.dispose();
+    };
   }, [count, scale, seed]);
   // Placed relative to the circle centre (the burst origin).
-  return (
-    <>
-      {/* Tone mapping of the additive particle panel (see TONE_TABLE). */}
-      <svg className="bhud-burst__filters" aria-hidden="true">
-        <filter id="bhud-tonemap" colorInterpolationFilters="sRGB">
-          <feComponentTransfer>
-            <feFuncR type="table" tableValues={TONE_TABLE} />
-            <feFuncG type="table" tableValues={TONE_TABLE} />
-            <feFuncB type="table" tableValues={TONE_TABLE} />
-            <feFuncA type="table" tableValues={TONE_TABLE} />
-          </feComponentTransfer>
-        </filter>
-      </svg>
-      <canvas ref={canvasRef} className="bhud-burst__particles" style={{ left: PANEL_LEFT - 960, top: PANEL_TOP - 1028 }} />
-    </>
-  );
+  return <canvas ref={canvasRef} className="bhud-burst__particles" style={{ left: PANEL_LEFT - 960, top: PANEL_TOP - 1028 }} />;
 }
 
 /** The particle effects of one kill (CS2 draws the light column, glows and sparks with particle systems). */

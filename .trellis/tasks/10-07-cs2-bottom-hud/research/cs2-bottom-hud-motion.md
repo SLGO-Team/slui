@@ -164,3 +164,42 @@ CS2's own particle systems:
   per system against the 60 fps frames side by side (kill 5 at 0.15 / 0.35 / 0.6 / 0.9 / 1.3 / 2.08 / 2.25 /
   2.5 s), then check kills 2-4 and 6+, then remove `spectrum.ts` and its smoke tests, update the spec section 13
   motion text, run lint / test / audits, and ask the user for a visual review (PR #21 stays without auto-merge).
+
+### Session 2026-10-08 (afternoon) — renderer rewritten, resume here
+
+Pipeline now (`particles/gl.ts`): WebGL2, RGBA16F panel, spritecard maths per quad
+(`saturate(overbright x colour x tex.rgb)` unless the renderer disables it, x `smoothstep(0,1,tex.a)` x alpha,
+x (1 + addSelf)), additive or alpha-blended (masks = black alpha blend, drawn in the parent's child order), then
+per channel `1 - exp(-1.5 x light)` with NO sRGB encode, x team wash, alpha = max channel ("over" composite: CS2's
+saturated beam is exactly the wash colour (254,206,117) whatever is behind). Canvas has no CSS filter/blend.
+
+Authoritative findings (vtex sources, VRF reverse-engineered renderer — `Renderer/Shaders/particle_spritecard.frag.slang`,
+`Renderer/Particles/Renderers/RenderTrails.cs`, `ValveResourceFormat/Particles/AttributeMapping.cs`, `Utils/ParticleMath.cs`):
+- textures are sRGB (decode rgb; alpha linear); several keep the shape in alpha only (lens, soft_gradient,
+  simple_lines, glow_simple) — `textures.ts` stores [colour, alpha] pairs measured separately.
+- particle colours are /255, not decoded (decoding turned pale-blue sparks teal; recording is gold).
+- PARTICLE_NUMBER = creation index; lineglow warp curves (0..50) and radiate remap (0..90) are PF_INPUT_MODE_LOOPED
+  (gives the recording's 0.5 / 0.75 s outward sweeps — kymograph matches).
+- literal inputs ignore their curve map: killid TrailLength = 2.0 (x1.1) -> beam length 2.2 x |CP4-CP5| (matches).
+- bias = x / ((1-x)(1/b-2)+1); DistanceToCPInit bias applies to the remapped value clamped to 0..1.
+- FadeAndKill smoothstep; drag per 1/30 s; RANDOM_BIASED via BiasFromParameter (kill 2 rotation GAIN -0.9999 -> 0 or 90).
+- roll is counter-clockwise on screen (radiate -45 -> vertical streaks; fixed needle contrast and the 2.0 s flash).
+- field 38 = ManualAnimationFrame (irrelevant). Kill 2's ColorInterpolate window 0.5 -> 0.2 is applied clamped
+  (VRF would skip it, but the recording shows the cyan x gold green).
+- Panel geometry confirmed: line y 448 = z 28 = circle centre; CP1/CP2 (+-110, 0, 8); CP5/CP4 per level as listed.
+
+State vs recording (offline renders): kills 1-4 match well (beam, kill-2 green, sparks); kill 5 matches timing,
+spread and contrast. Known differences: radiate sits ~3 u above the line per spec, so light 0-30 px above the
+line is ~1.4x the recording (below the line matches) — unresolved, no spec basis for a shift; beam along-fade is
+fitted (`textures.ts` beam). Kill 6+ not checked (no recording).
+
+Next: (1) real-app check — `capture.mjs` frames came back all white (255) this session; investigate (headless Edge
+page/WebGL?) or use the Browser pane screenshot; check NTF light-blue wash and the cards-mask notch over real
+cards. (2) remove `spectrum.ts` + its smoke tests, add particle smoke tests (textures/systems are DOM-free).
+(3) spec section 13 text, lint/test/audits, commit, push PR #21, ask the user for visual review.
+
+Local tools (D:/Temp/slui-bh, never commit): `hb.mjs <count> <ms,...> <prefix>` (offline render in headless Edge
+on 9223 via the mock server; env ONLY=<system names>, NORAW=1, EXPOSURE=x; writes PNG + raw .f32),
+`hsbs.py` / `hdiff.py` / `hzoom.py` (CS2 vs SLUI over the pre-kill frame), `kymo2.py` (line kymograph),
+`hb/fr/k5.raw` (kill-5 frames 10.1 s + 2.7 s, 900x500 panel crop). Kill onsets in the kills recording:
+2.350 / 4.317 / 6.250 / 8.183 / 10.167 s. VRF sources downloaded in `vrf/`.
