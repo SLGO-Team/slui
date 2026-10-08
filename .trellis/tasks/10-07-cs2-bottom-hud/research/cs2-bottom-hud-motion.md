@@ -113,8 +113,9 @@ viewed locally from the game package as reference only; SLUI redraws what it nee
 
 - 0-1 s: the column is opaque and bright, holds to ~950ms, gone by ~1100ms. Sparks: ~20-40 small dots over
   the fan, mostly left of the column, rising 40-150px with a twinkle, 70-1000ms. Spectrum: a dense golden
-  haze mound around the circle (up to ~45-60px, +-70px) made of thin bars whose heights flicker every frame
-  like an audio visualiser; it widens along the strokes.
+  haze mound around the circle (up to ~45-60px, +-70px) textured with fine vertical hair lines ~3px apart;
+  consecutive 60 fps frames show the texture nearly still: the mound grows, widens along the strokes and
+  fades, the lines do not bounce (a first, flickering recreation read as a music player).
 - 1-2 s: the mound settles low and wide (+-130px) with tall thin streaks over the cards.
 - 2.0 s: the row flashes again (the emblem stays visible on its circle), a lens-shaped glow +-120-160px wide and
   +-25-30px high with bars mirrored above and below the line, tall streaks over the cards; fades by ~2.7s, a thin

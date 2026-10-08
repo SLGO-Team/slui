@@ -445,11 +445,13 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
 - Motion (CSS animations started on mount, WAAPI and one canvas on data changes, never the 250 ms UI clock):
   Panorama `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens; a
   light column along the new card's angle (kills 1-5; kill 5 holds it to ~950 ms). CS2's particle spectrum is
-  `spectrum.ts`, a canvas painted every animation frame from the time since the kill: bars dancing along the
-  strokes like an audio visualiser with a glow mound and rising sparks (kills 2-5, growing with the count);
+  `spectrum.ts`, a canvas painted every animation frame from the time since the kill: a translucent haze mound
+  along the strokes textured with fine hair lines (3px apart) that stay put and only drift slowly, a soft glow
+  and rising sparks (kills 2-5, growing with the count). Bars that bounce every frame read as a music player and
+  were rejected in review (2026-10-08): the shape grows, widens and fades, the texture does not dance;
   kill 5 settles low and wide, then at 2.0 s flashes the row again (not the circle fill: the emblem stays
   readable), draws a mirrored spindle of bars with a wide glow and tall streaks over the cards, and leaves a thin
-  waveform until 3.0 s. Static CSS streaks were rejected in review: the bars must move. At kill 6 the fan
+  waveform until 3.0 s. Static CSS streaks were rejected in review too: the haze must grow and fade with time. At kill 6 the fan
   collapses behind the circle and the counter rises with a halo. Shot: the remounted clip label pops for 3 frames
   (scale 1.15 up-left and paler, then 4px down), drawn with colour, not a brightness filter (a filter turns the
   team colour white and blurs the digits). Reload: the reserve icon drops and returns (300 ms); weapon change:

@@ -10,8 +10,8 @@
    card      new card: brightness 6 like the row; its white wash holds to 250ms and clears by 1050ms
    column    light column behind the new card along its angle: grows 17-67ms, full by 200ms, holds to
              670ms, gone by 1000ms (kills 1-4); kill 5 holds to 950ms, gone by 1100ms
-   spectrum  kills 2-5: a canvas (spectrum.ts) of bars dancing along the strokes, a glow mound and rising
-             sparks; kill 5 adds the flash at 2.0s (row and circle flash again, a mirrored spindle of bars,
+   spectrum  kills 2-5: a canvas (spectrum.ts): a haze mound with still hair lines along the strokes, a glow and rising
+             sparks; kill 5 adds the flash at 2.0s (the row flashes again, a mirrored spindle of haze,
              tall streaks over the cards) and a thin waveform until 3.0s
    counter   kill 6: the fan collapses behind the circle (100ms), the counter card rises (70ms), a halo
              around the circle 230-700ms; later kills flash the circle and card only

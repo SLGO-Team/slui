@@ -1,9 +1,11 @@
 /**
- * The kill "spectrum" CS2 draws with a particle system (ui_hud_kill_streaks_base): thin bars dancing along the
- * strokes like an audio visualiser, a glow mound behind the cards and sparks rising above them. Recreated as a
- * canvas drawn every animation frame from the time since the kill (recording, research file "Kill burst"):
+ * The kill "spectrum" CS2 draws with a particle system (ui_hud_kill_streaks_base): a smooth golden haze mound
+ * along the strokes, textured with fine vertical hair lines that stay put from frame to frame (they never dance
+ * like an audio visualiser; the shape only grows, widens and fades), a glow behind the cards and sparks rising
+ * above them. Recreated as a canvas drawn every animation frame from the time since the kill (recording,
+ * research file "Kill burst"):
  *
- * kills 2-4  a one-sided mound of bars around the circle that grows with the kill count, sparks 80-600ms
+ * kills 2-4  a one-sided haze mound around the circle that grows with the kill count, sparks 70-1000ms
  * kill 5     phase A (0-1s): the biggest mound, widening along the strokes; phase B (1-2s): it settles low and
  *            wide; phase C (2.0-2.7s): a flash, a mirrored spindle of bars above and below the line with a glow
  *            and tall streaks over the cards, then a thin waveform that fades by 3.0s
@@ -17,8 +19,8 @@ export const SPECTRUM_WIDTH = 640;
 export const SPECTRUM_HEIGHT = 240;
 /** The stroke line inside the canvas (the circle centre). */
 export const SPECTRUM_LINE_Y = 160;
-/** Bar pitch along the stroke. */
-const BAR_PITCH = 2;
+/** Column pitch of the haze outline and of the hair lines (recording: lines ~3px apart). */
+const BAR_PITCH = 3;
 
 /** One envelope of bars: peak height (px) at the centre and the gaussian half-width (px). */
 type Lobe = { amp: number; sigma: number };
@@ -113,7 +115,7 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
-/** Per-bar phases and speeds for the dancing heights. */
+/** Per-column phases, drift speeds and heights of the hair-line texture. */
 export type BarSeeds = { phase: Float32Array; speed: Float32Array; weight: Float32Array };
 
 export function barSeedsFor(random: () => number): BarSeeds {
@@ -123,18 +125,15 @@ export function barSeedsFor(random: () => number): BarSeeds {
   const weight = new Float32Array(count);
   for (let index = 0; index < count; index += 1) {
     phase[index] = random() * Math.PI * 2;
-    speed[index] = 14 + random() * 26;
-    weight[index] = 0.35 + random() * 0.65;
+    speed[index] = 0.8 + random() * 1.6;
+    weight[index] = 0.45 + random() * 0.55;
   }
   return { phase, speed, weight };
 }
 
-/** Height factor (0-1) of bar `index` at time `t` ms: two beating sines, like an audio visualiser. */
-function dance(seeds: BarSeeds, index: number, t: number): number {
-  const s = t / 1000;
-  const a = Math.abs(Math.sin(seeds.speed[index] * s + seeds.phase[index]));
-  const b = 0.55 + 0.45 * Math.sin(seeds.speed[index] * 0.37 * s + seeds.phase[index] * 1.7);
-  return seeds.weight[index] * (0.25 + 0.75 * a * b);
+/** Height factor (0-1) of column `index` at `t` ms: a fixed jagged comb with a slow drift (no flicker). */
+function comb(seeds: BarSeeds, index: number, t: number): number {
+  return seeds.weight[index] * (0.88 + 0.12 * Math.sin(seeds.speed[index] * t / 1000 + seeds.phase[index]));
 }
 
 export type SpectrumColors = { core: string; glow: string };
@@ -152,7 +151,7 @@ export function drawKillSpectrum(ctx: CanvasRenderingContext2D, count: number, t
 
   if (frame.glow.alpha > 0.01) {
     // A wide soft haze, then a brighter inner mound; only above the line unless the flash mirrors the bars.
-    for (const [scaleX, scaleY, alpha] of [[1.35, 1.3, 0.75], [0.8, 0.85, 1]] as const) {
+    for (const [scaleX, scaleY, alpha] of [[1.35, 1.3, 0.45], [0.8, 0.85, 0.55]] as const) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(frame.glow.rx * scaleX, frame.glow.ry * scaleY);
@@ -170,19 +169,40 @@ export function drawKillSpectrum(ctx: CanvasRenderingContext2D, count: number, t
     }
   }
 
+  const columns = Math.floor(SPECTRUM_WIDTH / BAR_PITCH) + 1;
+  // A haze filled under a softly jagged outline, then fine hair lines over it, fading away from the line.
   const drawLobe = (lobe: Lobe, direction: -1 | 1) => {
     if (lobe.amp < 0.5) return;
-    ctx.fillStyle = colors.core;
     const reach = Math.min(cx - 2, lobe.sigma * 2.6);
-    for (let index = 0; index * BAR_PITCH <= SPECTRUM_WIDTH; index += 1) {
+    const heights = new Float32Array(columns);
+    for (let index = 0; index < columns; index += 1) {
       const x = index * BAR_PITCH - cx;
-      if (Math.abs(x) > reach) continue;
-      const envelope = Math.exp(-((x / lobe.sigma) ** 2));
-      const height = lobe.amp * envelope * dance(seeds, index, t + (direction === 1 ? 97 : 0));
-      if (height < 0.6) continue;
-      ctx.globalAlpha = 0.5 + 0.5 * envelope;
-      if (direction === -1) ctx.fillRect(cx + x - 0.7, cy - height, 1.4, height);
-      else ctx.fillRect(cx + x - 0.7, cy, 1.4, height);
+      heights[index] = Math.abs(x) > reach ? 0 : lobe.amp * Math.exp(-((x / lobe.sigma) ** 2)) * comb(seeds, index, t);
+    }
+    const edge = cy + direction * lobe.amp * 1.15;
+    const haze = ctx.createLinearGradient(0, cy, 0, edge);
+    haze.addColorStop(0, colors.core);
+    haze.addColorStop(0.35, colors.glow);
+    haze.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = haze;
+    ctx.beginPath();
+    ctx.moveTo(cx - reach, cy);
+    for (let index = 0; index < columns; index += 1) {
+      // The outline follows the comb smoothed over neighbours: a soft, slightly ragged mound.
+      const smooth = (heights[Math.max(0, index - 1)] + heights[index] * 2 + heights[Math.min(columns - 1, index + 1)]) / 4;
+      ctx.lineTo(index * BAR_PITCH, cy + direction * smooth * 0.85);
+    }
+    ctx.lineTo(cx + reach, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = haze;
+    for (let index = 0; index < columns; index += 1) {
+      const height = heights[index] * 1.12;
+      if (height < 1) continue;
+      ctx.globalAlpha = 0.3 + 0.45 * seeds.weight[index];
+      if (direction === -1) ctx.fillRect(index * BAR_PITCH - 0.5, cy - height, 1, height);
+      else ctx.fillRect(index * BAR_PITCH - 0.5, cy, 1, height);
     }
   };
   drawLobe(frame.up, -1);
@@ -192,14 +212,14 @@ export function drawKillSpectrum(ctx: CanvasRenderingContext2D, count: number, t
     // Tall, thin streaks rising over the fan.
     for (let index = 0; index < 34; index += 1) {
       const x = -44 + index * 2.6;
-      const height = 30 + frame.streaks * dance(seeds, index * 7, t) * Math.exp(-((x / 40) ** 2));
+      const height = 30 + frame.streaks * comb(seeds, (index * 7) % seeds.weight.length, t) * Math.exp(-((x / 40) ** 2));
       const gradient = ctx.createLinearGradient(0, cy - height - 40, 0, cy);
       gradient.addColorStop(0, "rgba(0,0,0,0)");
       gradient.addColorStop(0.6, colors.core);
       gradient.addColorStop(1, colors.core);
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.45;
       ctx.fillStyle = gradient;
-      ctx.fillRect(cx + x - 0.6, cy - height - 40, 1.2, height + 40);
+      ctx.fillRect(cx + x - 0.5, cy - height - 40, 1, height + 40);
     }
   }
 
