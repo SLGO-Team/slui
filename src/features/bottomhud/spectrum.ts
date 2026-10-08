@@ -1,8 +1,8 @@
 /**
- * The kill "spectrum" CS2 draws with a particle system (ui_hud_kill_streaks_base): a smooth golden haze mound
- * along the strokes, textured with fine vertical hair lines that stay put from frame to frame (they never dance
- * like an audio visualiser; the shape only grows, widens and fades), a glow behind the cards and sparks rising
- * above them. Recreated as a canvas drawn every animation frame from the time since the kill (recording,
+ * The kill "spectrum" CS2 draws with a particle system (ui_hud_kill_streaks_base): needles along the strokes,
+ * wide at the line and sharp at the tip, whose bases blur into one glow over a soft fog mound; they stay put from
+ * frame to frame (no audio-visualiser bounce; the shape only grows, widens and fades), a glow behind the cards and
+ * sparks rising above them. Recreated as a canvas drawn every animation frame from the time since the kill (recording,
  * research file "Kill burst"):
  *
  * kills 2-4  a one-sided haze mound around the circle that grows with the kill count, sparks 70-1000ms
@@ -126,7 +126,7 @@ export function barSeedsFor(random: () => number): BarSeeds {
   for (let index = 0; index < count; index += 1) {
     phase[index] = random() * Math.PI * 2;
     speed[index] = 0.8 + random() * 1.6;
-    weight[index] = 0.45 + random() * 0.55;
+    weight[index] = 0.18 + 0.82 * random() ** 1.6;
   }
   return { phase, speed, weight };
 }
@@ -138,12 +138,41 @@ function comb(seeds: BarSeeds, index: number, t: number): number {
 
 export type SpectrumColors = { core: string; glow: string };
 
+/** Blur of the spike layer and of its bloom, in canvas pixels (recording: soft edges, merged bases). */
+const SPIKE_BLUR = 0.7;
+const FOG_BLUR = 9;
+const BLOOM_BLUR = 4;
+/** Base width of one spike: wider than the pitch, so neighbours overlap into one glow at the line. */
+const SPIKE_BASE = 3.8;
+
+/** A spike from the line: wide base, sharp tip (`direction` -1 up, 1 down). */
+function spike(ctx: CanvasRenderingContext2D, x: number, base: number, height: number, width: number, direction: -1 | 1) {
+  const tip = base + direction * height;
+  ctx.beginPath();
+  ctx.moveTo(x - width / 2, base);
+  // Concave flanks: the width stays at the base, the rest is a needle.
+  ctx.quadraticCurveTo(x - width * 0.04, base + direction * height * 0.18, x, tip);
+  ctx.quadraticCurveTo(x + width * 0.04, base + direction * height * 0.18, x + width / 2, base);
+  ctx.closePath();
+  ctx.fill();
+}
+
 /**
  * Paints one moment of a kill's spectrum into a context already scaled to canvas pixels
  * (`SPECTRUM_WIDTH` x `SPECTRUM_HEIGHT`).
  */
-export function drawKillSpectrum(ctx: CanvasRenderingContext2D, count: number, t: number, seeds: BarSeeds, sparks: readonly Spark[], colors: SpectrumColors): void {
+export function drawKillSpectrum(
+  ctx: CanvasRenderingContext2D,
+  layer: CanvasRenderingContext2D,
+  ratio: number,
+  count: number,
+  t: number,
+  seeds: BarSeeds,
+  sparks: readonly Spark[],
+  colors: SpectrumColors,
+): void {
   ctx.clearRect(0, 0, SPECTRUM_WIDTH, SPECTRUM_HEIGHT);
+  layer.clearRect(0, 0, SPECTRUM_WIDTH, SPECTRUM_HEIGHT);
   const frame = spectrumFrame(count, t);
   const cx = SPECTRUM_WIDTH / 2;
   const cy = SPECTRUM_LINE_Y;
@@ -151,7 +180,7 @@ export function drawKillSpectrum(ctx: CanvasRenderingContext2D, count: number, t
 
   if (frame.glow.alpha > 0.01) {
     // A wide soft haze, then a brighter inner mound; only above the line unless the flash mirrors the bars.
-    for (const [scaleX, scaleY, alpha] of [[1.35, 1.3, 0.45], [0.8, 0.85, 0.55]] as const) {
+    for (const [scaleX, scaleY, alpha] of [[1.4, 1.35, 0.6], [0.85, 0.9, 0.75]] as const) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(frame.glow.rx * scaleX, frame.glow.ry * scaleY);
@@ -170,58 +199,74 @@ export function drawKillSpectrum(ctx: CanvasRenderingContext2D, count: number, t
   }
 
   const columns = Math.floor(SPECTRUM_WIDTH / BAR_PITCH) + 1;
-  // A haze filled under a softly jagged outline, then fine hair lines over it, fading away from the line.
+  // Spikes go to a separate layer that is blurred as a whole: their bases overlap into one soft glow at the
+  // line, only the needle tips stay apart, and no edge is crisp.
   const drawLobe = (lobe: Lobe, direction: -1 | 1) => {
     if (lobe.amp < 0.5) return;
     const reach = Math.min(cx - 2, lobe.sigma * 2.6);
-    const heights = new Float32Array(columns);
-    for (let index = 0; index < columns; index += 1) {
-      const x = index * BAR_PITCH - cx;
-      heights[index] = Math.abs(x) > reach ? 0 : lobe.amp * Math.exp(-((x / lobe.sigma) ** 2)) * comb(seeds, index, t);
-    }
-    const edge = cy + direction * lobe.amp * 1.15;
-    const haze = ctx.createLinearGradient(0, cy, 0, edge);
-    haze.addColorStop(0, colors.core);
-    haze.addColorStop(0.35, colors.glow);
-    haze.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.globalAlpha = 0.32;
-    ctx.fillStyle = haze;
+    const fade = layer.createLinearGradient(0, cy, 0, cy + direction * lobe.amp * 1.2);
+    fade.addColorStop(0, colors.core);
+    fade.addColorStop(0.3, colors.glow);
+    fade.addColorStop(1, "rgba(0,0,0,0)");
+    layer.fillStyle = fade;
+    // The fog the needles grow out of: a smooth mound about half their height, heavily blurred.
+    const fog = ctx.createLinearGradient(0, cy, 0, cy + direction * lobe.amp * 0.7);
+    fog.addColorStop(0, colors.core);
+    fog.addColorStop(0.4, colors.glow);
+    fog.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.save();
+    ctx.filter = `blur(${FOG_BLUR * ratio}px)`;
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = fog;
     ctx.beginPath();
     ctx.moveTo(cx - reach, cy);
-    for (let index = 0; index < columns; index += 1) {
-      // The outline follows the comb smoothed over neighbours: a soft, slightly ragged mound.
-      const smooth = (heights[Math.max(0, index - 1)] + heights[index] * 2 + heights[Math.min(columns - 1, index + 1)]) / 4;
-      ctx.lineTo(index * BAR_PITCH, cy + direction * smooth * 0.85);
+    for (let x = -reach; x <= reach; x += BAR_PITCH) {
+      ctx.lineTo(cx + x, cy + direction * lobe.amp * 0.65 * Math.exp(-((x / (lobe.sigma * 1.1)) ** 2)));
     }
     ctx.lineTo(cx + reach, cy);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = haze;
+    ctx.restore();
     for (let index = 0; index < columns; index += 1) {
-      const height = heights[index] * 1.12;
+      const x = index * BAR_PITCH - cx;
+      if (Math.abs(x) > reach) continue;
+      const envelope = Math.exp(-((x / lobe.sigma) ** 2));
+      const height = lobe.amp * envelope * comb(seeds, index, t) * 1.5;
       if (height < 1) continue;
-      ctx.globalAlpha = 0.3 + 0.45 * seeds.weight[index];
-      if (direction === -1) ctx.fillRect(index * BAR_PITCH - 0.5, cy - height, 1, height);
-      else ctx.fillRect(index * BAR_PITCH - 0.5, cy, 1, height);
+      layer.globalAlpha = 0.55 + 0.45 * seeds.weight[index];
+      spike(layer, index * BAR_PITCH, cy, height, SPIKE_BASE * (0.7 + 0.3 * envelope), direction);
     }
   };
   drawLobe(frame.up, -1);
   drawLobe(frame.down, 1);
 
   if (frame.streaks > 0.5) {
-    // Tall, thin streaks rising over the fan.
-    for (let index = 0; index < 34; index += 1) {
-      const x = -44 + index * 2.6;
-      const height = 30 + frame.streaks * comb(seeds, (index * 7) % seeds.weight.length, t) * Math.exp(-((x / 40) ** 2));
-      const gradient = ctx.createLinearGradient(0, cy - height - 40, 0, cy);
-      gradient.addColorStop(0, "rgba(0,0,0,0)");
-      gradient.addColorStop(0.6, colors.core);
-      gradient.addColorStop(1, colors.core);
-      ctx.globalAlpha = 0.45;
-      ctx.fillStyle = gradient;
-      ctx.fillRect(cx + x - 0.5, cy - height - 40, 1, height + 40);
+    // Tall needles rising over the fan.
+    for (let index = 0; index < 30; index += 1) {
+      const x = -42 + index * 2.9;
+      const height = 40 + frame.streaks * comb(seeds, (index * 7) % seeds.weight.length, t) * Math.exp(-((x / 40) ** 2));
+      const gradient = layer.createLinearGradient(0, cy, 0, cy - height - 30);
+      gradient.addColorStop(0, colors.core);
+      gradient.addColorStop(0.55, colors.glow);
+      gradient.addColorStop(1, "rgba(0,0,0,0)");
+      layer.globalAlpha = 0.5;
+      layer.fillStyle = gradient;
+      spike(layer, cx + x, cy, height + 30, 2.4, -1);
     }
   }
+  layer.globalAlpha = 1;
+
+  // Bloom first (wide blur), then the softly blurred spikes over it.
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.filter = `blur(${BLOOM_BLUR * ratio}px)`;
+  ctx.globalAlpha = 0.4;
+  ctx.drawImage(layer.canvas, 0, 0);
+  ctx.filter = `blur(${SPIKE_BLUR * ratio}px)`;
+  ctx.globalAlpha = 1;
+  ctx.drawImage(layer.canvas, 0, 0);
+  ctx.restore();
+  ctx.globalCompositeOperation = "lighter";
 
   for (const spark of sparks) {
     const age = t - spark.bornMs;

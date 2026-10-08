@@ -411,11 +411,14 @@
   animation: bhud-beam-ace 1100ms linear both;
 }
 
+/* The circle hides what is behind it in game (its blur), so the spectrum has a hole there too. */
 .bhud-burst__spectrum {
   position: absolute;
   width: 640px;
   height: 240px;
   color: var(--bhud-wash);
+  -webkit-mask: radial-gradient(circle at 320px 160px, transparent 31.5px, #000 32px);
+  mask: radial-gradient(circle at 320px 160px, transparent 31.5px, #000 32px);
 }
 
 .bhud-burst__halo {

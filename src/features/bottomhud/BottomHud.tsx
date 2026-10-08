@@ -148,8 +148,15 @@ function KillSpectrum({ count, seed, scale }: { count: number; seed: number; sca
     canvas.width = Math.round(SPECTRUM_WIDTH * ratio);
     canvas.height = Math.round(SPECTRUM_HEIGHT * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    // The spikes are drawn off screen and blurred onto the canvas in one pass per frame.
+    const layerCanvas = document.createElement("canvas");
+    layerCanvas.width = canvas.width;
+    layerCanvas.height = canvas.height;
+    const layer = layerCanvas.getContext("2d");
+    if (!layer) return undefined;
+    layer.setTransform(ratio, 0, 0, ratio, 0, 0);
     const wash = getComputedStyle(canvas).color;
-    const colors = { core: `color-mix(in srgb, ${wash} 55%, #fff)`, glow: wash };
+    const colors = { core: `color-mix(in srgb, ${wash} 75%, #fff)`, glow: wash };
     // Canvas does not resolve color-mix(): mix it once through a probe.
     const probe = document.createElement("span");
     probe.style.color = colors.core;
@@ -161,7 +168,7 @@ function KillSpectrum({ count, seed, scale }: { count: number; seed: number; sca
     let frame = 0;
     const paint = (now: number) => {
       const t = now - startedAt;
-      drawKillSpectrum(ctx, count, t, seeds, sparks, colors);
+      drawKillSpectrum(ctx, layer, ratio, count, t, seeds, sparks, colors);
       if (t < duration) frame = requestAnimationFrame(paint);
     };
     frame = requestAnimationFrame(paint);

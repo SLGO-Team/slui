@@ -126,3 +126,6 @@ viewed locally from the game package as reference only; SLUI redraws what it nee
 - Shot (60 fps): frame 1 the new number is ~1.15x, shifted up-left and pale (gold -> pale yellow, not white);
   frame 2 normal size ~4px lower; frame 3 normal.
 - Low clip: the glyph keeps its colour; a soft orange-red halo hugs it (Panorama 9px, strength 2.5), no hard rim.
+- Texture (zoomed 60 fps frames, review 2026-10-08): every line is a needle, wide where it leaves the stroke and
+  sharp at the tip; neighbouring bases blur together into one glow, only the tips stay apart; all edges are
+  soft. Under the needles a blurred fog mound about half their height.

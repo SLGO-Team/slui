@@ -445,9 +445,11 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
 - Motion (CSS animations started on mount, WAAPI and one canvas on data changes, never the 250 ms UI clock):
   Panorama `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens; a
   light column along the new card's angle (kills 1-5; kill 5 holds it to ~950 ms). CS2's particle spectrum is
-  `spectrum.ts`, a canvas painted every animation frame from the time since the kill: a translucent haze mound
-  along the strokes textured with fine hair lines (3px apart) that stay put and only drift slowly, a soft glow
-  and rising sparks (kills 2-5, growing with the count). Bars that bounce every frame read as a music player and
+  `spectrum.ts`, a canvas painted every animation frame from the time since the kill: needles 3px apart along the
+  strokes, each wide at the line and tapering to a sharp tip, drawn on an off-screen layer and blurred as a whole
+  (0.7px, plus a 4px bloom) so their bases melt into one glow, over a heavily blurred fog mound (9px), with a soft
+  glow and rising sparks (kills 2-5, growing with the count); the needles stay put and only drift slowly.
+  Crisp, square bars read as a chart and were rejected in review (2026-10-08), as was a sharp-edged fog. Bars that bounce every frame read as a music player and
   were rejected in review (2026-10-08): the shape grows, widens and fades, the texture does not dance;
   kill 5 settles low and wide, then at 2.0 s flashes the row again (not the circle fill: the emblem stays
   readable), draws a mirrored spindle of bars with a wide glow and tall streaks over the cards, and leaves a thin
