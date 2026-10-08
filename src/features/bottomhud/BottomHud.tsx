@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { HudAmmo, HudKillKind, HudReserveIcon, Role } from "../../contracts/index.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
@@ -7,7 +7,6 @@ import {
   clipBarFraction,
   isLowClip,
   killCardsFor,
-  MAX_FANNED_KILLS,
   odometerCells,
   odometerRows,
   ODOMETER_SYMBOLS,
@@ -15,16 +14,8 @@ import {
   type KillCardsView,
   type KillCardView,
 } from "./presentation.ts";
-import {
-  barSeedsFor,
-  drawKillSpectrum,
-  seededRandom,
-  sparksFor,
-  spectrumDurationMs,
-  SPECTRUM_HEIGHT,
-  SPECTRUM_LINE_Y,
-  SPECTRUM_WIDTH,
-} from "./spectrum.ts";
+import { PANEL_HEIGHT, PANEL_LEFT, PANEL_TOP, PANEL_WIDTH, TONE_TABLE } from "./particles/engine.ts";
+import { createKillParticles, KILL_PARTICLE_SECONDS } from "./particles/render.ts";
 import "./BottomHud.css";
 
 const ASSETS = "/assets/bottomhud";
@@ -66,9 +57,6 @@ const WEAPON_CHANGE_KEYFRAMES: Keyframe[] = [{ transform: "scale(0.75)" }, { tra
 const animate = (element: Element | null, keyframes: Keyframe[], duration: number, easing = "linear") => {
   element?.animate(keyframes, { duration, easing });
 };
-
-/** The kill-5 flash repeats the row flash 2.0 s after the kill (recording). */
-const ACE_FLASH_DELAY_MS = 2_000;
 
 type Burst = {
   id: number;
@@ -132,61 +120,57 @@ function KillCards({ cards, burst }: { cards: KillCardsView; burst: Burst | null
   );
 }
 
-/** The bars, glow and sparks of one kill, painted every animation frame from the time since the kill. */
-function KillSpectrum({ count, seed, scale }: { count: number; seed: number; scale: number }) {
+/**
+ * One kill's CS2 particle effects (particles/kill-streak systems), simulated and painted every animation frame
+ * into a canvas laid over CS2's 900 x 500 particle panel, from the time since the kill.
+ */
+function KillParticles({ count, seed, scale }: { count: number; seed: number; scale: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { seeds, sparks } = useMemo(() => {
-    const random = seededRandom(seed);
-    return { seeds: barSeedsFor(random), sparks: sparksFor(count, random) };
-  }, [count, seed]);
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return undefined;
     // Backing store in device pixels: the canvas sits on the scaled 1920x1080 overlay.
     const ratio = Math.max(1, scale * window.devicePixelRatio);
-    canvas.width = Math.round(SPECTRUM_WIDTH * ratio);
-    canvas.height = Math.round(SPECTRUM_HEIGHT * ratio);
+    canvas.width = Math.round(PANEL_WIDTH * ratio);
+    canvas.height = Math.round(PANEL_HEIGHT * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    // The spikes are drawn off screen and blurred onto the canvas in one pass per frame.
-    const layerCanvas = document.createElement("canvas");
-    layerCanvas.width = canvas.width;
-    layerCanvas.height = canvas.height;
-    const layer = layerCanvas.getContext("2d");
-    if (!layer) return undefined;
-    layer.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const wash = getComputedStyle(canvas).color;
-    const colors = { core: `color-mix(in srgb, ${wash} 75%, #fff)`, glow: wash };
-    // Canvas does not resolve color-mix(): mix it once through a probe.
-    const probe = document.createElement("span");
-    probe.style.color = colors.core;
-    canvas.parentElement?.appendChild(probe);
-    colors.core = getComputedStyle(probe).color;
-    probe.remove();
+    const paint = createKillParticles(count, seed, getComputedStyle(canvas).color);
     const startedAt = performance.now();
-    const duration = spectrumDurationMs(count);
     let frame = 0;
-    const paint = (now: number) => {
-      const t = now - startedAt;
-      drawKillSpectrum(ctx, layer, ratio, count, t, seeds, sparks, colors);
-      if (t < duration) frame = requestAnimationFrame(paint);
+    const tick = (now: number) => {
+      const t = (now - startedAt) / 1000;
+      paint(ctx, t);
+      if (t < KILL_PARTICLE_SECONDS) frame = requestAnimationFrame(tick);
+      else ctx.clearRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
     };
-    frame = requestAnimationFrame(paint);
+    frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [count, scale, seeds, sparks]);
-  return <canvas ref={canvasRef} className="bhud-burst__spectrum" style={{ top: -SPECTRUM_LINE_Y, left: -SPECTRUM_WIDTH / 2 }} />;
+  }, [count, scale, seed]);
+  // Placed relative to the circle centre (the burst origin).
+  return (
+    <>
+      {/* Tone mapping of the additive particle panel (see TONE_TABLE). */}
+      <svg className="bhud-burst__filters" aria-hidden="true">
+        <filter id="bhud-tonemap" colorInterpolationFilters="sRGB">
+          <feComponentTransfer>
+            <feFuncR type="table" tableValues={TONE_TABLE} />
+            <feFuncG type="table" tableValues={TONE_TABLE} />
+            <feFuncB type="table" tableValues={TONE_TABLE} />
+            <feFuncA type="table" tableValues={TONE_TABLE} />
+          </feComponentTransfer>
+        </filter>
+      </svg>
+      <canvas ref={canvasRef} className="bhud-burst__particles" style={{ left: PANEL_LEFT - 960, top: PANEL_TOP - 1028 }} />
+    </>
+  );
 }
 
-/** Light column along the new card, the spectrum, and the halo of the counter card (particle systems in CS2). */
+/** The particle effects of one kill (CS2 draws the light column, glows and sparks with particle systems). */
 function KillBurst({ burst, scale }: { burst: Burst; scale: number }) {
-  const fanned = burst.count <= MAX_FANNED_KILLS;
   return (
-    <div className={`bhud-burst${burst.count === MAX_FANNED_KILLS ? " bhud-burst--ace" : ""}`} aria-hidden="true">
-      {fanned ? (
-        <div className="bhud-burst__column" style={poseStyle(burst.pose)}><span className="bhud-burst__beam" /></div>
-      ) : null}
-      {spectrumDurationMs(burst.count) > 0 ? <KillSpectrum count={burst.count} seed={burst.id * 97 + burst.count} scale={scale} /> : null}
-      {burst.collapsing ? <span className="bhud-burst__halo" /> : null}
+    <div className="bhud-burst" aria-hidden="true">
+      <KillParticles count={burst.count} seed={burst.id * 97 + burst.count} scale={scale} />
     </div>
   );
 }
@@ -280,16 +264,12 @@ function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: bool
     if (burst === null) return;
     animate(litRef.current, ON_KILL_KEYFRAMES, 700);
     animate(discRef.current, DISC_FLASH_KEYFRAMES, 700);
-    if (burst.count !== MAX_FANNED_KILLS) return;
-    // The second flash brightens the row only: the emblem stays readable on its dark circle (recording).
-    litRef.current?.animate(ON_KILL_KEYFRAMES, { duration: 700, delay: ACE_FLASH_DELAY_MS });
   }, [burst]);
 
   const cards = killCardsFor(view.kills);
   return (
     <div className="bhud" data-role={view.role} data-still={still ? "true" : undefined}
       style={{ "--bhud-wash": ROLE_COLORS[view.role] } as CSSProperties}>
-      {burst !== null ? <KillBurst key={burst.id} burst={burst} scale={scale} /> : null}
       <KillCards cards={cards} burst={burst} />
       <div ref={litRef} className="bhud__lit">
         <span className="bhud__stroke bhud__stroke--left" aria-hidden="true" />
@@ -302,6 +282,7 @@ function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: bool
         </div>
         {view.ammo ? <Weapon ammo={view.ammo} still={still} /> : null}
       </div>
+      {burst !== null ? <KillBurst key={burst.id} burst={burst} scale={scale} /> : null}
     </div>
   );
 }

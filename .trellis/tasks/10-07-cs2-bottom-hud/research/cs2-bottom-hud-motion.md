@@ -130,3 +130,37 @@ viewed locally from the game package as reference only; SLUI redraws what it nee
 - Texture (zoomed 60 fps frames, review 2026-10-08): every line is a needle, wide where it leaves the stroke and
   sharp at the tip; neighbouring bases blur together into one glow, only the tips stay apart; all edges are
   soft. Under the needles a blurred fog mound about half their height.
+
+## Particle port (in progress, 2026-10-08) — resume here
+
+The user asked for a pixel-level match of the kill effect. Fitting shapes by eye (`spectrum.ts`, now unused by
+the component; kept only for its smoke tests until removed) was rejected four times. The current approach ports
+CS2's own particle systems:
+
+- Source: the game's `particles/ui/ammohealthcenter/ui_hud_kill_streaks_*.vpcf` (decompiled locally with
+  Source2Viewer-CLI from the CS2 VPK; reference only, never committed). The HUD plays them in a
+  `ParticleScenePanel` 900 x 500, `cameraOrigin 0 600 127`, `lookAt 0 0 127`, `fov 41`, additive, washed with the
+  team colour (`hudhealthammocenter.xml`, `particle_controls.css` `.UiParticlePanelAmmoCenter`).
+- Per kill level the parent system starts children (no delays): 1 killid+motion+circlemsk; 2 adds lineglow and
+  circle_flash; 3 glow, lineglow_lvl3, splash; 4 splash_cubes, glow, cards_mask, lineglow_lvl3, splash,
+  circle_flash; 5 glow_5, lineglow_lvl5, splash_cubes_lvl5, cards_mask, radiate, killid, splash_many, motion,
+  circlemsk, circle_flash; 6+ (_many) glow, motion, circlemsk, circle_flash. Control points: CP1 (110, 8),
+  CP2 (-110, 8), beam CP5 -> CP4 = (0,30)->(0,90) / (-1,30)->(-8,90) / (-2,30)->(-14.5,90) / (-3,30)->(-22,88) /
+  (-5,30)->(-29,88), CP11.x dim 0.9/0.9/0.9/0.5/0, CP10.x 4/5 (cards mask size). Masks (motion band under the
+  line, circlemsk disc, cards_mask) live 2 s; kill 5's radiate (120/s for 2 s, life 1 s) outlives them: that is
+  the "spindle" flash at 2.0 s (needles and glow then also show below the line).
+- The kill-5 "needles" are lineglow_lvl5: anamorphic-lens sprites rotated 90 degrees (vertical), 25 instant +
+  100/s for 2 s, life 0.5 s, radius 15 x DistanceToCPInit (1.5 near the centre -> 0.2 at 55 units, bias 0.29),
+  x warped by particle number (0..0.55 of the path), InterpolateRadius 0.25 -> 2 (bias 0.8), FadeAndKill from 0.
+- Code: `src/features/bottomhud/particles/` — `engine.ts` (systems, Source 2 conventions, unit 2.005 px per unit
+  with the horizontal fov; a vertical fov made everything half the recorded size), `systems.ts` (ported specs),
+  `textures.ts` (analytic textures fitted to the measured luminance profiles: glow exp(-r/0.12), lens line 2 %
+  thick, flare_007b gaussian 0.13, rays, beam), `render.ts` (ring flash, masks, paint per frame). BottomHud mounts
+  one canvas per kill over the whole row (CS2's panel is the HUD's last child).
+- Open problems at hand-off: overall energy and tone mapping (`PANEL_GAIN` + the SVG tone-map filter
+  `TONE_TABLE`, k = 4: currently far too bright/white and the glow from `glow`/`radiate` dominates); the
+  needles still read weaker than in the recording; the beam is too wide/soft compared with the game's
+  saturated column; colour (the light NTF blue saturates to white sooner than CS2's gold). Next steps: calibrate
+  per system against the 60 fps frames side by side (kill 5 at 0.15 / 0.35 / 0.6 / 0.9 / 1.3 / 2.08 / 2.25 /
+  2.5 s), then check kills 2-4 and 6+, then remove `spectrum.ts` and its smoke tests, update the spec section 13
+  motion text, run lint / test / audits, and ask the user for a visual review (PR #21 stays without auto-merge).

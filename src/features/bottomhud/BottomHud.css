@@ -8,13 +8,11 @@
    row       numbers, strokes, emblem: brightness 6 to 210ms, ease-out to 1 by 700ms (Panorama on-kill)
    circle    blurred fill reads light grey to 250ms, normal by ~650ms
    card      new card: brightness 6 like the row; its white wash holds to 250ms and clears by 1050ms
-   column    light column behind the new card along its angle: grows 17-67ms, full by 200ms, holds to
-             670ms, gone by 1000ms (kills 1-4); kill 5 holds to 950ms, gone by 1100ms
-   spectrum  kills 2-5: a canvas (spectrum.ts): a haze mound with still hair lines along the strokes, a glow and rising
-             sparks; kill 5 adds the flash at 2.0s (the row flashes again, a mirrored spindle of haze,
-             tall streaks over the cards) and a thin waveform until 3.0s
-   counter   kill 6: the fan collapses behind the circle (100ms), the counter card rises (70ms), a halo
-             around the circle 230-700ms; later kills flash the circle and card only
+   particles CS2's kill-streak particle systems ported to a canvas engine (particles/): the light column, line
+             glows, starbursts, sparks and the circle ring flash per kill level, under the black occluders the
+             game draws for 2 s (below the line, the circle, the card fan); kill 5's starbursts outlive them,
+             which is the flash 2.0 s after the fifth kill
+   counter   kill 6: the fan collapses behind the circle (100ms), the counter card rises (70ms)
    Shot: the new clip number pops (bigger and paler, then a step down) for 3 frames. Reload: the reserve icon drops and returns (300ms). Balance: each character
    rolls to its new symbol in ~520ms. No text shadows (spec); the low-clip red glow is drawn by blurred red copies
    of the number hugging the glyph, as visible in game. */
@@ -372,7 +370,8 @@
   animation: bhud-rise 70ms ease-out 100ms both;
 }
 
-/* Burst effects, positioned from the circle centre. */
+/* Kill particles (particles/render.ts), drawn over the whole row like CS2's particle panel, which is the last
+   child of the HUD; positioned from the circle centre. */
 .bhud-burst {
   position: absolute;
   left: 400px;
@@ -381,57 +380,17 @@
   height: 0;
 }
 
-.bhud-burst__column {
+.bhud-burst__particles {
   position: absolute;
-  left: -29px;
-  top: -76px;
-  width: 58px;
-  height: 152px;
-  transform: translate(var(--bhud-card-x), var(--bhud-card-y)) rotate(var(--bhud-card-deg));
+  width: 900px;
+  height: 500px;
+  filter: url(#bhud-tonemap);
 }
 
-.bhud-burst__beam {
+.bhud-burst__filters {
   position: absolute;
-  left: 9px;
-  top: -270px;
-  width: 40px;
-  height: 316px;
-  background:
-    linear-gradient(to right, color-mix(in srgb, var(--bhud-light) 90%, transparent) 0, transparent 2px,
-      transparent calc(100% - 2px), color-mix(in srgb, var(--bhud-light) 90%, transparent) 100%),
-    linear-gradient(to top, color-mix(in srgb, var(--bhud-light) 95%, transparent) 0%,
-      color-mix(in srgb, var(--bhud-wash) 85%, transparent) 25%, color-mix(in srgb, var(--bhud-wash) 60%, transparent) 70%,
-      color-mix(in srgb, var(--bhud-wash) 25%, transparent) 100%);
-  -webkit-mask: linear-gradient(to top, #000 70%, transparent);
-  mask: linear-gradient(to top, #000 70%, transparent);
-  transform-origin: 50% 100%;
-  animation: bhud-beam 1000ms linear both;
-}
-
-.bhud-burst--ace .bhud-burst__beam {
-  animation: bhud-beam-ace 1100ms linear both;
-}
-
-/* The circle hides what is behind it in game (its blur), so the spectrum has a hole there too. */
-.bhud-burst__spectrum {
-  position: absolute;
-  width: 640px;
-  height: 240px;
-  color: var(--bhud-wash);
-  -webkit-mask: radial-gradient(circle at 320px 160px, transparent 31.5px, #000 32px);
-  mask: radial-gradient(circle at 320px 160px, transparent 31.5px, #000 32px);
-}
-
-.bhud-burst__halo {
-  position: absolute;
-  left: -58px;
-  top: -58px;
-  width: 116px;
-  height: 116px;
-  border-radius: 50%;
-  background: radial-gradient(circle, transparent 26px, color-mix(in srgb, var(--bhud-light) 55%, transparent) 31px,
-    color-mix(in srgb, var(--bhud-wash) 20%, transparent) 42px, transparent 58px);
-  animation: bhud-halo 700ms linear both;
+  width: 0;
+  height: 0;
 }
 
 .bhud[data-still] .bhud-burst {
@@ -458,28 +417,9 @@
   to { transform: translate(0, 0); opacity: 1; }
 }
 
-@keyframes bhud-beam {
-  0% { transform: scaleY(0.12); opacity: 0.6; }
-  6.7% { transform: scaleY(1); opacity: 0.85; }
-  20%, 67% { transform: scaleY(1); opacity: 1; }
-  100% { transform: scaleY(1); opacity: 0; }
-}
-
-@keyframes bhud-beam-ace {
-  0% { transform: scaleY(0.12); opacity: 0.6; }
-  6% { transform: scaleY(1); opacity: 0.85; }
-  18%, 86% { transform: scaleY(1); opacity: 1; }
-  100% { transform: scaleY(1); opacity: 0; }
-}
-
 @keyframes bhud-shot {
   0%, 33% { transform: scale(1.15) translate(-3px, -4px); color: color-mix(in srgb, var(--bhud-wash) 45%, #fff); }
   34%, 66% { transform: translate(1px, 4px); color: color-mix(in srgb, var(--bhud-wash) 70%, #fff); }
   67%, 100% { transform: none; color: var(--bhud-wash); }
 }
 
-@keyframes bhud-halo {
-  0%, 33% { opacity: 0; }
-  50%, 70% { opacity: 1; }
-  100% { opacity: 0; }
-}
