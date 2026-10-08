@@ -230,15 +230,16 @@
   opacity: 0.75;
 }
 
-/* #AmmoClipBar: 65 x 4 with a black 1px border, 14px above the panel bottom, anchored left. */
+/* #AmmoClipBar: 65 wide, its fill 2px high at y 1047-1048, anchored left. Panorama declares a 4px bar with a
+   black 1px border, but the recording shows neither the border nor the extra height: only the 2px line over a
+   faint track. */
 .bhud-weapon__bar {
   position: absolute;
   left: 2.5px;
-  bottom: 14px;
+  bottom: 15px;
   width: 65px;
-  height: 4px;
-  border: 1px solid #000;
-  background: rgba(255, 255, 255, 0.1);
+  height: 2px;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .bhud-weapon__bar-fill {

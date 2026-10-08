@@ -59,8 +59,9 @@ viewed locally from the game package as reference only; SLUI redraws what it nee
 - Big numbers (`hud-HA-health_or_ammo-label`): Stratum2 bold TF 42px, label 70px wide, centred text.
   Left number block right-aligned 200px left of the circle panel edge (`margin-right: 200px`), right block
   starts 200px right of it (`margin-left: 200px`): clip label x 1192-1262 (recording: "30" ink 1205-1250).
-- Clip bar `#AmmoClipBar`: 65 x 4, 1px black border, 14px above the panel bottom, track
-  `rgba(255,255,255,0.1)`, fill = wash colour, anchored left. Low clip: fill red with `#DD0000` 5px glow.
+- Clip bar `#AmmoClipBar`: Panorama says 65 x 4 with a 1px black border and track `rgba(255,255,255,0.1)`; the
+  recording shows a 2px line at y 1047-1048 (fill = wash colour, anchored left) over a faint grey track (~0.18
+  white) and no dark border. Low clip: fill red with `#DD0000` 5px glow.
 - Reserve label: Stratum2 bold TF 32px right after the clip; reserve icon box 32 wide, icon 18px high,
   margin-left 4px, y -1px.
 - Kill cards: every card image is a 48 x 126 viewBox drawn at 152px height (57.9 x 152), centred on the

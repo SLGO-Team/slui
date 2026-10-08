@@ -140,10 +140,11 @@ for (const expected of SCENES) {
   } else {
     assert.equal(audit.clip, expected.clip, `${label} clip`);
     assert.equal(audit.reserve, expected.reserve, `${label} reserve`);
-    // Clip label 70px from x 1192; clip bar 65 x 4 (+1px border), 14px above the row bottom.
+    // Clip label 70px from x 1192; clip bar 65 x 2 at y 1047-1048, no border (recording).
     nearX(audit.clipBox.x, 1192, `${label} clip x`);
     nearSize(audit.bar.width, 65, `${label} clip bar width`);
-    nearY(audit.bar.bottom, 1050, `${label} clip bar bottom`);
+    nearSize(audit.bar.height, 2, `${label} clip bar height`);
+    nearY(audit.bar.bottom, 1049, `${label} clip bar bottom`);
     assert.equal(audit.low, expected.low ? "true" : null, `${label} low clip`);
   }
   // Kill cards: the fan for 1-5 (only the top card numbered, none on the ace), one counter card from 6.

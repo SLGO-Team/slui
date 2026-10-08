@@ -434,8 +434,8 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
 - Geometry at 1080p (recording, Panorama for proportions): row 800 x 72 at x 560 / y 992, circle 64px centred
   at (960, 1028) with a 2px ring and a `rgba(0,0,0,0.5)` fill (denser than CS2's blur, see section 11); strokes
   1px, 184px each from the circle outwards; numbers `Stratum2 HUD Timer` 42px; balance right edge at x 710 in
-  at least six odometer cells (CS2 pads to "$16000"); clip label 70px from x 1192 with a 65 x 4 bar (1px black
-  border) 14px above the row bottom; reserve 32px then a 26px reserve icon (user review 2026-10-07: 18px read
+  at least six odometer cells (CS2 pads to "$16000"); clip label 70px from x 1192 with a 65 x 2 bar at y 1047-1048
+  over a faint track (Panorama's 1px black border and 4px height do not show in game, user review 2026-10-08); reserve 32px then a 26px reserve icon (user review 2026-10-07: 18px read
   too small for the slim round).
 - Kill cards: every card is a 48 x 126 canvas drawn 152px high centred on the circle centre, so the Panorama
   fan (`KILL_FAN`, exact `translate3d` + `rotateZ` per count, 0.2 s transition) turns about the circle. Kills
