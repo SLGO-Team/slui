@@ -57,12 +57,16 @@ function drawCircleMask(renderer: PanelRenderer) {
   for (let index = 0; index < 6; index += 1) renderer.sprite("disc", toScreenX(0), toScreenY(28), 25 * UNIT, 0, BLACK, "alpha");
 }
 
-/** cards_mask: a glow_simple_01 trail of radius x2 from z 20 to 20 + 45 x 1.05, its head (bottom) narrowed by the taper. */
+/**
+ * cards_mask: a glow_simple_01 trail of radius x2 from z 20 to 20 + 45 x 1.05, its head (bottom) narrowed by the
+ * taper; like every trail no wider than it is long (m_flConstrainRadiusToLengthRatio 1), so 47.25 units at most.
+ */
 function drawCardsMask(renderer: PanelRenderer, mask: CardsMask) {
   const cx = toScreenX(0);
   const head = toScreenY(20);
-  const tail = toScreenY(20 + 45 * 1.05);
-  const half = mask.radius * 2 * UNIT;
+  const length = 45 * 1.05;
+  const tail = toScreenY(20 + length);
+  const half = Math.min(mask.radius * 2, length) * UNIT;
   const headHalf = half * mask.taper;
   renderer.quad("disc", [[cx - half, tail], [cx + half, tail], [cx + headHalf, head], [cx - headHalf, head]], BLACK, "alpha");
 }

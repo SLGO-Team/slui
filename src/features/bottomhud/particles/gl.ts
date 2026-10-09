@@ -11,11 +11,14 @@ import { particleTexture, type ParticleTextureName } from "./textures.ts";
 /** "add": light added (PARTICLE_OUTPUT_BLEND_MODE_ADD); "alpha": laid over what is below (the default blend; black for the masks). */
 export type BlendMode = "add" | "alpha";
 
-/** A quad's colour: overbright x particle colour, its alpha, and whether the colour saturates before the alpha (m_bSaturateColorPreAlphaBlend). */
-export type QuadPaint = { color: Rgb; alpha: number; saturate: boolean };
+/**
+ * A quad's colour: overbright x particle colour, its alpha, whether the colour saturates before the alpha
+ * (m_bSaturateColorPreAlphaBlend) and how far colour x texture is pulled towards its luminance (m_flDesaturation).
+ */
+export type QuadPaint = { color: Rgb; alpha: number; saturate: boolean; desaturation?: number };
 
-/** Floats per vertex: x, y (panel px), u, v, colour (linear RGB), alpha, saturate flag. */
-const STRIDE = 9;
+/** Floats per vertex: x, y (panel px), u, v, colour (linear RGB), alpha, saturate flag, desaturation. */
+const STRIDE = 10;
 const MAX_QUADS = 2048;
 
 const VERTEX = `#version 300 es
@@ -24,16 +27,19 @@ in vec2 aUv;
 in vec3 aColor;
 in float aAlpha;
 in float aSaturate;
+in float aDesaturation;
 uniform vec2 uSize;
 out vec2 vUv;
 out vec3 vColor;
 out float vAlpha;
 out float vSaturate;
+out float vDesaturation;
 void main() {
   vUv = aUv;
   vColor = aColor;
   vAlpha = aAlpha;
   vSaturate = aSaturate;
+  vDesaturation = aDesaturation;
   gl_Position = vec4(aPosition.x / uSize.x * 2.0 - 1.0, 1.0 - aPosition.y / uSize.y * 2.0, 0.0, 1.0);
 }`;
 
@@ -43,15 +49,18 @@ in vec2 vUv;
 in vec3 vColor;
 in float vAlpha;
 in float vSaturate;
+in float vDesaturation;
 uniform sampler2D uTexture;
 out vec4 color;
-// The spritecard shader: colour x texture colour, saturated unless the renderer turns that off, times alpha; the
-// texture alpha goes through the default alpha remap (smoothstep from 0 to 1), which darkens soft tails.
+// The spritecard shader: colour x texture colour, desaturated towards its luminance, saturated unless the renderer
+// turns that off, times alpha; the texture alpha goes through the default alpha remap (smoothstep from 0 to 1),
+// which darkens soft tails.
 void main() {
-  vec2 texel = texture(uTexture, vUv).rg;
-  vec3 light = vColor * texel.r;
+  vec4 texel = texture(uTexture, vUv);
+  vec3 light = vColor * texel.rgb;
+  light = mix(light, vec3(dot(light, vec3(0.2125, 0.7154, 0.0721))), vDesaturation);
   if (vSaturate > 0.5) light = clamp(light, 0.0, 1.0);
-  float alpha = smoothstep(0.0, 1.0, texel.g) * vAlpha;
+  float alpha = smoothstep(0.0, 1.0, texel.a) * vAlpha;
   color = vec4(light * alpha, alpha);
 }`;
 
@@ -140,6 +149,7 @@ export class PanelRenderer {
     attribute("aColor", 3, 4);
     attribute("aAlpha", 1, 7);
     attribute("aSaturate", 1, 8);
+    attribute("aDesaturation", 1, 9);
 
     const presentVao = gl.createVertexArray();
     gl.bindVertexArray(presentVao);
@@ -204,6 +214,7 @@ export class PanelRenderer {
       this.vertices[offset + 6] = paint.color[2];
       this.vertices[offset + 7] = paint.alpha;
       this.vertices[offset + 8] = paint.saturate ? 1 : 0;
+      this.vertices[offset + 9] = paint.desaturation ?? 0;
       offset += STRIDE;
     }
     this.count += 1;
@@ -236,7 +247,7 @@ export class PanelRenderer {
       const { width, height, data } = particleTexture(name);
       texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, width, height, 0, gl.RG, gl.FLOAT, data);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.FLOAT, data);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);

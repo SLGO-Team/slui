@@ -1,10 +1,11 @@
 /**
  * SLUI-drawn stand-ins for the generic Source 2 particle textures the CS2 kill effects use. Each is a small analytic
  * model fitted to the luminance profile measured on the game's texture (reference only; nothing is copied): radial
- * or axial falloffs, evaluated once into a two-channel float image: the colour's luminance in linear light (the game
- * decodes its sRGB textures; the alpha channel is stored linear) and the alpha. The two stay apart because the
- * spritecard shader saturates overbright x colour before it multiplies by alpha. The renderer tints the panel with
- * the team colour at the end.
+ * or axial falloffs, evaluated once into an RGBA float image: the colour in linear light (the game decodes its sRGB
+ * textures; the alpha channel is stored linear) and the alpha. Colour and alpha stay apart because the spritecard
+ * shader saturates overbright x colour before it multiplies by alpha. Most of these textures are white; the
+ * basic_flare and yellowflare ones are warm (an orange falloff around a white-hot core), which gives the beam its
+ * orange halo under the team colour. The renderer tints the panel with the team colour at the end.
  */
 
 export type ParticleTextureName =
@@ -12,7 +13,7 @@ export type ParticleTextureName =
   | "glow04" // sprites/glow04 (lineglow_lvl3): a flat core to r 0.05, wider skirt
   | "flare" // yellowflare: a square hot core to 0.17 with a faint square skirt
   | "rays" // basic_flare_rays / basic_flare sequence 2: a point core, faint rays and one bright diagonal streak
-  | "raysTrail" // basic_flare_rays with the UV turned 45 degrees (killid): the streak along v
+  | "raysTrail" // killid's ray layer: basic_flare_rays turned 45 degrees and zoomed 3x, times base_trail
   | "raysFaint" // basic_flare sequence 3: thin rays only, ~2 % bright
   | "lens" // particle_anamorphic_lens: a horizontal line ~1 % thick
   | "streakFlare" // particle_flare_007b: a soft core with faint diagonal streaks
@@ -22,7 +23,7 @@ export type ParticleTextureName =
   | "disc" // glow_simple_01 (masks): a disc to r 0.55 with a soft rim
   | "white"; // a solid quad (untextured ropes)
 
-/** Interleaved colour luminance and alpha per texel. */
+/** Interleaved linear RGB and alpha per texel. */
 export type TextureData = { width: number; height: number; data: Float32Array };
 
 /** Piecewise-linear profile through `[x, y]` points. */
@@ -46,6 +47,41 @@ const GLOW05_ALPHA = profile([[0, 0.99], [0.02, 0.971], [0.05, 0.886], [0.1, 0.7
 const GLOW04 = profile([[0, 0.955], [0.05, 0.955], [0.1, 0.798], [0.15, 0.527], [0.2, 0.368], [0.3, 0.181], [0.4, 0.083], [0.5, 0.045], [0.6, 0.026], [0.7, 0.014], [0.8, 0.006], [0.9, 0.003], [1, 0]]);
 const STREAK_COLOR = profile([[0, 1], [0.02, 0.905], [0.05, 0.662], [0.1, 0.369], [0.15, 0.123], [0.2, 0.057], [0.3, 0.015], [0.4, 0.003], [0.5, 0]]);
 const STREAK_ALPHA = profile([[0, 1], [0.02, 0.975], [0.05, 0.908], [0.1, 0.839], [0.15, 0.541], [0.2, 0.373], [0.3, 0.196], [0.4, 0.086], [0.5, 0]]);
+/**
+ * Warm textures' colour, as green / red and blue / red in linear light against the texel's luminance: orange through
+ * the falloff, white where the core clips. Measured on basic_flare (rays) and yellowflare.
+ */
+type Chroma = { green: (luminance: number) => number; blue: (luminance: number) => number };
+const BASIC_FLARE_CHROMA: Chroma = {
+  green: profile([[0.002, 0.76], [0.005, 0.71], [0.017, 0.67], [0.055, 0.64], [0.173, 0.62], [0.424, 0.63], [0.693, 0.71], [0.872, 0.88], [0.98, 1]]),
+  blue: profile([[0.002, 0.58], [0.005, 0.51], [0.017, 0.42], [0.055, 0.37], [0.173, 0.35], [0.424, 0.35], [0.693, 0.41], [0.872, 0.56], [0.98, 0.91]]),
+};
+const YELLOWFLARE_CHROMA: Chroma = {
+  green: profile([[0.002, 0.79], [0.005, 0.69], [0.017, 0.64], [0.055, 0.59], [0.173, 0.56], [0.424, 0.68], [0.693, 0.8], [0.872, 0.91], [0.98, 0.99]]),
+  blue: profile([[0.002, 0.66], [0.005, 0.51], [0.017, 0.43], [0.055, 0.36], [0.173, 0.33], [0.424, 0.48], [0.693, 0.66], [0.872, 0.82], [0.98, 0.95]]),
+};
+/**
+ * base_trail (the trail renderers' default texture): a teardrop along v, a bright blob at v 0.7-0.85 with a thin
+ * tail towards v 0.3 over a wide soft skirt, colour in linear light. Each row is three gaussians across u (widths
+ * 0.06, 0.28 and 0.7) whose amplitudes, measured per row, are these profiles over v (0 = the head end); clipped at 1.
+ */
+const trailRows = (rows: readonly (readonly [number, number, number, number])[]) =>
+  [1, 2, 3].map((column) => profile(rows.map((row) => [row[0], row[column]] as const)));
+const BASE_TRAIL = trailRows([
+  [0, 0, 0, 0], [0.04, 0.001, 0, 0.003], [0.1, 0.011, 0, 0.041], [0.16, 0.008, 0, 0.052], [0.22, 0.009, 0, 0.063],
+  [0.28, 0.023, 0, 0.076], [0.34, 0.048, 0.036, 0.099], [0.4, 0.1, 0.098, 0.136], [0.46, 0.111, 0.162, 0.186],
+  [0.52, 0.218, 0.203, 0.24], [0.58, 0.352, 0.283, 0.263], [0.64, 0.289, 0.521, 0.245], [0.7, 0, 0.904, 0.196],
+  [0.76, 0, 1.066, 0.144], [0.82, 0, 1.058, 0.045], [0.88, 0.066, 0.555, 0.005], [0.94, 0.006, 0.099, 0], [0.98, 0, 0, 0],
+]);
+/**
+ * base_trail as killid's ray layer multiplies it: colour only. Multiplying its alpha as well (VRF's MIX_RGBA reading)
+ * leaves the recorded halo beside the beam 4-15x too dim on kills 4 and 5; the colour alone matches it.
+ */
+function baseTrail(u: number, v: number): readonly [number, number] {
+  const along = (v + 1) / 2;
+  const across = (width: number) => Math.exp(-((u / width) ** 2));
+  return [Math.min(1, BASE_TRAIL[0](along) * across(0.06) + BASE_TRAIL[1](along) * across(0.28) + BASE_TRAIL[2](along) * across(0.7)), 1];
+}
 const RAYS_GLOW = profile([[0, 1], [0.02, 0.804], [0.05, 0.251], [0.1, 0.121], [0.15, 0.074], [0.2, 0.051], [0.3, 0.026], [0.4, 0.014], [0.5, 0.007], [0.6, 0.004], [0.7, 0.003], [0.8, 0.001], [0.9, 0]]);
 /** The diagonal streak of basic_flare_rays along its length (centre line), linear. */
 const RAYS_STREAK = profile([[0, 1], [0.03, 0.98], [0.1, 0.75], [0.25, 0.19], [0.4, 0.058], [0.6, 0.011], [0.8, 0.001], [0.9, 0]]);
@@ -88,17 +124,34 @@ function rayField(seed: number, count: number, depth: number): (angle: number) =
 }
 
 /**
- * Fills a float image from `texel(u, v)` = [colour, alpha] with u, v in -1..1 (centre 0; v grows downwards). A plain
- * number is an opaque colour (alpha 1).
+ * Fills a float image from `texel(u, v)` = [colour luminance, alpha] with u, v in -1..1 (centre 0; v grows
+ * downwards). A plain number is an opaque colour (alpha 1). The colour is white, or `chroma` at the same luminance.
+ * `multiply` is a second, white texture layer multiplied in (SPRITECARD_TEXTURE_BLEND_MULTIPLY): [colour, alpha].
  */
-function paint(width: number, height: number, texel: (u: number, v: number) => number | readonly [number, number]): TextureData {
-  const data = new Float32Array(width * height * 2);
+function paint(
+  width: number,
+  height: number,
+  texel: (u: number, v: number) => number | readonly [number, number],
+  chroma?: Chroma,
+  multiply?: (u: number, v: number) => readonly [number, number],
+): TextureData {
+  const data = new Float32Array(width * height * 4);
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const value = texel(((x + 0.5) / width) * 2 - 1, ((y + 0.5) / height) * 2 - 1);
-      const [color, alpha] = typeof value === "number" ? [value, 1] : value;
-      data[(y * width + x) * 2] = Math.max(0, color);
-      data[(y * width + x) * 2 + 1] = Math.max(0, alpha);
+      const u = ((x + 0.5) / width) * 2 - 1;
+      const v = ((y + 0.5) / height) * 2 - 1;
+      const value = texel(u, v);
+      const [luminance, alpha] = typeof value === "number" ? [Math.max(0, value), 1] : [Math.max(0, value[0]), value[1]];
+      const [layerColor, layerAlpha] = multiply ? multiply(u, v) : [1, 1];
+      const green = chroma ? chroma.green(luminance) : 1;
+      const blue = chroma ? chroma.blue(luminance) : 1;
+      // Rec. 709 weights, as the luminance profiles were measured.
+      const red = (luminance / (0.2126 + 0.7152 * green + 0.0722 * blue)) * layerColor;
+      const offset = (y * width + x) * 4;
+      data[offset] = red;
+      data[offset + 1] = red * green;
+      data[offset + 2] = red * blue;
+      data[offset + 3] = Math.max(0, alpha * layerAlpha);
     }
   }
   return { width, height, data };
@@ -129,12 +182,15 @@ function draw(name: ParticleTextureName): TextureData {
       return paint(64, 64, (u, v) => {
         const r = Math.max(Math.abs(u), Math.abs(v));
         return r < 0.17 ? 0.92 : r < 0.3 ? 0.12 : r < 0.45 ? 0.02 : r < 0.6 ? 0.008 : 0;
-      });
+      }, YELLOWFLARE_CHROMA);
     case "rays":
-      return paint(256, 256, raysLum);
+      return paint(256, 256, raysLum, BASIC_FLARE_CHROMA);
     case "raysTrail":
-      // Source (u, v) = target turned -45 degrees, so the target's v axis lands on the u = v diagonal.
-      return paint(128, 256, (u, v) => raysLum((u + v) / Math.SQRT2, (v - u) / Math.SQRT2));
+      // Source (u, v) = target turned -45 degrees, so the target's v axis lands on the u = v diagonal, then divided by
+      // m_flFinalTextureScaleU/V 3: the card shows only the texture's central third. The renderer's second texture
+      // input is empty, so it is the default base_trail, multiplied over the card as is: it keeps the warm glow to a
+      // narrow halo along the beam above its foot.
+      return paint(128, 256, (u, v) => raysLum((u + v) / Math.SQRT2 / 3, (v - u) / Math.SQRT2 / 3), BASIC_FLARE_CHROMA, baseTrail);
     case "raysFaint": {
       const rays = rayField(11, 80, 0.8);
       return paint(128, 128, (u, v) => 0.022 * Math.max(0, 1 - Math.hypot(u, v) / 0.95) * rays(Math.atan2(v, u)));

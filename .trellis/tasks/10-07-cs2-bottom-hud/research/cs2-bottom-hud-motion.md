@@ -203,3 +203,47 @@ on 9223 via the mock server; env ONLY=<system names>, NORAW=1, EXPOSURE=x; write
 `hsbs.py` / `hdiff.py` / `hzoom.py` (CS2 vs SLUI over the pre-kill frame), `kymo2.py` (line kymograph),
 `hb/fr/k5.raw` (kill-5 frames 10.1 s + 2.7 s, 900x500 panel crop). Kill onsets in the kills recording:
 2.350 / 4.317 / 6.250 / 8.183 / 10.167 s. VRF sources downloaded in `vrf/`.
+
+### Session 2026-10-09 — real app, warm textures, killid's ray layer; resume here
+
+Fixed and verified (offline renders vs the kills recording, plus the real app in headless Edge and the Browser pane):
+- Real app showed a 900 x 500 white panel: React StrictMode ran the particle effect twice on the same canvas, the
+  cleanup's `loseContext()` left it lost, and Chromium paints a lost WebGL canvas white. Each effect run now creates
+  and removes its own canvas (`KillParticles`). `capture.mjs`'s all-white frames were the same bug; it works now.
+- Textures carry colour (RGBA16F): basic_flare (rays, raysTrail) and yellowflare (flare) are warm in linear light
+  (G/R ~0.62-0.76, B/R ~0.35-0.58 by luminance, white where the core clips); everything else is neutral. Measured
+  chroma-by-luminance profiles live in `textures.ts`. m_flDesaturation now applies in the shader after colour x
+  texture (VRF `particle_spritecard.frag.slang`), so glow/glow_5 (desaturation 1) stay grey.
+- Composite check: CS2's halo pixels need light more orange than the wash, which only the "over" composite with warm
+  light explains (an additive composite would need B/R ~0.02). `particle_controls.css` does say
+  `-s2-mix-blend-mode: additive` for `.UiParticlePanelAmmoCenter`, but the recorded pixels fit "over"; kept.
+- killid's ray renderer (renderer 2), all from the vpcf: `m_flFinalTextureScaleU/V 3` zooms the texture in 3x (VRF
+  divides card UV by the scale; tiling was tested and shows discrete flares, clamped tiling hides the flare);
+  `m_flLengthFadeInTime 0.5` (per renderer; the beam keeps 0.1) — the recorded halo grows along the beam from ~0.33
+  to ~0.6 s; its second texture input is empty, so it is the trail default `materials/particle/base_trail` (core
+  VPK) multiplied over the card. base_trail is modelled per row as three gaussians across (widths 0.06/0.28/0.7)
+  with measured amplitude profiles over v. Multiplying colour only matches the recorded halo (kill 5, 100 px up:
+  CS2 left 26/16/15/78 vs 22/31/39/71, right 135/75/40/14 vs 143/77/37/17; kill 4 too); VRF's MIX_RGBA (alpha too,
+  then smoothstep) leaves it 4-15x too dim — documented in `textures.ts` as fitted.
+- Emission: killid makes 4 particles at 0 s (3 initial + 1 instant) and one more at 0.125 s; the recording's
+  kill-1 beam level steps exactly once (0.54 -> 0.62 display, predicted 0.55 -> 0.63) and not at 0.25 s. The
+  continuous emitter is now exact and end-exclusive (k-th due at k / rate while < duration).
+- `m_flConstrainRadiusToLengthRatio` (default 1, VRF RenderTrails): trails are never wider than long; cards_mask
+  (radius 30 x 2 = 60 > length 47.25) is now 47.25 units wide.
+
+Open:
+- Kill 5 (and faintly 4): the cards_mask shows a dark lens left of the card fan; CS2 shows lineglow needles up to
+  and behind the leftmost card at +750 ms, so in game the mask hides less there. Geometry/curves/taper/diagonal
+  match VRF; next suspects: child draw order in the Panorama particle panel, or the mask's alpha. Compare with the
+  2.0 s frames (masks die) to locate the game's mask.
+- VRF passes `m_flFinalTextureUVRotation` (-45) to sin/cos as radians; the port keeps 45 degrees (streak along the
+  beam). Only matters for the streak, which sits under the saturated beam.
+- Then: remove `spectrum.ts` + its smoke tests, add particle smoke tests (textures/systems are DOM-free), spec
+  section 13 text, audits, push PR #21, ask for the visual review.
+
+Tools added this session (D:/Temp/slui-bh, never commit): `cap2/prof2.py <killTime> <ms> <png...>` (CS2 vs SLUI red
+delta across the beam at 60/100/140/180 px above the line), `cap2/px.py`, `cap2/chroma.py`; Panorama sources
+extracted to `pano/`, base_trail to `tex2/`. Headless Edge and the mock server do not survive a restart: start Edge
+with `msedge --headless=new --remote-debugging-port=9223 --user-data-dir=D:\Temp\slui-bh\edgeprof` and the mock
+server with the Browser pane's `slui-mock` preview.
+

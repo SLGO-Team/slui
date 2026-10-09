@@ -281,14 +281,14 @@ function beam(level: Level): SystemSpec {
     update(particle, age) {
       particle.radius = particle.radius0 * interpolateRadius(age, { start: 2, end: 1.3, b: 0.9 });
       particle.alpha = particle.alpha0 * (age < 0.65 ? 1 : (1 - age) / 0.35);
-      // Length fade-in 0.1 s, then the age curve (1.1 until 0.8, to 0 at the end).
-      particle.trail = particle.trail0 * Math.min(1, age * 10) * curve([[0, 1.1], [0.195, 1.1], [0.81, 1.093], [1, 0]], age);
+      // The age curve (1.1 until 0.8, to 0 at the end); each renderer fades the length in over its own time.
+      particle.trail = particle.trail0 * curve([[0, 1.1], [0.195, 1.1], [0.81, 1.093], [1, 0]], age);
     },
     passes: [
-      { kind: "trail", texture: "beam", radiusScale: 1, overbright: 1 },
-      // basic_flare_rays with its UV turned 45 degrees, so the streak runs along the trail; twice as long, shifted
-      // half a length towards the head.
-      { kind: "trail", texture: "raysTrail", radiusScale: 3, overbright: 5 * (1 - level.dim), lengthScale: 2, forwardShift: 0.5 },
+      { kind: "trail", texture: "beam", radiusScale: 1, overbright: 1, lengthFadeIn: 0.1 },
+      // basic_flare_rays with its UV turned 45 degrees, so the streak runs along the trail, and zoomed 3x (its warm
+      // core fills the card: the orange halo round the beam's foot); twice as long, shifted half a length towards the head.
+      { kind: "trail", texture: "raysTrail", radiusScale: 3, overbright: 5 * (1 - level.dim), lengthScale: 2, forwardShift: 0.5, lengthFadeIn: 0.5 },
     ],
   };
 }

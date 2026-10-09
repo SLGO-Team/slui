@@ -68,6 +68,8 @@ export type Particle = {
   number: number;
   born: number;
   life: number;
+  /** Seconds since creation, as of the last step. */
+  seconds: number;
   x: number;
   z: number;
   vx: number;
@@ -101,7 +103,9 @@ export type RenderPass = {
   kind: "sprite" | "trail";
   lengthScale?: number;
   forwardShift?: number;
-  /** m_flDesaturation: 1 draws the particle colour as grey. */
+  /** m_flLengthFadeInTime: a trail grows to its length over this many seconds of the particle's age. */
+  lengthFadeIn?: number;
+  /** m_flDesaturation: pulls particle colour x texture colour towards its luminance (1: grey). */
   desaturation?: number;
   /** m_bSaturateColorPreAlphaBlend (default on): overbright x colour clips at 1 before the alpha. */
   saturate?: boolean;
@@ -126,7 +130,7 @@ export type SystemSpec = {
 
 export function newParticle(number: number, born: number): Particle {
   return {
-    number, born, life: 1, x: 0, z: 0, vx: 0, vz: 0, radius0: 1, radius: 1, alpha0: 1, alpha: 1, color: WHITE, color0: WHITE, rotation: 0,
+    number, born, life: 1, seconds: 0, x: 0, z: 0, vx: 0, vz: 0, radius0: 1, radius: 1, alpha0: 1, alpha: 1, color: WHITE, color0: WHITE, rotation: 0,
     texture: "glow05", trailX: 0, trailZ: 0, trail0: 0, trail: 0,
   };
 }
@@ -135,7 +139,8 @@ export function newParticle(number: number, born: number): Particle {
 export class ParticleSystem {
   private readonly particles: Particle[] = [];
   private emitted = 0;
-  private emitCarry = 0;
+  /** Particles the continuous emitter has made. */
+  private continuous = 0;
   private lastT: number | null = null;
   private readonly random: () => number;
 
@@ -165,17 +170,17 @@ export class ParticleSystem {
       for (let index = 0; index < spec.instant; index += 1) spawn(0);
     }
     if (spec.duration > 0 && spec.rate > 0) {
-      const from = Math.min(previous, spec.duration);
-      const to = Math.min(local, spec.duration);
-      this.emitCarry += (to - from) * spec.rate;
-      while (this.emitCarry >= 1) {
-        this.emitCarry -= 1;
-        spawn(to);
+      // The k-th particle is due at k / rate, and only before the emission ends (killid: 8 per second for 0.25 s
+      // makes one, at 0.125 s, as the recording's beam steps show).
+      for (let due = (this.continuous + 1) / spec.rate; due <= local && due < spec.duration; due = (this.continuous + 1) / spec.rate) {
+        this.continuous += 1;
+        spawn(due);
       }
     }
     for (let index = this.particles.length - 1; index >= 0; index -= 1) {
       const particle = this.particles[index];
-      const age = (local - particle.born) / particle.life;
+      particle.seconds = local - particle.born;
+      const age = particle.seconds / particle.life;
       if (age >= 1) {
         this.particles.splice(index, 1);
         continue;
@@ -194,7 +199,7 @@ export class ParticleSystem {
         const texture = pass.texture === "sequence" ? particle.texture : pass.texture;
         const alpha = particle.alpha * (1 + (pass.addSelf ?? 0));
         if (alpha <= 1e-4) continue;
-        const paint = { color: tint(particle.color, pass.overbright, pass.desaturation ?? 0), alpha, saturate: pass.saturate ?? true };
+        const paint = { color: scale(particle.color, pass.overbright), alpha, saturate: pass.saturate ?? true, desaturation: pass.desaturation ?? 0 };
         const x = toScreenX(particle.x);
         const y = toScreenY(particle.z);
         if (pass.kind === "sprite") {
@@ -207,8 +212,10 @@ export class ParticleSystem {
         const ty = toScreenY(particle.trailZ);
         const distance = Math.hypot(tx - x, ty - y);
         if (distance < 1e-3) continue;
-        const length = distance * particle.trail * (pass.lengthScale ?? 1);
-        const half = particle.radius * pass.radiusScale * UNIT;
+        const fadeIn = pass.lengthFadeIn ? Math.min(1, particle.seconds / pass.lengthFadeIn) : 1;
+        const length = distance * particle.trail * (pass.lengthScale ?? 1) * fadeIn;
+        // m_flConstrainRadiusToLengthRatio (1): a trail is never wider than it is long.
+        const half = Math.min(particle.radius * pass.radiusScale * UNIT, length);
         const ax = (tx - x) / distance;
         const ay = (ty - y) / distance;
         // m_flForwardShift moves the trail towards the head by that share of its length.
@@ -227,11 +234,8 @@ export class ParticleSystem {
   }
 }
 
-/** A particle colour scaled by `strength`, desaturated towards its luminance. */
-function tint([r, g, b]: Rgb, strength: number, desaturation: number): Rgb {
-  const grey = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return [lerp(r, grey, desaturation) * strength, lerp(g, grey, desaturation) * strength, lerp(b, grey, desaturation) * strength];
-}
+/** A particle colour scaled by `strength` (the overbright factor). */
+const scale = ([r, g, b]: Rgb, strength: number): Rgb => [r * strength, g * strength, b * strength];
 
 /**
  * Exposure of the panel's tone map, 1 - e^(-exposure x light): CS2 blends the overbright particles in linear HDR and

@@ -386,6 +386,12 @@
   height: 500px;
 }
 
+.bhud-burst__particles > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .bhud[data-still] .bhud-burst {
   display: none;
 }

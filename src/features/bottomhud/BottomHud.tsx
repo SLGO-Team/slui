@@ -133,14 +133,21 @@ function washOf(color: string): [number, number, number] {
  * render targets the kill plays without particles.
  */
 function KillParticles({ count, seed, scale }: { count: number; seed: number; scale: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return undefined;
+    const host = hostRef.current;
+    if (!host) return undefined;
+    // A canvas per effect run: disposing loses its context for good, and a lost context on a canvas React keeps
+    // (StrictMode's second run, a scale change) would be handed back lost and shown as a white panel.
+    const canvas = document.createElement("canvas");
+    host.append(canvas);
     // Backing store in device pixels: the canvas sits on the scaled 1920x1080 overlay.
     const renderer = PanelRenderer.create(canvas, PANEL_WIDTH, PANEL_HEIGHT, Math.max(1, scale * window.devicePixelRatio));
-    if (!renderer) return undefined;
-    const wash = washOf(getComputedStyle(canvas).color);
+    if (!renderer) {
+      canvas.remove();
+      return undefined;
+    }
+    const wash = washOf(getComputedStyle(host).color);
     const paint = createKillParticles(count, seed);
     const startedAt = performance.now();
     let frame = 0;
@@ -159,10 +166,11 @@ function KillParticles({ count, seed, scale }: { count: number; seed: number; sc
     return () => {
       cancelAnimationFrame(frame);
       renderer.dispose();
+      canvas.remove();
     };
   }, [count, scale, seed]);
   // Placed relative to the circle centre (the burst origin).
-  return <canvas ref={canvasRef} className="bhud-burst__particles" style={{ left: PANEL_LEFT - 960, top: PANEL_TOP - 1028 }} />;
+  return <div ref={hostRef} className="bhud-burst__particles" style={{ left: PANEL_LEFT - 960, top: PANEL_TOP - 1028 }} />;
 }
 
 /** The particle effects of one kill (CS2 draws the light column, glows and sparks with particle systems). */
