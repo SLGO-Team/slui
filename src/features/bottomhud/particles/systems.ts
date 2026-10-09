@@ -35,8 +35,10 @@ const rand = (random: () => number, min: number, max: number) => min + (max - mi
 const randBiased = (random: () => number, min: number, max: number, parameter: number) => min + (max - min) * bias(random(), clamp01((parameter + 1) / 2));
 type Srgb = readonly [number, number, number];
 /**
- * A particle colour as the shader takes it: the 8-bit value / 255, not decoded (unlike textures). Decoding made the
- * pale blue sparks and starbursts teal over the gold wash, where the recording stays gold.
+ * A particle colour as the shader takes it: the 8-bit value / 255, not decoded (unlike textures; VRF decodes by
+ * default). Decoding made the pale blue sparks and starbursts teal over the gold wash, where the recording stays
+ * gold: re-checked with the warm textures, kill 5's light by the line has B/R 0.19 in the recording, 0.12-0.19 raw
+ * and 0.33-0.35 decoded.
  */
 function linear([r, g, b]: Srgb): Rgb {
   return [r / 255, g / 255, b / 255];
@@ -146,8 +148,8 @@ function glow(ace: boolean): SystemSpec {
       particle.life = randBiased(random, 0.5, 1, 0.45);
       particle.radius0 = rand(random, 50, 90);
       particle.rotation = rand(random, -100, -75);
-      // RandomSequence 2..3 of basic_flare: the rayed flare or its faint thin-ray frame.
-      particle.texture = random() < 0.5 ? "rays" : "raysFaint";
+      // RandomSequence 2..3 of basic_flare: the rayed flare or its faint thin-ray frame (each times the ring layer).
+      particle.texture = random() < 0.5 ? "raysRing" : "raysFaintRing";
     },
     update(particle, age) {
       particle.radius = particle.radius0 * interpolateRadius(age, { start: 0.5, end: 1, b: 0.8 });

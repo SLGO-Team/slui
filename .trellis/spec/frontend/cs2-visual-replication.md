@@ -443,18 +443,34 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
   Only the top card shows its number (an upper card hides the others in game); the card layer has a hole over
   the circle. Pips: `default` skull, `grenade` burst, `shock` bolt (user decision: only these three).
 - Motion (CSS animations started on mount, WAAPI and one canvas on data changes, never the 250 ms UI clock):
-  Panorama `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens; a
-  light column along the new card's angle (kills 1-5; kill 5 holds it to ~950 ms). CS2's particle spectrum is
-  `spectrum.ts`, a canvas painted every animation frame from the time since the kill: needles 3px apart along the
-  strokes, each wide at the line and tapering to a sharp tip, drawn on an off-screen layer and blurred as a whole
-  (0.7px, plus a 4px bloom) so their bases melt into one glow, over a heavily blurred fog mound (9px), with a soft
-  glow and rising sparks (kills 2-5, growing with the count); the needles stay put and only drift slowly.
-  Crisp, square bars read as a chart and were rejected in review (2026-10-08), as was a sharp-edged fog. Bars that bounce every frame read as a music player and
-  were rejected in review (2026-10-08): the shape grows, widens and fades, the texture does not dance;
-  kill 5 settles low and wide, then at 2.0 s flashes the row again (not the circle fill: the emblem stays
-  readable), draws a mirrored spindle of bars with a wide glow and tall streaks over the cards, and leaves a thin
-  waveform until 3.0 s. Static CSS streaks were rejected in review too: the haze must grow and fade with time. At kill 6 the fan
-  collapses behind the circle and the counter rises with a halo. Shot: the remounted clip label pops for 3 frames
+  Panorama `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens.
+- Kill effect = CS2's own particle systems, ported (`particles/`; user asked for a pixel-level match, and five
+  rounds of shapes fitted by eye were rejected in review 2026-10-08): `systems.ts` restates each
+  `particles/ui/ammohealthcenter/ui_hud_kill_streaks_*.vpcf` child in the parent's order per kill level
+  (decompiled from the game for reference only, never committed), `engine.ts` simulates them with Source 2
+  semantics, `render.ts` adds the occluders, `gl.ts` draws, `textures.ts` holds SLUI stand-ins for the textures
+  (analytic models fitted to profiles measured on the game's textures; no game asset is copied). Contracts:
+  - Panel: CS2's `ParticleScenePanel` 900 x 500 at (510, 580), camera `0 600 127` -> `0 0 127`, fov 41 taken as
+    horizontal (2.006 px per unit; a vertical fov halves everything), line z 28 = y 448. One canvas per kill.
+  - Semantics come from the vpcf plus ValveResourceFormat's reverse-engineered renderer
+    (`particle_spritecard.frag/vert.slang`, `Renderers/RenderTrails.cs`, `ParticleTextureLayer.cs`); look there
+    before guessing. Every texture input counts: a second input multiplies (default blend mode), an empty one is
+    the renderer's default texture (trails: `base_trail`); `m_flFinalTextureScaleU/V` zoom in (card UV divided).
+    Per-renderer fields stay per renderer (e.g. killid's beam fades its length in over 0.1 s, its ray layer
+    over 0.5 s). Trails are never wider than long. Continuous emitters are exact and end-exclusive (k-th
+    particle at k / rate while < duration). Masks are opaque black alpha blends that hide only what was drawn
+    before them and die at 2.0 s.
+  - Colour: textures are sRGB-decoded and some are warm (basic_flare, yellowflare: that is the beam's orange
+    halo); particle colours are /255, not decoded (decoding turns the light by the line teal over the wash).
+    Light adds in an RGBA16F panel, then per channel `1 - exp(-1.5 x light)`, times the team wash, composited
+    "over" with the strongest channel as alpha (a saturated pixel is the wash whatever is behind).
+  - Recording-fitted, documented in code: killid's ray layer multiplies `base_trail`'s colour only (VRF's
+    reading leaves the halo 4-15x too dim); the beam's fade along its length.
+  - React StrictMode runs the effect twice: each run creates and removes its own canvas, since disposing loses
+    the WebGL context and Chromium paints a lost canvas white.
+  - Validate offline against the 60 fps recording (side-by-side and cross-beam profiles over the pre-kill
+    frame), then in the real app; tone and size errors hide in eyeballing.
+- Other motion: at kill 6 the fan collapses behind the circle and the counter rises with a halo. Shot: the remounted clip label pops for 3 frames
   (scale 1.15 up-left and paler, then 4px down), drawn with colour, not a brightness filter (a filter turns the
   team colour white and blurs the digits). Reload: the reserve icon drops and returns (300 ms); weapon change:
   0.75 -> 1 in 100 ms; balance: each character rolls on its strip to the new symbol (`ODOMETER_SYMBOLS`, ~520 ms,

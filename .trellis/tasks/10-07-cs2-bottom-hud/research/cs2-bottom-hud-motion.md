@@ -231,15 +231,29 @@ Fixed and verified (offline renders vs the kills recording, plus the real app in
 - `m_flConstrainRadiusToLengthRatio` (default 1, VRF RenderTrails): trails are never wider than long; cards_mask
   (radius 30 x 2 = 60 > length 47.25) is now 47.25 units wide.
 
+Later the same session:
+- Every renderer's texture inputs listed: glow / glow_5 also have a second layer, `particle_ring_wave_8`
+  (MULTIPLY): a lopsided swirl ring, modelled as a radial mean x angular gains per ring band (`raysRing`,
+  `raysFaintRing`). Per spec; it only modestly lowers the light by the line (kill 5, 30 px up, x 390: 70 -> 44,
+  CS2 54). Kills 3 and 4 by the line now match closely.
+- cards_mask "lens": at 0.6-0.9 s the light left of the cards is brighter in SLUI than in CS2 (6 px up: SLUI
+  102-158 vs CS2 45-115), so the lens is mostly contrast against an over-bright mound, not a wrong mask. The
+  2.0 s mask-vanish jump (CS2 vs SLUI) only lights the circle region in both, so it cannot locate the mask.
+- The light by the line at kill 5 is almost all radiate (per-system renders). Every radiate field matches the
+  vpcf; the motion rope's top is exactly the line (VRF ropes: half-width = radius); the SLUI `rays` model is
+  even 20-25 % dimmer than the real texture's annulus means. Decoding particle colours (VRF default) fits the
+  brightness (6 px up: 26/72/101/153 vs CS2 15/53/95/153) but turns the light neutral/teal (B/R 0.33 vs CS2
+  0.19; raw 0.12-0.19), so colours stay raw. Open: radiate is ~1.3-2x too bright within ~30 px of the line,
+  with no spec basis found yet.
+- Done: `spectrum.ts` removed; particle smoke tests in `scripts/bottomhud-model-smoke.mjs` (emission counts,
+  masks, trail width, determinism, texture colour) with a recording stand-in for the renderer;
+  `ParticleSystem` no longer uses a constructor parameter property (strip-types); spec section 13 rewritten for
+  the particle port; lint, tests, build, layout audits (1920x1080, 1600x900) pass.
+
 Open:
-- Kill 5 (and faintly 4): the cards_mask shows a dark lens left of the card fan; CS2 shows lineglow needles up to
-  and behind the leftmost card at +750 ms, so in game the mask hides less there. Geometry/curves/taper/diagonal
-  match VRF; next suspects: child draw order in the Panorama particle panel, or the mask's alpha. Compare with the
-  2.0 s frames (masks die) to locate the game's mask.
+- Radiate brightness by the line (above). Kill 5 cards_mask lens follows from it.
 - VRF passes `m_flFinalTextureUVRotation` (-45) to sin/cos as radians; the port keeps 45 degrees (streak along the
   beam). Only matters for the streak, which sits under the saturated beam.
-- Then: remove `spectrum.ts` + its smoke tests, add particle smoke tests (textures/systems are DOM-free), spec
-  section 13 text, audits, push PR #21, ask for the visual review.
 
 Tools added this session (D:/Temp/slui-bh, never commit): `cap2/prof2.py <killTime> <ms> <png...>` (CS2 vs SLUI red
 delta across the beam at 60/100/140/180 px above the line), `cap2/px.py`, `cap2/chroma.py`; Panorama sources

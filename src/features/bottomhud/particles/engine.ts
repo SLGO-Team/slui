@@ -142,9 +142,11 @@ export class ParticleSystem {
   /** Particles the continuous emitter has made. */
   private continuous = 0;
   private lastT: number | null = null;
+  private readonly spec: SystemSpec;
   private readonly random: () => number;
 
-  constructor(private readonly spec: SystemSpec, seed: number) {
+  constructor(spec: SystemSpec, seed: number) {
+    this.spec = spec;
     this.random = seededRandom(seed);
   }
 

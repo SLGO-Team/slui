@@ -9,7 +9,9 @@ import {
   odometerRows,
 } from "../src/features/bottomhud/presentation.ts";
 import { createHudSceneFrame } from "../src/mocks/hudScenes.ts";
-import { seededRandom, sparksFor, spectrumDurationMs, spectrumFrame } from "../src/features/bottomhud/spectrum.ts";
+import { createKillParticles, KILL_PARTICLE_SECONDS } from "../src/features/bottomhud/particles/render.ts";
+import { MASK_SECONDS } from "../src/features/bottomhud/particles/systems.ts";
+import { particleTexture } from "../src/features/bottomhud/particles/textures.ts";
 import { parseHudStatus } from "../src/contracts/index.ts";
 
 const envelope = (type, payload, { serverId = "slgo-1", instanceId = "instance-1", sequence = 2 } = {}) => ({
@@ -109,19 +111,64 @@ const status = { ammo: { clip: 23, clip_max: 30, reserve: 90, reserve_icon: "bul
 }
 
 {
-  // Kill spectrum: kills 2-4 one-sided and short, kill 5 mirrored at the 2.0 s flash and done by 3.0 s.
-  assert.equal(spectrumDurationMs(1), 0, "the first kill has no spectrum");
-  assert.equal(spectrumDurationMs(6), 0, "the counter card has no spectrum");
-  assert.equal(spectrumFrame(3, 0).up.amp, 0, "starts flat");
-  assert.ok(spectrumFrame(4, 400).up.amp > spectrumFrame(2, 400).up.amp, "the mound grows with the count");
-  assert.equal(spectrumFrame(4, 400).down.amp, 0, "kills 2-4 never mirror");
-  assert.equal(spectrumFrame(4, 1_200).up.amp, 0, "kills 2-4 end by 1.1 s");
-  assert.ok(spectrumFrame(5, 400).up.amp > 40, "the ace mound");
-  assert.equal(spectrumFrame(5, 1_500).down.amp, 0, "no mirror before the flash");
-  assert.ok(spectrumFrame(5, 2_150).down.amp > 20 && spectrumFrame(5, 2_150).streaks > 30, "the 2.0 s flash mirrors the bars");
-  assert.equal(spectrumFrame(5, 3_000).up.amp, 0, "gone by 3.0 s");
-  assert.equal(sparksFor(5, seededRandom(1)).length > sparksFor(2, seededRandom(1)).length, true);
-  assert.deepEqual(sparksFor(3, seededRandom(7)), sparksFor(3, seededRandom(7)), "the same kill draws the same sparks");
+  // Kill particles, drawn into a recording stand-in for the WebGL panel renderer.
+  const draws = [];
+  const recorder = {
+    quad: (texture, corners, paint, blend = "add") => draws.push({ texture, corners, paint, blend }),
+    sprite: (texture, x, y, radius, rotation, paint, blend = "add") => draws.push({ texture, x, y, radius, paint, blend }),
+  };
+  /** The draws of the frame `t` seconds after kill `count`, stepped at 60 Hz from the kill as the component does. */
+  const frameAt = (count, t, seed = 7) => {
+    const paint = createKillParticles(count, seed);
+    for (let frame = 0; frame <= Math.round(t * 60); frame += 1) {
+      draws.length = 0;
+      paint(recorder, frame / 60);
+    }
+    return draws.map((draw) => ({ ...draw }));
+  };
+  const count = (draws, texture) => draws.filter((draw) => draw.texture === texture).length;
+
+  // killid: 3 initial particles and the instantaneous one at 0 s, the continuous emitter's single one at 0.125 s.
+  assert.equal(count(frameAt(1, 0.05), "beam"), 4, "four beams at the kill");
+  assert.equal(count(frameAt(1, 0.2), "beam"), 5, "a fifth at 0.125 s");
+  assert.equal(count(frameAt(1, 0.4), "beam"), 5, "none at the end of the 0.25 s emission");
+  assert.equal(count(frameAt(1, 0.4), "raysTrail"), 5, "every beam particle draws its ray layer");
+
+  // Occluders: opaque black, alpha-blended, gone at 2.0 s; kill 5's starbursts outlive them.
+  const ace = frameAt(5, 0.6);
+  const masks = ace.filter((draw) => draw.blend === "alpha" && draw.texture !== "crack");
+  assert.ok(masks.length > 0 && masks.every((draw) => draw.paint.color.every((channel) => channel === 0) && draw.paint.alpha === 1));
+  assert.equal(count(ace, "white"), 1, "the motion band");
+  assert.ok(count(frameAt(4, 0.6), "disc") > count(frameAt(3, 0.6), "disc"), "kills 4 and 5 add the cards mask");
+  const late = frameAt(5, MASK_SECONDS + 0.1);
+  assert.equal(late.filter((draw) => draw.blend === "alpha" && draw.texture !== "crack").length, 0, "the masks are gone");
+  assert.ok(count(late, "rays") > 0, "the radiate starbursts are still alive");
+  // The cards mask is a trail, never wider than long: 47.25 units across at most, not radius 30 x 2.
+  const [cards] = ace.filter((draw) => draw.texture === "disc" && draw.corners);
+  assert.ok(Math.abs(cards.corners[1][0] - cards.corners[0][0]) <= 2 * 47.25 * 2.006 + 1e-6, "cards mask width");
+
+  // Deterministic per seed, empty once the effect is over.
+  assert.deepEqual(frameAt(3, 0.5, 11), frameAt(3, 0.5, 11), "the same kill draws the same particles");
+  assert.equal(frameAt(5, KILL_PARTICLE_SECONDS + 0.1).length, 0, "nothing after the effect");
+}
+
+{
+  // Particle textures: RGBA, linear; warm basic_flare / yellowflare, white elsewhere.
+  const texel = (name, u, v) => {
+    const { width, height, data } = particleTexture(name);
+    const offset = (Math.floor(((v + 1) / 2) * (height - 1)) * width + Math.floor(((u + 1) / 2) * (width - 1))) * 4;
+    return [...data.slice(offset, offset + 4)];
+  };
+  for (const name of ["glow05", "glow04", "flare", "rays", "raysTrail", "raysRing", "raysFaintRing", "lens", "streakFlare", "beam", "crack", "smoke", "disc", "white"]) {
+    const { width, height, data } = particleTexture(name);
+    assert.equal(data.length, width * height * 4, name);
+    assert.ok(data.every((value) => Number.isFinite(value) && value >= 0), `${name} is finite and non-negative`);
+  }
+  const [red, green, blue] = texel("rays", 0.1, 0);
+  assert.ok(red > green && green > blue, "basic_flare's falloff is orange");
+  const glow = texel("glow05", 0.1, 0);
+  assert.ok(glow[0] === glow[1] && glow[1] === glow[2], "particle_glow_05 is white");
+  assert.ok(texel("raysRing", 0, 0)[0] < texel("rays", 0, 0)[0] * 0.3, "the ring layer dims the flare's core");
 }
 
 console.log("bottomhud model smoke: ok");

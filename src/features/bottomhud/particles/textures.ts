@@ -14,7 +14,8 @@ export type ParticleTextureName =
   | "flare" // yellowflare: a square hot core to 0.17 with a faint square skirt
   | "rays" // basic_flare_rays / basic_flare sequence 2: a point core, faint rays and one bright diagonal streak
   | "raysTrail" // killid's ray layer: basic_flare_rays turned 45 degrees and zoomed 3x, times base_trail
-  | "raysFaint" // basic_flare sequence 3: thin rays only, ~2 % bright
+  | "raysRing" // glow: basic_flare sequence 2 times particle_ring_wave_8
+  | "raysFaintRing" // glow: basic_flare sequence 3 (thin rays only, ~2 % bright) times particle_ring_wave_8
   | "lens" // particle_anamorphic_lens: a horizontal line ~1 % thick
   | "streakFlare" // particle_flare_007b: a soft core with faint diagonal streaks
   | "beam" // killid: simple_lines_01 edge lines plus soft_gradient (texture blend ADD), across x along
@@ -81,6 +82,37 @@ function baseTrail(u: number, v: number): readonly [number, number] {
   const along = (v + 1) / 2;
   const across = (width: number) => Math.exp(-((u / width) ** 2));
   return [Math.min(1, BASE_TRAIL[0](along) * across(0.06) + BASE_TRAIL[1](along) * across(0.28) + BASE_TRAIL[2](along) * across(0.7)), 1];
+}
+/**
+ * particle_ring_wave_8 (glow's second texture layer, multiplied): a lopsided swirl, a bright ring at r 0.5-0.6 open
+ * towards the lower right, a dimmer centre with two dark spots. Its mean linear luminance over r (0.05 steps from
+ * 0.025), times an angular gain per ring band (24 steps from -180 degrees, v down) blended between band centres.
+ */
+const RING_WAVE_RADIAL = profile([0.17, 0.18, 0.171, 0.159, 0.152, 0.138, 0.136, 0.162, 0.219, 0.305, 0.421, 0.445, 0.381, 0.28, 0.18, 0.103, 0.055, 0.027, 0.012, 0.005, 0]
+  .map((value, index) => [0.025 + index * 0.05, value] as const));
+const RING_WAVE_BANDS: readonly (readonly [number, readonly number[]])[] = [
+  [0.1, [1.03, 1.12, 1.22, 1.28, 1.22, 1.08, 0.89, 0.58, 0.35, 0.24, 0.31, 0.6, 0.82, 1.06, 1.51, 1.77, 1.62, 1.38, 1.15, 1.03, 0.97, 0.91, 0.93, 0.97]],
+  [0.29, [0.26, 0.55, 1.38, 2.21, 2.66, 2.5, 2.01, 1.62, 1.46, 1.38, 1.13, 0.84, 0.88, 1.32, 1.34, 0.72, 0.39, 0.25, 0.2, 0.23, 0.23, 0.17, 0.13, 0.15]],
+  [0.54, [0.98, 1.18, 1.7, 1.51, 1.64, 1.87, 1.56, 1.11, 1.19, 1.66, 1.68, 0.81, 0.32, 0.2, 0.06, 0.02, 0.01, 0.02, 0.12, 0.61, 0.76, 1.44, 1.98, 1.59]],
+  [0.8, [1.35, 1.42, 1.08, 0.68, 0.65, 0.8, 0.97, 1.11, 1.86, 2.95, 2.98, 2.66, 1.1, 0.25, 0.07, 0.03, 0.02, 0.03, 0.07, 0.15, 0.3, 0.93, 1.26, 1.3]],
+];
+function ringWave(u: number, v: number): readonly [number, number] {
+  const r = Math.hypot(u, v);
+  // Angle bins are centred 7.5 degrees after their start; interpolate around the circle.
+  const position = ((Math.atan2(v, u) + Math.PI) / (Math.PI * 2)) * 24 - 0.5;
+  const gainAt = (gains: readonly number[]) => {
+    const index = Math.floor(position);
+    const fraction = position - index;
+    return gains[(index + 24) % 24] * (1 - fraction) + gains[(index + 25) % 24] * fraction;
+  };
+  let gain = gainAt(RING_WAVE_BANDS[RING_WAVE_BANDS.length - 1][1]);
+  if (r <= RING_WAVE_BANDS[0][0]) gain = gainAt(RING_WAVE_BANDS[0][1]);
+  for (let band = 1; band < RING_WAVE_BANDS.length; band += 1) {
+    const [r0, gains0] = RING_WAVE_BANDS[band - 1];
+    const [r1, gains1] = RING_WAVE_BANDS[band];
+    if (r > r0 && r <= r1) gain = gainAt(gains0) + ((gainAt(gains1) - gainAt(gains0)) * (r - r0)) / (r1 - r0);
+  }
+  return [RING_WAVE_RADIAL(r) * gain, 1];
 }
 const RAYS_GLOW = profile([[0, 1], [0.02, 0.804], [0.05, 0.251], [0.1, 0.121], [0.15, 0.074], [0.2, 0.051], [0.3, 0.026], [0.4, 0.014], [0.5, 0.007], [0.6, 0.004], [0.7, 0.003], [0.8, 0.001], [0.9, 0]]);
 /** The diagonal streak of basic_flare_rays along its length (centre line), linear. */
@@ -191,9 +223,13 @@ function draw(name: ParticleTextureName): TextureData {
       // input is empty, so it is the default base_trail, multiplied over the card as is: it keeps the warm glow to a
       // narrow halo along the beam above its foot.
       return paint(128, 256, (u, v) => raysLum((u + v) / Math.SQRT2 / 3, (v - u) / Math.SQRT2 / 3), BASIC_FLARE_CHROMA, baseTrail);
-    case "raysFaint": {
+    // glow's two texture layers: the basic_flare frame, multiplied by particle_ring_wave_8 (blend mode MULTIPLY,
+    // the default), which leaves mostly a lopsided ring of the flare's light.
+    case "raysRing":
+      return paint(256, 256, raysLum, BASIC_FLARE_CHROMA, ringWave);
+    case "raysFaintRing": {
       const rays = rayField(11, 80, 0.8);
-      return paint(128, 128, (u, v) => 0.022 * Math.max(0, 1 - Math.hypot(u, v) / 0.95) * rays(Math.atan2(v, u)));
+      return paint(128, 128, (u, v) => 0.022 * Math.max(0, 1 - Math.hypot(u, v) / 0.95) * rays(Math.atan2(v, u)), undefined, ringWave);
     }
     case "lens":
       // Across: a ~1.2 px core of 256 (0.8 peak) over a faint ~6 px skirt; tall enough to resolve the core.
