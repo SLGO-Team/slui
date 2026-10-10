@@ -16,8 +16,8 @@
       { "id": "pistols", "label": "手枪", "order": 2 }
     ],
     "items": [
-      { "item_id": "armor", "name": "Reinforced Armor", "description": "Durability +13", "icon_url": null, "price": 650, "quantity": 1, "owned_quantity": 0, "category_id": "equipment", "purchasable": true, "unavailable_reason": null },
-      { "item_id": "smoke", "name": "Smoke Grenade", "icon_url": null, "price": 300, "quantity": 0, "owned_quantity": 2, "category_id": "equipment", "purchasable": false, "unavailable_reason": "Inventory limit reached" }
+      { "item_id": "armor", "name": "Reinforced Armor", "description": "Durability +13", "icon_url": null, "price": 650, "quantity": 1, "owned_quantity": 0, "owner_player_ids": ["76561198000000002"], "category_id": "equipment", "purchasable": true, "unavailable_reason": null },
+      { "item_id": "smoke", "name": "Smoke Grenade", "icon_url": null, "price": 300, "quantity": 0, "owned_quantity": 2, "owner_player_ids": ["76561198000000001"], "category_id": "equipment", "purchasable": false, "unavailable_reason": "Inventory limit reached" }
     ]
   }
 }

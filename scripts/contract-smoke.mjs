@@ -623,6 +623,13 @@ assert.equal(parseShopSnapshot({
   categories: [{ id: "equipment", label: "装备", order: 1 }],
   items: [{ item_id: "armor", name: "Armor", price: 50, quantity: null, category_id: "unknown", owned_quantity: 0, purchasable: true }],
 }).ok, true, "unknown category assignment remains a valid plugin payload");
+{
+  const item = { item_id: "armor", name: "Armor", price: 50, quantity: null, purchasable: true };
+  assert.equal(parseShopSnapshot({ balance: 100, window_open: true, items: [{ ...item, owner_player_ids: ["7656119"] }] }).ok, true, "owner ids are a string list");
+  assert.equal(parseShopSnapshot({ balance: 100, window_open: true, items: [{ ...item, owner_player_ids: null }] }).ok, true, "owner ids may be null");
+  assert.equal(parseShopSnapshot({ balance: 100, window_open: true, items: [{ ...item, owner_player_ids: [""] }] }).ok, false, "owner ids must be non-empty");
+  assert.equal(parseShopSnapshot({ balance: 100, window_open: true, items: [{ ...item, owner_player_ids: "7656119" }] }).ok, false, "owner ids must be a list");
+}
 assert.equal(parseShopSnapshot({
   balance: 100,
   window_open: true,

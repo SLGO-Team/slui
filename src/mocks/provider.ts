@@ -127,7 +127,26 @@ export const mockMatchSnapshot: MatchSnapshot = {
   ],
 };
 
-export const mockShopSnapshot: ShopSnapshot = {
+const MOCK_ARMOR_ITEM_IDS: Readonly<Record<NonNullable<MatchPlayerLoadout["armor"]>, string>> = { light: "ArmorLight", combat: "ArmorCombat", heavy: "ArmorHeavy" };
+
+/**
+ * Mock-only `owner_player_ids`: who on the team holds each item, read off the projected mock loadouts
+ * (the plugin reads the real inventories), so the shop pips agree with the top HUD equipment.
+ */
+function withMockOwners(teamId: "team-a" | "team-b", snapshot: ShopSnapshot): ShopSnapshot {
+  const players = mockMatchSnapshot.teams.find((team) => team.team_id === teamId)?.players ?? [];
+  const held = players.map((player) => {
+    const loadout = projectMockLoadout(player.player_id, player);
+    const items = loadout ? [loadout.primary_item_id, ...loadout.utility_item_ids, loadout.armor ? MOCK_ARMOR_ITEM_IDS[loadout.armor] : null] : [];
+    return { playerId: player.player_id, items };
+  });
+  return {
+    ...snapshot,
+    items: snapshot.items.map((item) => ({ ...item, owner_player_ids: held.filter((entry) => entry.items.includes(item.item_id)).map((entry) => entry.playerId) })),
+  };
+}
+
+export const mockShopSnapshot: ShopSnapshot = withMockOwners("team-a", {
   balance: 4250,
   next_round_min_money: 4400,
   window_open: true,
@@ -167,13 +186,13 @@ export const mockShopSnapshot: ShopSnapshot = {
     { item_id: "Medkit", name: "医疗包", description: "瞬间回复血量", icon_url: "/assets/slui-svg/Medkit.svg", price: 200, quantity: 2, owned_quantity: 0, category_id: "grenades", purchasable: true, unavailable_reason: null },
     { item_id: "Adrenaline", name: "肾上腺素", description: "提供临时护盾，立即回复体力，还能有效反制一些SCP", icon_url: "/assets/slui-svg/Adrenaline.svg", price: 400, quantity: 2, owned_quantity: 0, category_id: "grenades", purchasable: true, unavailable_reason: null },
   ],
-};
+});
 
 /**
  * SCP faction fixture. Categories mirror the plugin's server-owned grouping:
  * equipment, danger/high-risk role tiers, and separate health/shield columns.
  */
-export const mockScpShopSnapshot: ShopSnapshot = {
+export const mockScpShopSnapshot: ShopSnapshot = withMockOwners("team-b", {
   balance: 4250,
   next_round_min_money: 4400,
   window_open: true,
@@ -206,7 +225,7 @@ export const mockScpShopSnapshot: ShopSnapshot = {
 
     { item_id: "GeneratorInteractionUpgrade", name: "电板破坏加速", description: "缩短关闭发电机的时间至5秒", icon_url: "/assets/icons/wire-cutters.svg", price: 400, quantity: 1, owned_quantity: 0, category_id: "scp-equipment", purchasable: true, unavailable_reason: null },
   ],
-};
+});
 
 /** SCP-079 receives a server-defined power column instead of health/shield. */
 export const mockScp079ShopSnapshot: ShopSnapshot = {

@@ -317,8 +317,16 @@ request", "Sidecar session handshake", "Security boundary").
   the plugin must republish `shop.snapshot` while the buy window is open.
 - Purchase eligibility is `purchasable` only (via `ShopItemView.disabled` and
   `isShopItemPurchaseBlocked`), for clicks and number keys alike;
-  `owned_quantity` is display-only (the owned pip), so a held but still
-  purchasable item such as a second flashbang stays buyable.
+  `owned_quantity` is display-only (the white owned outline), so a held but
+  still purchasable item such as a second flashbang stays buyable.
+- `owner_player_ids` (plugin: every alive holder on the viewer's team, the
+  viewer included) draws the CS2 teammate-inventory pips, one per holder in
+  team slot order, coloured by `playerSlotColors` (the colour the top HUD, chat
+  and radar use); `shopOwnerPipColors` falls back to the viewer's own
+  `owned_quantity` for plugins without the field. A refused click or number
+  key on an unavailable card puts its `unavailable_reason` in the yellow
+  failure banner above the details card, the same banner a plugin rejection
+  uses; the details card carries only the name and description.
 - `ShopItemView.unavailable` (not `purchasable`, or the shop is not live with
   the buy window open) is what draws a card disabled; `disabled` also blocks
   while a purchase for the item is in flight. An in-flight purchase draws
