@@ -12,7 +12,7 @@
   "assignee": "23q3",
   "createdAt": "2026-10-10",
   "completedAt": null,
-  "branch": null,
+  "branch": "perf/installer-single-compile",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
