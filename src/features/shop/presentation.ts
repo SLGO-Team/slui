@@ -107,6 +107,34 @@ export function shopWashForRole(role: Role): string {
   return SHOP_WASH_BY_ROLE[role];
 }
 
+/** buymenu.css:816-822 - `.player-pip.has-item` is white until a player colour is known. */
+export const SHOP_PIP_FALLBACK_COLOR = "#ffffff";
+
+/**
+ * The teammate-inventory pips of one card (buymenu.xml TeammateInventory): one colour per holder, in
+ * team slot order. `playerColors` is the HUD-wide slot colour map (playerSlotColors), whose key order is
+ * the match.snapshot team order. A plugin without `owner_player_ids` only reports the viewer's own
+ * `owned_quantity`, so the viewer is then the only possible holder.
+ */
+export function shopOwnerPipColors(
+  item: Pick<ShopItem, "owner_player_ids" | "owned_quantity">,
+  playerColors: Readonly<Record<string, string>>,
+  localPlayerId: string | null,
+): string[] {
+  if (item.owner_player_ids === undefined || item.owner_player_ids === null) {
+    if ((item.owned_quantity ?? 0) <= 0) return [];
+    return [(localPlayerId === null ? undefined : playerColors[localPlayerId]) ?? SHOP_PIP_FALLBACK_COLOR];
+  }
+  const slots = Object.keys(playerColors);
+  const slotOf = (playerId: string) => {
+    const index = slots.indexOf(playerId);
+    return index < 0 ? slots.length : index;
+  };
+  return [...new Set(item.owner_player_ids)]
+    .sort((a, b) => slotOf(a) - slotOf(b))
+    .map((playerId) => playerColors[playerId] ?? SHOP_PIP_FALLBACK_COLOR);
+}
+
 // The default five-column widths reproduce the NTF/CS2 menu. SCP has its own
 // category order, so its danger and high-risk columns use the swapped widths.
 const FIVE_COLUMN_WIDTHS = [171, 171, 209, 228, 171] as const;

@@ -427,7 +427,8 @@ function App() {
   const bottomHud = bottomHudBase === null || sceneSelf === null ? bottomHudBase
     : !sceneSelf.alive ? null
       : sceneSelf.money === null || sceneSelf.money === bottomHudBase.balance ? bottomHudBase : { ...bottomHudBase, balance: sceneSelf.money };
-  const minimapPlayerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
+  // One slot colour per player across the HUD: radar markers and the shop's teammate-inventory pips.
+  const playerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
   const chatSelf = useMemo(() => resolveChatSelf(
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
   ), [hud, localSteamId]);
@@ -464,10 +465,12 @@ function App() {
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
         renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")
           && !("__TAURI_INTERNALS__" in window) }}
-        playerColors={minimapPlayerColors} />
+        playerColors={playerColors} />
       <ShopPanel
         shop={displayedShop}
         role={shopRole}
+        playerColors={playerColors}
+        localPlayerId={progressPlayerId}
         open={shopOpen}
         volume={shopVolume}
         countdownSeconds={hud.hasSnapshot ? hud.phaseClockSeconds : null}

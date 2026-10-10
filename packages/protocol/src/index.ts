@@ -216,6 +216,11 @@ export type ShopItem = {
   category_id?: string | null;
   /** Quantity already owned by the viewer, when supplied by the plugin. */
   owned_quantity?: number | null;
+  /**
+   * Player ids (SteamID64, as in match.snapshot) of the viewer's team, the viewer included, who hold
+   * the item now; drives the CS2 teammate-inventory pips. Absent from older plugins.
+   */
+  owner_player_ids?: string[] | null;
   purchasable: boolean;
   unavailable_reason?: string | null;
 };
@@ -784,6 +789,7 @@ export function parseShopSnapshot(payload: unknown): ParseResult<ShopSnapshot> {
     if (item.unavailable_reason !== undefined && item.unavailable_reason !== null && typeof item.unavailable_reason !== "string") return null;
     if (item.category_id !== undefined && item.category_id !== null && !isNonEmptyString(item.category_id)) return null;
     if (item.owned_quantity !== undefined && item.owned_quantity !== null && (!Number.isInteger(item.owned_quantity) || Number(item.owned_quantity) < 0)) return null;
+    if (item.owner_player_ids !== undefined && item.owner_player_ids !== null && (!Array.isArray(item.owner_player_ids) || !item.owner_player_ids.every(isNonEmptyString))) return null;
     return item as unknown as ShopItem;
   });
   if (!items.every(Boolean)) return error("invalid-payload", "Shop snapshot contains an invalid item");

@@ -8,7 +8,7 @@ import {
   selectShop,
   shopReducer,
 } from "../src/features/shop/model.ts";
-import { allocateShopColumnWidths, groupShopItems, shopWashForRole } from "../src/features/shop/presentation.ts";
+import { SHOP_PIP_FALLBACK_COLOR, allocateShopColumnWidths, groupShopItems, shopOwnerPipColors, shopWashForRole } from "../src/features/shop/presentation.ts";
 import {
   DEFAULT_SHOP_DEBUG_OPTIONS,
   createShopDebugState,
@@ -140,3 +140,17 @@ for (const skewMs of [60_000, -60_000]) {
   assert.equal(selectShop(skewState, receivedAtMs + SHOP_STALE_AFTER_MS + 1).availability, "stale", "age still counts from local receipt");
 }
 console.log("shop model smoke: ok");
+
+// Teammate-inventory pips: one per holder in team slot order, coloured by the HUD slot colour.
+{
+  const colors = { a: "#c03699", b: "#88cef5", c: "#f8f62d" };
+  assert.deepEqual(shopOwnerPipColors({ owner_player_ids: ["c", "a"] }, colors, "b"), ["#c03699", "#f8f62d"], "pips follow team slot order");
+  assert.deepEqual(shopOwnerPipColors({ owner_player_ids: ["a", "a"] }, colors, "b"), ["#c03699"], "a holder draws one pip");
+  assert.deepEqual(shopOwnerPipColors({ owner_player_ids: ["x"] }, colors, "b"), [SHOP_PIP_FALLBACK_COLOR], "an unknown holder draws white");
+  assert.deepEqual(shopOwnerPipColors({ owner_player_ids: [], owned_quantity: 2 }, colors, "b"), [], "owner ids win over owned_quantity");
+  assert.deepEqual(shopOwnerPipColors({ owned_quantity: 1 }, colors, "b"), ["#88cef5"], "an older plugin only reports the viewer");
+  assert.deepEqual(shopOwnerPipColors({ owned_quantity: 0 }, colors, "b"), [], "nothing held, no pip");
+  assert.deepEqual(shopOwnerPipColors({ owned_quantity: 1 }, colors, null), [SHOP_PIP_FALLBACK_COLOR], "unknown viewer draws white");
+  const owned = mockScpShopSnapshot.items.find((item) => item.item_id === "Scp173");
+  assert.deepEqual(owned?.owner_player_ids, ["76561198000000006"], "mock owners come from the mock loadouts");
+}

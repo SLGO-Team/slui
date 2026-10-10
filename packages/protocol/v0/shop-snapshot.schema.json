@@ -36,6 +36,7 @@
           "price": { "type": "integer", "minimum": 0 },
           "quantity": { "description": "Remaining purchasable quantity; null means unlimited.", "type": ["integer", "null"], "minimum": 0 },
           "owned_quantity": { "description": "Quantity already owned by the viewer.", "type": ["integer", "null"], "minimum": 0 },
+          "owner_player_ids": { "description": "Player ids (SteamID64) of the viewer's team, the viewer included, who hold the item; drives the teammate-inventory pips.", "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
           "category_id": { "type": ["string", "null"] },
           "purchasable": { "description": "Final plugin-authoritative eligibility, including balance and inventory rules.", "type": "boolean" },
           "unavailable_reason": { "type": ["string", "null"] }

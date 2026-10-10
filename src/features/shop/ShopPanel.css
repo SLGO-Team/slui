@@ -1,4 +1,27 @@
-/* Font faces are registered in src/shared/fonts.ts (theme pack or bundled fallback). */
+/* Font faces are registered in src/shared/fonts.ts (theme pack or bundled fallback).
+   CJK text: CS2's fonts.conf falls back from Stratum2 to Noto Sans SC scaled by 0.9 (size-adjust);
+   light serves the regular/medium labels, bold the bold ones. Without it a monospace chain such as
+   "Stratum2 Shop Mono", monospace lands on SimSun. Both files are SIL OFL (THIRD_PARTY_NOTICES.md). */
+@font-face {
+  font-family: "Noto Sans SC Shop";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-light.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Noto Sans SC Shop";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
 .shop-overlay { position: fixed; inset: 0; z-index: 30; pointer-events: none; user-select: none; }
 .shop-design-canvas { position: absolute; inset: 0 auto auto 50%; width: 1920px; height: 1080px; transform: translateX(-50%) scale(var(--shop-overlay-scale, 1)); transform-origin: top center; }
 /* Opening the buy menu does not just lay an alpha plate over the world - Source 2
@@ -86,7 +109,7 @@
 .shop-card--disabled { background: rgb(43 43 43 / 90%); filter: none; }
 .shop-card--disabled .shop-card__icon { background: rgb(64 64 64); }
 .shop-card--disabled .shop-card__name, .shop-card--disabled .shop-card__price { color: rgb(128 128 128); }
-/* buymenu.css:693 - the owned outline is white; only the pip carries player colour. */
+/* buymenu.css:693 - the viewer's own holding draws a white outline; the pips below show every holder. */
 .shop-card--owned { border-color: #fff; }
 .shop-card--success { animation: shop-purchased .5s ease-in-out 1; }
 /* buymenu.css:658 sets padding 4px 10px on the card, and the four children align
@@ -107,28 +130,38 @@
 .shop-card[data-shop-item="GunFRMG0"] .shop-card__icon { top: 31px; height: 32px; mask-size: auto 32px; -webkit-mask-size: auto 32px; }
 .shop-card[data-shop-item="GunLogicer"] .shop-card__icon { top: 20px; height: 44px; mask-size: auto 44px; -webkit-mask-size: auto 44px; }
 .shop-card__price { position: absolute; right: 10px; bottom: 4px; color: var(--shop-wash); font: 700 14px/18px "Stratum2 Shop Mono", monospace; text-shadow: 1px 1px #00000088; }
-.shop-card__pip { position: absolute; bottom: 2px; left: 50%; width: 5px; height: 5px; background: var(--shop-player-color); border-radius: 50%; transform: translateX(-50%); }
+/* buymenu.css:802-822 - TeammateInventory: a 15px bottom strip centred under the card, flowing
+   right to left, one 5px pip with 2px side margins per holder. The capture puts the pip centre
+   7px above the card bottom. Competitive CS2 colours each pip with the holder's slot colour
+   (casual draws them all white). */
+.shop-card__owners { position: absolute; right: 0; bottom: 0; left: 0; display: flex; flex-direction: row-reverse; align-items: center; justify-content: center; height: 15px; pointer-events: none; }
+.shop-card__pip { flex: 0 0 auto; width: 5px; height: 5px; margin: 0 2px; border-radius: 50%; }
 .shop-card__pending-label { position: absolute; right: 10px; bottom: 30px; color: #eabe54; font-size: 11px; }
 /* 350px card + 32px inset = the 382px this column contributes; see the geometry
-   note on .shop-content. The column spans the rest of the canvas because
-   buymenu.css:90-100 anchors the failure banner to its bottom edge. */
+   note on .shop-content. The column spans the rest of the canvas; its preview,
+   failure banner and details card are placed from its top. */
 .shop-right { position: relative; width: 350px; height: calc(1080px - var(--shop-content-top)); margin-left: 32px; pointer-events: none; }
 .shop-item-preview { position: absolute; z-index: 0; top: 145px; left: calc(50% + 24px); width: 420px; height: 470px; object-fit: contain; object-position: center; filter: drop-shadow(0 22px 28px rgb(0 0 0 / 58%)); transform: translateX(-50%); }
-/* buymenu.css:90-100 - vertical-align:bottom with y:-120px and height:30px.
-   Derived from source only: the baseline has no failure state to measure. */
-.shop-failure { position: absolute; z-index: 2; bottom: 120px; left: 0; width: 350px; height: 30px; box-sizing: border-box; padding: 2px 8px; color: #fff; background: rgb(163 148 14 / 87%); font: 400 22px/26px "Stratum2 Shop Condensed", sans-serif; text-align: center; }
-.shop-failure--empty { visibility: hidden; opacity: 0; }
+/* buymenu.css:90-160 - the purchase-failure banner: 30px, the details card's width, white
+   Stratum2 Condensed 22px on rgba(163,148,14,.87); it fades in over .5s and pulses its saturation
+   twice. Position from the 1080p capture, which wins over the Panorama `y:-120px`: the banner sits
+   right above the details card (y 667..697, card at 708). */
+.shop-failure-container { position: absolute; z-index: 2; top: 667px; left: 0; width: 350px; height: 30px; }
+.shop-failure { display: block; box-sizing: border-box; width: 100%; height: 100%; padding: 0 8px; overflow: hidden; color: #fff; background: rgb(163 148 14 / 87%); font: 400 22px/30px "Stratum2 Shop Condensed", "Noto Sans SC Shop", sans-serif; text-align: center; text-overflow: ellipsis; white-space: nowrap; animation: shop-failure-fadein .5s ease-in 1, shop-failure-pulse .5s ease-in-out 2; }
 /* buymenu.css:382 padding-top:38px + :893 y:670px = 708px from the contents
    origin. Panorama's `y` starts after padding; CSS `top` does not, so the two
    are folded into one value here. Measured at 706-708 on the baseline. */
-.shop-details-card { position: absolute; z-index: 1; top: 708px; left: 0; display: flex; flex-direction: column; box-sizing: border-box; width: 350px; height: 110px; padding: 10px; color: #fff; background: #000000b8; font-family: "Stratum2 Shop", sans-serif; }
+/* buymenu.xml ItemDesc carries only the name and the description; a refusal reason belongs to the
+   failure banner above. */
+.shop-details-card { position: absolute; z-index: 1; top: 708px; left: 0; display: flex; flex-direction: column; box-sizing: border-box; width: 350px; height: 110px; padding: 10px; color: #fff; background: #000000b8; font-family: "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; }
 /* buymenu.css:911-923 - name is 16px bold with a 10px gap, desc is 14px. */
-.shop-details-card strong { margin-bottom: 10px; font: 700 16px/22px "Stratum2 Shop", sans-serif; }
-.shop-details-card span { color: #bbb; font: 400 14px/18px "Stratum2 Shop", sans-serif; }
-.shop-details-card small { margin-top: auto; color: #eabe54; font: 700 14px/18px "Stratum2 Shop Mono", monospace; }
+.shop-details-card strong { margin-bottom: 10px; font: 700 16px/22px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; }
+.shop-details-card span { color: #bbb; font: 400 14px/18px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; }
 /* buymenu.css:50-55 - the navbar is centred on the viewport, not on the 950px
    content column. */
 .shop-navbar { position: absolute; bottom: 0; left: 50%; display: flex; gap: 36px; align-items: center; box-sizing: border-box; height: 58px; padding: 0 20px; transform: translateX(-50%); border-top: 1px solid rgb(255 255 255 / 5%); color: #ddd; font: 700 24px/1 "Stratum2 Shop Condensed", sans-serif; pointer-events: auto; }
 .shop-navbar button { display: inline-flex; gap: 8px; align-items: center; color: #ddd; background: transparent; border: 0; font: inherit; cursor: pointer; }
 .shop-navbar kbd { color: #eabe54; font: 400 18px/1 "Stratum2 Shop Mono", monospace; }
 @keyframes shop-purchased { from { filter: brightness(2); } to { filter: brightness(1); } }
+@keyframes shop-failure-fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shop-failure-pulse { 0%, 100% { filter: saturate(1); } 50% { filter: saturate(0); } }
