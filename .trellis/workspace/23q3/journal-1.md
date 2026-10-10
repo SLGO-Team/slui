@@ -586,3 +586,26 @@ Deployed backend 9eb724c + plugin b70cb81 (release 20261010-110008), built produ
 ### Status
 
 [OK] **Completed**
+
+
+## Session 25: CI build speed: slimmer debug info
+<!-- trellis-session: v=2 fp=82d494d742d4b6e4 -->
+
+**Date**: 2026-10-10
+**Task**: CI build speed: slimmer debug info
+**Branch**: `perf/ci-build-speed`
+
+### Summary
+
+Measured CI/release build time (LLVM in final Tauri crates dominates; rustc knobs rejected). CI: CARGO_PROFILE_DEV_DEBUG=line-tables-only halves the Rust cache (836->399 MB), restore 54->21-33s, cargo test 38->28s; hakari check costs <3s, its 27s was dependency unpacking, so it stays. Planned child 10-10-installer-single-compile (one slui-setup compile, overlay payload).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1de17ab` | perf(ci): slimmer debug info for the CI Rust cache |
+| `9795830` | docs(spec): record where CI's Rust time goes |
+
+### Status
+
+[OK] **Completed**
