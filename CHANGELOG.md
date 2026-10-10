@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/SLGO-Team/slui/compare/v0.4.0...v0.5.0) (2026-10-10)
+
+
+### Features
+
+* **bottomhud:** CS2-style bottom HUD with balance, ammo and kill cards ([#21](https://github.com/SLGO-Team/slui/issues/21)) ([aa54162](https://github.com/SLGO-Team/slui/commit/aa54162d0fdbe0f37f89a76fdb63a2995de7ddda))
+
+
+### Bug Fixes
+
+* **bottomhud:** clip each odometer symbol to its row ([#23](https://github.com/SLGO-Team/slui/issues/23)) ([3c17b4b](https://github.com/SLGO-Team/slui/commit/3c17b4ba3d360d4688806db650a1e3019abd76c6))
+* **session:** clear the overlay when the server instance ends ([#26](https://github.com/SLGO-Team/slui/issues/26)) ([8cf9e39](https://github.com/SLGO-Team/slui/commit/8cf9e39746f5fe0f6dcd508919800fe04aeb7c3a))
+* **shop:** teammate holder pips and CS2 failure banner ([#25](https://github.com/SLGO-Team/slui/issues/25)) ([3b0f6b9](https://github.com/SLGO-Team/slui/commit/3b0f6b98ac8dd712675f72297deaae1f8328e674))
+
 ## [0.4.0](https://github.com/SLGO-Team/slui/compare/v0.3.0...v0.4.0) (2026-10-06)
 
 
