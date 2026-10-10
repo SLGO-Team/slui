@@ -4,13 +4,17 @@
 use slui_setup_lib::{
     payload::Session,
     uninstall::{self, Launch},
-    webview2, Role, ROLE,
+    webview2, Role,
 };
 
 fn main() {
-    let code = match ROLE {
-        Role::Setup => setup(),
-        Role::Uninstall => uninstaller(),
+    let code = match slui_setup_lib::role() {
+        Some(Role::Setup) => setup(),
+        Some(Role::Uninstall) => uninstaller(),
+        None => {
+            webview2::message_box("此安装程序文件不完整，请重新下载 SLUI 安装程序。");
+            1
+        }
     };
     std::process::exit(code);
 }
@@ -22,7 +26,7 @@ fn setup() -> i32 {
         // process exits; the next run removes the directory.
         return webview2::run_classic(&session);
     }
-    let code = slui_setup_lib::run(session.clone(), false);
+    let code = slui_setup_lib::run(Role::Setup, session.clone(), false);
     session.cleanup_after_exit();
     code
 }
@@ -48,7 +52,7 @@ fn uninstaller() -> i32 {
             }
         };
     }
-    let code = slui_setup_lib::run(session.clone(), relocated);
+    let code = slui_setup_lib::run(Role::Uninstall, session.clone(), relocated);
     session.cleanup_after_exit();
     code
 }

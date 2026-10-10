@@ -1,14 +1,19 @@
 //! SLUI installer shell: a branded UI that schedules the embedded SLUI NSIS package.
-//! Built with the `uninstaller` feature, the same crate is the branded uninstaller that
-//! runs the installed NSIS uninstaller (see `uninstall`).
+//! The same build is also the branded uninstaller that runs the installed NSIS
+//! uninstaller (see `uninstall`); the overlay appended after compilation says which
+//! (see `overlay`).
 
 pub mod detect;
 pub mod install;
+pub mod overlay;
 pub mod payload;
 pub mod uninstall;
 pub mod webview2;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    OnceLock,
+};
 
 use tauri::{ipc::Channel, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
@@ -21,14 +26,40 @@ use crate::{
 
 const MAIN_WINDOW: &str = "main";
 
-/// What this build is; fixed at compile time by the `uninstaller` feature.
+/// What this exe is: SLUI-Setup-<version>.exe or slui-uninstall.exe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     Setup,
     Uninstall,
 }
 
-pub const ROLE: Role = if cfg!(feature = "uninstaller") { Role::Uninstall } else { Role::Setup };
+/// Debug builds without an overlay (`npm run installer:dev`): `uninstall` here selects
+/// the uninstall UI, anything else the setup UI without a package.
+const DEV_ROLE_ENV: &str = "SLUI_SETUP_ROLE";
+
+/// The overlay of this exe, read once.
+pub fn overlay() -> Option<&'static overlay::Overlay> {
+    static OVERLAY: OnceLock<Option<overlay::Overlay>> = OnceLock::new();
+    OVERLAY
+        .get_or_init(|| {
+            let mut exe = std::fs::File::open(std::env::current_exe().ok()?).ok()?;
+            overlay::read(&mut exe, env!("CARGO_PKG_VERSION"))
+        })
+        .as_ref()
+}
+
+/// This exe's role; `None` for a release exe without an overlay (not produced by
+/// scripts/build-installer.mjs, or damaged).
+pub fn role() -> Option<Role> {
+    match overlay() {
+        Some(overlay) => Some(overlay.role),
+        None if cfg!(debug_assertions) => Some(match std::env::var(DEV_ROLE_ENV).as_deref() {
+            Ok("uninstall") => Role::Uninstall,
+            _ => Role::Setup,
+        }),
+        None => None,
+    }
+}
 
 impl Role {
     pub fn title(self) -> &'static str {
@@ -153,9 +184,9 @@ async fn uninstall(
     outcome
 }
 
-/// Runs the window of this build's [`ROLE`] until it closes and returns the exit code.
+/// Runs the window of `role` until it closes and returns the exit code.
 /// `relocated` only matters to the uninstaller.
-pub fn run(session: Session, relocated: bool) -> i32 {
+pub fn run(role: Role, session: Session, relocated: bool) -> i32 {
     let data_dir = session.webview_data_dir();
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -166,7 +197,7 @@ pub fn run(session: Session, relocated: bool) -> i32 {
             // Created here rather than in tauri.conf.json so the WebView2 user data goes to
             // the session temp directory instead of %LOCALAPPDATA%\com.slui.setup.
             let mut window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::default())
-                .title(ROLE.title())
+                .title(role.title())
                 .inner_size(640.0, 440.0)
                 .resizable(false)
                 .maximizable(false)
@@ -174,7 +205,7 @@ pub fn run(session: Session, relocated: bool) -> i32 {
                 .center()
                 .background_color(tauri::webview::Color(9, 14, 21, 255))
                 .data_directory(data_dir.clone());
-            if ROLE == Role::Uninstall {
+            if role == Role::Uninstall {
                 // Read synchronously by installer/src/main.tsx to pick the uninstall UI.
                 window = window.initialization_script("window.__SLUI_SETUP_ROLE__ = \"uninstall\";");
             }
@@ -188,8 +219,8 @@ pub fn run(session: Session, relocated: bool) -> i32 {
                 }
             }
         });
-    // Each build exposes only its own commands to its webview.
-    let builder = match ROLE {
+    // Each role exposes only its own commands to its webview.
+    let builder = match role {
         Role::Setup => builder.invoke_handler(tauri::generate_handler![detect, check_dir, pick_dir, install, launch]),
         Role::Uninstall => builder.invoke_handler(tauri::generate_handler![uninstall_detect, uninstall]),
     };

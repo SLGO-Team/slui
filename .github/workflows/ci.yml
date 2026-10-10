@@ -52,6 +52,5 @@ jobs:
           tool: cargo-hakari
       - run: cargo hakari generate --diff && cargo hakari manage-deps --dry-run
         working-directory: src-tauri
-      # Both crates in one build, so their shared dependencies compile once. The installer
-      # shell without a payload compiles with cfg(slui_setup_no_payload).
+      # Both crates in one build, so their shared dependencies compile once.
       - run: cargo test --workspace --manifest-path src-tauri/Cargo.toml

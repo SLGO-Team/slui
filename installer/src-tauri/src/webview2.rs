@@ -23,7 +23,7 @@ pub fn run_classic(session: &Session) -> i32 {
             message_box("此安装程序是不含安装包的开发版本，无法安装 SLUI。");
             return 1;
         }
-        Err(PayloadError::Write(detail)) => {
+        Err(PayloadError::Extract(detail)) => {
             message_box(&format!("无法解压安装文件：{detail}"));
             return 1;
         }
@@ -39,9 +39,10 @@ pub fn run_classic(session: &Session) -> i32 {
     }
 }
 
+/// Error box titled after this exe's role (the installer's title when it has none).
 pub fn message_box(text: &str) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
     let text = detect::wide(text);
-    let caption = detect::wide(crate::ROLE.title());
+    let caption = detect::wide(crate::role().unwrap_or(crate::Role::Setup).title());
     unsafe { MessageBoxW(std::ptr::null_mut(), text.as_ptr(), caption.as_ptr(), MB_OK | MB_ICONERROR) };
 }

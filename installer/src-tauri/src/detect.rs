@@ -14,7 +14,7 @@ pub const APP_EXE: &str = "slui.exe";
 pub const APP_DIR_NAME: &str = "SLUI";
 /// The NSIS uninstaller in the install directory.
 pub const NSIS_UNINSTALLER_EXE: &str = "uninstall.exe";
-/// The branded uninstaller (this crate, `uninstaller` feature) in the install directory.
+/// The branded uninstaller (this crate's exe with an uninstall overlay) in the install directory.
 pub const UNINSTALLER_EXE: &str = "slui-uninstall.exe";
 /// Theme pack directory inside the install directory (see src-tauri/src/theme_pack.rs).
 pub const THEME_PACK_DIR: &str = "theme-pack";
@@ -22,12 +22,17 @@ pub const THEME_PACK_DIR: &str = "theme-pack";
 /// %LOCALAPPDATA% (settings, WebView2 data).
 pub const APP_IDENTIFIER: &str = "com.slui.desktop";
 
+/// Placeholder disk requirement of builds without a package (`npm run installer:dev`).
+const DEV_REQUIRED_BYTES: u64 = 128 * 1024 * 1024;
+
+/// The SLUI version this exe installs: its own crate version, which release-please keeps
+/// equal to SLUI's (the overlay is only accepted when written for it).
 pub fn payload_version() -> &'static str {
-    env!("SLUI_SETUP_VERSION")
+    env!("CARGO_PKG_VERSION")
 }
 
 pub fn required_bytes() -> u64 {
-    env!("SLUI_SETUP_REQUIRED_BYTES").parse().unwrap_or(0)
+    crate::overlay().map_or(DEV_REQUIRED_BYTES, |overlay| overlay.required_bytes)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

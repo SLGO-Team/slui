@@ -1,15 +1,17 @@
 // Builds the distributed installer SLUI-Setup-<version>.exe:
-//   1. the branded uninstaller slui-uninstall.exe (installer/src-tauri, `uninstaller` feature),
-//   2. the SLUI NSIS package (internal artifact, embedded as the payload), which installs that
-//      uninstaller through src-tauri/windows/installer-hooks.nsh,
-//   3. the installer shell (installer/src-tauri) with that payload,
-//   4. copies the shell to src-tauri/target/release/bundle/setup/SLUI-Setup-<version>.exe.
+//   1. the installer shell (installer/src-tauri), compiled once for both roles: slui-setup.exe,
+//   2. the branded uninstaller slui-uninstall.exe = the shell + an uninstall overlay,
+//   3. the SLUI NSIS package (internal artifact, the payload), which installs that uninstaller
+//      through src-tauri/windows/installer-hooks.nsh,
+//   4. src-tauri/target/release/bundle/setup/SLUI-Setup-<version>.exe = the shell + a setup
+//      overlay carrying the payload.
+// The overlay layout is the contract with installer/src-tauri/src/overlay.rs.
 //
 // node scripts/build-installer.mjs           production payload (`tauri build --bundles nsis`)
 // node scripts/build-installer.mjs --local   local-test payload (`npm run tauri:build:local`)
 // node scripts/build-installer.mjs --dev     shell UI only: `tauri dev`, no payload
 //                                            (add --uninstall for the uninstaller UI)
-// add --reuse-payload to skip steps 1-2 and embed the package already in bundle/nsis
+// add --reuse-payload to skip steps 2-3 and attach the package already in bundle/nsis
 // (for shell-only changes; the package must match the current version).
 // add --theme-pack <dir> to install a local theme pack directory (`fonts/`, `sounds/`) as
 // `<install dir>\theme-pack`; the result is SLUI-Setup-<version>-theme-pack.exe and the
@@ -22,13 +24,26 @@
 //
 // The shell is a member of the Cargo workspace rooted at src-tauri (one Cargo.lock, one target
 // dir), and workspace-hack unifies the features of their shared dependencies, so the Tauri
-// dependencies are compiled and stored once.
+// dependencies are compiled and stored once. Its own release compile is about as slow as
+// SLUI's, which is why both roles share one build instead of a cargo feature.
 //
 // The shell is a second Tauri app. The root .taurignore hides installer/ from the CLI's
 // tauri.conf.json lookup, and here the CLI is pointed at it explicitly with
 // TAURI_APP_PATH / TAURI_FRONTEND_PATH (both read by @tauri-apps/cli).
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  copyFileSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,6 +53,8 @@ const shellTauriDir = join(installerDir, "src-tauri");
 const tauriCli = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 // The NSIS uninstaller and installer bookkeeping next to slui.exe.
 const INSTALL_OVERHEAD_BYTES = 4 * 1024 * 1024;
+// MAGIC in installer/src-tauri/src/overlay.rs.
+const OVERLAY_MAGIC = Buffer.from("SLUISETUP\0v1\0\0\0\0", "latin1");
 
 const { flags, themePack } = parseArgs(process.argv.slice(2));
 const mode = flags.has("--dev") ? "dev" : flags.has("--local") ? "local" : "production";
@@ -61,14 +78,12 @@ const shellEnv = {
 // The shell exe's version resource follows the SLUI version it installs.
 const shellConfig = JSON.stringify({ version });
 
-// The payload-less builds (dev, uninstaller) must not see a payload from the environment.
-const payloadlessEnv = { ...shellEnv };
-for (const name of ["SLUI_SETUP_PAYLOAD", "SLUI_SETUP_VERSION", "SLUI_SETUP_REQUIRED_BYTES"]) delete payloadlessEnv[name];
-
 if (mode === "dev") {
-  const devArgs = ["dev", "--config", shellConfig];
-  if (flags.has("--uninstall")) devArgs.push("--features", "uninstaller");
-  run(process.execPath, [tauriCli, ...devArgs], { cwd: installerDir, env: payloadlessEnv });
+  // A debug build without an overlay takes its role from SLUI_SETUP_ROLE (src/lib.rs).
+  run(process.execPath, [tauriCli, "dev", "--config", shellConfig], {
+    cwd: installerDir,
+    env: { ...shellEnv, SLUI_SETUP_ROLE: flags.has("--uninstall") ? "uninstall" : "setup" },
+  });
   process.exit(0);
 }
 
@@ -76,16 +91,14 @@ const started = Date.now();
 const release = join(root, "src-tauri", "target", "release");
 const uninstaller = join(release, "slui-uninstall.exe");
 console.log(`build-installer: SLUI ${version}, ${reusePayload ? "reused" : mode} payload${themePack ? `, theme pack ${themePack}` : ""}`);
+
+// No freshness check: cargo leaves an up-to-date exe untouched, and there is only one variant.
+run(process.execPath, [tauriCli, "build", "--config", shellConfig], { cwd: installerDir, env: shellEnv });
+const shellExe = join(release, "slui-setup.exe");
+statOrFail(shellExe, "installer shell");
+
 if (!reusePayload) {
-  // The same crate as the shell; the feature drops the payload and switches to the uninstall UI.
-  const uninstallerConfig = JSON.stringify({ version, productName: "SLUI Uninstall" });
-  run(process.execPath, [tauriCli, "build", "--features", "uninstaller", "--config", uninstallerConfig], {
-    cwd: installerDir,
-    env: payloadlessEnv,
-  });
-  const built = join(release, "slui-setup.exe");
-  if (statOrFail(built, "uninstaller").mtimeMs < started - 1000) fail(`${built} was not rebuilt by this run`);
-  copyFileSync(built, uninstaller);
+  writeWithOverlay(uninstaller, shellExe, { role: "uninstall", version, payloadBytes: 0, requiredBytes: 0 });
 
   const hooks = writeHooksWrapper(join(release, "slui-installer-hooks.nsh"), {
     SLUI_UNINSTALLER_SOURCE: uninstaller,
@@ -112,28 +125,49 @@ const uninstallerStat = statOrFail(uninstaller, "slui-uninstall.exe");
 const requiredBytes = appStat.size + uninstallerStat.size + (themePack ? directorySize(themePack) : 0)
   + INSTALL_OVERHEAD_BYTES;
 
-run(process.execPath, [tauriCli, "build", "--config", shellConfig], {
-  cwd: installerDir,
-  env: {
-    ...shellEnv,
-    SLUI_SETUP_PAYLOAD: payload,
-    SLUI_SETUP_VERSION: version,
-    SLUI_SETUP_REQUIRED_BYTES: String(requiredBytes),
-  },
-});
-
-const shellExe = join(release, "slui-setup.exe");
-statOrFail(shellExe, "installer shell");
 const outDir = join(release, "bundle", "setup");
 mkdirSync(outDir, { recursive: true });
 const output = join(outDir, `SLUI-Setup-${version}${themePack ? "-theme-pack" : ""}.exe`);
-copyFileSync(shellExe, output);
+writeWithOverlay(output, shellExe, { role: "setup", version, payloadBytes: payloadStat.size, requiredBytes }, payload);
 const size = statSync(output).size;
 console.log(`build-installer: ${output} (${size.toLocaleString("en-US")} bytes, payload ${payloadStat.size.toLocaleString("en-US")} bytes)`);
 if (themePack) {
   // Keep the themed NSIS package out of a later --reuse-payload, which must fail rather than
   // silently embed it.
   renameSync(payload, payload.replace(/\.exe$/, "-theme-pack.exe"));
+}
+
+/**
+ * Writes `dest` = the compiled shell + the overlay installer/src-tauri/src/overlay.rs reads:
+ * [payload][meta JSON][meta length, u32 LE][OVERLAY_MAGIC].
+ */
+function writeWithOverlay(dest, shell, meta, payload) {
+  copyFileSync(shell, dest);
+  const metaBytes = Buffer.from(JSON.stringify(meta), "utf8");
+  const metaLength = Buffer.alloc(4);
+  metaLength.writeUInt32LE(metaBytes.length);
+  const out = openSync(dest, "a");
+  try {
+    if (payload) appendFile(out, payload, meta.payloadBytes);
+    for (const chunk of [metaBytes, metaLength, OVERLAY_MAGIC]) writeSync(out, chunk);
+  } finally {
+    closeSync(out);
+  }
+}
+
+/** Appends the file at `path`, which must be `bytes` long, to the open descriptor `out`. */
+function appendFile(out, path, bytes) {
+  const input = openSync(path, "r");
+  const buffer = Buffer.alloc(1024 * 1024);
+  let copied = 0;
+  try {
+    for (let read; (read = readSync(input, buffer, 0, buffer.length, null)) > 0; copied += read) {
+      writeSync(out, buffer, 0, read);
+    }
+  } finally {
+    closeSync(input);
+  }
+  if (copied !== bytes) fail(`${path} changed while it was attached (${copied} of ${bytes} bytes)`);
 }
 
 /** Writes an NSIS include that defines `defines` and includes the checked-in hooks. */

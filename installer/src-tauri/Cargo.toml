@@ -12,14 +12,8 @@ workspace = "../../src-tauri"
 name = "slui_setup_lib"
 crate-type = ["rlib"]
 
-[features]
-# Builds the branded uninstaller (slui-uninstall.exe) instead of the installer shell:
-# no embedded payload, uninstall UI. See src/uninstall.rs.
-uninstaller = []
-
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-serde_json = "1"
 
 [dependencies]
 tauri = { version = "2", features = [] }
