@@ -609,3 +609,26 @@ Measured CI/release build time (LLVM in final Tauri crates dominates; rustc knob
 ### Status
 
 [OK] **Completed**
+
+
+## Session 26: Installer: one slui-setup compile
+<!-- trellis-session: v=2 fp=f9bec3e5f1452b9e -->
+
+**Date**: 2026-10-10
+**Task**: Installer: one slui-setup compile
+**Branch**: `perf/installer-single-compile`
+
+### Summary
+
+slui-setup is compiled once; build-installer.mjs appends an overlay (role, version, required bytes, NSIS payload) to make slui-uninstall.exe and SLUI-Setup. overlay.rs reads it; runtime role; uninstaller feature, RCDATA payload and slui_setup_no_payload removed. Local installer build 117s with one slui-setup compile; live install/uninstall test passed. Release-job timing to confirm on next release (baseline 309s).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `240810e` | perf(installer): build slui-setup once for the installer and the uninstaller |
+| `17c084a` | docs(task): record the single-compile installer outcome |
+
+### Status
+
+[OK] **Completed**
