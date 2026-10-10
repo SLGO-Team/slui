@@ -90,6 +90,11 @@ When static source and observed output disagree, the in-game screenshot wins.
   `"tnum"` where Stratum2 has TF/Mono/Monodigit cuts.
 - A theme-pack change must keep the with-pack 1920x1080 captures pixel-identical
   to the previous baseline; verify the no-pack state with `?themePack=0`.
+- Glyph ink may leave the em box with one source but not the other (Stratum2's
+  "$" ends 1px below it at 42px). Anything that stacks glyphs in 1em rows behind a
+  window (odometer strips) clips every row itself (`overflow: hidden` per symbol),
+  or the neighbour row bleeds in; measure ink with canvas `measureText`
+  (`actualBoundingBox*`) under both sources.
 
 ### Migration
 
