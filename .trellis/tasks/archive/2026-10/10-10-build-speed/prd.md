@@ -28,7 +28,13 @@ The children are independent; each lands as its own PR.
 
 ## Cross-child acceptance criteria
 
-- [ ] `build-and-test` still gates the same things (lint, tests, production build, hakari freshness,
+- [x] `build-and-test` still gates the same things (lint, tests, production build, hakari freshness,
       `cargo test --workspace`); no check is dropped, only made cheaper or skipped when provably unaffected.
-- [ ] Before/after wall times from real CI runs are recorded in each child PR.
-- [ ] Installed SLUI and the installer/uninstaller behave as before (child 2 live test).
+- [x] Before/after wall times from real CI runs are recorded in each child PR.
+- [x] Installed SLUI and the installer/uninstaller behave as before (child 2 live test).
+
+## Outcome
+
+- `10-10-ci-build-speed` (PR #27): Rust cache 836 → 399 MB, ~30s less per CI run.
+- `10-10-installer-single-compile` (PR #29): one `slui-setup` release compile per installer build
+  (expected ~80s less per release job; to be confirmed on the next release, baseline 309s).

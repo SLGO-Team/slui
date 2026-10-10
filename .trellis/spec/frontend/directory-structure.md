@@ -46,9 +46,9 @@ src-tauri/               # Cargo workspace root (Cargo.lock, target/)
 installer/               # installer shell (second Tauri app) -> SLUI-Setup-<ver>.exe
 ├── src/                 # React UI: model.ts (pure), platform.ts (only invoke), screens/
 │   └── uninstall/       # uninstaller UI (same layout), picked by window.__SLUI_SETUP_ROLE__
-└── src-tauri/           # crate slui-setup: detect, payload, install, uninstall, webview2 gate
-                         # `uninstaller` feature -> slui-uninstall.exe (no payload)
-scripts/build-installer.mjs  # uninstaller + NSIS payload + shell build + copy to bundle/setup/
+└── src-tauri/           # crate slui-setup: detect, overlay, payload, install, uninstall, webview2 gate
+                         # one build -> slui-uninstall.exe / SLUI-Setup-<ver>.exe via overlays
+scripts/build-installer.mjs  # shell build + uninstaller overlay + NSIS payload + setup overlay
 ```
 
 ---
@@ -80,13 +80,13 @@ scripts/build-installer.mjs  # uninstaller + NSIS payload + shell build + copy t
 - Keep reducers, selectors, parsers, and command validation pure where
   possible. They must be testable without a Tauri window or a running game.
 - The installer shell lives in `installer/` and only schedules the NSIS package
-  produced from `src-tauri` (embedded at build time via `SLUI_SETUP_PAYLOAD`).
+  produced from `src-tauri` (appended to the exe after compilation, see below).
   It never writes the install dir, registry or shortcuts itself. Its frontend
   calls Tauri only from `installer/src/platform.ts` (uninstaller:
   `installer/src/uninstall/platform.ts`); screen transitions live in the pure
   `installer/src/model.ts` / `installer/src/uninstall/model.ts` (covered by
   `scripts/installer-model-smoke.mjs` / `scripts/uninstaller-model-smoke.mjs`).
-  The same crate built with `--features uninstaller` is the branded uninstaller
+  The same exe with an uninstall overlay is the branded uninstaller
   (see "Installer and uninstaller NSIS contract" in quality-guidelines.md). `tsc -p installer` runs in
   `npm run lint` / `build` / `build:local`.
 - Build it with `npm run installer:build:local` (or `installer:build`); output
@@ -113,10 +113,19 @@ scripts/build-installer.mjs  # uninstaller + NSIS payload + shell build + copy t
 - Windows application manifests (`installer/src-tauri/app.manifest`) must be
   pure ASCII: a non-ASCII comment makes the exe fail to start with
   side-by-side error 14001.
-- The ~100 MB NSIS payload is embedded as the RCDATA resource `SLUI_PAYLOAD`
-  (`append_rc_content` in `installer/src-tauri/build.rs`), never with
-  `include_bytes!`: a constant that size makes LLVM run out of memory in
-  release builds.
+- `slui-setup` is compiled in release **once** per installer build (its release
+  compile costs as much as SLUI's). `build-installer.mjs` appends an overlay to
+  copies of that exe: `[payload][meta JSON][u32 LE length][MAGIC]`, meta
+  `{role, version, payloadBytes, requiredBytes}`; `installer/src-tauri/src/overlay.rs`
+  reads it and only accepts `version == CARGO_PKG_VERSION`. Role `uninstall` →
+  slui-uninstall.exe, role `setup` + the NSIS package → SLUI-Setup-<ver>.exe.
+  A release exe without an overlay refuses to run; debug builds without one
+  pick the role from `SLUI_SETUP_ROLE` (`installer:dev -- --uninstall`). Do not
+  reintroduce a cargo feature or a compile-time payload (RCDATA,
+  `include_bytes!`, which also runs LLVM out of memory) for either role. Both
+  exes carry the `SLUI Setup` version info; the window title follows the role.
+  If the exes are ever code-signed, sign after appending and make the reader
+  stop at the PE security directory instead of the end of the file.
 - The Tauri CLI refuses to build when `tauri` and `@tauri-apps/api` differ in
   major/minor. When bumping Tauri, pin plugins such as `tauri-plugin-dialog` to
   a release compatible with that `tauri` (both crates share `src-tauri/Cargo.lock`).

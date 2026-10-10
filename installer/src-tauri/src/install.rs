@@ -175,7 +175,7 @@ pub fn install(
     let package = match session.extract_payload() {
         Ok(path) => path,
         Err(PayloadError::Missing) => return failed(FailReason::NoPayload),
-        Err(PayloadError::Write(detail)) => {
+        Err(PayloadError::Extract(detail)) => {
             return InstallOutcome::Failed { code: None, reason: FailReason::ExtractFailed, detail: Some(detail) };
         }
     };

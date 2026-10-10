@@ -1,4 +1,4 @@
-//! The embedded NSIS package and the per-run temp directory.
+//! The NSIS package in this exe's overlay and the per-run temp directory.
 //!
 //! Everything the shell writes lives in `%TEMP%\slui-setup-<pid>\`: the extracted
 //! package and the WebView2 user data. Nothing goes to `%LOCALAPPDATA%`. The directory
@@ -7,52 +7,14 @@
 
 use std::{
     fs,
+    io::{self, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
-use crate::detect;
+use crate::{detect, Role};
 
 const SESSION_PREFIX: &str = "slui-setup-";
-
-/// Resource name of the embedded package (RCDATA, see build.rs).
-#[cfg(not(slui_setup_no_payload))]
-const PAYLOAD_RESOURCE: &str = "SLUI_PAYLOAD";
-
-/// The NSIS package embedded in this exe; `None` in payload-less development builds.
-#[cfg(not(slui_setup_no_payload))]
-fn embedded_payload() -> Option<&'static [u8]> {
-    use windows_sys::Win32::System::LibraryLoader::{
-        FindResourceW, GetModuleHandleW, LoadResource, LockResource, SizeofResource,
-    };
-    // MAKEINTRESOURCE(RT_RCDATA)
-    const RT_RCDATA: windows_sys::core::PCWSTR = 10 as _;
-    let expected: u64 = env!("SLUI_SETUP_PAYLOAD_BYTES").parse().unwrap_or(0);
-    let name = detect::wide(PAYLOAD_RESOURCE);
-    // Resources stay mapped for the lifetime of the module, so the slice is 'static.
-    let bytes = unsafe {
-        let module = GetModuleHandleW(std::ptr::null());
-        let info = FindResourceW(module, name.as_ptr(), RT_RCDATA);
-        if info.is_null() {
-            return None;
-        }
-        let size = SizeofResource(module, info);
-        let data = LoadResource(module, info);
-        let pointer = if data.is_null() { std::ptr::null_mut() } else { LockResource(data) };
-        if pointer.is_null() || size == 0 {
-            return None;
-        }
-        std::slice::from_raw_parts(pointer as *const u8, size as usize)
-    };
-    // A size mismatch means the resource is not the package build.rs validated.
-    (bytes.len() as u64 == expected).then_some(bytes)
-}
-
-/// UI development build without an embedded package (see build.rs).
-#[cfg(slui_setup_no_payload)]
-fn embedded_payload() -> Option<&'static [u8]> {
-    None
-}
 
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -79,13 +41,22 @@ impl Session {
         self.dir.join("webview")
     }
 
-    /// Writes the NSIS package into the session directory and returns its path.
+    /// Copies the NSIS package out of this exe's overlay into the session directory and
+    /// returns its path.
     pub fn extract_payload(&self) -> Result<PathBuf, PayloadError> {
-        let bytes = embedded_payload().ok_or(PayloadError::Missing)?;
-        fs::create_dir_all(&self.dir).map_err(|error| PayloadError::Write(error.to_string()))?;
-        let path = self.dir.join(payload_file_name(detect::payload_version()));
-        fs::write(&path, bytes).map_err(|error| PayloadError::Write(error.to_string()))?;
-        Ok(path)
+        let overlay = crate::overlay().filter(|overlay| overlay.role == Role::Setup).ok_or(PayloadError::Missing)?;
+        let extract = || -> io::Result<PathBuf> {
+            let mut exe = fs::File::open(std::env::current_exe()?)?;
+            exe.seek(SeekFrom::Start(overlay.payload_offset))?;
+            fs::create_dir_all(&self.dir)?;
+            let path = self.dir.join(payload_file_name(detect::payload_version()));
+            let copied = io::copy(&mut exe.take(overlay.payload_bytes), &mut fs::File::create(&path)?)?;
+            if copied != overlay.payload_bytes {
+                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "the installer file is truncated"));
+            }
+            Ok(path)
+        };
+        extract().map_err(|error| PayloadError::Extract(error.to_string()))
     }
 
     /// Called after the event loop has ended: waits (bounded) for the WebView2
@@ -103,9 +74,10 @@ impl Session {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PayloadError {
-    /// Debug build without an embedded package.
+    /// Development build without a package (no setup overlay).
     Missing,
-    Write(String),
+    /// Reading the package from this exe or writing it to the session directory failed.
+    Extract(String),
 }
 
 pub fn payload_file_name(version: &str) -> String {

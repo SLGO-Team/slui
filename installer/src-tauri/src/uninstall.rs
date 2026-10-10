@@ -1,4 +1,4 @@
-//! The branded uninstaller (`uninstaller` feature): how it was started, its temp copy,
+//! The branded uninstaller (uninstall overlay): how it was started, its temp copy,
 //! and the NSIS uninstall it runs elevated.
 //!
 //! NSIS (`<dir>\uninstall.exe`) stays the only engine that touches the install directory,
