@@ -116,6 +116,12 @@ these are the code-level contracts behind them.
   template deletes every registered resource on uninstall, which makes "keep the
   theme pack" impossible. `NSIS_HOOK_POSTINSTALL` copies it with `File /r`; only
   the uninstall switch `/SLUI-THEME-PACK` removes `<dir>\theme-pack`.
+- **CI Rust cost is cache and unpacking, not checks.** `build-and-test` sets
+  `CARGO_PROFILE_DEV_DEBUG=line-tables-only` (cache 836 → 399 MB); local builds
+  keep full debug info. rust-cache does not keep `registry/src`, so the first
+  cargo command of the job unpacks every dependency (27–61s, its own
+  `cargo metadata` step); the hakari check itself takes < 3s. Do not skip or
+  path-filter checks to save time: measure per-step timings on the runner first.
 
 ## Installer and uninstaller NSIS contract
 
