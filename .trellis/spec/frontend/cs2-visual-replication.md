@@ -454,14 +454,18 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
     horizontal (2.006 px per unit; a vertical fov halves everything), line z 28 = y 448. One canvas per kill.
   - Semantics come from the vpcf plus ValveResourceFormat's reverse-engineered renderer
     (`particle_spritecard.frag/vert.slang`, `Renderers/RenderTrails.cs`, `ParticleTextureLayer.cs`); look there
-    before guessing. Every texture input counts: a second input multiplies (default blend mode), an empty one is
+    before guessing. A field the vpcf leaves out takes the class default from the game's schema (s2v.app
+    SchemaExplorer's `cs2.json`, `MGetKV3ClassDefaults`), not a guess: e.g. renderers gamma-correct vertex
+    colours and `C_OP_ColorInterpolate` eases in and out unless told otherwise. Every texture input counts: a second input multiplies (default blend mode), an empty one is
     the renderer's default texture (trails: `base_trail`); `m_flFinalTextureScaleU/V` zoom in (card UV divided).
     Per-renderer fields stay per renderer (e.g. killid's beam fades its length in over 0.1 s, its ray layer
     over 0.5 s). Trails are never wider than long. Continuous emitters are exact and end-exclusive (k-th
     particle at k / rate while < duration). Masks are opaque black alpha blends that hide only what was drawn
-    before them and die at 2.0 s.
+    before them and die at 2.0 s; a depth offset (`PositionOffset` 0 4 0 on the motion rope) is drawn with
+    perspective (600 / (600 - depth)). `m_flCameraBias` only biases depth (no screen offset).
   - Colour: textures are sRGB-decoded and some are warm (basic_flare, yellowflare: that is the beam's orange
-    halo); particle colours are /255, not decoded (decoding turns the light by the line teal over the wash).
+    halo); particle colour attributes are /255 and the renderer decodes them from sRGB when it draws
+    (`m_bGammaCorrectVertexColors`, default on: without it kill 5's starbursts by the line were 1.4x too bright).
     Light adds in an RGBA16F panel, then per channel `1 - exp(-1.5 x light)`, times the team wash, composited
     "over" with the strongest channel as alpha (a saturated pixel is the wash whatever is behind).
   - Recording-fitted, documented in code: killid's ray layer multiplies `base_trail`'s colour only (VRF's

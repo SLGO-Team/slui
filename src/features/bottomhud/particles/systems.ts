@@ -35,10 +35,8 @@ const rand = (random: () => number, min: number, max: number) => min + (max - mi
 const randBiased = (random: () => number, min: number, max: number, parameter: number) => min + (max - min) * bias(random(), clamp01((parameter + 1) / 2));
 type Srgb = readonly [number, number, number];
 /**
- * A particle colour as the shader takes it: the 8-bit value / 255, not decoded (unlike textures; VRF decodes by
- * default). Decoding made the pale blue sparks and starbursts teal over the gold wash, where the recording stays
- * gold: re-checked with the warm textures, kill 5's light by the line has B/R 0.19 in the recording, 0.12-0.19 raw
- * and 0.33-0.35 decoded.
+ * A particle colour attribute: the 8-bit value / 255, as the operators see it. The renderers decode it from sRGB
+ * when they draw (m_bGammaCorrectVertexColors, on by default and left on by every kill-streak system).
  */
 function linear([r, g, b]: Srgb): Rgb {
   return [r / 255, g / 255, b / 255];
@@ -53,7 +51,9 @@ function randomColor(random: () => number, max: Srgb, min: Srgb = [255, 255, 255
  * window runs backwards, 0.5 -> 0.2: the particles start at the fade colour and are back to their own by mid-life).
  */
 function colorInterpolate(from: Rgb, fade: Rgb, age: number, start = 0, end = 1): Rgb {
-  const t = clamp01((age - start) / (end - start));
+  const linearT = clamp01((age - start) / (end - start));
+  // m_bEaseInOut, on by default and never turned off here.
+  const t = linearT * linearT * (3 - 2 * linearT);
   return [lerp(from[0], fade[0], t), lerp(from[1], fade[1], t), lerp(from[2], fade[2], t)];
 }
 const PALE_BLUE = [155, 205, 253] as const;

@@ -1,4 +1,4 @@
-import { ParticleSystem, curve, toScreenX, toScreenY, UNIT, clamp01 } from "./engine.ts";
+import { ParticleSystem, curve, srgbToLinear, toScreenNear, toScreenX, toScreenY, UNIT, clamp01 } from "./engine.ts";
 import type { PanelRenderer } from "./gl.ts";
 import { killEffect, MASK_SECONDS, ringColor, type CardsMask } from "./systems.ts";
 
@@ -22,7 +22,7 @@ function drawRingFlash(renderer: PanelRenderer, t: number, seed: number) {
     const alpha = number * curve([[0, 0], [0.043, 0.63], [0.151, 0.97], [0.274, 0.549], [0.795, 0]], age);
     if (alpha <= 0.002) continue;
     const width = 6 * curve([[0, 0], [0.043, 1.26], [0.151, 1.939], [0.274, 1.099], [1, 0.21]], age) * curve([[0, 1], [0.856, 1], [1, 0]], index / 150);
-    const color = ringColor(seed, index, age);
+    const color = srgbToLinear(ringColor(seed, index, age));
     const a0 = -(index - 1) * step;
     const a1 = -index * step;
     const p0 = [cx + Math.cos(a0) * radius, cy + Math.sin(a0) * radius] as const;
@@ -43,12 +43,13 @@ function drawRingFlash(renderer: PanelRenderer, t: number, seed: number) {
 /** The occluders' paint: opaque black, alpha-blended. */
 const BLACK = { color: [0, 0, 0] as const, alpha: 1, saturate: true };
 
-/** motion: a black rope of radius 20 between the path ends (110, 8) and (-110, 8), under the line. */
+/**
+ * motion: a black rope of radius 20 between the path ends (110, 8) and (-110, 8), under the line, offset 4 units
+ * towards the camera (PositionOffset 0 4 0): its top edge lands ~2 px below the line, as recorded.
+ */
 function drawMotionMask(renderer: PanelRenderer) {
-  const left = toScreenX(110);
-  const right = toScreenX(-110);
-  const top = toScreenY(28);
-  const bottom = toScreenY(-12);
+  const [left, top] = toScreenNear(110, 28, 4);
+  const [right, bottom] = toScreenNear(-110, -12, 4);
   renderer.quad("white", [[left, top], [right, top], [right, bottom], [left, bottom]], BLACK, "alpha");
 }
 

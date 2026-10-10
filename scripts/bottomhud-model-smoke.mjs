@@ -11,6 +11,7 @@ import {
 import { createHudSceneFrame } from "../src/mocks/hudScenes.ts";
 import { createKillParticles, KILL_PARTICLE_SECONDS } from "../src/features/bottomhud/particles/render.ts";
 import { MASK_SECONDS } from "../src/features/bottomhud/particles/systems.ts";
+import { LINE_Y, srgbToLinear } from "../src/features/bottomhud/particles/engine.ts";
 import { particleTexture } from "../src/features/bottomhud/particles/textures.ts";
 import { parseHudStatus } from "../src/contracts/index.ts";
 
@@ -139,6 +140,11 @@ const status = { ammo: { clip: 23, clip_max: 30, reserve: 90, reserve_icon: "bul
   const masks = ace.filter((draw) => draw.blend === "alpha" && draw.texture !== "crack");
   assert.ok(masks.length > 0 && masks.every((draw) => draw.paint.color.every((channel) => channel === 0) && draw.paint.alpha === 1));
   assert.equal(count(ace, "white"), 1, "the motion band");
+  const [motion] = ace.filter((draw) => draw.texture === "white");
+  assert.ok(motion.corners[0][1] > LINE_Y && motion.corners[0][1] < LINE_Y + 2, "the motion rope sits 4 units nearer the camera: its top just under the line");
+  // Renderers decode colour attributes from sRGB (m_bGammaCorrectVertexColors, on by default).
+  assert.deepEqual(srgbToLinear([1, 0, 1]), [1, 0, 1]);
+  assert.ok(Math.abs(srgbToLinear([155 / 255, 0, 0])[0] - 0.328) < 0.002, "pale blue's red decodes to a third");
   assert.ok(count(frameAt(4, 0.6), "disc") > count(frameAt(3, 0.6), "disc"), "kills 4 and 5 add the cards mask");
   const late = frameAt(5, MASK_SECONDS + 0.1);
   assert.equal(late.filter((draw) => draw.blend === "alpha" && draw.texture !== "crack").length, 0, "the masks are gone");

@@ -251,9 +251,41 @@ Later the same session:
   the particle port; lint, tests, build, layout audits (1920x1080, 1600x900) pass.
 
 Open:
-- Radiate brightness by the line (above). Kill 5 cards_mask lens follows from it.
+- (resolved 2026-10-10, see below) Radiate brightness by the line.
 - VRF passes `m_flFinalTextureUVRotation` (-45) to sin/cos as radians; the port keeps 45 degrees (streak along the
   beam). Only matters for the streak, which sits under the saturated beam.
+
+### Session 2026-10-10 — radiate root cause: vertex colour gamma (resume here)
+
+Authoritative sources used (reference only, nothing copied): the game's schema with KV3 class defaults
+(s2v.app `cs2.json`, `MGetKV3ClassDefaults`), disassembly of the user's own `particles.dll` / `client.dll`
+(user-approved), and the spritecard shaders decompiled from `shaders_vulkan_dir.vpk` with VRF master + SPIRV-Cross
+(VRF 20.0 NuGet stops at VCS 71; the game is at 72).
+
+Root cause: renderers default to `m_bGammaCorrectVertexColors = true` (sprites, ropes, trails; no kill-streak
+system overrides it), so particle colours are decoded from sRGB at draw time. The port drew them raw: pale-blue
+radiate (155,205,253) was ~1.4x too bright by the line, which read as "too high" (its sharp cores sit 3-7 px
+above the line). Decoding fixes kill 5 by the line (CS2 ratio 1.43-1.52 -> 1.00-1.08). Also fixed: colour fades
+ease in/out (`C_OP_ColorInterpolate.m_bEaseInOut` default true) and interpolate the raw attribute; the motion
+rope's `PositionOffset` (0, 4, 0) is a depth offset (its top edge is ~2 px under the line, as recorded).
+
+Verified and ruled out (do not re-investigate):
+- `C_INIT_PositionWarpScalar` (disassembled, slot 34 of its vtable): warp = min + (max - min) x amount, applied in
+  the frame of `m_nControlPointNumber` (constructor default 0) to position and previous position. Same as the port.
+- `C_INIT_PositionOffset` (disassembled): plain add to position and previous position.
+- CP0: the panel spawns an `info_particle_system` with zero origin/angles; the HUD code (client.dll) only sets
+  the particle name and starts it, no control points. CP1/CP2 = (+-110, 0, 8) confirmed by the motion mask edge;
+  radiate's sweep front positions match +-110 (not splash_cubes_lvl5's own +-90 CP override).
+- `m_flCameraBias` (radiate, splash*, motion): the vertex shader only uses it for depth.
+- Panorama particles (`D_PANORAMA_PARTICLE`) scale world positions by the viewport aspect against 16:9 (identity
+  at 16:9); the pixel shader is the standard spritecard path.
+- An 8-bit clamped panel (LDR) does not explain anything; compositing in linear vs display space fits the
+  recording about equally (rms 17.2 vs 17.9), so the display-space model stays.
+
+Remaining differences (measured, not yet explained): after the masks vanish (2.1-2.3 s) the light under the
+line is ~0.55x the recording; kill 2's light right around the circle is ~0.5x early (the recording there also
+holds the HUD circle's own on-kill flash, so this comparison is contaminated); near-line colour comparisons in the
+first 0.7 s are contaminated by the HUD row's on-kill flash (the composites use the pre-kill frame).
 
 Tools added this session (D:/Temp/slui-bh, never commit): `cap2/prof2.py <killTime> <ms> <png...>` (CS2 vs SLUI red
 delta across the beam at 60/100/140/180 px above the line), `cap2/px.py`, `cap2/chroma.py`; Panorama sources

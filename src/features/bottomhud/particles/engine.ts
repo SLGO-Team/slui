@@ -27,6 +27,19 @@ const LINE_Z = 28;
 export const toScreenX = (x: number) => CENTER_X - x * UNIT;
 export const toScreenY = (z: number) => LINE_Y - (z - LINE_Z) * UNIT;
 
+/** The camera: 600 units in front of the particles' plane, level with z 127 (the panel's centre line). */
+const CAMERA_DISTANCE = 600;
+const CAMERA_Z = 127;
+/**
+ * A point `depth` units nearer the camera than the particles' plane (y = depth): perspective pushes it away from the
+ * view centre by 600 / (600 - depth).
+ */
+export const toScreenNear = (x: number, z: number, depth: number) => {
+  const scale = CAMERA_DISTANCE / (CAMERA_DISTANCE - depth);
+  const centerY = toScreenY(CAMERA_Z);
+  return [CENTER_X + (toScreenX(x) - CENTER_X) * scale, centerY + (toScreenY(z) - centerY) * scale] as const;
+};
+
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 /** The engine's bias curve (0.5 is the identity). */
 export function bias(x: number, b: number): number {
@@ -201,7 +214,7 @@ export class ParticleSystem {
         const texture = pass.texture === "sequence" ? particle.texture : pass.texture;
         const alpha = particle.alpha * (1 + (pass.addSelf ?? 0));
         if (alpha <= 1e-4) continue;
-        const paint = { color: scale(particle.color, pass.overbright), alpha, saturate: pass.saturate ?? true, desaturation: pass.desaturation ?? 0 };
+        const paint = { color: scale(srgbToLinear(particle.color), pass.overbright), alpha, saturate: pass.saturate ?? true, desaturation: pass.desaturation ?? 0 };
         const x = toScreenX(particle.x);
         const y = toScreenY(particle.z);
         if (pass.kind === "sprite") {
@@ -235,6 +248,15 @@ export class ParticleSystem {
     }
   }
 }
+
+/**
+ * A colour attribute decoded from sRGB, as the renderers draw it (m_bGammaCorrectVertexColors, on by default): the
+ * pale blue starbursts are a third as bright in red as their 8-bit value says.
+ */
+export const srgbToLinear = ([r, g, b]: Rgb): Rgb => {
+  const decode = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return [decode(r), decode(g), decode(b)];
+};
 
 /** A particle colour scaled by `strength` (the overbright factor). */
 const scale = ([r, g, b]: Rgb, strength: number): Rgb => [r * strength, g * strength, b * strength];
