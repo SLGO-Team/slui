@@ -563,3 +563,26 @@ Generator-started hint moved to the high slot (as CS2 bomb planted) and followed
 ### Status
 
 [OK] **Completed**
+
+
+## Session 24: Bottom HUD live test and odometer glyph fix
+<!-- trellis-session: v=2 fp=8e3faeca202cfb41 -->
+
+**Date**: 2026-10-10
+**Task**: Bottom HUD live test and odometer glyph fix
+**Branch**: `chore/archive-bottom-hud`
+
+### Summary
+
+Deployed backend 9eb724c + plugin b70cb81 (release 20261010-110008), built production SLUI; a 'can't connect' scare was the client PC's proxy in global mode. Live test passed; with the theme pack Stratum2's $ ink overflowed its 1em strip row by 1px and showed as a dash above 0 — each odometer symbol now clips to its row (#23). Spec notes the stacked-glyph rule; task 10-07 archived.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3c17b4b` | fix(bottomhud): clip each odometer symbol to its row (#23) |
+| `d442221` | docs(spec): clip stacked glyph rows; record the bottom HUD live test |
+
+### Status
+
+[OK] **Completed**
