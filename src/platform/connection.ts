@@ -97,7 +97,7 @@ export function failureForClose(code: number, reason: string, opened: boolean): 
     case SIDECAR_CLOSE_CODES.unauthorized:
       return { status: "unauthorized", detail: reason ? `${SAME_CONNECTION_HINT}（${reason}）` : SAME_CONNECTION_HINT, retry: "backoff" };
     case SIDECAR_CLOSE_CODES.instanceUnavailable:
-      return { status: "stale", detail: reason || "Server instance ended", retry: "reroute" };
+      return { status: "ended", detail: reason || "Server instance ended", retry: "reroute" };
     default:
       return { status: "offline", detail: opened ? "Sidecar connection lost" : "Sidecar is unreachable", retry: "backoff" };
   }

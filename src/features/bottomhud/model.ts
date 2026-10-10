@@ -1,4 +1,4 @@
-import type { HudAmmo, HudKillKind, HudStatusSnapshot, Role, SlgoEvent } from "../../contracts/index.ts";
+import type { ConnectionStatus, HudAmmo, HudKillKind, HudStatusSnapshot, Role, SlgoEvent } from "../../contracts/index.ts";
 import type { RoundHudViewModel } from "../hud/model.ts";
 
 /** The sidecar instance the status belongs to; another one clears it. */
@@ -12,13 +12,15 @@ export type HudStatusState = {
 
 export const initialHudStatusState: HudStatusState = { source: null, status: null };
 
-export type HudStatusAction = { type: "event"; event: SlgoEvent };
+export type HudStatusAction = { type: "event"; event: SlgoEvent } | { type: "connection"; status: ConnectionStatus };
 
 const sameSource = (source: HudStatusSource | null, serverId: string, instanceId: string) =>
   source !== null && source.serverId === serverId && source.instanceId === instanceId;
 
 /** Keeps the latest `hud.status` of the baseline's instance; a reconnect to the same instance keeps it until the replay. */
 export function hudStatusReducer(state: HudStatusState, action: HudStatusAction): HudStatusState {
+  // Only an ended instance drops the status; other drops keep it for a reconnect to the same instance.
+  if (action.type === "connection") return action.status === "ended" && state !== initialHudStatusState ? initialHudStatusState : state;
   const { event } = action;
   if (event.type === "sidecar.baseline") {
     if (sameSource(state.source, event.server_id, event.instance_id)) return state;

@@ -1,4 +1,4 @@
-import type { Role, RoundResultOutcome, RoundResultPanel, SlgoEvent } from "../../contracts/index.ts";
+import type { ConnectionStatus, Role, RoundResultOutcome, RoundResultPanel, SlgoEvent } from "../../contracts/index.ts";
 import { winPanelColors, winPanelMvpAvatar, type WinPanelColors, type WinPanelRoster } from "./presentation.ts";
 
 /** The sidecar instance the panel belongs to; another one clears it. */
@@ -21,7 +21,9 @@ export type WinPanelState = {
 
 export const initialWinPanelState: WinPanelState = { source: null, frame: null, endedResultId: null };
 
-export type WinPanelAction = { type: "event"; event: SlgoEvent; receivedAtMs: number };
+export type WinPanelAction =
+  | { type: "event"; event: SlgoEvent; receivedAtMs: number }
+  | { type: "connection"; status: ConnectionStatus };
 
 const sameSource = (a: WinPanelSource | null, serverId: string, instanceId: string) =>
   a !== null && a.serverId === serverId && a.instanceId === instanceId;
@@ -40,6 +42,8 @@ export function winPanelRemainingMs(frame: WinPanelFrame, nowMs: number): number
 }
 
 export function winPanelReducer(state: WinPanelState, action: WinPanelAction): WinPanelState {
+  // Only an ended instance clears the panel; other drops keep it for a reconnect to the same instance.
+  if (action.type === "connection") return action.status === "ended" && state !== initialWinPanelState ? initialWinPanelState : state;
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     // A reconnect to the same instance keeps the panel until the replayed snapshot arrives.

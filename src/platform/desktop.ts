@@ -135,7 +135,7 @@ export function createGameProcessSource(bus: DesktopBus = desktopBus(), invoke: 
 // ---- Session status bridge: the overlay owns the session, home displays it ----
 
 const CONNECTION_STATUSES: readonly ConnectionStatus[] = ["signed-out", "discovering", "route-pending", "connecting",
-  "baseline-required", "live", "stale", "offline", "not-in-game", "incompatible", "unauthorized"];
+  "baseline-required", "live", "stale", "ended", "offline", "not-in-game", "incompatible", "unauthorized"];
 
 export type SessionStatusSnapshot = Readonly<{ status: ConnectionStatus; steamId: string | null; detail: string | null }>;
 

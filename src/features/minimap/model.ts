@@ -141,6 +141,10 @@ function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { ty
   if (action.type === "connection") {
     if (action.status === state.connectionStatus) return state;
     if (action.status === "live") return { ...state, connectionStatus: action.status };
+    if (action.status === "ended") {
+      return { ...clearInit({ ...state, connectionStatus: action.status, baselineAccepted: false, source: null, sequence: -1 }, "disconnected"),
+        ...NO_MAP };
+    }
     const next = clearInit({ ...state, connectionStatus: action.status, baselineAccepted: false },
       action.status === "incompatible" ? "incompatible" : action.status === "stale" ? "stale" : "disconnected");
     return ["signed-out", "unauthorized", "route-pending", "discovering", "connecting"].includes(action.status)

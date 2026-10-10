@@ -43,6 +43,13 @@ assert.equal(state.commands[command.command_id]?.state, "success", "duplicate is
 assert.equal(selectShop(state, 1_000).items[0].commandState, "success");
 state = shopReducer(state, { type: "connection", status: "offline" });
 assert.equal(selectShop(state, 1_000).hasSnapshot, true, "offline keeps last authority");
+{
+  // The server shut down: the ended instance takes the shop with it.
+  const ended = shopReducer(state, { type: "connection", status: "ended" });
+  assert.equal(selectShop(ended, 1_000).hasSnapshot, false, "an ended instance drops the shop");
+  assert.equal(selectShop(ended, 1_000).availability, "disconnected");
+  assert.equal(ended.serverId, null);
+}
 
 // Owning an item is display-only: a held but still purchasable item (second flashbang) is buyable
 // from both the click and the number-key path; only the plugin's purchasable flag blocks it.

@@ -294,7 +294,7 @@ for (const [code, status, retry] of [
   [4000, "incompatible", "none"],
   [4002, "incompatible", "none"],
   [4001, "unauthorized", "backoff"],
-  [4003, "stale", "reroute"],
+  [4003, "ended", "reroute"],
   [1006, "offline", "backoff"],
   [1000, "offline", "backoff"],
 ]) {
@@ -314,7 +314,7 @@ for (const [code, status, retry] of [
 for (const [when, code, status, retry, detail] of [
   ["before-open", 1006, "offline", "backoff", /unreachable/],
   ["after-open", 4001, "unauthorized", "backoff", new RegExp(SAME_CONNECTION_HINT)],
-  ["after-open", 4003, "stale", "reroute", /instance/],
+  ["after-open", 4003, "ended", "reroute", /instance/],
   ["after-open", 4002, "incompatible", "none", /Unsupported/],
 ]) {
   const { connection, log } = harness();
@@ -460,8 +460,9 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
   });
   assert.equal(state().status, "live");
   assert.equal(state().retry, null);
+  // The plugin said goodbye (server shutdown): the sidecar ends the instance and closes with 4003.
   lastSocket().drop(4003, "Server instance ended");
-  assert.equal(state().status, "stale");
+  assert.equal(state().status, "ended");
   assert.equal(state().retry, "reroute", "4003 resolves a new route");
   assert.equal(state().detail, "Server instance ended");
   cleanup();

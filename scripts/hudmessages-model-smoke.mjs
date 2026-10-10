@@ -188,6 +188,15 @@ zone = selectMessageZone(switched, 33_000);
 assert.equal(zone.alert, null);
 assert.equal(zone.hintHigh, null);
 assert.equal(zone.hintLow, null);
+// A lost connection keeps the board for the reconnect; an ended instance (server shut down) clears it.
+assert.equal(hudMessagesReducer(state, { type: "connection", status: "offline" }), state);
+const ended = hudMessagesReducer(state, { type: "connection", status: "ended" });
+assert.equal(ended.source, null);
+assert.equal(ended.nextAppearance, state.nextAppearance, "appearance ids stay unique across instances");
+zone = selectMessageZone(ended, 33_000);
+assert.equal(zone.alert, null);
+assert.equal(zone.hintHigh, null);
+assert.equal(zone.hintLow, null);
 
 // Every mock scene frame is a valid payload, and the all-slots scene fills every message-zone slot.
 for (const scene of HUD_SCENES) {

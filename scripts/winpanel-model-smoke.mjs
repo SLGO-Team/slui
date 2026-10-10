@@ -137,6 +137,11 @@ assert.equal(restarted.endedResultId, null);
 assert.deepEqual(restarted.source, { serverId: "server-a", instanceId: "instance-b" });
 // Results of the old instance no longer apply.
 assert.equal(reduce(restarted, result(panel({ result_id: "result-9" })), 14_100), restarted);
+// A lost connection keeps the panel for the reconnect; an ended instance (server shut down) clears it.
+assert.equal(winPanelReducer(state, { type: "connection", status: "offline" }), state);
+assert.equal(winPanelReducer(state, { type: "connection", status: "stale" }), state);
+assert.equal(winPanelReducer(state, { type: "connection", status: "ended" }), initialWinPanelState);
+assert.equal(selectWinPanel(winPanelReducer(state, { type: "connection", status: "ended" }), 14_000, roster), null);
 
 // Colours (parent PRD R2): won / observer = winner colour + team-tinted fill; lost = loss red on a
 // neutral fill; draw = neutral. The MVP strip always follows the winner.
