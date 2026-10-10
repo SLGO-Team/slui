@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "CI/release and installer contracts to verify against"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "workspace and installer layout rules"}

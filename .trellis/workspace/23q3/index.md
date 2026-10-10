@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 24
+- **Total Sessions**: 25
 - **Last Active**: 2026-10-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~588 | Active |
+| `journal-1.md` | ~611 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 25 | 2026-10-10 | CI build speed: slimmer debug info | `1de17ab`, `9795830` | `perf/ci-build-speed` |
 | 24 | 2026-10-10 | Bottom HUD live test and odometer glyph fix | `3c17b4b`, `d442221` | `chore/archive-bottom-hud` |
 | 23 | 2026-10-06 | Generator overload countdown | `db39284` | `feat/overload-countdown` |
 | 22 | 2026-10-06 | CS2 HUD panels integration | `2cd1b57` | `chore/archive-cs2-hud-panels` |

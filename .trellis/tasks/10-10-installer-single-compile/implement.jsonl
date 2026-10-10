@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "CI and release contracts; installer/uninstaller NSIS contract"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Cargo workspace, hakari, installer layout and payload embedding"}
