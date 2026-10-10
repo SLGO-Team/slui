@@ -18,6 +18,10 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: windows-latest
+    env:
+      # Line tables keep test backtraces readable; full debug info made the Rust cache ~836 MB,
+      # whose restore and link time CI paid on every run. Local builds keep full debug info.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -40,6 +44,9 @@ jobs:
           workspaces: src-tauri -> target
       # workspace-hack must match the dependency graph, or SLUI and the installer shell
       # compile shared crates twice (src-tauri/.config/hakari.toml).
+      # rust-cache keeps registry/cache but not registry/src: the first cargo command unpacks every
+      # dependency's sources. A step of its own so its time is not booked to the hakari check.
+      - run: cargo metadata --format-version 1 --manifest-path src-tauri/Cargo.toml > $null
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-hakari
