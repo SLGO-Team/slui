@@ -155,9 +155,12 @@
   transition: none;
 }
 
+/* Each symbol clips to its own row: Stratum2's "$" reaches 1px below the em box and would show as a dash
+   above the "0" under it in the strip. */
 .bhud-odometer__symbol {
   display: block;
   height: 1em;
+  overflow: hidden;
   line-height: 1em;
   text-align: center;
   white-space: pre;
