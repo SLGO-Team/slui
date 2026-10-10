@@ -48,6 +48,7 @@ Payload schemas:
 - [shop-snapshot.schema.json](./shop-snapshot.schema.json)
 - [hud-messages.schema.json](./hud-messages.schema.json)
 - [round-result.schema.json](./round-result.schema.json)
+- [hud-status.schema.json](./hud-status.schema.json)
 - [command.schema.json](./command.schema.json)
 - [command-result.schema.json](./command-result.schema.json)
 - [session-open.schema.json](./session-open.schema.json)
@@ -75,6 +76,7 @@ Payload schemas:
 | sidecar -> client | `chat.notice` | Plugin notice in the chat history (no sender) |
 | sidecar -> client | `hud.messages` | The viewer's bottom-centre message slots (progress, alert, high/low hint) |
 | sidecar -> client | `round.result` | The viewer's round / match result panel (win panel, MVP) |
+| sidecar -> client | `hud.status` | The viewer's bottom HUD: held firearm ammo and this round's kills |
 
 The shop and chat payloads intentionally remain plugin-defined. SLUI must not
 reimplement their permissions or success rules.
@@ -178,6 +180,27 @@ player's `match.snapshot` entry. The client also hides the panel when
 `visible_remaining_ms` runs out, so a lost `panel: null` cannot pin it.
 
 Every object rejects unknown fields.
+
+## HUD status
+
+`hud.status` is the viewer's own bottom-HUD state (CS2's health/ammo centre,
+adapted by SLGO). Snapshot, one recipient per publish, cached per recipient
+and replayed after the baseline; it has no time fields, so `sent_at` is
+optional and replay changes nothing. The plugin sends it only to players whose
+SLUI declares `hud-status`, and publishes on every change (each shot), so it
+is not throttled.
+
+`{ ammo, round_kills }`, both required. `ammo` is `null` when the held item is
+not a firearm (SCP, unarmed, Micro-HID, keycard, ...) or the player is dead,
+else `{ clip, clip_max, reserve, reserve_icon }`: integers in `0..65535`,
+`clip` = rounds ready to fire (magazine + chambered) as the game's own counter
+shows them, `clip_max >= 1` the capacity (a chambered round may exceed it),
+`reserve` the reserve rounds of that firearm (SLGO counts rounds, not
+magazines), `reserve_icon` one of `bullet`, `shotgun_shell`,
+`revolver_loader` (`HUD_RESERVE_ICONS`). `round_kills` lists one kind per
+kill this round in order (at most 64), reset when the buy phase starts like
+`match.snapshot` `kills`: `grenade` (explosion), `shock` (Micro-HID) or
+`default` (`HUD_KILL_KINDS`). Every object rejects unknown fields.
 
 ## Minimap payload v5
 
@@ -368,6 +391,11 @@ Known features:
   player.
 - `win-panel`: SLUI owns the round / match result panel (`round.result`), so
   the plugin hides its own result card for this player.
+- `hud-money`: SLUI owns the balance display, so the plugin hides its own
+  balance hint for this player (the balance keeps updating in
+  `match.snapshot`).
+- `hud-status`: SLUI draws the bottom HUD, so the plugin sends `hud.status`
+  to this player.
 
 A sidecar that predates the frame logs and drops it like an invalid command;
 the session stays open. The sidecar answers `failed` itself if the plugin is

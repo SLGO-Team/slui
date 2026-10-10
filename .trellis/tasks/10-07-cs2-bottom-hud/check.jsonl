@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "visual gates and forbidden patterns"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "hud.status contract"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "required checks"}

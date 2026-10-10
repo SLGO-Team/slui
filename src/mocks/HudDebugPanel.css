@@ -1,7 +1,8 @@
 .hud-debug-panel {
+  /* Right edge, mid height: the bottom edge belongs to the bottom HUD and the message zone. */
   position: fixed;
   right: 12px;
-  bottom: 12px;
+  top: 38%;
   z-index: 1000;
   box-sizing: border-box;
   width: min(620px, calc(100vw - 24px));

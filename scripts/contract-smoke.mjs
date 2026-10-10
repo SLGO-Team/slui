@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
   CLIENT_FEATURE_HUD_MESSAGES,
+  CLIENT_FEATURE_HUD_MONEY,
+  CLIENT_FEATURE_HUD_STATUS,
   CLIENT_FEATURE_WIN_PANEL,
+  HUD_KILL_KINDS,
+  HUD_RESERVE_ICONS,
   EventSequenceGuard,
   HUD_TONES,
   canUsePlayerScopedFeatures,
@@ -12,6 +16,7 @@ import {
   parseEvent,
   parseEnvelope,
   parseHudMessages,
+  parseHudStatus,
   parseMatchSnapshot,
   parseMinimapPositions,
   parseRoundResult,
@@ -536,6 +541,37 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, music_kit_name: "" } })).ok, false, "an absent music kit is null");
   assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, music_kit_name: "收容失效" } })).ok, true);
   assert.equal(parseEvent(withPanel({ mvp: { ...panel.mvp, extra: 1 } })).ok, false, "unknown mvp field");
+}
+
+{
+  // hud.status (packages/protocol/v0/README.md "HUD status").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/hud-status.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, "the v0 hud.status example parses");
+  assert.deepEqual(parsed.value.payload.round_kills, ["default", "grenade", "default"]);
+  assert.equal(parseEvent({ ...example, sent_at: undefined }).ok, true, "hud.status has no time fields");
+  assert.deepEqual(HUD_RESERVE_ICONS, ["bullet", "shotgun_shell", "revolver_loader"]);
+  assert.deepEqual(HUD_KILL_KINDS, ["default", "grenade", "shock"]);
+  assert.equal(CLIENT_FEATURE_HUD_MONEY, "hud-money");
+  assert.equal(CLIENT_FEATURE_HUD_STATUS, "hud-status");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_STATUS] }).ok, true);
+  const status = example.payload;
+  const withAmmo = (ammo) => ({ ...status, ammo: { ...status.ammo, ...ammo } });
+  assert.equal(parseHudStatus({ ammo: null, round_kills: [] }).ok, true, "unarmed, no kills");
+  assert.equal(parseHudStatus({ ammo: null }).ok, false, "round_kills is required");
+  assert.equal(parseHudStatus({ round_kills: [] }).ok, false, "ammo is required");
+  assert.equal(parseHudStatus({ ...status, extra: 1 }).ok, false, "unknown field");
+  assert.equal(parseHudStatus(withAmmo({ extra: 1 })).ok, false, "unknown ammo field");
+  assert.equal(parseHudStatus(withAmmo({ clip_max: 0 })).ok, false, "capacity is at least 1");
+  assert.equal(parseHudStatus(withAmmo({ clip: 31 })).ok, true, "a chambered round may exceed the capacity");
+  assert.equal(parseHudStatus(withAmmo({ clip: -1 })).ok, false);
+  assert.equal(parseHudStatus(withAmmo({ reserve: 1.5 })).ok, false);
+  assert.equal(parseHudStatus(withAmmo({ reserve: 65_536 })).ok, false);
+  assert.equal(parseHudStatus(withAmmo({ reserve_icon: "magazine" })).ok, false);
+  assert.equal(parseHudStatus(withAmmo({ reserve_icon: "shotgun_shell" })).ok, true);
+  assert.equal(parseHudStatus({ ...status, round_kills: ["headshot"] }).ok, false, "only the three SLGO kinds");
+  assert.equal(parseHudStatus({ ...status, round_kills: Array(64).fill("shock") }).ok, true);
+  assert.equal(parseHudStatus({ ...status, round_kills: Array(65).fill("default") }).ok, false, "at most 64 kills");
 }
 
 {

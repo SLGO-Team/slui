@@ -1,0 +1,424 @@
+/* CS2 bottom-centre health/ammo HUD (hudhealthammocenter.xml / .css) for SLGO: the balance takes the health
+   slot, the round's kill cards fan above the emblem, the clip and reserve rounds sit on the right. Geometry
+   and motion come from 1080p / 60 fps in-game recordings (numbers in the task research file
+   cs2-bottom-hud-motion.md); the Panorama CSS gives proportions and the card transforms. Every washed
+   element uses the local player's SLGO team colour (--bhud-wash), never CS2's T gold / CT blue.
+
+   Kill burst (t = kill frame):
+   row       numbers, strokes, emblem: brightness 6 to 210ms, ease-out to 1 by 700ms (Panorama on-kill)
+   circle    blurred fill reads light grey to 250ms, normal by ~650ms
+   card      new card: brightness 6 like the row; its white wash holds to 250ms and clears by 1050ms
+   particles CS2's kill-streak particle systems ported to a canvas engine (particles/): the light column, line
+             glows, starbursts, sparks and the circle ring flash per kill level, under the black occluders the
+             game draws for 2 s (below the line, the circle, the card fan); kill 5's starbursts outlive them,
+             which is the flash 2.0 s after the fifth kill
+   counter   kill 6: the fan collapses behind the circle (100ms), the counter card rises (70ms)
+   Shot: the new clip number pops (bigger and paler, then a step down) for 3 frames. Reload: the reserve icon drops and returns (300ms). Balance: each character
+   rolls to its new symbol in ~520ms. No text shadows (spec); the low-clip red glow is drawn by blurred red copies
+   of the number hugging the glyph, as visible in game. */
+
+.bhud-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.bhud-overlay *,
+.bhud-overlay *::before,
+.bhud-overlay *::after {
+  box-sizing: border-box;
+}
+
+.bhud-canvas {
+  --bhud-scale: 1;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  margin-left: -960px;
+  transform: scale(var(--bhud-scale));
+  transform-origin: top center;
+}
+
+/* hud-HA: 800 x 72, 16px above the bottom edge, centred; circle centre (960, 1028). */
+.bhud {
+  --bhud-wash: rgb(150, 200, 250);
+  --bhud-light: color-mix(in srgb, var(--bhud-wash) 55%, #fff);
+  --bhud-fill: rgba(0, 0, 0, 0.5);
+  position: absolute;
+  left: 560px;
+  top: 992px;
+  width: 800px;
+  height: 72px;
+  color: var(--bhud-wash);
+  font-family: "Stratum2 HUD Timer", sans-serif;
+  font-weight: 700;
+}
+
+.bhud__lit {
+  position: absolute;
+  inset: 0;
+}
+
+/* Strokes: 1px, half of each 368px side panel, from the circle outwards, washed white -> transparent. */
+.bhud__stroke {
+  position: absolute;
+  top: 36px;
+  width: 184px;
+  height: 1px;
+}
+
+.bhud__stroke--left {
+  left: 184px;
+  background: linear-gradient(to right, transparent, var(--bhud-wash));
+}
+
+.bhud__stroke--right {
+  left: 432px;
+  background: linear-gradient(to left, transparent, var(--bhud-wash));
+}
+
+/* Centre circle 64 x 64 (hud-HA-center): dark fill (denser than the game's blur, which the overlay cannot
+   draw), washed ring and emblem. */
+.bhud__center {
+  position: absolute;
+  left: 368px;
+  top: 4px;
+  width: 64px;
+  height: 64px;
+}
+
+.bhud__disc,
+.bhud__disc-flash {
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+}
+
+.bhud__disc {
+  background: var(--bhud-fill);
+  border: 2px solid var(--bhud-wash);
+}
+
+.bhud__disc-flash {
+  background: rgba(255, 255, 255, 0.62);
+  opacity: 0;
+}
+
+.bhud__emblem,
+.bhud-card__art,
+.bhud-weapon__icon {
+  background: var(--bhud-wash);
+  -webkit-mask: var(--bhud-art) center / 100% 100% no-repeat;
+  mask: var(--bhud-art) center / 100% 100% no-repeat;
+}
+
+.bhud__emblem {
+  position: absolute;
+  left: 11px;
+  top: 11px;
+  width: 42px;
+  height: 42px;
+}
+
+/* Balance in the health slot: Stratum2 bold TF 42px; its right edge sits where CS2's health number ends. */
+.bhud__balance {
+  position: absolute;
+  right: 650px;
+  top: 15px;
+  font-size: 42px;
+  line-height: 1;
+}
+
+.bhud-odometer {
+  display: flex;
+}
+
+.bhud-odometer__cell {
+  display: block;
+  width: 0.52em;
+  height: 1em;
+  overflow: hidden;
+}
+
+.bhud-odometer__strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 520ms cubic-bezier(0.2, 0.15, 0.6, 1) 50ms;
+}
+
+.bhud[data-still] .bhud-odometer__strip {
+  transition: none;
+}
+
+.bhud-odometer__symbol {
+  display: block;
+  height: 1em;
+  line-height: 1em;
+  text-align: center;
+  white-space: pre;
+}
+
+/* Clip block starts 200px right of the circle panel (hud-WPN-main margin-left). */
+.bhud-weapon {
+  position: absolute;
+  left: 632px;
+  top: 0;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  transform-origin: left center;
+}
+
+.bhud-weapon__clip {
+  position: relative;
+  width: 70px;
+  height: 72px;
+}
+
+.bhud-weapon__clip-label,
+.bhud-weapon__clip-glow {
+  position: absolute;
+  left: 0;
+  top: 15px;
+  width: 70px;
+  font-size: 42px;
+  line-height: 1;
+  text-align: center;
+}
+
+.bhud-weapon__clip-label {
+  display: block;
+  transform-origin: 50% 50%;
+}
+
+.bhud-weapon__clip-label--pop,
+.bhud-weapon__clip-glow--pop {
+  animation: bhud-shot 50ms linear both;
+}
+
+.bhud[data-still] .bhud-weapon__clip-label--pop,
+.bhud[data-still] .bhud-weapon__clip-glow--pop {
+  animation: none;
+}
+
+/* Low clip: Panorama's red glow (0 0 9px #DD0000, strength 2.5) hugs the glyph in game: a tight red rim
+   and a softer halo, both behind the washed number. */
+.bhud-weapon__glow {
+  position: absolute;
+  inset: 0;
+  color: #e83000;
+}
+
+/* Panorama blurs the shadow by 9px at strength 2.5: a soft orange-red halo, no hard rim. */
+.bhud-weapon__glow--tight {
+  -webkit-text-stroke: 4px #e83000;
+  filter: blur(4px);
+  opacity: 0.9;
+}
+
+.bhud-weapon__glow--wide {
+  color: #dd1a00;
+  -webkit-text-stroke: 8px #dd1a00;
+  filter: blur(9px);
+  opacity: 0.75;
+}
+
+/* #AmmoClipBar: 65 wide, its fill 2px high at y 1047-1048, anchored left. Panorama declares a 4px bar with a
+   black 1px border, but the recording shows neither the border nor the extra height: only the 2px line over a
+   faint track. */
+.bhud-weapon__bar {
+  position: absolute;
+  left: 2.5px;
+  bottom: 15px;
+  width: 65px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.bhud-weapon__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--bhud-wash);
+}
+
+.bhud-weapon--low .bhud-weapon__bar-fill {
+  background: #ff0000;
+  box-shadow: 0 0 5px #dd0000;
+}
+
+.bhud-weapon__reserve {
+  min-width: 30px;
+  margin-top: 4px;
+  font-size: 32px;
+  line-height: 1;
+  text-align: right;
+}
+
+.bhud-weapon__icon-box {
+  display: flex;
+  align-items: center;
+  width: 32px;
+  height: 72px;
+  overflow: hidden;
+}
+
+.bhud-weapon__icon {
+  display: block;
+  width: 26px;
+  height: 26px;
+  margin: -1px 0 0 4px;
+}
+
+/* Kill cards: each card art is a 48 x 126 canvas drawn 152px high and centred on the circle centre, so the
+   Panorama translate + rotate fan turns about the circle. Later cards paint over earlier ones; the row
+   (with the circle) paints over all cards. */
+/* The circle hides the lower half of the cards (they never show through its translucent fill), so the card
+   layer has a hole over it. */
+.bhud-kills {
+  position: absolute;
+  left: 0;
+  top: -100px;
+  width: 800px;
+  height: 172px;
+  -webkit-mask: radial-gradient(circle at 400px 136px, transparent 31.5px, #000 32px);
+  mask: radial-gradient(circle at 400px 136px, transparent 31.5px, #000 32px);
+}
+
+.bhud-kills__hand {
+  position: absolute;
+  left: 371px;
+  top: 60px;
+  width: 58px;
+  height: 152px;
+}
+
+.bhud-card {
+  position: absolute;
+  inset: 0;
+  transform: translate(var(--bhud-card-x), var(--bhud-card-y)) rotate(var(--bhud-card-deg));
+  transition: transform 200ms ease-in-out;
+}
+
+.bhud[data-still] .bhud-card {
+  transition: none;
+}
+
+/* Card face (viewBox x 10.6-37.4, y 9-45.8): the game's blur and dot pattern under kill_mask. */
+.bhud-card__body,
+.bhud-card__flash {
+  position: absolute;
+  left: 12.8px;
+  top: 10.9px;
+  width: 32.3px;
+  height: 44.4px;
+  border-radius: 4.6px;
+}
+
+/* Denser than the circle: in game an upper card's blur hides the cards under it. */
+.bhud-card__body {
+  background-color: rgba(0, 0, 0, 0.62);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--bhud-wash) 18%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--bhud-wash) 18%, transparent) 1px, transparent 1px);
+  background-size: 2.6px 2.6px;
+  background-position: 1px 1px;
+}
+
+.bhud-card__flash {
+  background: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+}
+
+.bhud-card__art {
+  position: absolute;
+  inset: 0;
+}
+
+.bhud-card__number {
+  position: absolute;
+  left: 0;
+  top: 22px;
+  width: 100%;
+  font-size: 22px;
+  line-height: 1;
+  text-align: center;
+}
+
+.bhud-card--counter .bhud-card__number {
+  font-size: 21px;
+}
+
+.bhud-card--fresh .bhud-card__art,
+.bhud-card--fresh .bhud-card__number {
+  animation: bhud-on-kill 700ms linear both;
+}
+
+.bhud-card--fresh .bhud-card__flash {
+  animation: bhud-card-flash 1050ms linear both;
+}
+
+.bhud-card-collapse .bhud-card {
+  animation: bhud-collapse 100ms ease-in forwards;
+}
+
+.bhud-card--rising {
+  animation: bhud-rise 70ms ease-out 100ms both;
+}
+
+/* Kill particles (particles/render.ts), drawn over the whole row like CS2's particle panel, which is the last
+   child of the HUD; positioned from the circle centre. */
+.bhud-burst {
+  position: absolute;
+  left: 400px;
+  top: 36px;
+  width: 0;
+  height: 0;
+}
+
+.bhud-burst__particles {
+  position: absolute;
+  width: 900px;
+  height: 500px;
+}
+
+.bhud-burst__particles > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bhud[data-still] .bhud-burst {
+  display: none;
+}
+
+@keyframes bhud-on-kill {
+  0%, 30% { filter: brightness(6); animation-timing-function: ease-out; }
+  100% { filter: brightness(1); }
+}
+
+@keyframes bhud-card-flash {
+  0%, 24% { opacity: 1; }
+  62% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+@keyframes bhud-collapse {
+  to { transform: translate(0, 40px) rotate(0deg); opacity: 0; }
+}
+
+@keyframes bhud-rise {
+  from { transform: translate(0, 40px); opacity: 0; }
+  to { transform: translate(0, 0); opacity: 1; }
+}
+
+@keyframes bhud-shot {
+  0%, 33% { transform: scale(1.15) translate(-3px, -4px); color: color-mix(in srgb, var(--bhud-wash) 45%, #fff); }
+  34%, 66% { transform: translate(1px, 4px); color: color-mix(in srgb, var(--bhud-wash) 70%, #fff); }
+  67%, 100% { transform: none; color: var(--bhud-wash); }
+}
+

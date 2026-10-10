@@ -325,6 +325,33 @@ export type RoundResultPanel = {
 /** `round.result`: the win panel, or null once it ended early (new round, match restart). */
 export type RoundResultSnapshot = { panel: RoundResultPanel | null };
 
+/** Reserve-ammo icon of the held firearm (CS2 per-ammo reserve icons). */
+export const HUD_RESERVE_ICONS = ["bullet", "shotgun_shell", "revolver_loader"] as const;
+export type HudReserveIcon = (typeof HUD_RESERVE_ICONS)[number];
+/** Kill-card pip: `grenade` for explosions, `shock` for Micro-HID, `default` for every other kill. */
+export const HUD_KILL_KINDS = ["default", "grenade", "shock"] as const;
+export type HudKillKind = (typeof HUD_KILL_KINDS)[number];
+/** Largest ammo count `hud.status` carries (the plugin's counters are 16-bit). */
+export const MAX_HUD_AMMO = 65_535;
+/** Most kills one `hud.status` lists for a round. */
+export const MAX_HUD_ROUND_KILLS = 64;
+export type HudAmmo = {
+  /** Rounds ready to fire (magazine + chambered), as the game's own counter shows. */
+  clip: number;
+  /** Clip capacity, at least 1; the clip bar and the low-ammo threshold use it. A chambered round may exceed it. */
+  clip_max: number;
+  /** Reserve rounds of this firearm (not magazines). */
+  reserve: number;
+  reserve_icon: HudReserveIcon;
+};
+/** `hud.status`: the viewer's own bottom-HUD state (one recipient; sent only to clients declaring `hud-status`). */
+export type HudStatusSnapshot = {
+  /** Held firearm; null when the held item is not a firearm (SCP, unarmed, Micro-HID, keycard, ...) or the player is dead. */
+  ammo: HudAmmo | null;
+  /** One entry per kill this round, in order; reset when the buy phase starts (same rule as match.snapshot `kills`). */
+  round_kills: HudKillKind[];
+};
+
 export type ShopPurchaseCommand = {
   kind: "command.shop.purchase";
   command_id: string;
@@ -352,6 +379,7 @@ export type MinimapInitEvent = ProtocolEnvelope<MinimapInit, "minimap.init"> & {
 export type MinimapPositionsEvent = ProtocolEnvelope<MinimapPositions, "minimap.positions"> & { round_id: string; sent_at: string };
 export type HudMessagesEvent = ProtocolEnvelope<HudMessagesSnapshot, "hud.messages"> & { sent_at: string };
 export type RoundResultEvent = ProtocolEnvelope<RoundResultSnapshot, "round.result"> & { sent_at: string };
+export type HudStatusEvent = ProtocolEnvelope<HudStatusSnapshot, "hud.status">;
 
 export type SlgoEvent =
   | BaselineEvent
@@ -360,6 +388,7 @@ export type SlgoEvent =
   | MinimapPositionsEvent
   | HudMessagesEvent
   | RoundResultEvent
+  | HudStatusEvent
   | ProtocolEnvelope<ShopSnapshot, "shop.snapshot">
   | ProtocolEnvelope<ChatMessage, "chat.message">
   | ProtocolEnvelope<ChatNotice, "chat.notice">
@@ -498,6 +527,10 @@ export const CLIENT_FEATURE_TOP_HUD = "top-hud";
 export const CLIENT_FEATURE_HUD_MESSAGES = "hud-messages";
 /** SLUI owns the round / match result panel (`round.result`) for this player. */
 export const CLIENT_FEATURE_WIN_PANEL = "win-panel";
+/** SLUI owns the balance display: the plugin hides its own balance hint for this player. */
+export const CLIENT_FEATURE_HUD_MONEY = "hud-money";
+/** SLUI draws the bottom HUD and wants `hud.status` (ammo, round kills) for this player. */
+export const CLIENT_FEATURE_HUD_STATUS = "hud-status";
 export const MAX_CLIENT_FEATURES = 16;
 const MAX_CLIENT_FEATURE_LENGTH = 64;
 const CLIENT_FEATURE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -841,6 +874,22 @@ export function parseRoundResult(payload: unknown): ParseResult<RoundResultSnaps
   return { ok: true, value: payload as unknown as RoundResultSnapshot };
 }
 
+const HUD_STATUS_KEYS = new Set(["ammo", "round_kills"]);
+const HUD_AMMO_KEYS = new Set(["clip", "clip_max", "reserve", "reserve_icon"]);
+const isHudAmmoCount = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= MAX_HUD_AMMO;
+
+/** `hud.status` payload: both fields present; ammo null or strict; kills a short list of known kinds. */
+export function parseHudStatus(payload: unknown): ParseResult<HudStatusSnapshot> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, HUD_STATUS_KEYS) || HUD_STATUS_KEYS.size !== Object.keys(payload).length) return error("invalid-payload", "HUD status needs exactly ammo and round_kills");
+  const ammo = payload.ammo;
+  if (ammo !== null && (!isRecord(ammo) || !hasOnlyKeys(ammo, HUD_AMMO_KEYS) || HUD_AMMO_KEYS.size !== Object.keys(ammo).length
+    || !isHudAmmoCount(ammo.clip) || !isHudAmmoCount(ammo.clip_max) || ammo.clip_max < 1 || !isHudAmmoCount(ammo.reserve)
+    || !(HUD_RESERVE_ICONS as readonly unknown[]).includes(ammo.reserve_icon))) return error("invalid-payload", "HUD status ammo is invalid");
+  const kills = payload.round_kills;
+  if (!Array.isArray(kills) || kills.length > MAX_HUD_ROUND_KILLS || !kills.every((kind) => (HUD_KILL_KINDS as readonly unknown[]).includes(kind))) return error("invalid-payload", "HUD status round kills are invalid");
+  return { ok: true, value: payload as unknown as HudStatusSnapshot };
+}
+
 export function parseCommandResult(payload: unknown): ParseResult<CommandResult> {
   if (!isRecord(payload) || !isNonEmptyString(payload.command_id) || !["command.shop.purchase", "command.chat.send"].includes(String(payload.command_kind)) || !["accepted", "rejected", "duplicate", "failed"].includes(String(payload.status))) return error("invalid-payload", "Command result is invalid");
   if (payload.reason !== undefined && typeof payload.reason !== "string") return error("invalid-payload", "Command result reason is invalid");
@@ -887,6 +936,7 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
       if (envelope.sent_at === undefined) return error("invalid-envelope", "HUD message and round result timestamps are required", envelope.event_id);
       payloadResult = envelope.type === "hud.messages" ? parseHudMessages(envelope.payload) : parseRoundResult(envelope.payload);
       break;
+    case "hud.status": payloadResult = parseHudStatus(envelope.payload); break;
     case "command.result": payloadResult = parseCommandResult(envelope.payload); break;
     // Newer sidecars may add event types; clients skip them instead of desynchronising.
     default: return error("unsupported-event-type", `Unsupported event type: ${envelope.type}`, envelope.event_id);

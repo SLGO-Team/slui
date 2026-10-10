@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/hud-status.schema.json",
+  "title": "SLGO bottom HUD status payload (hud.status)",
+  "description": "The viewer's own held-firearm ammo and this round's kills. One recipient per publish; sent only to clients declaring hud-status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ammo", "round_kills"],
+  "properties": {
+    "ammo": {
+      "description": "Held firearm; null when the held item is not a firearm or the player is dead.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clip", "clip_max", "reserve", "reserve_icon"],
+          "properties": {
+            "clip": { "description": "Rounds ready to fire (magazine + chambered).", "$ref": "#/$defs/count" },
+            "clip_max": { "description": "Clip capacity; a chambered round may exceed it.", "type": "integer", "minimum": 1, "maximum": 65535 },
+            "reserve": { "description": "Reserve rounds of this firearm (not magazines).", "$ref": "#/$defs/count" },
+            "reserve_icon": { "enum": ["bullet", "shotgun_shell", "revolver_loader"] }
+          }
+        }
+      ]
+    },
+    "round_kills": {
+      "description": "One kind per kill this round, in order; reset when the buy phase starts.",
+      "type": "array",
+      "maxItems": 64,
+      "items": { "enum": ["default", "grenade", "shock"] }
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0, "maximum": 65535 }
+  }
+}

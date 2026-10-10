@@ -413,3 +413,83 @@ card).
   observed).
 - Mock preview: `hudScene=generator-start-progress` / `generator-shutdown-progress` (`viewerTeam=team-b`
   for the wire cutters) and `all-slots`; `npm run hudmessages-layout-audit` covers the card too.
+
+## 13. Bottom-HUD-specific replication rules
+
+The bottom HUD is a hand-built React feature under `src/features/bottomhud` (`model.ts`, `presentation.ts`,
+`BottomHud.tsx` / `BottomHud.css`), recreating CS2's `hudhealthammocenter` for SLGO: the balance takes the
+health/armor slot (CS2's separate bottom-left money panel is not drawn), the round's kill cards fan above the
+centre emblem, and the right block shows the clip and the reserve rounds (SLGO counts rounds, CS2 magazines).
+Measurements and motion are in the task research file `cs2-bottom-hud-motion.md` (archived with
+`10-07-cs2-bottom-hud`); keep the timeline at the top of `BottomHud.css` in sync.
+
+- Data: `selectBottomHud(hud, status, localPlayerId)` is null (nothing drawn) without a snapshot or viewer
+  team, when the local player is not on it or has no loadout, and while they are dead (user decision
+  2026-10-07: no spectator panel). Balance = `loadout.money`; ammo and kills from `hud.status`. The debug
+  build uses the same local player as the progress card, and the `bottom-*` scenes may override its balance
+  and life (`RealtimeMockProvider.hudSceneSelf`).
+- Colour: every washed element (numbers, strokes, ring, emblem, card art) uses `ROLE_COLORS[role]` through
+  `--bhud-wash` (user decision 2026-10-07, like the win panel), never CS2's T gold / CT blue. White SLUI art
+  is drawn through a CSS mask in that colour.
+- Geometry at 1080p (recording, Panorama for proportions): row 800 x 72 at x 560 / y 992, circle 64px centred
+  at (960, 1028) with a 2px ring and a `rgba(0,0,0,0.5)` fill (denser than CS2's blur, see section 11); strokes
+  1px, 184px each from the circle outwards; numbers `Stratum2 HUD Timer` 42px; balance right edge at x 710 in
+  at least six odometer cells (CS2 pads to "$16000"); clip label 70px from x 1192 with a 65 x 2 bar at y 1047-1048
+  over a faint track (Panorama's 1px black border and 4px height do not show in game, user review 2026-10-08); reserve 32px then a 26px reserve icon (user review 2026-10-07: 18px read
+  too small for the slim round).
+- Kill cards: every card is a 48 x 126 canvas drawn 152px high centred on the circle centre, so the Panorama
+  fan (`KILL_FAN`, exact `translate3d` + `rotateZ` per count, 0.2 s transition) turns about the circle. Kills
+  1-5 fan out (the fifth is the ace card: spade and skull, no number), from 6 one counter card shows the count.
+  Only the top card shows its number (an upper card hides the others in game); the card layer has a hole over
+  the circle. Pips: `default` skull, `grenade` burst, `shock` bolt (user decision: only these three).
+- Motion (CSS animations started on mount, WAAPI and one canvas on data changes, never the 250 ms UI clock):
+  Panorama `on-kill` (brightness 6 for 30 % of 0.7 s) on the row and the new card; the circle fill whitens.
+- Kill effect = CS2's own particle systems, ported (`particles/`; user asked for a pixel-level match, and five
+  rounds of shapes fitted by eye were rejected in review 2026-10-08): `systems.ts` restates each
+  `particles/ui/ammohealthcenter/ui_hud_kill_streaks_*.vpcf` child in the parent's order per kill level
+  (decompiled from the game for reference only, never committed), `engine.ts` simulates them with Source 2
+  semantics, `render.ts` adds the occluders, `gl.ts` draws, `textures.ts` holds SLUI stand-ins for the textures
+  (analytic models fitted to profiles measured on the game's textures; no game asset is copied). Contracts:
+  - Panel: CS2's `ParticleScenePanel` 900 x 500 at (510, 580), camera `0 600 127` -> `0 0 127`, fov 41 taken as
+    horizontal (2.006 px per unit; a vertical fov halves everything), line z 28 = y 448. One canvas per kill.
+  - Semantics come from the vpcf plus ValveResourceFormat's reverse-engineered renderer
+    (`particle_spritecard.frag/vert.slang`, `Renderers/RenderTrails.cs`, `ParticleTextureLayer.cs`); look there
+    before guessing. A field the vpcf leaves out takes the class default from the game's schema (s2v.app
+    SchemaExplorer's `cs2.json`, `MGetKV3ClassDefaults`), not a guess: e.g. renderers gamma-correct vertex
+    colours and `C_OP_ColorInterpolate` eases in and out unless told otherwise. Every texture input counts: a second input multiplies (default blend mode), an empty one is
+    the renderer's default texture (trails: `base_trail`); `m_flFinalTextureScaleU/V` zoom in (card UV divided).
+    Per-renderer fields stay per renderer (e.g. killid's beam fades its length in over 0.1 s, its ray layer
+    over 0.5 s). Trails are never wider than long. Continuous emitters are exact and end-exclusive (k-th
+    particle at k / rate while < duration). Masks are opaque black alpha blends that hide only what was drawn
+    before them and die at 2.0 s; a depth offset (`PositionOffset` 0 4 0 on the motion rope) is drawn with
+    perspective (600 / (600 - depth)). `m_flCameraBias` only biases depth (no screen offset).
+  - Colour: textures are sRGB-decoded and some are warm (basic_flare, yellowflare: that is the beam's orange
+    halo); particle colour attributes are /255 and the renderer decodes them from sRGB when it draws
+    (`m_bGammaCorrectVertexColors`, default on: without it kill 5's starbursts by the line were 1.4x too bright).
+    Light adds in an RGBA16F panel, then per channel `1 - exp(-1.5 x light)`, times the team wash, composited
+    "over" with the strongest channel as alpha (a saturated pixel is the wash whatever is behind).
+  - Recording-fitted, documented in code: killid's ray layer multiplies `base_trail`'s colour only (VRF's
+    reading leaves the halo 4-15x too dim); the beam's fade along its length.
+  - React StrictMode runs the effect twice: each run creates and removes its own canvas, since disposing loses
+    the WebGL context and Chromium paints a lost canvas white.
+  - Validate offline against the 60 fps recording (side-by-side and cross-beam profiles over the pre-kill
+    frame), then in the real app; tone and size errors hide in eyeballing.
+- Other motion: at kill 6 the fan collapses behind the circle and the counter rises with a halo. Shot: the remounted clip label pops for 3 frames
+  (scale 1.15 up-left and paler, then 4px down), drawn with colour, not a brightness filter (a filter turns the
+  team colour white and blurs the digits). Reload: the reserve icon drops and returns (300 ms); weapon change:
+  0.75 -> 1 in 100 ms; balance: each character rolls on its strip to the new symbol (`ODOMETER_SYMBOLS`, ~520 ms,
+  `cubic-bezier(0.2, 0.15, 0.6, 1)`, measured). A first view or a shrinking kill list (new round) never animates.
+- Low clip (<= 20 % of `clip_max`, recording 6/30 red, 7/30 normal): the number keeps the team colour over a
+  soft orange-red halo (two blurred stroked copies, 4px/4px and 8px/9px, after Panorama's 9px strength-2.5
+  shadow; a tight rim reads as an outline and was rejected), the bar fill turns red.
+- Assets (`public/assets/bottomhud/`, SLUI-drawn): `kill-card(-ace).svg`, `kill-pip-*.svg`,
+  `reserve-bullet|shotgun-shell|revolver-loader.svg` (traced to the in-game look; shotgun and revolver get their
+  own icon, other firearms the pre-magazine CS2 single round), `emblem-ntf|scp.svg` (new drawings; the SCP
+  emblem is three claw scratches, ragged at the top and tapering to a point, generated as polygons; plain
+  curved lines read as scribbles).
+- Layering: `.bhud-overlay` is a fixed layer at z-index 3 on the scaled 1920x1080 canvas.
+- Mock preview: `hudScene=bottom-kills` (kills 1-14 with all three pips), `bottom-fire` (a magazine to red and
+  a reload), `bottom-balance` (balance rolls), `bottom-dead` (hidden); `viewerTeam=team-b` shows the SCP side
+  (no firearm). Run `npm run bottomhud-layout-audit` (CDP on port 9223, preview at `BOTTOMHUD_PREVIEW_URL`,
+  viewport from `BOTTOMHUD_VIEWPORT_WIDTH/HEIGHT`) at 1920x1080 and a smaller 16:9 size before accepting a
+  visual change.

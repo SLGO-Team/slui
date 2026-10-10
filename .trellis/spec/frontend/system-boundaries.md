@@ -221,6 +221,17 @@ Required boundary rules:
   `OVERLAY_CLIENT_FEATURES` only once their renderers exist. The mock provider
   plays scripted scenes from `src/mocks/hudScenes.ts`, selected by the HUD debug
   `hudScene=` URL parameter; `hudSceneAt=<ms>` pins a scene moment for captures.
+- `hud.status` (`{ ammo, round_kills }`, `parseHudStatus`; wire rules in
+  `packages/protocol/v0/README.md` "HUD status") is the local player's own
+  bottom-HUD state: the held firearm's `clip` / `clip_max` / `reserve` (rounds,
+  not magazines) / `reserve_icon`, or `ammo: null` without a firearm, and one
+  `HudKillKind` per kill this round. One recipient, no time fields, sent only to
+  clients declaring `hud-status` (`CLIENT_FEATURE_HUD_STATUS`), on every change
+  (each shot). The balance and life come from the player's `match.snapshot`
+  entry (`loadout.money`, `is_alive`), never from `hud.status`. SLUI also
+  declares `hud-money` (`CLIENT_FEATURE_HUD_MONEY`) so the plugin hides its own
+  balance hint. `hudStatusReducer` keeps the latest status of the baseline's
+  instance (another instance clears it, a reconnect keeps it).
 - Minimap payloads contain a versioned map seed/descriptor and player
   positions already filtered for the authenticated player's in-game
   visibility. The client must never receive an omniscient player map and hide
@@ -275,10 +286,10 @@ request", "Sidecar session handshake", "Security boundary").
   `setFeatures` stores the latest `client.features` list; it is sent on change
   while `live` and after every accepted baseline when not empty, so callers
   never resend after a reconnect. `App.tsx` maps overlay `enabled` to
-  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages"]` / `[]`: a disabled overlay
+  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages", "hud-money", "hud-status"]` / `[]`: a disabled overlay
   keeps the session live, so it must withdraw the features explicitly or the plugin keeps
   ignoring Y, keeps refusing to open its in-game shop from B and keeps its own
-  chat feed, top HUD, win panel and message zone (alerts, hints, progress) hidden.
+  chat feed, top HUD, win panel, message zone (alerts, hints, progress) and balance hidden.
 - Close mapping: 4000/4002 → `incompatible`, no retry; 4001 → `unauthorized`,
   backoff, detail = same-PC/network hint; 4003 → `stale`, reroute; any other
   close → `offline`, backoff. Before the baseline these reject `connect()` with
@@ -513,6 +524,7 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
 | Match snapshot omits `sent_at` | Reject the event as `invalid-envelope` |
 | `hud.messages` / `round.result` omits `sent_at` | Reject the event as `invalid-envelope` |
 | HUD message has an unknown field or tone, text blank or over 256 UTF-16 units, a countdown token (`{time_remaining}` / `{seconds_remaining}`) without `countdown_remaining_ms` (or the reverse), both token kinds in one text, non-integer or out-of-range ms, or progress `remaining_ms > total_ms` | Reject the payload as `invalid-payload` |
+| `hud.status` has an unknown field, a missing field, a count outside `0..65535`, `clip_max` 0, an unknown `reserve_icon` or kill kind, or more than 64 kills | Reject the payload as `invalid-payload` |
 | Round result is a draw outside a match end, or `outcome` is `draw` without a null `winner_team` (or the reverse) | Reject the payload as `invalid-payload` |
 | Friendly health is absent or null | Render an explicit unknown state; never infer a numeric value |
 | HUD source changes by `server_id` or `instance_id` | Clear the prior frame, require a new baseline, and show restarted/syncing state |

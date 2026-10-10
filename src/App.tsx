@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
 import {
@@ -20,6 +20,8 @@ import { hudMessagesReducer, initialHudMessagesState, selectMessageZone, selectP
 import { progressViewerFromHud } from "./features/hudmessages/presentation";
 import { ProgressCard } from "./features/hudmessages/ProgressCard";
 import { WinPanel } from "./features/winpanel/WinPanel";
+import { BottomHud } from "./features/bottomhud/BottomHud";
+import { hudStatusReducer, initialHudStatusState, selectBottomHud } from "./features/bottomhud/model";
 import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
@@ -53,6 +55,8 @@ const OVERLAY_CLIENT_FEATURES = [
   CLIENT_FEATURE_TOP_HUD,
   CLIENT_FEATURE_WIN_PANEL,
   CLIENT_FEATURE_HUD_MESSAGES,
+  CLIENT_FEATURE_HUD_MONEY,
+  CLIENT_FEATURE_HUD_STATUS,
 ] as const;
 
 // Mocks only in the explicit `mock` mode (npm run dev:mock).
@@ -111,6 +115,7 @@ function App() {
   const [hudState, dispatchHud] = useReducer(roundHudReducer, initialRoundHudState);
   const [winPanelState, dispatchWinPanel] = useReducer(winPanelReducer, initialWinPanelState);
   const [hudMessagesState, dispatchHudMessages] = useReducer(hudMessagesReducer, initialHudMessagesState);
+  const [hudStatusState, dispatchHudStatus] = useReducer(hudStatusReducer, initialHudStatusState);
   const shopFeature = useShopFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
@@ -132,6 +137,7 @@ function App() {
     dispatchHud({ type: "event", event, receivedAtMs });
     dispatchWinPanel({ type: "event", event, receivedAtMs });
     dispatchHudMessages({ type: "event", event, receivedAtMs });
+    dispatchHudStatus({ type: "event", event });
     shopFeature.receiveEvent(event);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
@@ -415,6 +421,12 @@ function App() {
     : localSteamId;
   const progressViewer = useMemo(() => progressViewerFromHud(hud, progressPlayerId), [hud, progressPlayerId]);
   const progressCard = useMemo(() => selectProgressCard(hudMessagesState, progressViewer), [hudMessagesState, progressViewer]);
+  // The bottom HUD is the same local player; a debug scene may override their balance and life.
+  const bottomHudBase = useMemo(() => selectBottomHud(hud, hudStatusState.status, progressPlayerId), [hud, hudStatusState.status, progressPlayerId]);
+  const sceneSelf = HUD_DEBUG_ENABLED ? mockConnection?.hudSceneSelf() ?? null : null;
+  const bottomHud = bottomHudBase === null || sceneSelf === null ? bottomHudBase
+    : !sceneSelf.alive ? null
+      : sceneSelf.money === null || sceneSelf.money === bottomHudBase.balance ? bottomHudBase : { ...bottomHudBase, balance: sceneSelf.money };
   const minimapPlayerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
   const chatSelf = useMemo(() => resolveChatSelf(
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
@@ -445,6 +457,7 @@ function App() {
         variant={hudVariant}
       />
       <WinPanel panel={winPanel} still={hudSceneStill} />
+      <BottomHud view={bottomHud} still={hudSceneStill} />
       <ProgressCard card={progressCard} still={hudSceneStill} />
       <MessageZone zone={messageZone} still={hudSceneStill} />
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
