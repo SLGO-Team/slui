@@ -38,10 +38,17 @@ Parent: `10-10-build-speed`.
 
 ## Acceptance Criteria
 
-- [ ] `npm run installer:build:local` logs exactly one `slui-setup` release compile and produces a working
+- [x] `npm run installer:build:local` logs exactly one `slui-setup` release compile and produces a working
       `SLUI-Setup-<version>.exe`.
-- [ ] Live test on this PC: install over an existing SLUI, launch from the finish page, uninstall via
+- [x] Live test on this PC: install over an existing SLUI, launch from the finish page, uninstall via
       Settings → Apps (keep and delete theme pack variants), as in `10-05-uninstaller`.
-- [ ] Unit tests cover parsing of the attached data (valid, missing, truncated, wrong magic).
-- [ ] Release job time drops by roughly one `slui-setup` compile (record before/after).
-- [ ] `npm run lint`, `npm test`, `cargo test --workspace` pass.
+- [x] Unit tests cover parsing of the attached data (valid, missing, truncated, wrong magic).
+- [ ] (after the next release) Release job time drops by roughly one `slui-setup` compile (record before/after).
+- [x] `npm run lint`, `npm test`, `cargo test --workspace` pass.
+
+## Outcome (PR #29)
+
+- Local `npm run installer:build:local`: one `slui-setup` release compile (45s), whole build 117s.
+- Overlays checked on the outputs; live test on the dev PC passed 2026-10-10 (install over existing,
+  launch from finish page, uninstall keeping and deleting the theme pack).
+- Release-job timing is compared on the next release (baseline 309s).
