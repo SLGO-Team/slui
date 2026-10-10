@@ -1,6 +1,7 @@
 import {
   HUD_SECONDS_REMAINING_TOKEN,
   HUD_TIME_REMAINING_TOKEN,
+  type ConnectionStatus,
   type HudMessagesSnapshot,
   type HudProgressMessage,
   type HudSlotMessage,
@@ -66,7 +67,9 @@ export const initialHudMessagesState: HudMessagesState = {
   nextAppearance: 1,
 };
 
-export type HudMessagesAction = { type: "event"; event: SlgoEvent; receivedAtMs: number };
+export type HudMessagesAction =
+  | { type: "event"; event: SlgoEvent; receivedAtMs: number }
+  | { type: "connection"; status: ConnectionStatus };
 
 const sameSource = (a: HudMessagesSource | null, serverId: string, instanceId: string) =>
   a !== null && a.serverId === serverId && a.instanceId === instanceId;
@@ -143,6 +146,10 @@ function nextSlot<M extends HudSlotMessage>(
 }
 
 export function hudMessagesReducer(state: HudMessagesState, action: HudMessagesAction): HudMessagesState {
+  // Only an ended instance clears the board; other drops keep it for a reconnect to the same instance.
+  if (action.type === "connection") {
+    return action.status === "ended" && state.source !== null ? { ...initialHudMessagesState, nextAppearance: state.nextAppearance } : state;
+  }
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     // A reconnect to the same instance keeps the board until the replayed snapshot arrives.

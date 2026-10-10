@@ -276,6 +276,14 @@ assert.strictEqual(minimapReducer(live, { type: "diagnostic", diagnostic: { ...d
 const incompatible = minimapReducer(live, { type: "diagnostic", diagnostic: { ...diagnostic, eventType: "minimap.init" } });
 assert.equal(incompatible.init, null);
 assert.equal(event(incompatible, "minimap.positions", positions, 5).frame, null);
+{
+  // The server shut down: the ended instance takes its map with it.
+  const ended = minimapReducer(live, { type: "connection", status: "ended" });
+  assert.equal(ended.frame, null);
+  assert.equal(ended.geometry, null);
+  assert.equal(ended.source, null);
+  assert.equal(ended.availability, "disconnected");
+}
 const disconnected = minimapReducer(live, { type: "connection", status: "offline" });
 assert.equal(disconnected.frame, null);
 assert.equal(disconnected.baselineAccepted, false);

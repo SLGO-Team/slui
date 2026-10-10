@@ -137,6 +137,8 @@ export type RoundHudAction =
 export function roundHudReducer(state: RoundHudState, action: RoundHudAction): RoundHudState {
   if (action.type === "connection") {
     if (state.connectionStatus === action.status) return state;
+    // An ended instance takes its match with it.
+    if (action.status === "ended") return { ...initialRoundHudState, connectionStatus: "ended" };
     return { ...state, connectionStatus: action.status };
   }
 
@@ -262,7 +264,7 @@ export function phaseLabel(state: RoundState): string {
 }
 
 function availabilityForState(state: RoundHudState, nowMs: number): HudAvailability {
-  if (["signed-out", "offline", "not-in-game", "unauthorized", "incompatible"].includes(state.connectionStatus)) {
+  if (["signed-out", "offline", "not-in-game", "ended", "unauthorized", "incompatible"].includes(state.connectionStatus)) {
     return "disconnected";
   }
   if (state.connectionStatus === "stale") return "stale";
@@ -286,6 +288,7 @@ function statusLabel(availability: HudAvailability, connectionStatus: Connection
       if (connectionStatus === "incompatible") return "INCOMPATIBLE";
       if (connectionStatus === "signed-out") return "SIGNED OUT";
       if (connectionStatus === "not-in-game") return "NOT IN GAME";
+      if (connectionStatus === "ended") return "SERVER CLOSED";
       return "OFFLINE";
     case "restarted": return "SERVER RESTARTED";
     case "baseline-required": return "SYNCING";

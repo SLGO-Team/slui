@@ -89,9 +89,9 @@ interface SlgoConnection {
 }
 
 type ConnectionFailure = {
-  status: "offline" | "stale" | "unauthorized" | "incompatible";
+  status: "offline" | "not-in-game" | "stale" | "ended" | "unauthorized" | "incompatible";
   detail: string;
-  retry: "reroute" | "backoff" | "none";
+  retry: "reroute" | "backoff" | "poll" | "none";
 };
 
 type MatchSnapshot = {
@@ -115,6 +115,14 @@ declare function parseMatchSnapshot(payload: unknown): ParseResult<MatchSnapshot
 
 These are design-level signatures, not permission to expose Backend secrets
 or to let components construct arbitrary commands.
+
+Instance end vs. a lost connection: `offline` / `stale` keep every feature's
+state, so a reconnect to the same instance shows the last data until the
+replayed snapshots arrive. Close code 4003 (`instanceUnavailable`: the plugin
+said `goodbye` on server shutdown, or never came back) maps to `ended`: every
+feature reducer takes a `connection` action and resets to its initial state on
+`ended` (panels vanish, shop and chat close), while the session resolves a new
+route by itself (`reroute`).
 
 ---
 

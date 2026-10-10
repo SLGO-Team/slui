@@ -17,6 +17,8 @@ export const SERVER_STATUS: Record<ConnectionStatus, ServerStatus> = {
   // Opening the client before joining a server is the normal order; the session keeps polling.
   "not-in-game": { label: "等待中", tone: "pending", retry: false, hint: "等待进入游戏服务器" },
   "stale": { label: "数据过期", tone: "warn", retry: true },
+  // The server closed or restarted; the session resolves a new route by itself.
+  "ended": { label: "服务器已关闭", tone: "pending", retry: false, hint: "等待服务器重新上线" },
   "incompatible": { label: "版本不兼容", tone: "error", retry: true },
   "unauthorized": { label: "未授权", tone: "error", retry: true },
 };

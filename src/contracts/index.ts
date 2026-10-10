@@ -10,6 +10,8 @@ export type ConnectionStatus =
   | "baseline-required"
   | "live"
   | "stale"
+  /** The routed server instance ended (the plugin said goodbye, or never came back): its data is dropped while a new route is resolved. */
+  | "ended"
   | "offline"
   /** The control plane found no SLGO server the player is on (route rejection `not-in-game`); retried in the background. */
   | "not-in-game"
@@ -49,7 +51,7 @@ export type MinimapDiagnostic = {
 
 /** Why a sidecar session ended or could not start, and whether the session layer should try again. */
 export type ConnectionFailure = {
-  status: Extract<ConnectionStatus, "offline" | "not-in-game" | "stale" | "unauthorized" | "incompatible">;
+  status: Extract<ConnectionStatus, "offline" | "not-in-game" | "stale" | "ended" | "unauthorized" | "incompatible">;
   detail: string;
   /**
    * `reroute`: resolve a new route soon; `backoff`: retry with growing delays; `poll`: ask again at a fixed

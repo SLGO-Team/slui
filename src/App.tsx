@@ -148,6 +148,9 @@ function App() {
   const handleStatus = useCallback((status: ConnectionStatus) => {
     if ((status === "live") !== connectionLiveRef.current) overlayController.log(`session ${status}`);
     dispatchHud({ type: "connection", status });
+    dispatchWinPanel({ type: "connection", status });
+    dispatchHudMessages({ type: "connection", status });
+    dispatchHudStatus({ type: "connection", status });
     shopFeature.setConnectionStatus(status);
     connectionLiveRef.current = status === "live";
     chatFeature.setConnectionStatus(status);

@@ -226,6 +226,8 @@ export function chatInputReducer(state: ChatInputState, action: ChatInputAction)
     }
     case "connection": {
       if (action.status === "live") return state;
+      // The history belonged to the ended instance; a pending send can no longer be answered.
+      if (action.status === "ended") return initialChatInputState;
       const closed = state.open ? { ...state, open: false } : state;
       // A stale stream may still deliver the result; anything else has lost it.
       return closed.pending && action.status !== "stale" ? fail(closed, closed.pending, "disconnected", action.nowMs) : closed;

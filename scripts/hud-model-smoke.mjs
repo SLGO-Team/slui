@@ -96,6 +96,17 @@ function hudFor(snapshotOverrides, nowMs = receivedAt) {
   return { state, hud: selectRoundHud(state, nowMs) };
 }
 
+{
+  // The server shut down: the ended instance takes its match with it, until a new baseline.
+  const { state } = hudFor({});
+  assert.equal(selectRoundHud(state, receivedAt).hasSnapshot, true);
+  const ended = selectRoundHud(roundHudReducer(state, { type: "connection", status: "ended" }), receivedAt);
+  assert.equal(ended.hasSnapshot, false);
+  assert.equal(ended.availability, "disconnected");
+  assert.equal(ended.statusLabel, "SERVER CLOSED");
+  assert.equal(selectRoundHud(roundHudReducer(state, { type: "connection", status: "stale" }), receivedAt).hasSnapshot, true, "stale keeps the match");
+}
+
 // Clock mode priority: hidden > generator > pause > round.
 for (const state of ["Idle", "WaitingForPlayers", "RoundEnd"]) {
   assert.equal(hudClockMode(makeSnapshot({ state, generator_remaining_ms: 5_000, pause_remaining_ms: 5_000 })), "hidden", `${state} hides the timer`);

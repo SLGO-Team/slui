@@ -40,6 +40,8 @@ const status = { ammo: { clip: 23, clip_max: 30, reserve: 90, reserve_icon: "bul
   assert.equal(hudStatusReducer(state, { type: "event", event: baseline() }), state, "same instance keeps it");
   assert.equal(hudStatusReducer(state, { type: "event", event: envelope("hud.status", status, { instanceId: "other" }) }).status, status, "another instance's frame is ignored");
   assert.equal(hudStatusReducer(state, { type: "event", event: baseline({ instanceId: "instance-2" }) }).status, null, "a new instance clears it");
+  assert.equal(hudStatusReducer(state, { type: "connection", status: "offline" }), state, "a lost connection keeps it");
+  assert.equal(hudStatusReducer(state, { type: "connection", status: "ended" }), initialHudStatusState, "an ended instance clears it");
 }
 
 {
