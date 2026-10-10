@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/SLGO-Team/slui/compare/v0.5.0...v0.5.1) (2026-10-10)
+
+
+### Performance Improvements
+
+* **ci:** slimmer debug info for the CI Rust cache ([#27](https://github.com/SLGO-Team/slui/issues/27)) ([ddf24d8](https://github.com/SLGO-Team/slui/commit/ddf24d89fcc47e4877f75e7134b88f92b4bb35cf))
+* **installer:** build slui-setup once for the installer and the uninstaller ([#29](https://github.com/SLGO-Team/slui/issues/29)) ([516c1f2](https://github.com/SLGO-Team/slui/commit/516c1f25e8c78a9ea96fe9b4826f0c411680c985))
+
 ## [0.5.0](https://github.com/SLGO-Team/slui/compare/v0.4.0...v0.5.0) (2026-10-10)
 
 
