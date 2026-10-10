@@ -1,8 +1,8 @@
 {
   "id": "ci-build-speed",
   "name": "ci-build-speed",
-  "title": "CI: skip unchanged hakari check, slimmer debug info",
-  "description": "Run the hakari check only when Cargo manifests change and reduce dev debug info to shrink the Rust cache",
+  "title": "CI: slimmer debug info for the Rust cache",
+  "description": "Keep only line tables in CI dev/test builds to halve the Rust cache; measure the hakari check (kept: its cost was dependency unpacking)",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
