@@ -54,10 +54,10 @@ recordings (kill cards, firing, balance changes; local only, never committed).
 
 ## Acceptance Criteria
 
-- [ ] Contract: `hud.status` example parses in slui (`npm test`), slgo-backend (`bun test`) and the plugin
+- [x] Contract: `hud.status` example parses in slui (`npm test`), slgo-backend (`bun test`) and the plugin
       self-check; invalid inputs rejected (unknown field, bad kind/icon, negative or non-integer numbers,
       `clip_max` 0, too many kills, more than one recipient).
-- [ ] Plugin: firing changes `clip` per shot, reloading moves rounds from `reserve` to `clip`, switching to a
+- [x] Plugin: firing changes `clip` per shot, reloading moves rounds from `reserve` to `clip`, switching to a
       non-firearm sends `ammo: null`; grenade / Micro-HID / other kills produce `grenade` / `shock` / `default`;
       only players with `hud-status` receive the event; the balance hint disappears for `hud-money` players.
 - [x] SLUI mock scenes show: kills 1-14 with the fan and counter card and all three pips; a magazine emptied
@@ -65,8 +65,10 @@ recordings (kill cards, firing, balance changes; local only, never committed).
 - [x] Motion and geometry match the recordings frame by frame (numbers recorded in the research file); no text
       shadow; works at 1920x1080 and a smaller 16:9 size (`npm run bottomhud-layout-audit`). Kill particles: two
       small measured residuals left as low priority (research file, session 2026-10-10).
-- [ ] `npm test`, `npm run lint`, `npm run build:local`, `npm run tauri:check` pass.
-- [ ] User visual review of the mock preview (passed 2026-10-10, PR #21 merged), then a live test on a server.
+- [x] `npm test`, `npm run lint`, `npm run build:local`, `npm run tauri:check` pass.
+- [x] User visual review of the mock preview (passed 2026-10-10, PR #21 merged), then a live test on a server
+      (passed 2026-10-10 on the production release; the theme-pack font exposed a 1px "$" bleed above "0" in the
+      odometer, fixed in #23).
 
 ## Out of Scope
 
