@@ -632,3 +632,25 @@ slui-setup is compiled once; build-installer.mjs appends an overlay (role, versi
 ### Status
 
 [OK] **Completed**
+
+
+## Session 27: sidecar 经 Rust 层无 SNI 连接
+<!-- trellis-session: v=2 fp=e7d1b1acd3b2faa2 -->
+
+**Date**: 2026-10-13
+**Task**: sidecar 经 Rust 层无 SNI 连接
+**Branch**: `feat/sidecar-no-sni`
+
+### Summary
+
+sidecar WebSocket 移到 Rust（rustls、enable_sni=false、webpki-roots 按主机名校验），前端 TauriSidecarSocket 适配 WebSocketLike，connection.ts 语义不变；Rust 测试覆盖无 SNI、主机名不匹配、关闭码；实网探测与群内自测版实机连上游戏主机 sidecar。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dd48bf1` | feat(sidecar): 经 Rust 层不发 SNI 连接 sidecar |
+
+### Status
+
+[OK] **Completed**
