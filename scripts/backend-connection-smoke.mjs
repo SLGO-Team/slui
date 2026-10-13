@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { parseRouteRequest, parseSessionOpen } from "../src/contracts/index.ts";
 import { readBackendConfig } from "../src/platform/backend.ts";
 import { SAME_CONNECTION_HINT, SidecarConnectionError, WebSocketSidecarConnection } from "../src/platform/connection.ts";
+import { TauriSidecarSocket } from "../src/platform/sidecarSocket.ts";
 import { HttpControlPlane, toWireProof } from "../src/platform/route.ts";
 import {
   clientSessionReducer,
@@ -392,6 +393,96 @@ for (const [name, incoming, status, retry] of [
   assert.equal(FakeWebSocket.instances.length, sockets, "a refused route opens no socket");
 }
 
+// ---- Rust sidecar socket (Tauri) -------------------------------------------
+
+// Fake Rust commands: records every call in order and lets the test play the sidecar.
+function fakeSidecarIpc({ openFails = false } = {}) {
+  const ipc = {
+    calls: [],
+    onEvent: null,
+    async open(url, onEvent) {
+      ipc.calls.push(["open", url]);
+      if (openFails) throw new Error("Unsupported sidecar endpoint scheme http");
+      ipc.onEvent = onEvent;
+      return 7;
+    },
+    async send(id, data) { ipc.calls.push(["send", id, data]); },
+    async close(id, code, reason) { ipc.calls.push(["close", id, code, reason]); },
+  };
+  return ipc;
+}
+
+function tauriHarness(ipc) {
+  return harness({ createSocket: (url) => new TauriSidecarSocket(url, ipc) });
+}
+
+// The connection runs unchanged over the Rust socket: handshake, commands in order, local close.
+{
+  const ipc = fakeSidecarIpc();
+  const { connection, log } = tauriHarness(ipc);
+  sequence = 0;
+  connection.setFeatures(["chat-input"]);
+  const connecting = connection.connect(route, identity);
+  await flush();
+  assert.deepEqual(ipc.calls, [["open", route.sidecarEndpoint]]);
+  ipc.onEvent({ kind: "open" });
+  ipc.onEvent({ kind: "message", data: JSON.stringify(baselineEvent()) });
+  await connecting;
+  assert.equal(connection.getStatus(), "live");
+  await connection.send({ kind: "command.chat.send", command_id: "c-1", scope: "team", body: "one" });
+  await connection.send({ kind: "command.chat.send", command_id: "c-2", scope: "team", body: "two" });
+  ipc.onEvent({ kind: "message", data: JSON.stringify(chat()) });
+  assert.equal(log.events.at(-1).type, "chat.message");
+  await connection.disconnect();
+  await flush();
+  const sent = ipc.calls.filter(([kind]) => kind === "send").map(([, id, data]) => [id, JSON.parse(data)]);
+  assert.equal(sent[0][1].type, "session.open", "session.open goes first");
+  assert.equal(sent[0][1].session_token, route.sessionToken);
+  assert.deepEqual(sent.slice(1).map(([id, frame]) => [id, frame.type ?? frame.command_id]), [[7, "client.features"], [7, "c-1"], [7, "c-2"]], "frames keep their order");
+  assert.deepEqual(ipc.calls.at(-1), ["close", 7, 1000, "SLUI closed the session"]);
+  const before = log.events.length;
+  ipc.onEvent({ kind: "message", data: JSON.stringify(chat()) });
+  ipc.onEvent({ kind: "close", code: 1000, reason: "" });
+  assert.equal(log.events.length, before, "nothing arrives after a local close");
+  assert.equal(log.failures.length, 0);
+}
+
+// Close codes from Rust map exactly like browser close codes.
+for (const [code, status, retry] of [[4001, "unauthorized", "backoff"], [4003, "ended", "reroute"], [1006, "offline", "backoff"]]) {
+  const ipc = fakeSidecarIpc();
+  const { connection, log } = tauriHarness(ipc);
+  sequence = 0;
+  const connecting = connection.connect(route, identity);
+  await flush();
+  ipc.onEvent({ kind: "open" });
+  ipc.onEvent({ kind: "message", data: JSON.stringify(baselineEvent()) });
+  await connecting;
+  ipc.onEvent({ kind: "close", code, reason: "" });
+  assert.equal(connection.getStatus(), status, `rust close ${code}`);
+  assert.equal(log.failures.at(-1).retry, retry);
+}
+
+// A socket Rust refuses to open (or that never connects) reports 1006: unreachable, retry with backoff.
+{
+  const { connection } = tauriHarness(fakeSidecarIpc({ openFails: true }));
+  const originalError = console.error;
+  console.error = () => undefined;
+  const error = await connection.connect(route, identity).then(() => null, (value) => value).finally(() => { console.error = originalError; });
+  assert.ok(error instanceof SidecarConnectionError);
+  assert.equal(error.failure.status, "offline");
+  assert.equal(error.failure.retry, "backoff");
+  assert.match(error.failure.detail, /unreachable/);
+}
+{
+  const ipc = fakeSidecarIpc();
+  const { connection } = tauriHarness(ipc);
+  const connecting = connection.connect(route, identity);
+  await flush();
+  ipc.onEvent({ kind: "close", code: 1006, reason: "" });
+  const error = await connecting.then(() => null, (value) => value);
+  assert.match(error.failure.detail, /unreachable/);
+}
+
 // ---- Session retry policy -------------------------------------------------
 
 assert.equal(retryDelayMs("none", 1), null);
@@ -495,4 +586,4 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
   assert.deepEqual(manual.states.map((state) => state.status), ["discovering", "route-pending", "not-in-game"], "a manual retry shows its progress");
 }
 
-console.log("backend connection smoke: config, control plane, sidecar handshake/close codes/timeouts and retry policy ok");
+console.log("backend connection smoke: config, control plane, sidecar handshake/close codes/timeouts, Rust socket adapter and retry policy ok");

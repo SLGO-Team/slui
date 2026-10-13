@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
-- **Last Active**: 2026-10-10
+- **Total Sessions**: 27
+- **Last Active**: 2026-10-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~634 | Active |
+| `journal-1.md` | ~656 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 27 | 2026-10-13 | sidecar 经 Rust 层无 SNI 连接 | `dd48bf1` | `feat/sidecar-no-sni` |
 | 26 | 2026-10-10 | Installer: one slui-setup compile | `240810e`, `17c084a` | `perf/installer-single-compile` |
 | 25 | 2026-10-10 | CI build speed: slimmer debug info | `1de17ab`, `9795830` | `perf/ci-build-speed` |
 | 24 | 2026-10-10 | Bottom HUD live test and odometer glyph fix | `3c17b4b`, `d442221` | `chore/archive-bottom-hud` |

@@ -1,0 +1,1 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "sidecar 连接与 Tauri 命令契约"}

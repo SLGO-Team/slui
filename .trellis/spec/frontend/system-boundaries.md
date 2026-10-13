@@ -298,6 +298,21 @@ request", "Sidecar session handshake", "Security boundary").
   keeps the session live, so it must withdraw the features explicitly or the plugin keeps
   ignoring Y, keeps refusing to open its in-game shop from B and keeps its own
   chat feed, top HUD, win panel, message zone (alerts, hints, progress) and balance hidden.
+- Sidecar socket transport: Tauri builds pass `createSocket = createTauriSidecarSocket`
+  (`src/platform/sidecarSocket.ts`), so the WebSocket runs in Rust
+  (`src-tauri/src/sidecar_socket.rs`, tokio-tungstenite over rustls with ring and
+  `webpki-roots`). The TLS handshake sends **no SNI** (`enable_sni = false`), because a
+  game host's network resets handshakes naming a domain it has not allowlisted and the
+  webview cannot omit SNI; the certificate is still verified against the URL host name,
+  with no switch to skip it. Plain `ws://` is refused unless the host is loopback.
+  Rust reports browser close semantics: no close frame (connect, TLS or handshake
+  failure, drop) → `1006`, a close frame without a code → `1005`, otherwise the
+  sidecar's code and reason, so the close mapping below is unchanged. The adapter
+  sends commands through one promise chain to keep frame order and drops all events
+  after a local `close()`. Browser previews keep the webview `WebSocket`. The control
+  plane stays on webview `fetch` (its host does not filter SNI).
+  Manual check of a real sidecar with the production TLS settings:
+  `SLUI_SIDECAR_PROBE_URL=wss://<host>:<port>/slgo/sidecar cargo test -p slui -- --ignored probe`.
 - Close mapping: 4000/4002 → `incompatible`, no retry; 4001 → `unauthorized`,
   backoff, detail = same-PC/network hint; 4003 → `stale`, reroute; any other
   close → `offline`, backoff. Before the baseline these reject `connect()` with
@@ -495,6 +510,7 @@ by window label (`?window=home` in a browser preview).
 | `set_shop_hotkey(virtualKey)` | overlay | error for keys outside the bindable set |
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
 | `get_game_running()` | home | `boolean` (SCPSL process present, independent of focus) |
+| `sidecar_open(url, onEvent: Channel)` / `sidecar_send(id, data)` / `sidecar_close(id, code, reason)` | overlay (via `sidecarSocket.ts`) | socket id; `onEvent` gets `{kind:"open"}`, `{kind:"message",data}`, then exactly one `{kind:"close",code,reason}`; send/close on a closed id are dropped |
 
 | Event | Direction | Payload |
 | --- | --- | --- |
