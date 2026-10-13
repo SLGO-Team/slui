@@ -19,9 +19,9 @@ webview 层的 `WebSocket` 无法关闭 SNI，因此 SLUI 必须把 sidecar 的 
 
 ## Acceptance Criteria
 
-- [ ] `npm run lint`、`npm test`、`cargo test --workspace`、hakari 检查通过。
-- [ ] Rust 测试证明：握手不带 SNI；证书主机名不匹配时连接失败；`ws://` 非回环被拒绝。
-- [ ] 用 `slgo-deploy` 的 `build-slui` 构建群内版，实测能登录并连上游戏主机 sidecar（该主机带 SNI 的握手被重置，可用 `openssl s_client -noservername` 对照）。
+- [x] `npm run lint`、`npm test`、`cargo test --workspace`、hakari 检查通过。
+- [x] Rust 测试证明：握手不带 SNI；证书主机名不匹配时连接失败；`ws://` 非回环被拒绝。
+- [x] 用 `slgo-deploy` 的 `build-slui` 构建群内版，实测能登录并连上游戏主机 sidecar（该主机带 SNI 的握手被重置，可用 `openssl s_client -noservername` 对照）。
 
 ## Out of Scope
 
