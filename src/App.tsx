@@ -34,6 +34,7 @@ import {
 } from "./mocks/hudDebug";
 import { HttpControlPlane, MockControlPlane } from "./platform/route";
 import { WebSocketSidecarConnection } from "./platform/connection";
+import { createTauriSidecarSocket } from "./platform/sidecarSocket";
 import { readBackendConfig } from "./platform/backend";
 import { createIdentityProofProvider, LocalSteamIdentity } from "./platform/identity";
 import { useClientSession } from "./app/useClientSession";
@@ -45,7 +46,7 @@ import { DEFAULT_AUDIO_SETTINGS } from "./platform/audioSettings";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "./platform/overlaySettings";
 import { createSettingsStore, type AppSettings } from "./platform/settings";
 import type { RadarPreferences } from "./features/minimap/preferences";
-import { createOverlayStateSource, createSessionStatusPublisher, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
+import { createOverlayStateSource, createSessionStatusPublisher, isTauri, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
 import "./App.css";
 
 /** Plugin features the enabled overlay takes over (reported via client.features). */
@@ -106,6 +107,8 @@ function App() {
     : urlHudVariant === "compact" || urlHudVariant === "detailed" ? urlHudVariant : null;
   const mockConnection = useMemo(() => MOCK_BACKEND ? createMockProvider(previewViewerTeam, previewShopRole) : null, [previewShopRole, previewViewerTeam]);
   const connection = useMemo<SlgoConnection>(() => mockConnection ?? new WebSocketSidecarConnection({
+    // Tauri connects from Rust so the TLS handshake carries no SNI; browser previews keep WebSocket.
+    createSocket: isTauri() ? createTauriSidecarSocket : undefined,
     endpointOverride: BACKEND.kind === "real" ? BACKEND.sidecarEndpointOverride : null,
   }), [mockConnection]);
   const controlPlane = useMemo(() => BACKEND.kind === "real" ? new HttpControlPlane(BACKEND.controlPlaneUrl) : new MockControlPlane(), []);

@@ -1,4 +1,5 @@
 mod settings;
+mod sidecar_socket;
 mod theme_pack;
 
 #[cfg(windows)]
@@ -807,6 +808,7 @@ pub fn run() {
         .manage(Mutex::new(GameForegroundState::default()))
         .manage(Mutex::new(OverlaySnapshot::default()))
         .manage(GameRunningState::default())
+        .manage(sidecar_socket::SidecarSockets::default())
         .setup(|app| {
             // The overlay starts disabled on every launch and never takes input on its own.
             if let Some(overlay) = app.get_webview_window(OVERLAY_WINDOW) {
@@ -841,7 +843,10 @@ pub fn run() {
             get_game_running,
             get_current_steam_identity,
             get_game_foreground,
-            theme_pack::list_theme_pack_files
+            theme_pack::list_theme_pack_files,
+            sidecar_socket::sidecar_open,
+            sidecar_socket::sidecar_send,
+            sidecar_socket::sidecar_close
         ])
         .plugin(tauri_plugin_opener::init())
         .run(tauri::generate_context!())
