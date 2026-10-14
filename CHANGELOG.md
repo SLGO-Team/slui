@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0](https://github.com/SLGO-Team/slui/compare/v0.5.0...v0.6.0) (2026-10-14)
+
+
+### Features
+
+* **session:** show why a server instance ended ([#32](https://github.com/SLGO-Team/slui/issues/32)) ([80bb335](https://github.com/SLGO-Team/slui/commit/80bb33534575075cdb405cab9215da6f405b7a62))
+* **sidecar:** 经 Rust 层不发 SNI 连接 sidecar ([#30](https://github.com/SLGO-Team/slui/issues/30)) ([e9ed66a](https://github.com/SLGO-Team/slui/commit/e9ed66a9827f5fcab1c8763d04eb14a8833a4ba4))
+
+
+### Bug Fixes
+
+* **session:** show an ended server instance as restarting ([#31](https://github.com/SLGO-Team/slui/issues/31)) ([c086c40](https://github.com/SLGO-Team/slui/commit/c086c40d5a6b31de21299e8ec467a8ce9667a465))
+
+
+### Performance Improvements
+
+* **ci:** slimmer debug info for the CI Rust cache ([#27](https://github.com/SLGO-Team/slui/issues/27)) ([ddf24d8](https://github.com/SLGO-Team/slui/commit/ddf24d89fcc47e4877f75e7134b88f92b4bb35cf))
+* **installer:** build slui-setup once for the installer and the uninstaller ([#29](https://github.com/SLGO-Team/slui/issues/29)) ([516c1f2](https://github.com/SLGO-Team/slui/commit/516c1f25e8c78a9ea96fe9b4826f0c411680c985))
+
 ## [0.5.0](https://github.com/SLGO-Team/slui/compare/v0.4.0...v0.5.0) (2026-10-10)
 
 
