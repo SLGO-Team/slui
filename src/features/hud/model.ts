@@ -288,7 +288,7 @@ function statusLabel(availability: HudAvailability, connectionStatus: Connection
       if (connectionStatus === "incompatible") return "INCOMPATIBLE";
       if (connectionStatus === "signed-out") return "SIGNED OUT";
       if (connectionStatus === "not-in-game") return "NOT IN GAME";
-      if (connectionStatus === "ended") return "SERVER CLOSED";
+      if (connectionStatus === "ended") return "SERVER RESTARTING";
       return "OFFLINE";
     case "restarted": return "SERVER RESTARTED";
     case "baseline-required": return "SYNCING";

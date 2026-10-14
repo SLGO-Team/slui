@@ -119,10 +119,20 @@ or to let components construct arbitrary commands.
 Instance end vs. a lost connection: `offline` / `stale` keep every feature's
 state, so a reconnect to the same instance shows the last data until the
 replayed snapshots arrive. Close code 4003 (`instanceUnavailable`: the plugin
-said `goodbye` on server shutdown, or never came back) maps to `ended`: every
-feature reducer takes a `connection` action and resets to its initial state on
-`ended` (panels vanish, shop and chat close), while the session resolves a new
-route by itself (`reroute`).
+said `goodbye` on a full or soft round restart, server shutdown or plugin
+unload, a new instance replaced it, or it never came back) maps to `ended`:
+every feature reducer takes a `connection` action and resets to its initial
+state on `ended` (panels vanish, shop and chat close), while the session
+resolves a new route by itself (`reroute`).
+
+`ended` reads as a restart, the common case: home shows "正在重启" with the
+hint "服务器重启后自动重连", the HUD `SERVER RESTARTING`. It is transient and
+needs no timer: the quiet reroute (1/2/4/8 s backoff) gets a new outcome once
+the control plane's registry drops the old instance (sidecars register every
+10 s), so within about 15 s it becomes `baseline-required`/`live` on the new
+instance, `not-in-game` ("等待中") if the server stays down, or `offline`.
+SLUI cannot tell a shutdown from a restart: every goodbye reaches it as the
+same 4003, and the close reason text is not a contract, so never branch on it.
 
 ---
 
@@ -537,7 +547,7 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
 | Control plane answers `not-in-game` | Expected before the player joins a server, not an error: status `not-in-game`, home shows blue "等待中" with the Chinese hint "等待进入游戏服务器" (never the raw English detail, no retry button); poll the route every 5 s (`retry: "poll"`, `NOT_IN_GAME_POLL_MS`), never backing off, so joining a server is noticed within seconds; the poll resets the failure count. Keep the interval inside the control plane's 30 route requests per minute per address |
 | Any timer-driven retry (`poll`, `backoff`, `reroute`) | Runs `quiet`: its progress steps (`discovering`, `route-pending`, `connecting`) only bump `attempt` and clear `retry`; status, detail and Steam identity keep the last outcome until the attempt reaches a new one, so the home cards never flash every poll. A manual "重试" or an account change is not quiet and shows its progress |
 | Control plane answers `rate-limited`, or is unreachable | Show offline with the reason; retry with backoff; never guess a sidecar endpoint |
-| Sidecar closes with 4003 (instance ended) | Resolve a new route |
+| Sidecar closes with 4003 (instance ended) | Status `ended` ("正在重启" / `SERVER RESTARTING`), reset feature state, resolve a new route (`reroute`); never branch on the close reason text |
 | Sidecar closes with 4000/4002 | Show `incompatible`; no automatic retry |
 | Route/session token is expired or bound to another server instance | Refuse the sidecar connection and request a fresh route |
 | Backend event has unknown `schema_version` | Reject the event and show an incompatible-client status |

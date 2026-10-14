@@ -654,3 +654,25 @@ sidecar WebSocket 移到 Rust（rustls、enable_sni=false、webpki-roots 按主�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 28: ended 状态改为正在重启语义
+<!-- trellis-session: v=2 fp=099cd16d08040a2d -->
+
+**Date**: 2026-10-14
+**Task**: ended 状态改为正在重启语义
+**Branch**: `fix/ended-restarting-copy`
+
+### Summary
+
+ended 文案改为 正在重启 / 服务器重启后自动重连 与 SERVER RESTARTING；评估后不加长时间计时器（quiet reroute 约 15 s 内转为新实例 / not-in-game / offline）；按关闭原因区分需改协议，另建规划任务 10-14-goodbye-reason-to-slui；更新 system-boundaries spec 与 hud 冒烟测试
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `715e6d5` | fix(session): show an ended server instance as restarting |
+
+### Status
+
+[OK] **Completed**

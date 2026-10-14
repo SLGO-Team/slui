@@ -97,13 +97,13 @@ function hudFor(snapshotOverrides, nowMs = receivedAt) {
 }
 
 {
-  // The server shut down: the ended instance takes its match with it, until a new baseline.
+  // The instance ended (usually a restart): it takes its match with it, until a new baseline.
   const { state } = hudFor({});
   assert.equal(selectRoundHud(state, receivedAt).hasSnapshot, true);
   const ended = selectRoundHud(roundHudReducer(state, { type: "connection", status: "ended" }), receivedAt);
   assert.equal(ended.hasSnapshot, false);
   assert.equal(ended.availability, "disconnected");
-  assert.equal(ended.statusLabel, "SERVER CLOSED");
+  assert.equal(ended.statusLabel, "SERVER RESTARTING");
   assert.equal(selectRoundHud(roundHudReducer(state, { type: "connection", status: "stale" }), receivedAt).hasSnapshot, true, "stale keeps the match");
 }
 
