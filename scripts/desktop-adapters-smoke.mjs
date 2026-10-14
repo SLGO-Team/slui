@@ -80,15 +80,26 @@ for (const bad of [null, 1, {}, { enabled: "yes", interactive: false }, { enable
 
 // Session status bridge: validation, request/response and retry routing.
 {
-  const valid = { status: "live", steamId: "76561198000000001", detail: null };
+  const valid = { status: "live", steamId: "76561198000000001", detail: null, endReason: null };
   assert.deepEqual(parseSessionStatus(valid), valid);
-  const waiting = { status: "not-in-game", steamId: "76561198000000001", detail: "Not playing on an SLGO server" };
+  const waiting = { status: "not-in-game", steamId: "76561198000000001", detail: "Not playing on an SLGO server", endReason: null };
   assert.deepEqual(parseSessionStatus(waiting), waiting, "the home window receives the waiting state");
   assert.deepEqual(serverStatus(waiting), SERVER_STATUS["not-in-game"]);
   assert.equal(serverStatus(waiting).tone, "pending", "waiting for a server is blue, not an error");
   assert.equal(serverStatus(waiting).retry, false);
   assert.equal(serverStatus(waiting).hint, "等待进入游戏服务器");
-  for (const bad of [null, { ...valid, status: "online" }, { ...valid, steamId: "123" }, { ...valid, steamId: 7 }, { ...valid, detail: 1 }]) {
+  // An ended instance shows its reason; without one it reads as a restart.
+  const ended = { ...valid, status: "ended", detail: "Server instance ended", endReason: "server-shutdown" };
+  assert.deepEqual(parseSessionStatus(ended), ended);
+  assert.equal(serverStatus(ended).label, "服务器已关闭");
+  assert.equal(serverStatus(ended).retry, false, "the session reroutes by itself");
+  assert.equal(serverStatus({ ...ended, endReason: "server-restart" }).label, "正在重启");
+  assert.equal(serverStatus({ ...ended, endReason: "round-restart" }).label, "正在重启");
+  assert.equal(serverStatus({ ...ended, endReason: null }).label, "正在重启");
+  assert.equal(serverStatus({ ...ended, endReason: "plugin-disabled" }).label, "SLGO 已停用");
+  assert.equal(serverStatus({ ...ended, endReason: "lost" }).label, "服务器失联");
+  assert.equal(serverStatus({ ...ended, endReason: "server-stopped" }).label, "服务器已停止");
+  for (const bad of [null, { ...valid, endReason: "a-future-reason" }, { ...valid, endReason: undefined }, { ...valid, status: "online" }, { ...valid, steamId: "123" }, { ...valid, steamId: 7 }, { ...valid, detail: 1 }]) {
     assert.equal(parseSessionStatus(bad), null);
   }
   const bus = createFakeBus();

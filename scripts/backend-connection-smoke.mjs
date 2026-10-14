@@ -556,7 +556,55 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
   assert.equal(state().status, "ended");
   assert.equal(state().retry, "reroute", "4003 resolves a new route");
   assert.equal(state().detail, "Server instance ended");
+  assert.equal(state().endReason, null, "an older sidecar sends no reason");
   cleanup();
+}
+{
+  // instance.ended precedes the 4003 close and names the reason.
+  const { connection } = harness();
+  sequence = 0;
+  const { state, cleanup } = await attempt(sessionDependencies(answer(200, routeBody()), connection), (socket) => {
+    socket.accept();
+    socket.deliver(baselineEvent());
+  });
+  lastSocket().deliver(event("instance.ended", { reason: "server-shutdown" }, { round_id: null }));
+  assert.equal(state().status, "live", "the reason alone does not end the session");
+  lastSocket().drop(4003, "Server instance ended");
+  assert.equal(state().status, "ended");
+  assert.equal(state().endReason, "server-shutdown");
+  cleanup();
+}
+{
+  // An unknown reason from a newer sidecar keeps the stream and reads as unspecified.
+  const { connection } = harness();
+  sequence = 0;
+  const { state, cleanup } = await attempt(sessionDependencies(answer(200, routeBody()), connection), (socket) => {
+    socket.accept();
+    socket.deliver(baselineEvent());
+  });
+  lastSocket().deliver(event("instance.ended", { reason: "a-future-reason" }, { round_id: null }));
+  assert.equal(state().status, "live");
+  lastSocket().drop(4003, "Server instance ended");
+  assert.equal(state().endReason, null);
+  cleanup();
+}
+{
+  // The reason outlives the reroute: a bare 4003 and "not in game" are the same end, a live session clears it.
+  const ended = { ...initialClientSessionState, status: "ended", identity, detail: "Server instance ended", attempt: 1, retry: "reroute", endReason: "server-restart" };
+  const refused = clientSessionReducer(ended, { type: "failed", attempt: 2, status: "ended", detail: "Routed server instance is not available", retry: "reroute" });
+  assert.equal(refused.endReason, "server-restart", "a refused reroute keeps the reason");
+  const away = clientSessionReducer(refused, { type: "failed", attempt: 3, status: "not-in-game", detail: "No server", retry: "poll" });
+  assert.equal(away.status, "ended", "not in game after an end keeps showing the end");
+  assert.equal(away.endReason, "server-restart");
+  assert.equal(away.retry, "poll");
+  const syncing = clientSessionReducer(away, { type: "connection-status", attempt: 4, status: "baseline-required" });
+  assert.equal(syncing.endReason, "server-restart", "progress towards the next instance keeps it");
+  assert.equal(clientSessionReducer(syncing, { type: "connection-status", attempt: 4, status: "live" }).endReason, null, "live clears it");
+  assert.equal(clientSessionReducer(away, { type: "failed", attempt: 4, status: "offline", detail: "x", retry: "backoff" }).endReason, null, "another failure clears it");
+  assert.equal(clientSessionReducer(away, { type: "discover", attempt: 4 }).endReason, null, "a manual retry clears it");
+  assert.equal(clientSessionReducer(away, { type: "discover", attempt: 4, quiet: true }).endReason, "server-restart", "a background retry keeps it");
+  const bare = clientSessionReducer({ ...ended, endReason: null }, { type: "failed", attempt: 2, status: "not-in-game", detail: "No server", retry: "poll" });
+  assert.equal(bare.status, "not-in-game", "without a reason the session waits as before");
 }
 {
   const { state } = await attempt(sessionDependencies(answer(200, routeBody()), harness().connection), (socket) => {
@@ -569,7 +617,7 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
 }
 {
   // A background retry keeps the card on its last outcome instead of flashing through the progress steps.
-  const waiting = { status: "not-in-game", identity, detail: "Join a server first", attempt: 1, retry: "poll" };
+  const waiting = { status: "not-in-game", identity, detail: "Join a server first", attempt: 1, retry: "poll", endReason: null };
   const polled = await attempt(sessionDependencies(answer(404, rejection("not-in-game")), harness().connection), undefined, { initial: waiting, quiet: true });
   assert.deepEqual([...new Set(polled.states.map((state) => state.status))], ["not-in-game"], "polling never leaves the waiting state");
   assert.ok(polled.states.every((state) => state.identity === identity), "polling keeps the Steam account shown");
@@ -577,7 +625,7 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
   assert.equal(polled.state().attempt, 2);
   assert.equal(polled.state().retry, "poll");
 
-  const offline = { status: "offline", identity, detail: "Sidecar is unreachable", attempt: 1, retry: "backoff" };
+  const offline = { status: "offline", identity, detail: "Sidecar is unreachable", attempt: 1, retry: "backoff", endReason: null };
   const reconnect = await attempt(sessionDependencies(answer(200, routeBody()), harness().connection), (socket) => socket.drop(1006, ""), { initial: offline, quiet: true });
   assert.deepEqual([...new Set(reconnect.states.map((state) => state.status))], ["offline"], "a failed background reconnect never shows connecting");
   assert.equal(reconnect.state().retry, "backoff");

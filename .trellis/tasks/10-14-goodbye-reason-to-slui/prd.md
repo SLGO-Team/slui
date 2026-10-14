@@ -1,27 +1,29 @@
-# 把插件告别原因结构化传给 SLUI
+# 实例结束原因端到端传给 SLUI
 
 ## Goal
 
-让 SLUI 能按实例结束的原因选择提示（例如软轮次重启显示"正在重启"，插件停用或服务器下线显示别的文案），
-而不是像现在这样把所有 4003 都当成同一种 `ended`。来自任务 `10-14-ended-restarting-copy` 的结论。
+服务器实例结束（sidecar 4003）时，SLUI 按真实原因显示：重启显示"正在重启"，关服显示"服务器已关闭"，
+等等。原因取自权威来源（游戏发给 LocalAdmin 的退出动作、插件自身生命周期、sidecar 观察到的事实），
+不做启发式猜测。
 
-## 现状（2026-10-14 调查）
+## Requirements
 
-- 插件 IPC `goodbye.reason` 是 `server-shutdown | plugin-disabled | other`（软轮次重启走 `other`），
-  sidecar 只写进日志，`detachPlugin(graceful)` 一律以 `"Server instance ended"` 关闭 4003。
-- sidecar 的其他 4003：新 hello 顶替旧实例 `"Server instance restarted"`；插件断线超过 linger
-  `"Server instance lost"`；reroute 打开已不存在的实例 `"Routed server instance is not available"`。
-- `packages/protocol` 只定义了关闭码 `instanceUnavailable: 4003`；reason 文本不是契约，SLUI 不能拿它分支。
-- `server-shutdown` 同时包含整服重启和真关服：CS2 进程退出时插件也不知道会不会被拉起，
-  所以即使改了协议，也分不出"重启"和"关服"，只能分出软重启、插件停用、实例丢失和服务器下线。
-
-## Requirements（待细化）
-
-- 在协议里加结构化的结束原因（新关闭码，或关闭前的结束事件），由 sidecar 从 goodbye / linger / 顶替转发过来。
-- 跨仓库：`packages/protocol`（slui）、sidecar（slgo-backend）、插件（SLGO，可能不需要改，reason 已存在）。
-- 向后兼容：旧 sidecar 只发 4003 时，SLUI 仍按 `ended`（正在重启）处理。
-- SLUI 各原因的文案待定。
+- 协议（`packages/protocol`）新增 sidecar -> client 事件 `instance.ended { reason }`，在 4003 关闭前发送；
+  4003 语义不变。旧客户端按 `unsupported-event-type` 跳过。reason 是开放枚举，客户端把未知值当成"未说明"。
+- reason：`round-restart` / `server-restart` / `server-shutdown` / `server-stopped` / `plugin-disabled` / `lost`。
+- 插件（../SLGO）：goodbye 原因精确到上述值，依据为 `StopNextRound`、游戏发给 LocalAdmin 的退出动作
+  （Harmony 截取 `ServerConsole.AddOutputEntry`）和运维显式声明（控制台指令）；hello 声明能力 `exit-intent`。
+- sidecar（../slgo-backend）：转发 goodbye 原因；新实例顶替 = `server-restart`；linger 超时 = `lost`；
+  插件未声明 `exit-intent` 时不发原因（旧插件的 `server-shutdown` 含义不精确）。
+- 部署（../slgo-deploy）：`slgoctl instance stop|restart`、游戏更新、发布重启前先经控制台声明意图。
+- SLUI：主页与 HUD 按原因显示；带原因的 `ended` 在 quiet 重试中不被 `not-in-game` 覆盖，直到连上、手动重试或换号。
+- 未带原因（旧 sidecar/旧插件）时保持现状（"正在重启"）。
 
 ## Acceptance Criteria
 
-- [ ] 设计确定（关闭码还是事件，兼容策略），并经用户确认。
+- [x] 协议：类型、解析器、v0 schema + 示例、README；`npm test` 覆盖解析（含未知 reason 不拒流）。
+- [x] SLUI：连接层记录原因，会话层保持原因，主页 / HUD 文案按原因；冒烟测试覆盖。
+- [x] sidecar：IPC schema / 夹具、hub 发送 `instance.ended`、单测；`bun run lint`、`bun test` 通过。
+- [x] 插件：退出意图记录、goodbye 原因、能力声明、控制台指令；`dotnet test` 通过。
+- [x] 部署：slgoctl 在停 / 重启前声明意图；脚本测试通过。
+- [x] spec：slui system-boundaries、SLGO sidecar-ipc、slgo-backend ipc README、slgo-deploy operations 更新。

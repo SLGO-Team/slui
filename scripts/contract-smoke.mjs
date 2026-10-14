@@ -9,6 +9,8 @@ import {
   HUD_RESERVE_ICONS,
   EventSequenceGuard,
   HUD_TONES,
+  INSTANCE_END_REASONS,
+  knownInstanceEndReason,
   canUsePlayerScopedFeatures,
   canOpenPlayerScopedStream,
   parseClientFeatures,
@@ -17,6 +19,7 @@ import {
   parseEnvelope,
   parseHudMessages,
   parseHudStatus,
+  parseInstanceEnded,
   parseMatchSnapshot,
   parseMinimapPositions,
   parseRoundResult,
@@ -572,6 +575,23 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseHudStatus({ ...status, round_kills: ["headshot"] }).ok, false, "only the three SLGO kinds");
   assert.equal(parseHudStatus({ ...status, round_kills: Array(64).fill("shock") }).ok, true);
   assert.equal(parseHudStatus({ ...status, round_kills: Array(65).fill("default") }).ok, false, "at most 64 kills");
+}
+
+{
+  // instance.ended (packages/protocol/v0/README.md "Instance end").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/instance-ended.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, "the v0 instance.ended example parses");
+  assert.equal(parsed.value.payload.reason, "server-restart");
+  assert.equal(parseEvent({ ...example, sent_at: undefined }).ok, false, "instance.ended needs sent_at");
+  assert.deepEqual(INSTANCE_END_REASONS, ["round-restart", "server-restart", "server-shutdown", "server-stopped", "plugin-disabled", "lost"]);
+  assert.equal(parseInstanceEnded({ reason: "a-future-reason" }).ok, true, "an unknown reason is still a valid frame");
+  assert.equal(knownInstanceEndReason("a-future-reason"), null, "and reads as unspecified");
+  assert.equal(knownInstanceEndReason("server-shutdown"), "server-shutdown");
+  assert.equal(parseInstanceEnded({ reason: "" }).ok, false);
+  assert.equal(parseInstanceEnded({ reason: "x".repeat(65) }).ok, false, "at most 64 characters");
+  assert.equal(parseInstanceEnded({}).ok, false, "reason is required");
+  assert.equal(parseInstanceEnded({ reason: "lost", extra: 1 }).ok, false, "unknown field");
 }
 
 {

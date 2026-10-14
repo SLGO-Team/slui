@@ -1,4 +1,4 @@
-import type { ConnectionStatus } from "../contracts/index.ts";
+import { knownInstanceEndReason, type ConnectionStatus, type InstanceEndReason } from "../contracts/index.ts";
 
 // Cross-window messaging for the home and overlay windows. Tauri builds use
 // app events; browser preview tabs use a BroadcastChannel so a home tab and an
@@ -137,15 +137,22 @@ export function createGameProcessSource(bus: DesktopBus = desktopBus(), invoke: 
 const CONNECTION_STATUSES: readonly ConnectionStatus[] = ["signed-out", "discovering", "route-pending", "connecting",
   "baseline-required", "live", "stale", "ended", "offline", "not-in-game", "incompatible", "unauthorized"];
 
-export type SessionStatusSnapshot = Readonly<{ status: ConnectionStatus; steamId: string | null; detail: string | null }>;
+export type SessionStatusSnapshot = Readonly<{
+  status: ConnectionStatus;
+  steamId: string | null;
+  detail: string | null;
+  /** Why the last instance ended (see ClientSessionState.endReason). */
+  endReason: InstanceEndReason | null;
+}>;
 
 export function parseSessionStatus(value: unknown): SessionStatusSnapshot | null {
   if (!value || typeof value !== "object") return null;
-  const { status, steamId, detail } = value as Record<string, unknown>;
+  const { status, steamId, detail, endReason } = value as Record<string, unknown>;
   if (!CONNECTION_STATUSES.includes(status as ConnectionStatus)) return null;
   if (steamId !== null && (typeof steamId !== "string" || !/^\d{17}$/.test(steamId))) return null;
   if (detail !== null && typeof detail !== "string") return null;
-  return { status: status as ConnectionStatus, steamId, detail };
+  if (endReason !== null && (typeof endReason !== "string" || knownInstanceEndReason(endReason) === null)) return null;
+  return { status: status as ConnectionStatus, steamId, detail, endReason: endReason as InstanceEndReason | null };
 }
 
 export interface SessionStatusPublisher {

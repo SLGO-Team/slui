@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/instance-ended.schema.json",
+  "title": "SLGO instance end payload (instance.ended)",
+  "description": "Why the routed server instance ended. Sent once, immediately before the sidecar closes the session with 4003; never cached or replayed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reason"],
+  "properties": {
+    "reason": {
+      "description": "Open set; a client treats a value it does not know as unspecified. Known values: round-restart, server-restart, server-shutdown, server-stopped, plugin-disabled, lost.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    }
+  }
+}

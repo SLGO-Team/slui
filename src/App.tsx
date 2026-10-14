@@ -239,8 +239,8 @@ function App() {
 
   // The session runs here, in the overlay window; home only displays it.
   const sessionSnapshot = useMemo<SessionStatusSnapshot>(() => ({
-    status: session.status, steamId: session.identity?.steamId ?? null, detail: session.detail,
-  }), [session.detail, session.identity?.steamId, session.status]);
+    status: session.status, steamId: session.identity?.steamId ?? null, detail: session.detail, endReason: session.endReason,
+  }), [session.detail, session.endReason, session.identity?.steamId, session.status]);
   const sessionSnapshotRef = useRef(sessionSnapshot);
   sessionSnapshotRef.current = sessionSnapshot;
   useEffect(() => sessionPublisher.publish(sessionSnapshot), [sessionPublisher, sessionSnapshot]);
@@ -346,7 +346,7 @@ function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [shopDebugOptions, shopOpen]);
 
-  const liveHud = useMemo(() => selectRoundHud(hudState, nowMs), [hudState, nowMs]);
+  const liveHud = useMemo(() => selectRoundHud(hudState, nowMs, session.endReason), [hudState, nowMs, session.endReason]);
   const shop = useMemo(() => selectShop(shopFeature.state, nowMs), [shopFeature.state, nowMs]);
   const debugShopSnapshot = mockShopSnapshotFor(debugShopViewerTeam, previewShopRole);
   const debugShop = useMemo(() => selectShop(createShopDebugState(shopDebugOptions, nowMs, debugShopSnapshot), nowMs), [debugShopSnapshot, nowMs, shopDebugOptions]);

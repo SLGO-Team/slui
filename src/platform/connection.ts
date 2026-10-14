@@ -1,4 +1,4 @@
-import { MINIMAP_SCHEMA_VERSION, parseClientFeatures, parseCommand, PROTOCOL_VERSION, SIDECAR_CLOSE_CODES, SUPPORTED_SCHEMA_VERSION, type ConnectionFailure, type ConnectionStatus, type MinimapDiagnostic, type ParseErrorCode, type ParseResult, type ServerRoute, type ClientFeatures, type SessionOpen, type SlgoCommand, type SlgoEvent, type SteamIdentity } from "../contracts/index.ts";
+import { knownInstanceEndReason, MINIMAP_SCHEMA_VERSION, parseClientFeatures, parseCommand, PROTOCOL_VERSION, SIDECAR_CLOSE_CODES, SUPPORTED_SCHEMA_VERSION, type ConnectionFailure, type ConnectionStatus, type InstanceEndReason, type MinimapDiagnostic, type ParseErrorCode, type ParseResult, type ServerRoute, type ClientFeatures, type SessionOpen, type SlgoCommand, type SlgoEvent, type SteamIdentity } from "../contracts/index.ts";
 import type { SlgoConnection } from "./index.ts";
 import { admitRoute, SidecarEventIntake } from "./sidecarIntake.ts";
 
@@ -120,6 +120,8 @@ export class WebSocketSidecarConnection implements SlgoConnection {
   private features: ClientFeatures = { type: "client.features", features: [] };
   private timer: ReturnType<typeof setTimeout> | undefined;
   private pending: { resolve(): void; reject(error: SidecarConnectionError): void } | null = null;
+  /** From this socket's `instance.ended`; the 4003 close that follows carries it. */
+  private endReason: InstanceEndReason | null = null;
 
   constructor(options: WebSocketSidecarOptions = {}) {
     this.intake = new SidecarEventIntake({ now: options.now, onGlobalReject: (code) => this.rejectStream(code) });
@@ -139,6 +141,7 @@ export class WebSocketSidecarConnection implements SlgoConnection {
       this.intake.setStatus(admission.status);
       throw new SidecarConnectionError({ status: admission.status, detail: admission.reason, retry: admission.status === "stale" ? "reroute" : "none" });
     }
+    this.endReason = null;
     let socket: WebSocketLike;
     try {
       socket = this.createSocket(this.endpointOverride ?? route.sidecarEndpoint);
@@ -166,7 +169,8 @@ export class WebSocketSidecarConnection implements SlgoConnection {
         this.startTimer(this.baselineTimeoutMs, () => this.fail({ status: "offline", detail: "Sidecar sent no baseline", retry: "backoff" }));
       };
       socket.onmessage = (event) => {
-        this.intake.receive(event.data);
+        const received = this.intake.receive(event.data);
+        if (received.ok && received.value.type === "instance.ended") this.endReason = knownInstanceEndReason(received.value.payload.reason);
         if (this.pending && this.intake.getStatus() === "live") {
           this.clearTimer();
           this.settlePending(null);
@@ -174,7 +178,10 @@ export class WebSocketSidecarConnection implements SlgoConnection {
           if (this.features.features.length > 0) this.sendFeatures();
         }
       };
-      socket.onclose = (event) => this.fail(failureForClose(event.code, event.reason, opened));
+      socket.onclose = (event) => {
+        const failure = failureForClose(event.code, event.reason, opened);
+        this.fail(failure.status === "ended" ? { ...failure, endReason: this.endReason } : failure);
+      };
       // A close event always follows an error; it carries the useful code.
       socket.onerror = () => undefined;
     });

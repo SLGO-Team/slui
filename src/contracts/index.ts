@@ -1,4 +1,4 @@
-import type { IdentityMode } from "@slgo/protocol";
+import type { IdentityMode, InstanceEndReason } from "@slgo/protocol";
 
 export * from "@slgo/protocol";
 
@@ -58,6 +58,8 @@ export type ConnectionFailure = {
    * short interval (waiting for the player to join a server); `none`: wait for the player.
    */
   retry: "reroute" | "backoff" | "poll" | "none";
+  /** `ended` only: the reason from the `instance.ended` frame before the 4003 close; absent or null when the sidecar gave none. */
+  endReason?: InstanceEndReason | null;
 };
 
 // The sidecar is the authorization boundary; the client only needs some identity claim.
