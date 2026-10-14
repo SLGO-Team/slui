@@ -49,6 +49,7 @@ Payload schemas:
 - [hud-messages.schema.json](./hud-messages.schema.json)
 - [round-result.schema.json](./round-result.schema.json)
 - [hud-status.schema.json](./hud-status.schema.json)
+- [instance-ended.schema.json](./instance-ended.schema.json)
 - [command.schema.json](./command.schema.json)
 - [command-result.schema.json](./command-result.schema.json)
 - [session-open.schema.json](./session-open.schema.json)
@@ -77,6 +78,7 @@ Payload schemas:
 | sidecar -> client | `hud.messages` | The viewer's bottom-centre message slots (progress, alert, high/low hint) |
 | sidecar -> client | `round.result` | The viewer's round / match result panel (win panel, MVP) |
 | sidecar -> client | `hud.status` | The viewer's bottom HUD: held firearm ammo and this round's kills |
+| sidecar -> client | `instance.ended` | Why the instance ended; the last frame before the 4003 close |
 
 The shop and chat payloads intentionally remain plugin-defined. SLUI must not
 reimplement their permissions or success rules.
@@ -411,7 +413,29 @@ Close codes (`SIDECAR_CLOSE_CODES`):
 | 4000 | invalid handshake, or a frame arrived before the baseline | report `incompatible` |
 | 4001 | token invalid/expired/not for this sidecar; source address does not match the player's game connection; player left the server or their game address changed | report `unauthorized` |
 | 4002 | unsupported `protocol_version` / `schema_version` | report `incompatible` |
-| 4003 | routed instance unknown or ended (server restart) | resolve a new route |
+| 4003 | routed instance unknown or ended; an `instance.ended` event may precede it with the reason | resolve a new route |
+
+## Instance end
+
+`instance.ended` (`round_id: null`, `sent_at` required) is sent once to every
+client of an instance immediately before the sidecar closes the session with
+4003. It is not cached or replayed: a session refused at open with 4003 gets no
+reason. Older clients skip it (`unsupported-event-type`). Payload `{ reason }`,
+a string of 1-64 characters from an open set (`INSTANCE_END_REASONS`); a client
+treats a value it does not know as unspecified and never rejects the stream
+for it.
+
+| `reason` | Meaning | Authority |
+|---|---|---|
+| `round-restart` | Soft round restart; a new instance follows at once | plugin |
+| `server-restart` | The game process restarts | the game's exit action to LocalAdmin, an operator's declaration, or the sidecar seeing a new instance replace one that never said goodbye |
+| `server-shutdown` | The server shuts down | the game's exit action, or an operator's declaration |
+| `server-stopped` | The process exited with no declared restart or shutdown | plugin |
+| `plugin-disabled` | SLGO was unloaded; the game server keeps running | plugin |
+| `lost` | The plugin link stayed lost beyond the sidecar's linger period | sidecar |
+
+A sidecar sends no reason for a plugin that does not declare exact exit
+reasons (slgo-backend `protocol/ipc/README.md`, hello capability `exit-intent`).
 
 ## Security boundary
 

@@ -103,7 +103,12 @@ function hudFor(snapshotOverrides, nowMs = receivedAt) {
   const ended = selectRoundHud(roundHudReducer(state, { type: "connection", status: "ended" }), receivedAt);
   assert.equal(ended.hasSnapshot, false);
   assert.equal(ended.availability, "disconnected");
-  assert.equal(ended.statusLabel, "SERVER RESTARTING");
+  assert.equal(ended.statusLabel, "SERVER RESTARTING", "without a reason an end reads as a restart");
+  const endedState = roundHudReducer(state, { type: "connection", status: "ended" });
+  assert.equal(selectRoundHud(endedState, receivedAt, "server-shutdown").statusLabel, "SERVER CLOSED");
+  assert.equal(selectRoundHud(endedState, receivedAt, "round-restart").statusLabel, "SERVER RESTARTING");
+  assert.equal(selectRoundHud(endedState, receivedAt, "lost").statusLabel, "SERVER LOST");
+  assert.equal(selectRoundHud(state, receivedAt, "server-shutdown").statusLabel, "LIVE", "the reason only labels an ended instance");
   assert.equal(selectRoundHud(roundHudReducer(state, { type: "connection", status: "stale" }), receivedAt).hasSnapshot, true, "stale keeps the match");
 }
 

@@ -92,6 +92,7 @@ type ConnectionFailure = {
   status: "offline" | "not-in-game" | "stale" | "ended" | "unauthorized" | "incompatible";
   detail: string;
   retry: "reroute" | "backoff" | "poll" | "none";
+  endReason?: InstanceEndReason | null; // `ended` only, from `instance.ended`
 };
 
 type MatchSnapshot = {
@@ -125,14 +126,38 @@ every feature reducer takes a `connection` action and resets to its initial
 state on `ended` (panels vanish, shop and chat close), while the session
 resolves a new route by itself (`reroute`).
 
-`ended` reads as a restart, the common case: home shows "正在重启" with the
-hint "服务器重启后自动重连", the HUD `SERVER RESTARTING`. It is transient and
-needs no timer: the quiet reroute (1/2/4/8 s backoff) gets a new outcome once
-the control plane's registry drops the old instance (sidecars register every
-10 s), so within about 15 s it becomes `baseline-required`/`live` on the new
-instance, `not-in-game` ("等待中") if the server stays down, or `offline`.
-SLUI cannot tell a shutdown from a restart: every goodbye reaches it as the
-same 4003, and the close reason text is not a contract, so never branch on it.
+Why it ended comes from the sidecar's `instance.ended` frame, sent right
+before the 4003 (protocol README "Instance end"; never from the close reason
+text). The connection keeps the reason of an accepted `instance.ended` and
+puts it on the 4003 failure (`ConnectionFailure.endReason`; unknown values
+read as `null`). `ClientSessionState.endReason` holds it while the session
+looks for the next instance:
+
+- `failed(ended)` sets it (`action.endReason ?? state.endReason`: a reroute
+  refused with a bare 4003 at open is the same end);
+- `failed(not-in-game)` keeps it and keeps status `ended`: the player is on no
+  server because that server is restarting or gone. Without a reason the
+  session waits as `not-in-game` as before;
+- non-live connection progress and quiet steps keep it; `live`, any other
+  failure, and a non-quiet `discover` / `signed-out` (manual retry, account
+  change) clear it.
+
+`SessionStatusSnapshot.endReason` carries it to the home window
+(`ENDED_STATUS`), and `selectRoundHud(state, nowMs, session.endReason)` to the
+HUD (`ENDED_STATUS_LABELS`):
+
+| `endReason` | Home label / hint | HUD |
+|---|---|---|
+| `null` (older sidecar), `round-restart`, `server-restart` | 正在重启 / 服务器重启后自动重连 | `SERVER RESTARTING` |
+| `server-shutdown` | 服务器已关闭 / 等待服务器重新上线 | `SERVER CLOSED` |
+| `server-stopped` | 服务器已停止 / 等待服务器重新上线 | `SERVER STOPPED` |
+| `plugin-disabled` | SLGO 已停用 / 等待服务器重新启用 SLGO | `SLGO DISABLED` |
+| `lost` | 服务器失联 / 等待服务器恢复连接 | `SERVER LOST` |
+
+None has a retry button: the session reroutes (and then polls) by itself. The
+reasons' authorities (game exit action to LocalAdmin, plugin lifecycle,
+operator declaration, sidecar observation) are in the protocol README; SLUI
+only displays them.
 
 ---
 
@@ -547,7 +572,7 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
 | Control plane answers `not-in-game` | Expected before the player joins a server, not an error: status `not-in-game`, home shows blue "等待中" with the Chinese hint "等待进入游戏服务器" (never the raw English detail, no retry button); poll the route every 5 s (`retry: "poll"`, `NOT_IN_GAME_POLL_MS`), never backing off, so joining a server is noticed within seconds; the poll resets the failure count. Keep the interval inside the control plane's 30 route requests per minute per address |
 | Any timer-driven retry (`poll`, `backoff`, `reroute`) | Runs `quiet`: its progress steps (`discovering`, `route-pending`, `connecting`) only bump `attempt` and clear `retry`; status, detail and Steam identity keep the last outcome until the attempt reaches a new one, so the home cards never flash every poll. A manual "重试" or an account change is not quiet and shows its progress |
 | Control plane answers `rate-limited`, or is unreachable | Show offline with the reason; retry with backoff; never guess a sidecar endpoint |
-| Sidecar closes with 4003 (instance ended) | Status `ended` ("正在重启" / `SERVER RESTARTING`), reset feature state, resolve a new route (`reroute`); never branch on the close reason text |
+| Sidecar closes with 4003 (instance ended) | Status `ended` labelled by the preceding `instance.ended` reason (none: "正在重启" / `SERVER RESTARTING`), reset feature state, resolve a new route (`reroute`); a later `not-in-game` keeps the reason; never branch on the close reason text |
 | Sidecar closes with 4000/4002 | Show `incompatible`; no automatic retry |
 | Route/session token is expired or bound to another server instance | Refuse the sidecar connection and request a fresh route |
 | Backend event has unknown `schema_version` | Reject the event and show an incompatible-client status |

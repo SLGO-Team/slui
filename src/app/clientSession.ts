@@ -1,6 +1,7 @@
 import type {
   ConnectionFailure,
   ConnectionStatus,
+  InstanceEndReason,
   MinimapDiagnostic,
   ParseErrorCode,
   SlgoEvent,
@@ -24,6 +25,11 @@ export type ClientSessionState = {
   attempt: number;
   /** Set by a failure that the session should retry on its own. */
   retry: RetryHint | null;
+  /**
+   * Why the last instance ended, from its `instance.ended`; kept while the session looks for the next one
+   * and cleared once a session is live again, by another failure, or by a retry the player started.
+   */
+  endReason: InstanceEndReason | null;
 };
 
 /**
@@ -37,7 +43,7 @@ export type ClientSessionAction =
   | { type: "route-resolved"; attempt: number; quiet?: boolean }
   | { type: "connected"; attempt: number; status: ConnectionStatus }
   | { type: "connection-status"; attempt: number; status: ConnectionStatus; quiet?: boolean }
-  | { type: "failed"; attempt: number; status: ConnectionFailure["status"]; detail: string; retry?: RetryHint };
+  | { type: "failed"; attempt: number; status: ConnectionFailure["status"]; detail: string; retry?: RetryHint; endReason?: InstanceEndReason | null };
 
 export const initialClientSessionState: ClientSessionState = {
   status: "signed-out",
@@ -45,6 +51,7 @@ export const initialClientSessionState: ClientSessionState = {
   detail: null,
   attempt: 0,
   retry: null,
+  endReason: null,
 };
 
 export function clientSessionReducer(state: ClientSessionState, action: ClientSessionAction): ClientSessionState {
@@ -56,18 +63,24 @@ export function clientSessionReducer(state: ClientSessionState, action: ClientSe
   }
   switch (action.type) {
     case "discover":
-      return { status: "discovering", identity: null, detail: null, attempt: action.attempt, retry: null };
+      return { status: "discovering", identity: null, detail: null, attempt: action.attempt, retry: null, endReason: null };
     case "signed-out":
-      return { status: "signed-out", identity: null, detail: "Steam client identity is unavailable", attempt: action.attempt, retry: null };
+      return { status: "signed-out", identity: null, detail: "Steam client identity is unavailable", attempt: action.attempt, retry: null, endReason: null };
     case "identity-found":
-      return { status: "route-pending", identity: action.identity, detail: null, attempt: action.attempt, retry: null };
+      return { status: "route-pending", identity: action.identity, detail: null, attempt: action.attempt, retry: null, endReason: null };
     case "route-resolved":
       return { ...state, status: "connecting", detail: null, attempt: action.attempt, retry: null };
     case "connected":
     case "connection-status":
-      return { ...state, status: action.status, detail: null, attempt: action.attempt, retry: null };
-    case "failed":
-      return { ...state, status: action.status, detail: action.detail, attempt: action.attempt, retry: action.retry ?? "none" };
+      return { ...state, status: action.status, detail: null, attempt: action.attempt, retry: null, endReason: action.status === "live" ? null : state.endReason };
+    case "failed": {
+      // A reroute refused with a bare 4003 is the same end; "not in game" right after it is too (the server
+      // is restarting or gone), so the session keeps showing why the instance ended.
+      const endReason = action.status === "ended" ? action.endReason ?? state.endReason
+        : action.status === "not-in-game" ? state.endReason : null;
+      const status = action.status === "not-in-game" && endReason !== null ? "ended" : action.status;
+      return { ...state, status, detail: action.detail, attempt: action.attempt, retry: action.retry ?? "none", endReason };
+    }
   }
 }
 

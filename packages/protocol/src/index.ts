@@ -357,6 +357,32 @@ export type HudStatusSnapshot = {
   round_kills: HudKillKind[];
 };
 
+/**
+ * Why a server instance ended. Open set: newer sidecars may send values this list does not have yet,
+ * which a client treats as unspecified (see `knownInstanceEndReason`).
+ */
+export const INSTANCE_END_REASONS = [
+  /** Soft round restart; the server comes back with a new instance at once. */
+  "round-restart",
+  /** The game process restarts (declared by the game or by operations, or relaunched after a crash). */
+  "server-restart",
+  /** The game declared a shutdown, or operations declared one. */
+  "server-shutdown",
+  /** The game process exited without anyone declaring a restart or a shutdown. */
+  "server-stopped",
+  /** SLGO was unloaded; the game server keeps running. */
+  "plugin-disabled",
+  /** The plugin link stayed lost beyond the sidecar's linger period. */
+  "lost",
+] as const;
+export type InstanceEndReason = (typeof INSTANCE_END_REASONS)[number];
+export const MAX_INSTANCE_END_REASON_LENGTH = 64;
+/** `instance.ended`: the last frame before the sidecar closes the session with 4003. */
+export type InstanceEnded = { reason: string };
+
+export const knownInstanceEndReason = (reason: string): InstanceEndReason | null =>
+  (INSTANCE_END_REASONS as readonly string[]).includes(reason) ? reason as InstanceEndReason : null;
+
 export type ShopPurchaseCommand = {
   kind: "command.shop.purchase";
   command_id: string;
@@ -385,6 +411,7 @@ export type MinimapPositionsEvent = ProtocolEnvelope<MinimapPositions, "minimap.
 export type HudMessagesEvent = ProtocolEnvelope<HudMessagesSnapshot, "hud.messages"> & { sent_at: string };
 export type RoundResultEvent = ProtocolEnvelope<RoundResultSnapshot, "round.result"> & { sent_at: string };
 export type HudStatusEvent = ProtocolEnvelope<HudStatusSnapshot, "hud.status">;
+export type InstanceEndedEvent = ProtocolEnvelope<InstanceEnded, "instance.ended"> & { sent_at: string };
 
 export type SlgoEvent =
   | BaselineEvent
@@ -394,6 +421,7 @@ export type SlgoEvent =
   | HudMessagesEvent
   | RoundResultEvent
   | HudStatusEvent
+  | InstanceEndedEvent
   | ProtocolEnvelope<ShopSnapshot, "shop.snapshot">
   | ProtocolEnvelope<ChatMessage, "chat.message">
   | ProtocolEnvelope<ChatNotice, "chat.notice">
@@ -489,7 +517,7 @@ export const SIDECAR_CLOSE_CODES = {
   unauthorized: 4001,
   /** protocol_version or schema_version is not supported. */
   unsupportedProtocol: 4002,
-  /** The routed server instance is unknown or has ended; resolve a new route. */
+  /** The routed server instance is unknown or has ended; resolve a new route. An `instance.ended` event may precede it with the reason. */
   instanceUnavailable: 4003,
 } as const;
 export type SidecarCloseCode = (typeof SIDECAR_CLOSE_CODES)[keyof typeof SIDECAR_CLOSE_CODES];
@@ -896,6 +924,13 @@ export function parseHudStatus(payload: unknown): ParseResult<HudStatusSnapshot>
   return { ok: true, value: payload as unknown as HudStatusSnapshot };
 }
 
+export function parseInstanceEnded(payload: unknown): ParseResult<InstanceEnded> {
+  if (!isRecord(payload) || Object.keys(payload).length !== 1 || !isNonEmptyString(payload.reason) || payload.reason.length > MAX_INSTANCE_END_REASON_LENGTH) {
+    return error("invalid-payload", "Instance end needs exactly a reason of 1-64 characters");
+  }
+  return { ok: true, value: { reason: payload.reason } };
+}
+
 export function parseCommandResult(payload: unknown): ParseResult<CommandResult> {
   if (!isRecord(payload) || !isNonEmptyString(payload.command_id) || !["command.shop.purchase", "command.chat.send"].includes(String(payload.command_kind)) || !["accepted", "rejected", "duplicate", "failed"].includes(String(payload.status))) return error("invalid-payload", "Command result is invalid");
   if (payload.reason !== undefined && typeof payload.reason !== "string") return error("invalid-payload", "Command result reason is invalid");
@@ -943,6 +978,10 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
       payloadResult = envelope.type === "hud.messages" ? parseHudMessages(envelope.payload) : parseRoundResult(envelope.payload);
       break;
     case "hud.status": payloadResult = parseHudStatus(envelope.payload); break;
+    case "instance.ended":
+      if (envelope.sent_at === undefined) return error("invalid-envelope", "Instance end timestamp is required", envelope.event_id);
+      payloadResult = parseInstanceEnded(envelope.payload);
+      break;
     case "command.result": payloadResult = parseCommandResult(envelope.payload); break;
     // Newer sidecars may add event types; clients skip them instead of desynchronising.
     default: return error("unsupported-event-type", `Unsupported event type: ${envelope.type}`, envelope.event_id);

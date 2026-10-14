@@ -1,0 +1,12 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-instance-ended-1",
+  "server_id": "slgo-local-7777",
+  "instance_id": "instance-2026-08-18-1645",
+  "round_id": null,
+  "sequence": 16,
+  "type": "instance.ended",
+  "sent_at": "2026-08-18T08:52:03Z",
+  "payload": { "reason": "server-restart" }
+}

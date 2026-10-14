@@ -676,3 +676,25 @@ ended 文案改为 正在重启 / 服务器重启后自动重连 与 SERVER REST
 ### Status
 
 [OK] **Completed**
+
+
+## Session 29: 实例结束原因端到端传给 SLUI
+<!-- trellis-session: v=2 fp=9d06794a73979c89 -->
+
+**Date**: 2026-10-14
+**Task**: 实例结束原因端到端传给 SLUI
+**Branch**: `feat/instance-end-reason`
+
+### Summary
+
+新增 v0 instance.ended { reason }（4003 前发送，开放枚举）；SLUI 连接层记录原因、会话层在 reroute / not-in-game 期间保持，主页与 HUD 按原因显示（正在重启 / 服务器已关闭 / 已停止 / SLGO 已停用 / 失联）。跨仓库：slgo-backend 989ac3d（goodbye 原因与 exit-intent 能力、instance.ended、replaced=server-restart、linger=lost），SLGO a708c3c（游戏发给 LocalAdmin 的退出动作截取、StopNextRound + restart_after_rounds、slgo-exit-intent 指令），slgo-deploy 562e134（slgoctl 停服前声明意图）。部署顺序 sidecar 先于插件。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2dea224` | feat(session): show why a server instance ended |
+
+### Status
+
+[OK] **Completed**

@@ -1,5 +1,6 @@
 import type {
   ConnectionStatus,
+  InstanceEndReason,
   MatchPlayer,
   MatchPlayerLoadout,
   MatchSnapshotEvent,
@@ -279,7 +280,17 @@ function availabilityForState(state: RoundHudState, nowMs: number): HudAvailabil
   return nowMs - state.frame.receivedAtMs > HUD_STALE_AFTER_MS ? "stale" : "live";
 }
 
-function statusLabel(availability: HudAvailability, connectionStatus: ConnectionStatus): string {
+/** The empty HUD's label for an ended instance, by the reason in the sidecar's `instance.ended`. */
+export const ENDED_STATUS_LABELS: Record<InstanceEndReason, string> = {
+  "round-restart": "SERVER RESTARTING",
+  "server-restart": "SERVER RESTARTING",
+  "server-shutdown": "SERVER CLOSED",
+  "server-stopped": "SERVER STOPPED",
+  "plugin-disabled": "SLGO DISABLED",
+  "lost": "SERVER LOST",
+};
+
+function statusLabel(availability: HudAvailability, connectionStatus: ConnectionStatus, endReason: InstanceEndReason | null): string {
   switch (availability) {
     case "live": return "LIVE";
     case "stale": return "STALE";
@@ -288,7 +299,7 @@ function statusLabel(availability: HudAvailability, connectionStatus: Connection
       if (connectionStatus === "incompatible") return "INCOMPATIBLE";
       if (connectionStatus === "signed-out") return "SIGNED OUT";
       if (connectionStatus === "not-in-game") return "NOT IN GAME";
-      if (connectionStatus === "ended") return "SERVER RESTARTING";
+      if (connectionStatus === "ended") return endReason ? ENDED_STATUS_LABELS[endReason] : "SERVER RESTARTING";
       return "OFFLINE";
     case "restarted": return "SERVER RESTARTED";
     case "baseline-required": return "SYNCING";
@@ -307,12 +318,13 @@ function publicPlayer(player: MatchPlayer): HudPlayerView {
   };
 }
 
-export function selectRoundHud(state: RoundHudState, nowMs: number): RoundHudViewModel {
+/** `endReason`: the session's, for the label of an ended instance. */
+export function selectRoundHud(state: RoundHudState, nowMs: number, endReason: InstanceEndReason | null = null): RoundHudViewModel {
   const availability = availabilityForState(state, nowMs);
   const status = {
     availability,
     connectionStatus: state.connectionStatus,
-    statusLabel: statusLabel(availability, state.connectionStatus),
+    statusLabel: statusLabel(availability, state.connectionStatus, endReason),
   };
   if (!state.frame) return { ...status, hasSnapshot: false };
 
