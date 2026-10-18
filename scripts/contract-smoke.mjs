@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  CLIENT_FEATURE_HUD_KILLFEED,
   CLIENT_FEATURE_HUD_MESSAGES,
   CLIENT_FEATURE_HUD_MONEY,
   CLIENT_FEATURE_HUD_STATUS,
   CLIENT_FEATURE_WIN_PANEL,
   HUD_KILL_KINDS,
+  HUD_KILLFEED_WEAPONS,
   HUD_RESERVE_ICONS,
+  MAX_HUD_KILLFEED_ENTRIES,
   EventSequenceGuard,
   HUD_TONES,
   INSTANCE_END_REASONS,
@@ -17,6 +20,7 @@ import {
   parseCommand,
   parseEvent,
   parseEnvelope,
+  parseHudKillfeed,
   parseHudMessages,
   parseHudStatus,
   parseInstanceEnded,
@@ -578,6 +582,63 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
 }
 
 {
+  // hud.killfeed (packages/protocol/v0/README.md "HUD killfeed").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/hud-killfeed.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, "the v0 hud.killfeed example parses");
+  assert.deepEqual(parsed.value.payload.entries.map((entry) => entry.entry_id), ["kill-11", "kill-12", "kill-13", "kill-14"]);
+  assert.equal(parseEvent({ ...example, sent_at: undefined }).ok, false, "hud.killfeed needs sent_at");
+  assert.equal(CLIENT_FEATURE_HUD_KILLFEED, "hud-killfeed");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_HUD_KILLFEED] }).ok, true);
+  assert.equal(HUD_KILLFEED_WEAPONS.length, 26, "every SCP:SL kill source plus other");
+  assert.equal(new Set(HUD_KILLFEED_WEAPONS).size, HUD_KILLFEED_WEAPONS.length);
+  assert.equal(MAX_HUD_KILLFEED_ENTRIES, 16);
+
+  const [scpKill, kill, suicide, selfKill] = example.payload.entries;
+  const feed = (...entries) => ({ entries });
+  const withKill = (patch) => feed({ ...kill, ...patch });
+  const withSuicide = (patch) => feed({ ...suicide, ...patch });
+  const player = (patch) => ({ ...kill.killer, ...patch });
+  assert.equal(parseHudKillfeed(feed()).ok, true, "a cleared feed");
+  assert.equal(parseHudKillfeed({}).ok, false, "entries is required");
+  assert.equal(parseHudKillfeed({ entries: [], extra: 1 }).ok, false, "unknown field");
+  assert.equal(parseHudKillfeed(feed(...Array.from({ length: 16 }, (_, i) => ({ ...scpKill, entry_id: `kill-${i}` })))).ok, true);
+  assert.equal(parseHudKillfeed(feed(...Array.from({ length: 17 }, (_, i) => ({ ...scpKill, entry_id: `kill-${i}` })))).ok, false, "at most 16 entries");
+  assert.equal(parseHudKillfeed(feed(kill, { ...scpKill, entry_id: kill.entry_id })).ok, false, "entry ids are unique");
+  assert.equal(parseHudKillfeed(withKill({ extra: 1 })).ok, false, "unknown entry field");
+  assert.equal(parseHudKillfeed(withKill({ entry_id: "" })).ok, false);
+  assert.equal(parseHudKillfeed(withKill({ weapon: "knife" })).ok, false, "weapon is a closed set");
+  for (const weapon of HUD_KILLFEED_WEAPONS) assert.equal(parseHudKillfeed(withKill({ weapon })).ok, true, weapon);
+  assert.equal(parseHudKillfeed(withKill({ headshot: "yes" })).ok, false);
+  assert.equal(parseHudKillfeed(withKill({ viewer: "assister" })).ok, false, "viewer is killer, victim or null");
+  assert.equal(parseHudKillfeed(withKill({ viewer: "victim" })).ok, true);
+  assert.equal(parseHudKillfeed(withKill({ visible_remaining_ms: 0 })).ok, false, "an entry still on screen has time left");
+  assert.equal(parseHudKillfeed(withKill({ visible_remaining_ms: 1.5 })).ok, false);
+  assert.equal(parseHudKillfeed(withKill({ killer: player({ player_id: "123" }) })).ok, false, "player ids are SteamID64");
+  assert.equal(parseHudKillfeed(withKill({ killer: player({ player_id: null }) })).ok, true, "a dummy has no SteamID");
+  assert.equal(parseHudKillfeed(withKill({ killer: player({ display_name: "" }) })).ok, false);
+  assert.equal(parseHudKillfeed(withKill({ killer: player({ display_name: "x".repeat(65) }) })).ok, false, "names are at most 64");
+  assert.equal(parseHudKillfeed(withKill({ killer: player({ team: "tutorial" }) })).ok, false);
+  assert.equal(parseHudKillfeed(withKill({ killer: player({ team: null }) })).ok, true, "an unassigned player");
+  assert.equal(parseHudKillfeed(withKill({ killer: player({ extra: 1 }) })).ok, false, "unknown player field");
+  assert.equal(parseHudKillfeed(withKill({ killer: { player_id: null, display_name: "x" } })).ok, false, "team is required");
+  assert.equal(parseHudKillfeed(withKill({ assister: { ...kill.victim } })).ok, false, "the assister is not the victim");
+  assert.equal(parseHudKillfeed(withKill({ victim: { ...kill.killer } })).ok, false, "the killer is not the victim");
+  assert.equal(parseHudKillfeed(withSuicide({ assister: kill.assister })).ok, false, "a suicide has no assist");
+  assert.equal(parseHudKillfeed(withSuicide({ headshot: true })).ok, false, "a suicide has no headshot");
+  assert.equal(parseHudKillfeed(withSuicide({ weapon: "ak" })).ok, false, "a suicide has no weapon");
+  assert.equal(parseHudKillfeed(withSuicide({ viewer: "killer" })).ok, false, "a suicide has no killer to be");
+  assert.equal(parseHudKillfeed(withSuicide({ viewer: "victim" })).ok, true);
+  assert.equal(parseHudKillfeed(feed(selfKill)).ok, true, "a self-kill names the victim as its killer");
+  assert.equal(parseHudKillfeed(feed({ ...selfKill, killer: scpKill.killer })).ok, false, "a suicide's killer is the victim themself");
+  assert.equal(parseHudKillfeed(feed({ ...selfKill, killer: { ...selfKill.victim, team: "scp" } })).ok, false);
+  assert.equal(parseHudKillfeed(withKill({ killer: null })).ok, false, "only a suicide may have no killer");
+  assert.equal(parseHudKillfeed(withKill({ suicide: "no" })).ok, false);
+  const { suicide: _dropped, ...withoutFlag } = kill;
+  assert.equal(parseHudKillfeed(feed(withoutFlag)).ok, false, "suicide is required");
+}
+
+{
   // instance.ended (packages/protocol/v0/README.md "Instance end").
   const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/instance-ended.example.json", import.meta.url), "utf8"));
   const parsed = parseEvent(example);
@@ -603,6 +664,7 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
         const frame = createHudSceneFrame(scene, viewerRole, elapsedMs, 3);
         assert.equal(parseHudMessages(frame.messages).ok, true, `${scene} messages at ${elapsedMs} ms (${viewerRole})`);
         assert.equal(parseRoundResult(frame.result).ok, true, `${scene} result at ${elapsedMs} ms (${viewerRole})`);
+        assert.equal(parseHudKillfeed(frame.killfeed).ok, true, `${scene} killfeed at ${elapsedMs} ms (${viewerRole})`);
       }
       if (scene === "none") assert.equal(loopMs, null);
     }

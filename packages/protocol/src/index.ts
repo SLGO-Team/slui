@@ -382,6 +382,57 @@ export type HudStatusSnapshot = {
 };
 
 /**
+ * Weapon icon of a killfeed entry (CS2 `#Weapon`). A closed set covering every SCP:SL kill source; a client draws
+ * a fallback icon for ids it has no artwork for. `other` = a kill source without an item or SCP of its own.
+ */
+export const HUD_KILLFEED_WEAPONS = [
+  "other",
+  "com15", "com18", "com45", "fsp9", "crossvec", "e11sr", "ak", "logicer", "frmg0", "shotgun", "revolver", "a7", "scp127",
+  "particle_disruptor", "jailbird", "micro_hid", "grenade_he", "scp018",
+  "scp049", "scp0492", "scp096", "scp106", "scp173", "scp939", "scp3114",
+] as const;
+export type HudKillfeedWeapon = (typeof HUD_KILLFEED_WEAPONS)[number];
+/** The viewer's part in an entry (CS2 `DeathNotice_Killer` / `DeathNotice_Victim`). */
+export const HUD_KILLFEED_VIEWER_ROLES = ["killer", "victim"] as const;
+export type HudKillfeedViewerRole = (typeof HUD_KILLFEED_VIEWER_ROLES)[number];
+/** Most entries one `hud.killfeed` carries (a 5v5 round has at most 10 deaths). */
+export const MAX_HUD_KILLFEED_ENTRIES = 16;
+/** Longest killfeed player name and entry id (UTF-16 code units). */
+export const MAX_HUD_KILLFEED_NAME_LENGTH = 64;
+export type HudKillfeedPlayer = {
+  /** SteamID64; null for a player without one (test dummy, non-Steam account). */
+  player_id: string | null;
+  /** Plugin-sanitised plain text. */
+  display_name: string;
+  /** The side the player was on when the death happened; null when unassigned. */
+  team: Role | null;
+};
+export type HudKillfeedEntry = {
+  /** Unique within the instance; a replayed entry keeps its id. */
+  entry_id: string;
+  /**
+   * CS2 `DeathNoticeSuicide`: the skull instead of the weapon. The killer is then the victim themself (CS2 shows
+   * "name skull name") or null for a death without an attacker (fall, tesla, team change: "skull name").
+   */
+  suicide: boolean;
+  /** Never null unless `suicide`. */
+  killer: HudKillfeedPlayer | null;
+  /** The one assist CS2 shows; null for a suicide. */
+  assister: HudKillfeedPlayer | null;
+  victim: HudKillfeedPlayer;
+  /** `other` for a suicide. */
+  weapon: HudKillfeedWeapon;
+  /** false for a suicide. */
+  headshot: boolean;
+  /** The recipient's part in this entry; a suicide is the victim's death, never `killer`. */
+  viewer: HudKillfeedViewerRole | null;
+  /** Time left at `sent_at` before the entry starts fading out (5 s, 7.5 s when the viewer is the killer or the victim); always > 0. */
+  visible_remaining_ms: number;
+};
+/** `hud.killfeed`: the viewer's top-right killfeed, oldest first (one recipient; sent only to clients declaring `hud-killfeed`). */
+export type HudKillfeedSnapshot = { entries: HudKillfeedEntry[] };
+
+/**
  * Why a server instance ended. Open set: newer sidecars may send values this list does not have yet,
  * which a client treats as unspecified (see `knownInstanceEndReason`).
  */
@@ -435,6 +486,7 @@ export type MinimapPositionsEvent = ProtocolEnvelope<MinimapPositions, "minimap.
 export type HudMessagesEvent = ProtocolEnvelope<HudMessagesSnapshot, "hud.messages"> & { sent_at: string };
 export type RoundResultEvent = ProtocolEnvelope<RoundResultSnapshot, "round.result"> & { sent_at: string };
 export type HudStatusEvent = ProtocolEnvelope<HudStatusSnapshot, "hud.status">;
+export type HudKillfeedEvent = ProtocolEnvelope<HudKillfeedSnapshot, "hud.killfeed"> & { sent_at: string };
 export type InstanceEndedEvent = ProtocolEnvelope<InstanceEnded, "instance.ended"> & { sent_at: string };
 
 export type SlgoEvent =
@@ -445,6 +497,7 @@ export type SlgoEvent =
   | HudMessagesEvent
   | RoundResultEvent
   | HudStatusEvent
+  | HudKillfeedEvent
   | InstanceEndedEvent
   | ProtocolEnvelope<ShopSnapshot, "shop.snapshot">
   | ProtocolEnvelope<ChatMessage, "chat.message">
@@ -588,6 +641,8 @@ export const CLIENT_FEATURE_WIN_PANEL = "win-panel";
 export const CLIENT_FEATURE_HUD_MONEY = "hud-money";
 /** SLUI draws the bottom HUD and wants `hud.status` (ammo, round kills) for this player. */
 export const CLIENT_FEATURE_HUD_STATUS = "hud-status";
+/** SLUI draws the top-right killfeed: the plugin hides its own killfeed hint and publishes `hud.killfeed` for this player. */
+export const CLIENT_FEATURE_HUD_KILLFEED = "hud-killfeed";
 export const MAX_CLIENT_FEATURES = 16;
 const MAX_CLIENT_FEATURE_LENGTH = 64;
 const CLIENT_FEATURE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -964,6 +1019,53 @@ export function parseHudStatus(payload: unknown): ParseResult<HudStatusSnapshot>
   return { ok: true, value: payload as unknown as HudStatusSnapshot };
 }
 
+const HUD_KILLFEED_KEYS = new Set(["entries"]);
+const HUD_KILLFEED_ENTRY_KEYS = new Set(["entry_id", "suicide", "killer", "assister", "victim", "weapon", "headshot", "viewer", "visible_remaining_ms"]);
+const HUD_KILLFEED_PLAYER_KEYS = new Set(["player_id", "display_name", "team"]);
+const STEAM_ID64 = /^[0-9]{17}$/;
+
+const isKillfeedText = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MAX_HUD_KILLFEED_NAME_LENGTH;
+
+function isKillfeedPlayer(value: unknown): value is HudKillfeedPlayer {
+  return isRecord(value) && hasOnlyKeys(value, HUD_KILLFEED_PLAYER_KEYS) && HUD_KILLFEED_PLAYER_KEYS.size === Object.keys(value).length
+    && (value.player_id === null || (typeof value.player_id === "string" && STEAM_ID64.test(value.player_id)))
+    && isKillfeedText(value.display_name)
+    && (value.team === null || isRole(value.team));
+}
+
+function isKillfeedEntry(value: unknown): value is HudKillfeedEntry {
+  if (!isRecord(value) || !hasOnlyKeys(value, HUD_KILLFEED_ENTRY_KEYS) || HUD_KILLFEED_ENTRY_KEYS.size !== Object.keys(value).length) return false;
+  if (!isKillfeedText(value.entry_id) || typeof value.suicide !== "boolean" || !isKillfeedPlayer(value.victim)) return false;
+  if (value.killer !== null && !isKillfeedPlayer(value.killer)) return false;
+  if (value.assister !== null && !isKillfeedPlayer(value.assister)) return false;
+  if (!(HUD_KILLFEED_WEAPONS as readonly unknown[]).includes(value.weapon) || typeof value.headshot !== "boolean") return false;
+  if (value.viewer !== null && !(HUD_KILLFEED_VIEWER_ROLES as readonly unknown[]).includes(value.viewer)) return false;
+  if (!isHudMs(value.visible_remaining_ms) || value.visible_remaining_ms === 0) return false;
+  if (value.suicide) {
+    // The skull replaces the weapon; no assist, no headshot, and the only killer is the victim themself.
+    if (value.assister !== null || value.headshot || value.weapon !== "other" || value.viewer === "killer") return false;
+    const killer = value.killer as HudKillfeedPlayer | null;
+    const victim = value.victim as HudKillfeedPlayer;
+    return killer === null || (killer.player_id === victim.player_id && killer.display_name === victim.display_name && killer.team === victim.team);
+  }
+  if (value.killer === null) return false;
+  // The killer, the assister and the victim are three different players.
+  const ids = [value.killer, value.assister, value.victim]
+    .map((player) => (player as HudKillfeedPlayer | null)?.player_id)
+    .filter((id): id is string => typeof id === "string");
+  return new Set(ids).size === ids.length;
+}
+
+/** `hud.killfeed` payload: at most `MAX_HUD_KILLFEED_ENTRIES` strict entries with unique ids, oldest first. */
+export function parseHudKillfeed(payload: unknown): ParseResult<HudKillfeedSnapshot> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, HUD_KILLFEED_KEYS) || !Array.isArray(payload.entries)) return error("invalid-payload", "HUD killfeed needs exactly entries");
+  const entries: unknown[] = payload.entries;
+  if (entries.length > MAX_HUD_KILLFEED_ENTRIES) return error("invalid-payload", `HUD killfeed carries at most ${MAX_HUD_KILLFEED_ENTRIES} entries`);
+  if (!entries.every(isKillfeedEntry)) return error("invalid-payload", "HUD killfeed entry is invalid");
+  if (new Set(entries.map((entry) => (entry as HudKillfeedEntry).entry_id)).size !== entries.length) return error("invalid-payload", "HUD killfeed entry ids must be unique");
+  return { ok: true, value: payload as unknown as HudKillfeedSnapshot };
+}
+
 export function parseInstanceEnded(payload: unknown): ParseResult<InstanceEnded> {
   if (!isRecord(payload) || Object.keys(payload).length !== 1 || !isNonEmptyString(payload.reason) || payload.reason.length > MAX_INSTANCE_END_REASON_LENGTH) {
     return error("invalid-payload", "Instance end needs exactly a reason of 1-64 characters");
@@ -1018,6 +1120,11 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
       payloadResult = envelope.type === "hud.messages" ? parseHudMessages(envelope.payload) : parseRoundResult(envelope.payload);
       break;
     case "hud.status": payloadResult = parseHudStatus(envelope.payload); break;
+    case "hud.killfeed":
+      // Remaining times are counted from sent_at, as for hud.messages.
+      if (envelope.sent_at === undefined) return error("invalid-envelope", "HUD killfeed timestamp is required", envelope.event_id);
+      payloadResult = parseHudKillfeed(envelope.payload);
+      break;
     case "instance.ended":
       if (envelope.sent_at === undefined) return error("invalid-envelope", "Instance end timestamp is required", envelope.event_id);
       payloadResult = parseInstanceEnded(envelope.payload);
