@@ -275,28 +275,24 @@ Required boundary rules:
   declares `hud-money` (`CLIENT_FEATURE_HUD_MONEY`) so the plugin hides its own
   balance hint. `hudStatusReducer` keeps the latest status of the baseline's
   instance (another instance clears it, a reconnect keeps it).
-- Minimap payloads contain a versioned map seed/descriptor and player
-  positions already filtered for the authenticated player's in-game
-  visibility. The client must never receive an omniscient player map and hide
-  unauthorized markers only with CSS.
-- SLUI resolves the map from the seed/descriptor and renders it. The seed
-  format, map generator version, coordinate system, and player update rate
-  are part of the versioned contract.
-- The implemented minimap payload v5, viewer/viewpoint separation, diagnostic
+- Minimap payloads contain the plugin's actual map layout (the Entrance /
+  HeavyContainment rooms of the current map generation) and player positions
+  already filtered for the authenticated player's in-game visibility. The
+  client must never receive an omniscient player map and hide unauthorized
+  markers only with CSS.
+- SLUI renders the layout it receives; no client-side map generation, seed or
+  game version is involved, so a game update needs no protocol or client
+  change. Room names, shapes and prefabs are open strings the client degrades
+  when it does not recognize them. The coordinate system, grid and player
+  update rate are part of the versioned contract.
+- The implemented minimap payload v6, viewer/viewpoint separation, diagnostic
   ordering, and foreground lifecycle are specified in [Minimap Contracts](./minimap.md).
-- The confirmed generator baseline is the
-  `@scpsl-tools/map-seed` project at
-  `https://github.com/kldhsh123/scpsl-map-seed.git`. SLUI must pin an exact
-  release or commit and must not silently follow a moving branch.
-- Release `1.0.0` resolves to commit
-  `65c82b8f930eaef3ee30304a23c96af3a75711a3`. Its package metadata says MIT,
-  but the actual fixed-commit `LICENSE` contains Apache-2.0. Preserve the actual
-  upstream license and modification notices when bundling; do not derive an
-  MIT-only attribution from package.json. Verification evidence is recorded in
-  `.trellis/tasks/08-25-minimap/research/generator-and-rendering.md`.
-- Generator release `1.0.0` currently bundles only the SCP:SL `14.2.7` map
-  template. The sidecar map-init payload must name the game/template version;
-  SLUI rejects a version that its pinned generator cannot reproduce.
+- History: up to v5 SLUI reproduced the layout from the seed with a vendored
+  `@scpsl-tools/map-seed` 1.0.0 (commit
+  `65c82b8f930eaef3ee30304a23c96af3a75711a3`, 14.2.7 template only), which tied
+  every game update to a version bump. v6 (2026-10-18, task
+  `10-18-minimap-v6-server-layout`) removed it; the static test layouts and the
+  known-prefab table were exported from it once.
 - Steam integration only identifies the account currently logged into the
   local Steam client. It is not an SLGO account/password system.
 - Steam identity and any proof ticket are exchanged only while establishing a
@@ -724,9 +720,7 @@ inferred from the product boundary:
    modes in case the IP-binding trade-offs stop being acceptable.
 2. How does a sidecar discover/register `server_id` values and isolate several
   plugin instances on the same host?
-3. The current SLGO server log confirms SCP:SL `14.2.7` Release. The initial
-   generator candidate supports template `14.2.7` only. The player position
-   coordinate/update-rate contract still needs to be finalized in the
-   sidecar implementation.
+3. Resolved 2026-10-18: no game version is pinned. The plugin sends the
+   actual layout (minimap v6); coordinates are Unity world XZ at 15 Hz.
 4. Resolved: the control plane returns the sidecar endpoint in the route
    (sidecars register their public endpoint); UI components never choose it.

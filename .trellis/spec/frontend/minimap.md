@@ -46,7 +46,7 @@ last batched status can miss a connecting/baseline-required reset.
 ## 3. Contracts
 
 - Envelope remains protocol 0 / schema 1. Both minimap events require nonempty
-  `round_id`, valid `sent_at`, and payload `minimap_schema_version: 5`.
+  `round_id`, valid `sent_at`, and payload `minimap_schema_version: 6`.
 - Markers (since v3) carry `status` (`live` / `last-known` / `dead`) and
   `status_age_ms` instead of `is_alive`. The SLGO plugin runs the CS2 radar
   state machine (last-known 6000 ms, death 4000 ms); the client never keeps an
@@ -120,9 +120,9 @@ last batched status can miss a connecting/baseline-required reset.
   the same calculation that places the generators; the client never derives
   sites from rooms. `positions` is unchanged apart from the version.
 - Bombsites are committed together with the geometry (`MinimapState.bombsites`)
-  on `resolved`, only after every non-null `room_id` belongs to its zone in the
-  geometry; a mismatch rejects the whole init like an init-level error
-  (`clearInit` + `NO_MAP`, `invalid`). They are static map data: shown
+  on `resolved`. Since v6 the parser itself rejects an init whose non-null
+  bombsite `room_id` is not one of its `rooms` in the same zone, so the reducer
+  never sees such sites. They are static map data: shown
   whenever the geometry is (warmup with no frame, stale / invalid positions and a
   dropped connection that retains the geometry included). Every path that drops
   the geometry drops them too (spread `NO_MAP`, never a bare `geometry: null`),
@@ -151,13 +151,18 @@ last batched status can miss a connecting/baseline-required reset.
   drawn even while its frame is fresh. At the edge a ghost uses the offscreen
   arrow, a death `X` stays an `X`. Frozen markers render beneath live ones, are
   never interpolated, and never drive the camera, viewpoint or dynamic zoom.
-- Init pins SCP:SL 14.2.7, map-seed 1.0.0, map schema 1, and unity-world-xz.
-  Vendored commit is `65c82b8f930eaef3ee30304a23c96af3a75711a3`; retain the
-  actual Apache-2.0 LICENSE and modification notice. Upstream package metadata's
-  MIT value is not a substitute for the actual license.
-- `map_id` identifies a physical generation, even when its seed repeats.
-  Geometry caches use the full generator descriptor. A cache hit does not
-  authorize a new session, round, or map without baseline/init.
+- v6 init carries the plugin's actual layout and pins no game version:
+  `coordinate_system: "unity-world-xz"`, `grid` `{ x, z }` (the game's room
+  cell, finite and positive) and `rooms` (1-256 `{ room_id, zone, name, shape,
+  prefab, x, y, z, yaw_degrees }`, unique ids). `name` / `shape` / `prefab` are
+  the game's open identifiers (non-blank, at most 64 characters): never reject
+  an init for an unknown value; degrade it. There is no client-side map
+  generator, seed or holiday (removed 2026-10-18 with the vendored map-seed).
+- `map_id` identifies a physical generation. Geometry caches use the full
+  layout descriptor (`mapDescriptorKey`: schema, coordinate system, grid,
+  rooms), and the same `map_id` arriving with another layout is
+  `incompatible`. A cache hit does not authorize a new session, round, or map
+  without baseline/init.
 - Positions atomically replace viewer, viewpoint, scoreboard, and markers.
   Viewer is the authenticated route SteamID and stable team. A dead viewer may
   follow an authorized living teammate without reducing the shared marker set.
@@ -194,17 +199,25 @@ last batched status can miss a connecting/baseline-required reset.
   overlay input mode. At mapScale=0.70 the circular radius is 45 world units;
   otherwise it is `45 * 0.70 / mapScale`. Square mode preserves the same
   world-to-design-pixel scale and uses the additional visible area.
-- Room placement uses actual generated centers, rotations, and connectors.
+- Room placement uses the plugin's actual room centers and rotations.
   Room artwork is the maintained SCP-079 room SVG set in
-  `public/assets/minimap/rooms/`. Resolve by `prefabName` using the explicit
-  mapping in `room-artwork.json`; neither
+  `public/assets/minimap/rooms/`. Resolve by `prefab` using the explicit
+  `byPrefabName` mapping in `room-artwork.json`; neither
   `Unnamed` nor the shared checkpoint display name identifies the artwork.
+  A prefab missing there (a room added by a game update) uses the explicit
+  `byZoneShape[zone][shape]` generic artwork (`artwork.generic`, diagnostic
+  `unknown-room-artwork`); every known prefab of a shape opens toward that
+  artwork's sides. A room of an unknown shape has no artwork and is not drawn
+  (`MapRooms` skips it) but stays in `roomById` with its grid-cell footprint
+  for bounds and the location title. Wire names (prefab, zone, shape, room
+  name) resolve only through own keys, never inherited ones like
+  `constructor`.
   Preserve the source paths and opacity layers. Keep provenance and asset hashes
   with the bundled files; production and tests use only repository files.
   Pin the hashed room-art mapping and SVGs to `text eol=lf` in
   `.gitattributes` so Windows checkout does not change their source hashes.
-- Each supported room's full 256x256 SVG canvas occupies its 15x15 world grid
-  cell with the center anchor. In projected world `(x,-z)`, the equivalent
+- Each supported room's full 256x256 SVG canvas occupies its world grid
+  cell (`init.grid`, currently 15x15) with the center anchor. In projected world `(x,-z)`, the equivalent
   image transform is `translate(x,-z) rotate(rotationY) scale(15/256)` with
   image origin `(-128,-128)`. That transform is static (`roomArtworkToWorld`);
   the camera is one `cameraToRadar` transform on the `.minimap-map__camera`
@@ -212,13 +225,12 @@ last batched status can miss a connecting/baseline-required reset.
   correction after changing projections or stretch the drawn area to the
   grid. Full-map bounds
   must include rotated full-canvas corners, not the former chamber squares.
-- Cross-zone adjacency is absent: only the two template-verified
-  checkpoint pairs receive derived links. Source artwork supplies room
-  illustrations, not collision walls or new connectivity. Some special rooms
-  explicitly share artwork in the mapping; document that reuse.
-  The checkpoint halves' SVG exits already meet at their shared grid boundary.
-  Retain the links as geometry, but draw no center lines
-  through the room artwork; their width can leak outside its narrow channels.
+- No adjacency or connector topology is kept: the radar never drew it.
+  Source artwork supplies room illustrations, not collision walls or
+  connectivity. Some special rooms explicitly share artwork in the mapping;
+  document that reuse. The checkpoint halves' SVG exits already meet at their
+  shared grid boundary (smoke-tested on the static layouts); draw no center
+  lines through the room artwork.
 - The user's approved CS2 visual update removes all per-room labels from inside
   the map. Do not retain an unused label layout function or reintroduce text in
   the SVG layer. The sole location title below the radar uses validated
@@ -291,7 +303,8 @@ last batched status can miss a connecting/baseline-required reset.
 | Unknown envelope version or wrong authenticated viewer | Revoke connection eligibility; require a new authenticated connection |
 | Invalid JSON/route while connected | Publish global status; require a new baseline |
 | Invalid room while geometry loads | Reject on resolution without committing its visibility revision |
-| Bombsite room outside its zone or unknown | Reject the init on resolution (`invalid`, no geometry, no bombsites) |
+| Bombsite room outside its zone or not in `rooms` | The parser rejects the init (`invalid-payload` diagnostic, no geometry, no bombsites) |
+| Unknown room name / prefab / shape | Title falls back to the zone / zone + shape generic artwork / room not drawn; geometry diagnostic only |
 | Late resolver after reset | Ignore by request token and descriptor/source qualification |
 | Stale positions while HUD continues | Clear all dynamic markers; preserve applicable static geometry |
 | Focus restored with scoreboard true | Keep normal camera until false then true arrives |
@@ -311,20 +324,24 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
 
 ## 6. Tests Required
 
-- `npm test`: protocol, adapter/session, generator, reducer/camera, preview
-  provider, and foreground subscription tests. Generator tests cover 16 pinned
-  complete-output hashes and browser execution without Node globals.
-- Room-art checks cover all 110 supported-zone template entries, including
-  holiday variants, exact local asset hashes, asymmetric connector directions
-  at quarter-turn rotations, distinct checkpoint halves, and full-map bounds.
+- `npm test`: protocol, adapter/session, layout geometry, reducer/camera,
+  preview provider, and foreground subscription tests. Geometry runs on four
+  static layouts (`src/mocks/minimap-layouts.json`, exported once from the
+  former generator with the plugin's room numbering; holidays included).
+- Room-art checks cover all 110 known prefabs including holiday variants
+  (`scripts/fixtures/minimap-prefabs.json`), exact local asset hashes,
+  asymmetric connector directions at quarter-turn rotations, the zone + shape
+  fallback's exit consistency, own-key lookups, unknown-shape rooms, distinct
+  checkpoint halves, and full-map bounds.
   Browser movement assertions must inspect the rendered room image CTM
   (artwork and camera transforms combined),
   and the visual audit must verify bundled SVG loading as well as DOM counts.
 - Bombsites: contract smoke covers valid (A/B, empty, null room, all 26) and
   malformed inits (missing / non-array / 27 entries, duplicate, `"AB"`, lowercase,
-  numeric label, non-finite coordinate, unsupported zone, extra key); model smoke
-  covers projection, edge clamp, heading-up, full map, retention through stale /
-  invalid / offline, replacement by a new init and room/zone rejection; the
+  numeric label, non-finite coordinate, unsupported zone, extra key, a room not
+  in the layout or in the other zone); model smoke covers projection, edge
+  clamp, heading-up, full map, retention through stale / invalid / offline and
+  replacement by a new init; the
   visual audit asserts the labels per state, both size/opacity tiers, aspect
   (upright), centring, wash filter and layer order beneath markers.
 - `resolver.ts` is also loaded directly by Node's `--experimental-strip-types`
