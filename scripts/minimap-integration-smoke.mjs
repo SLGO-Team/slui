@@ -156,8 +156,8 @@ try {
   assert.equal(harness.view().availability, "invalid");
   harness.send("minimap.positions", { ...frame, map_id: rebuilt.map_id });
   assert.equal(harness.view().markers.length, 5, "invalid loading frame cannot block a valid lower revision");
-  harness.send("minimap.init", { ...rebuilt, seed: 1 });
-  assert.equal(harness.view().availability, "incompatible", "physical map identity cannot silently change its generator descriptor");
+  harness.send("minimap.init", { ...rebuilt, rooms: rebuilt.rooms.map((room) => ({ ...room, x: room.x + 15 })) });
+  assert.equal(harness.view().availability, "incompatible", "physical map identity cannot silently change its layout");
 
   harness.send("minimap.init", rebuilt);
   harness.resolve();

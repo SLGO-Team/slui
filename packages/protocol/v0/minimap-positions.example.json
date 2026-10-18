@@ -9,7 +9,7 @@
   "type": "minimap.positions",
   "sent_at": "2026-08-18T08:46:20.067Z",
   "payload": {
-    "minimap_schema_version": 5,
+    "minimap_schema_version": 6,
     "map_id": "map-generation-1",
     "visibility_revision": 31,
     "viewer": { "player_id": "76561198000000100", "team_id": "team-a", "is_alive": true },

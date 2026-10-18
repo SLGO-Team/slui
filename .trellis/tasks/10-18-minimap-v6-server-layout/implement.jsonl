@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Minimap payload contract, resolver/artwork rules and radar rendering; rewrite generator pinning to v6 server layout"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Plugin-authoritative vs client boundary and protocol package rules; generator baseline section to replace"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where protocol, feature, mock fixtures and smoke scripts live"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Runtime parser and type conventions for the v6 MinimapRoom contract"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards, forbidden patterns, required checks"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plugin -> sidecar -> SLUI contract change across three repos"}
+{"file": "public/assets/minimap/SOURCE-MAP.md", "reason": "Radar asset provenance; layout no longer comes from map-seed"}

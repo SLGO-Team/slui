@@ -3,5 +3,5 @@
   "schema_version": 1,
   "type": "session.open",
   "session_token": "fixture-only",
-  "minimap_schema_versions": [5]
+  "minimap_schema_versions": [6]
 }

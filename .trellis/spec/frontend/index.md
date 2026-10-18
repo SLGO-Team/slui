@@ -22,7 +22,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
 | [System Boundaries](./system-boundaries.md) | SLGO client and Backend contracts | Active |
 | [CS2 Visual Replication](./cs2-visual-replication.md) | Manual React recreation and screenshot quality gates | Active |
-| [Minimap Contracts](./minimap.md) | Payload v5 (status markers, commander keycard, bombsites), map geometry, shared vision, diagnostics and foreground lifecycle | Active |
+| [Minimap Contracts](./minimap.md) | Payload v6 (server-sent layout, status markers, commander keycard, bombsites), map geometry and artwork fallback, shared vision, diagnostics and foreground lifecycle | Active |
 
 ---
 

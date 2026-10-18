@@ -29,7 +29,7 @@ SLUI 需要与游戏运行在同一台电脑、同一网络连接上，服务器
 
 ## 鸣谢
 
-- [kldhsh123](https://github.com/kldhsh123) 的 [scpsl-map-seed](https://github.com/kldhsh123/scpsl-map-seed)：根据种子还原设施布局的地图生成器，小地图的房间布局来自它。
+- [kldhsh123](https://github.com/kldhsh123) 的 [scpsl-map-seed](https://github.com/kldhsh123/scpsl-map-seed)：根据种子还原设施布局的地图生成器。0.6 及以前的小地图用它在客户端还原房间布局；现在布局由服务器直接下发，房间美术映射用到的预制体清单和测试用的静态布局仍然取自它。
 
 ## 许可证
 

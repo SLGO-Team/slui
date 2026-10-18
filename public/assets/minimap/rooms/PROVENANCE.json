@@ -1,7 +1,7 @@
 {
   "mappingStatus": "heuristic-not-authoritative",
   "mapTemplateGameVersion": "14.2.7",
-  "manifestSha256": "15be93a03d3c8345ab2ef0be20b575633405bbb740f9c274473a182ac32b1f8c",
+  "manifestSha256": "2ab3635ad413e249a90d6b35ad41c8f92d63178c815ff117d8265e33182e91df",
   "assets": {
     "EZ_CollapsedTunnel.svg": "93b1599dabaadc18a0a9df512e476a65e3d30671d649cb49fe0578709001a671",
     "EZ_Crossing.svg": "5a76a36784c54bde3b7e5f120e4425d4167e90a5e2ea1c7fb9f199ad7dd8155c",

@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["minimap_schema_version", "map_id", "visibility_revision", "viewer", "viewpoint", "scoreboard_visible", "positions", "commander_keycard"],
   "properties": {
-    "minimap_schema_version": { "const": 5 },
+    "minimap_schema_version": { "const": 6 },
     "map_id": { "$ref": "#/$defs/identifier" },
     "visibility_revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
     "viewer": {

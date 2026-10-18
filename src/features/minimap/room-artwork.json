@@ -1,5 +1,9 @@
 {
   "canvas": { "width": 256, "height": 256, "anchorX": 0.5, "anchorY": 0.5 },
+  "byZoneShape": {
+    "Entrance": { "Endroom": "EZ_NonGateEnd.svg", "Straight": "EZ_Straight.svg", "Curve": "EZ_Curve.svg", "TShape": "EZ_ThreeWay.svg", "XShape": "EZ_Crossing.svg" },
+    "HeavyContainment": { "Endroom": "HCZ_EndSmall.svg", "Straight": "HCZ_Straight.svg", "Curve": "HCZ_Curve.svg", "TShape": "HCZ_ThreeWay.svg", "XShape": "HCZ_Crossing.svg" }
+  },
   "byPrefabName": {
     "HCZ_049": "HCZ_049.svg",
     "HCZ_049 Halloween": "HCZ_049.svg",

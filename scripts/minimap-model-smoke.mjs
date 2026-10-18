@@ -24,83 +24,118 @@ for (const filename of artworkFiles) {
   assert.doesNotMatch(svg, /<!DOCTYPE|<!ENTITY|\b(?:href|style|on\w+)\s*=|url\(/i, `${filename}: no scripts or external dependencies`);
   for (const tag of svg.matchAll(/<\/?([\w:]+)/g)) assert.ok(["svg", "title", "path"].includes(tag[1]), `${filename}: static vector markup`);
 }
-const fixtures = JSON.parse(read("vendor/map-seed/fixtures.json"));
-const originalDecode = "Buffer.from(atlas.rgbaBase64, 'base64')";
-const browserDecode = "Uint8Array.from(atob(atlas.rgbaBase64), (character) => character.charCodeAt(0))";
-const modificationNotice = "// Modified by SLUI on 2026-09-07: use browser atob/Uint8Array instead of Buffer for atlas decoding.\n"
-  + "// Upstream Apache-2.0 license and exact source provenance are retained in LICENSE and PROVENANCE.md.\n";
-assert.equal(digest(read("vendor/map-seed/generator.js").replace(modificationNotice, "").replace(browserDecode, originalDecode)), fixtures.sourceHashes["src/generator.js"]);
-for (const name of ["random.js", "errors.js"]) assert.equal(digest(read(`vendor/map-seed/${name}`)), fixtures.sourceHashes[`src/${name}`]);
-assert.equal(digest(read("vendor/map-seed/LICENSE")), fixtures.sourceHashes.LICENSE);
-assert.equal(digest(read("vendor/map-seed/data/mapgen-raw-14.2.7.json")), fixtures.template.sha256);
+const { layouts } = JSON.parse(readFileSync(resolve("src/mocks/minimap-layouts.json"), "utf8"));
+const { prefabs } = JSON.parse(readFileSync(resolve("scripts/fixtures/minimap-prefabs.json"), "utf8"));
 
 const result = await build({
   stdin: { contents: `export * from "./resolver.ts"; export * from "./model.ts"; export * from "./camera.ts"; export * from "./room-artwork.ts";
     export * from "./preferences.ts"; export * from "./dynamicZoom.ts";
-    export { parseEvent } from "../../contracts/index.ts";
-    import template from "./vendor/map-seed/data/mapgen-raw-14.2.7.json";
-    import { generateFromTemplate } from "./vendor/map-seed/generator.js";
-    export const generateFixture = (seed, holiday) => generateFromTemplate(template, seed, {holiday});`, resolveDir: root },
+    export { parseEvent } from "../../contracts/index.ts";`, resolveDir: root },
   bundle: true, write: false, platform: "browser", format: "iife", globalName: "minimapTest", target: "es2020",
 });
-const context = { atob };
+const context = {};
 runInNewContext(result.outputFiles[0].text, context);
-const { generateFixture, resolveMinimapSync, mapDescriptorKey, minimapReducer, initialMinimapState,
+const { resolveMinimapSync, mapDescriptorKey, minimapReducer, initialMinimapState,
   selectMinimap, createRadarCamera, worldToRadar, roomArtworkToWorld, cameraToRadar, createRoomArtwork,
   positionMarker, shortestAngle, parseEvent, normalizeRadarPreferences, DEFAULT_RADAR_PREFERENCES,
   CS2_REFERENCE_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES, dynamicZoomTarget, advanceDynamicZoom } = context.minimapTest;
 const plain = (value) => JSON.parse(JSON.stringify(value));
-const init = { minimap_schema_version: 5, map_id: "map-1", game_version: "14.2.7", map_generator: "@scpsl-tools/map-seed",
-  map_generator_version: "1.0.0", map_schema_version: 1, seed: 1062329959, holiday: "None", coordinate_system: "unity-world-xz", position_update_hz: 15, bombsites: [] };
-for (const fixture of fixtures.fixtures) {
-  const output = generateFixture(fixture.seed, fixture.holiday);
-  assert.equal(digest(JSON.stringify(output)), fixture.sha256, `complete generator output: ${fixture.seed}/${fixture.holiday}`);
-  const geometry = resolveMinimapSync({ ...init, seed: fixture.seed, holiday: fixture.holiday });
-  assert.equal(geometry.rooms.length, fixture.supportedRooms);
-  assert.equal(geometry.connections.filter((edge) => edge.kind === "connector").length, fixture.supportedEdges);
-  assert.equal(geometry.connections.filter((edge) => edge.kind === "checkpoint-pair").length, 2);
-  assert.equal(geometry.diagnostics.length, 0);
+const init = { minimap_schema_version: 6, map_id: "map-1", coordinate_system: "unity-world-xz", grid: layouts[0].grid,
+  position_update_hz: 15, rooms: layouts[0].rooms, bombsites: [] };
+// The four static layouts (exported from the former generator, holidays included) stand in for the plugin's layouts.
+assert.equal(layouts.length, 4);
+for (const layout of layouts) {
+  const geometry = resolveMinimapSync({ ...init, grid: layout.grid, rooms: layout.rooms });
+  assert.equal(geometry.rooms.length, layout.rooms.length);
+  assert.deepEqual(plain(geometry.diagnostics), [], "every exported prefab and room name is known");
   assert.ok(geometry.rooms.every((room) => ["Entrance", "HeavyContainment"].includes(room.zone)));
   const overview = createRadarCamera(geometry, null, { orientation: "fixed", squareWithScoreboard: false }, true);
   const squareOverview = createRadarCamera(geometry, null, { forceSquare: true }, true);
   for (const room of geometry.rooms) {
     assert.equal(room.artwork.href, `/assets/minimap/rooms/${encodeURIComponent(artworkManifest.byPrefabName[room.prefabName])}`);
+    assert.equal(room.artwork.generic, false);
     assert.strictEqual(room.footprint[0], room.artwork.corners, "bounds and renderer share the complete canvas");
     for (const point of room.footprint.flat()) {
       assert.ok(point.x >= geometry.bounds.minX && point.x <= geometry.bounds.maxX && point.z >= geometry.bounds.minZ && point.z <= geometry.bounds.maxZ);
       const projected = worldToRadar(point, overview);
-      assert.ok(Math.hypot(projected.x - 125, projected.y - 125) <= 113.000001, "every seed/holiday fits all rotated canvases");
+      assert.ok(Math.hypot(projected.x - 125, projected.y - 125) <= 113.000001, "every layout fits all rotated canvases");
       const squarePoint = worldToRadar(point, squareOverview);
       assert.ok(Math.max(Math.abs(squarePoint.x - 145), Math.abs(squarePoint.y - 145)) <= 133.000001, "square overview fits both zones");
     }
   }
-  for (const pair of geometry.connections.filter((edge) => edge.kind === "checkpoint-pair")) {
-    const from = geometry.roomById.get(pair.from).artwork.corners;
-    const to = geometry.roomById.get(pair.to).artwork.corners;
+  // Each HCZ checkpoint half has its Entrance half one grid cell east; the source SVG exits already meet there.
+  const checkpoints = geometry.rooms.filter((room) => room.name === "HczCheckpointToEntranceZone");
+  assert.equal(checkpoints.length, 4);
+  for (const hczHalf of checkpoints.filter((room) => room.zone === "HeavyContainment")) {
+    const ezHalf = checkpoints.find((room) => room.zone === "Entrance" && Math.abs(room.position.z - hczHalf.position.z) < 0.001
+      && Math.abs(room.position.x - hczHalf.position.x - layout.grid.x) < 0.001);
+    assert.ok(ezHalf, "checkpoint halves pair up across the zone border");
+    const from = hczHalf.artwork.corners, to = ezHalf.artwork.corners;
     // Source HCZ right-edge and EZ top-edge exit pixels already meet exactly.
     const hczExit = { x: (from[1].x + from[2].x) / 2, z: (from[1].z + from[2].z) / 2 };
     const ezExit = { x: (to[0].x + to[1].x) / 2, z: (to[0].z + to[1].z) / 2 };
     assert.ok(Math.hypot(hczExit.x - ezExit.x, hczExit.z - ezExit.z) < 1e-8, "checkpoint SVG exits join without an extra center line");
   }
 }
-for (const seed of [0, -1, 2147483648, NaN, 1.25]) assert.throws(() => generateFixture(seed, "None"));
-assert.throws(() => generateFixture(1, "unsupported"));
-for (const overrides of [{ game_version: "unknown" }, { map_generator_version: "2.0.0" }, { coordinate_system: "other" }, { minimap_schema_version: 1 }]) {
+for (const overrides of [{ coordinate_system: "other" }, { minimap_schema_version: 5 }]) {
   assert.throws(() => resolveMinimapSync({ ...init, ...overrides }));
 }
 const geometry = resolveMinimapSync(init);
 assert.strictEqual(resolveMinimapSync({ ...init, map_id: "another-map" }), geometry, "geometry cache never substitutes map identity");
 const labels = JSON.parse(read("special-room-labels.json"));
-const template = JSON.parse(read("vendor/map-seed/data/mapgen-raw-14.2.7.json"));
-const templates = new Map(template.roomTemplates.map((room) => [room.id, room]));
-const supportedTemplates = template.roomTemplates.filter((room) => ["Entrance", "HeavyContainment"].includes(room.zone.name));
-assert.equal(supportedTemplates.length, 110);
-assert.deepEqual(Object.keys(artworkManifest.byPrefabName).sort(), supportedTemplates.map((room) => room.prefabName).sort(), "all supported prefabs including holidays have explicit mappings");
-for (const room of supportedTemplates) {
-  const art = createRoomArtwork(room.prefabName, { x: 0, z: 0 }, 0, { x: 15, z: 15 });
-  assert.ok(artworkFiles.includes(decodeURIComponent(art.href.split("/").at(-1))), `${room.prefabName}: existing bundled SVG`);
+assert.equal(prefabs.length, 110);
+assert.deepEqual(Object.keys(artworkManifest.byPrefabName).sort(), prefabs.map((room) => room.prefab).sort(), "all known prefabs including holidays have explicit mappings");
+for (const room of prefabs) {
+  const art = createRoomArtwork(room, { x: 0, z: 0 }, 0, { x: 15, z: 15 });
+  assert.ok(artworkFiles.includes(decodeURIComponent(art.href.split("/").at(-1))), `${room.prefab}: existing bundled SVG`);
+  assert.equal(art.generic, false);
+  assert.ok(Object.hasOwn(labels, room.name), "every known room name has an explicit Chinese/null label");
 }
-assert.throws(() => createRoomArtwork("unknown-prefab", { x: 0, z: 0 }, 0, { x: 15, z: 15 }), /incompatible-room-artwork/);
+
+// D3: a prefab without its own artwork (a game update's new room) shows its zone + shape's generic artwork. That
+// artwork is a known prefab's own, and every known prefab of the shape opens toward the same sides (a checkpoint half
+// only toward one of them), so its exits still line up with the corridors.
+const sidesOf = (room) => room.connectors.map(({ x, z }) => Math.abs(x) > Math.abs(z) ? (x > 0 ? "E" : "W") : (z > 0 ? "N" : "S"));
+assert.deepEqual(Object.keys(artworkManifest.byZoneShape).sort(), ["Entrance", "HeavyContainment"]);
+for (const [zone, shapes] of Object.entries(artworkManifest.byZoneShape)) {
+  assert.deepEqual(Object.keys(shapes).sort(), ["Curve", "Endroom", "Straight", "TShape", "XShape"]);
+  for (const [shape, filename] of Object.entries(shapes)) {
+    const art = createRoomArtwork({ prefab: "Future_Room", zone, shape }, { x: 0, z: 0 }, 0, { x: 15, z: 15 });
+    assert.equal(art.generic, true);
+    assert.equal(decodeURIComponent(art.href.split("/").at(-1)), filename);
+    const known = prefabs.filter((room) => room.zone === zone && room.shape === shape);
+    const canonical = known.find((room) => artworkManifest.byPrefabName[room.prefab] === filename);
+    assert.ok(canonical, `${zone}/${shape}: the generic artwork is a known prefab's own`);
+    for (const room of known) {
+      assert.ok(sidesOf(room).every((side) => sidesOf(canonical).includes(side)), `${room.prefab}: exits face ${filename}'s`);
+    }
+  }
+}
+assert.equal(createRoomArtwork({ prefab: "Future_Room", zone: "Entrance", shape: "LShape" }, { x: 0, z: 0 }, 0, { x: 15, z: 15 }), null,
+  "a room of an unknown shape is not drawn");
+assert.equal(createRoomArtwork({ prefab: "constructor", zone: "HeavyContainment", shape: "toString" }, { x: 0, z: 0 }, 0, { x: 15, z: 15 }), null,
+  "wire names never resolve through inherited object keys");
+{
+  const base = init.rooms[0];
+  const future = { ...base, room_id: "room-future", name: "EzFutureRoom", shape: "Straight", prefab: "EZ_Future", x: base.x + 600 };
+  const odd = { ...base, room_id: "room-odd", name: "constructor", shape: "LShape", prefab: "toString", x: base.x + 615 };
+  const degraded = resolveMinimapSync({ ...init, rooms: [...init.rooms, future, odd] });
+  const futureRoom = degraded.roomById.get("room-future");
+  assert.equal(futureRoom.artwork.generic, true);
+  assert.equal(decodeURIComponent(futureRoom.artwork.href.split("/").at(-1)), "EZ_Straight.svg");
+  assert.equal(futureRoom.label, null, "an unknown name has no label: the title falls back to the zone");
+  const oddRoom = degraded.roomById.get("room-odd");
+  assert.equal(oddRoom.artwork, null);
+  assert.equal(oddRoom.label, null, "an inherited key is not a label");
+  assert.equal(oddRoom.footprint[0].length, 4, "an undrawn room keeps its grid cell for the bounds");
+  assert.ok(degraded.bounds.maxX >= odd.x + 7.5 - 1e-9);
+  assert.deepEqual(plain(degraded.diagnostics), [
+    { kind: "unknown-room-label", roomName: "EzFutureRoom" },
+    { kind: "unknown-room-artwork", prefab: "EZ_Future", shape: "Straight", generic: true },
+    { kind: "unknown-room-label", roomName: "constructor" },
+    { kind: "unknown-room-artwork", prefab: "toString", shape: "LShape", generic: false },
+  ]);
+}
 const checkpointRooms = geometry.rooms.filter((room) => room.name === "HczCheckpointToEntranceZone");
 assert.equal(checkpointRooms.length, 4);
 for (const room of checkpointRooms) assert.equal(decodeURIComponent(room.artwork.href.split("/").at(-1)),
@@ -121,16 +156,16 @@ const asymmetricRooms = { HCZ_Curve: ["right", "bottom"], EZ_Curve: ["left", "bo
   HCZ_079: ["left"], EZ_Endoof: ["top"] };
 const origin = { x: 45, z: 90 };
 for (const [prefabName, sides] of Object.entries(asymmetricRooms)) {
-  const room = supportedTemplates.find((item) => item.prefabName === prefabName);
-  assert.equal(room.connectorPoints.length, sides.length);
+  const room = prefabs.find((item) => item.prefab === prefabName);
+  assert.equal(room.connectors.length, sides.length);
   for (const side of sides) {
     const [x, z] = exits[side].world[0];
-    assert.ok(room.connectorPoints.some(({ localPosition: p }) => Math.hypot(p.x - x, p.z - z) < 0.001), `${prefabName}: artwork exits match template`);
+    assert.ok(room.connectors.some((p) => Math.hypot(p.x - x, p.z - z) < 0.001), `${prefabName}: artwork exits match the prefab's connectors`);
   }
   for (const quarter of [0, 1, 2, 3]) {
-    const art = createRoomArtwork(prefabName, origin, quarter * 90, { x: 15, z: 15 });
+    const art = createRoomArtwork(room, origin, quarter * 90, { x: 15, z: 15 });
     for (const cameraYaw of [0, 37, 90]) {
-      const camera = { center: origin, yaw: cameraYaw, scale: 2, mode: "follow", zone: room.zone.name, shape: "circle", viewSize: 250 };
+      const camera = { center: origin, yaw: cameraYaw, scale: 2, mode: "follow", zone: room.zone, shape: "circle", viewSize: 250 };
       // The rendered chain: room artwork -> projected world (static) -> radar (camera group).
       const affine = (transform) => {
         const [a, b, c, d, e, f] = transform.slice(7, -1).split(" ").map(Number);
@@ -149,9 +184,6 @@ for (const [prefabName, sides] of Object.entries(asymmetricRooms)) {
     }
   }
 }
-for (const generator of template.generators.filter((item) => ["Entrance", "HeavyContainment"].includes(item.targetZone?.name))) {
-  for (const id of generator.compatibleRoomTemplateIds) assert.ok(Object.hasOwn(labels, templates.get(id).name.name), "every base template has an explicit Chinese/null label");
-}
 
 const hcz = geometry.rooms.filter((room) => room.zone === "HeavyContainment");
 const ez = geometry.rooms.filter((room) => room.zone === "Entrance");
@@ -165,7 +197,7 @@ const teammate2 = marker("76561198000000003", ez[0], "teammate");
 const enemy = marker("76561198000000004", hcz[2], "spotted-by-self", "team-b");
 const enemy2 = marker("76561198000000005", ez[1], "spotted-by-teammate", "team-b");
 const pose = (position) => Object.fromEntries(["player_id", "x", "y", "z", "yaw_degrees", "zone", "room_id"].map((key) => [key, position[key]]));
-const positions = { minimap_schema_version: 5, map_id: init.map_id, visibility_revision: 1,
+const positions = { minimap_schema_version: 6, map_id: init.map_id, visibility_revision: 1,
   viewer: { player_id: self.player_id, team_id: "team-a", is_alive: true }, viewpoint: pose(self), scoreboard_visible: false,
   positions: [self, teammate, teammate2, enemy, enemy2], commander_keycard: null };
 const envelope = (type, payload, sequence, extras = {}) => ({ protocol_version: 0, schema_version: 1,
@@ -251,9 +283,9 @@ assert.equal(pending.pendingFrame.receivedAtMs, 110, "only latest complete frame
 assert.equal(resolved(pending, 120).frame.receivedAtMs, 110);
 assert.equal(resolved(pending, 1111).frame, null, "late geometry cannot revive stale queued markers");
 const oldToken = pending.requestToken;
-const rebuilt = event(pending, "minimap.init", { ...init, map_id: "map-3", seed: 1 }, 23);
+const rebuilt = event(pending, "minimap.init", { ...init, map_id: "map-3", rooms: layouts[1].rooms }, 23);
 assert.strictEqual(minimapReducer(rebuilt, { type: "resolved", token: oldToken, descriptorKey: geometry.descriptorKey, geometry, nowMs: 120 }), rebuilt);
-assert.equal(event(ready(), "minimap.init", { ...init, seed: 1 }, 20).availability, "incompatible", "map ID cannot change descriptor");
+assert.equal(event(ready(), "minimap.init", { ...init, rooms: layouts[1].rooms }, 20).availability, "incompatible", "map ID cannot change its layout");
 assert.equal(event(ready(), "minimap.positions", positions, 20, 100, { round_id: "old-round" }).frame, null);
 const unknownRoom = { ...positions, positions: positions.positions.map((p) => p === enemy ? { ...p, room_id: "not-a-room" } : p) };
 assert.equal(event(ready(), "minimap.positions", unknownRoom, 20).availability, "invalid");
@@ -648,17 +680,7 @@ for (const time of [200, 232, 267]) {
   assert.deepEqual(selectMinimap(replaced, 130).bombsites.map((site) => site.label), ["B"], "a new init replaces the bombsites");
   const emptied = resolved(event(withSites, "minimap.init", { ...sitesInit, map_id: "map-3", bombsites: [] }, 4), 130);
   assert.equal(selectMinimap(emptied, 130).bombsites.length, 0);
-  for (const bad of [{ ...siteAt("A", hcz[1]), zone: "Entrance" }, { ...siteAt("A", hcz[1]), room_id: "not-a-room" }]) {
-    let rejected = event(event(minimapReducer(initialMinimapState, { type: "connection", status: "connecting" }), "sidecar.baseline", { baseline: true }, 1),
-      "minimap.init", { ...init, bombsites: [bad] }, 2);
-    rejected = resolved(rejected);
-    assert.equal(rejected.availability, "invalid", "a bombsite room must belong to its zone");
-    assert.equal(rejected.geometry, null);
-    assert.equal(rejected.init, null, "the rejected init is not committed");
-    assert.deepEqual(plain(rejected.bombsites), [], "the rejected sites are not committed");
-    assert.equal(selectMinimap(rejected, 30).bombsites.length, 0);
-    assert.equal(event(rejected, "minimap.positions", positions, 3, 100).frame, null, "no frame is accepted against a rejected init");
-  }
+  // A bombsite room outside the layout or its zone is a parser error (minimap-contract-smoke), never reaching the reducer.
 }
 
 // Observation rights: a dead viewer follows an observed opponent; team-less spectators see both teams in team colors.
@@ -710,4 +732,4 @@ for (const time of [200, 232, 267]) {
     "a frame later than the playout delay never extrapolates: the camera holds the newest capture until it arrives");
 }
 
-console.log("minimap model smoke: pinned generator and 29 SVGs/110 mappings; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, capability fallback, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout and observation-right following passed");
+console.log("minimap model smoke: 4 static layouts, 29 SVGs/110 mappings and zone+shape fallback; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, capability fallback, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout and observation-right following passed");

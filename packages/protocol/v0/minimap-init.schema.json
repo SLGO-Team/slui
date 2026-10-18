@@ -7,29 +7,51 @@
   "required": [
     "minimap_schema_version",
     "map_id",
-    "game_version",
-    "map_generator",
-    "map_generator_version",
-    "map_schema_version",
-    "seed",
-    "holiday",
     "coordinate_system",
+    "grid",
     "position_update_hz",
+    "rooms",
     "bombsites"
   ],
   "properties": {
-    "minimap_schema_version": { "const": 5 },
+    "minimap_schema_version": { "const": 6 },
     "map_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
-    "game_version": { "const": "14.2.7" },
-    "map_generator": { "const": "@scpsl-tools/map-seed" },
-    "map_generator_version": { "const": "1.0.0" },
-    "map_schema_version": { "const": 1 },
-    "seed": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
-    "holiday": { "enum": ["None", "Christmas", "Halloween", "AprilFools"] },
     "coordinate_system": { "const": "unity-world-xz" },
+    "grid": {
+      "$comment": "The game's room grid cell (RoomIdentifier.GridScale x/z).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "z"],
+      "properties": {
+        "x": { "type": "number", "exclusiveMinimum": 0 },
+        "z": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
     "position_update_hz": { "type": "number", "exclusiveMinimum": 0, "maximum": 60 },
+    "rooms": {
+      "$comment": "The actual Entrance / HeavyContainment rooms read by the plugin. room_id is unique (runtime-enforced); name, shape and prefab are the game's own open identifiers.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["room_id", "zone", "name", "shape", "prefab", "x", "y", "z", "yaw_degrees"],
+        "properties": {
+          "room_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" },
+          "zone": { "enum": ["Entrance", "HeavyContainment"] },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" },
+          "shape": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" },
+          "prefab": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "z": { "type": "number" },
+          "yaw_degrees": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
+        }
+      }
+    },
     "bombsites": {
-      "$comment": "Bombsite (generator site) centres decided by the plugin; letters are unique (runtime-enforced). Geometry validation enforces that a non-null room_id belongs to its zone.",
+      "$comment": "Bombsite (generator site) centres decided by the plugin; letters are unique and a non-null room_id names one of this init's rooms in the same zone (runtime-enforced).",
       "type": "array",
       "maxItems": 26,
       "items": {

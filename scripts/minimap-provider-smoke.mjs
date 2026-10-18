@@ -32,10 +32,10 @@ assert.equal(readMinimapPreviewOptions("").bombsites, true);
 assert.equal(readMinimapPreviewOptions("?minimapBombsites=0").bombsites, false);
 // Mock bombsites mirror the plugin's default generator rooms: A = SCP-939, B = the warhead (HczNuke), inside their rooms.
 {
-  for (const seed of [1062329959, 142007]) {
-    const init = createMockMinimapInit(seed);
+  for (const layout of [0, 1]) {
+    const init = createMockMinimapInit(layout);
     const geometry = resolveMinimapSync(init);
-    assert.deepEqual(init.bombsites.map((site) => site.label), ["A", "B"], `seed ${seed}: A and B`);
+    assert.deepEqual(init.bombsites.map((site) => site.label), ["A", "B"], `layout ${layout}: A and B`);
     for (const [site, name] of [[init.bombsites[0], "Hcz939"], [init.bombsites[1], "HczWarhead"]]) {
       const room = geometry.roomById.get(site.room_id);
       assert.equal(room.name, name);
@@ -43,7 +43,7 @@ assert.equal(readMinimapPreviewOptions("?minimapBombsites=0").bombsites, false);
       assert.ok(Math.abs(site.x - room.position.x) < 7.5 && Math.abs(site.z - room.position.z) < 7.5, `${name} site lies inside its 15x15 cell`);
     }
   }
-  assert.deepEqual(createMockMinimapInit(1062329959, "map-demo-1", false).bombsites, []);
+  assert.deepEqual(createMockMinimapInit(0, "map-demo-1", false).bombsites, []);
   assert.deepEqual(mockMinimapInit.bombsites, createMockMinimapInit().bombsites);
 }
 const distantFrame = createMinimapFrame(mockMinimapInit, undefined, undefined, { ...defaultMinimapPreviewOptions, motion: false, dynamicTargets: "far" });
@@ -156,7 +156,7 @@ for (const team of ["team-a", "team-b"]) {
     const oldInit = connection.getMinimapInit();
     connection.rebuildMinimap();
     assert.notEqual(connection.getMinimapInit().map_id, oldInit.map_id);
-    assert.notEqual(connection.getMinimapInit().seed, oldInit.seed);
+    assert.notDeepEqual(connection.getMinimapInit().rooms, oldInit.rooms, "a rebuilt map is another layout");
     assert.notDeepEqual(connection.getMinimapInit().bombsites, oldInit.bombsites, "a rebuilt map recomputes its bombsites");
     connection.configureMinimap({ paused: true });
     const beforePause = latest();

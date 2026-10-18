@@ -1,6 +1,7 @@
 import { MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, MINIMAP_SCHEMA_VERSION, type MinimapBombsite, type MinimapInit, type MinimapPose,
-  type MinimapPosition, type MinimapPositions, type MinimapZone } from "../contracts/index.ts";
+  type MinimapPosition, type MinimapPositions, type MinimapRoom, type MinimapZone } from "../contracts/index.ts";
 import { resolveMinimapSync } from "../features/minimap/resolver.ts";
+import layouts from "./minimap-layouts.json" with { type: "json" };
 import { CS2_REFERENCE_RADAR_PREFERENCES, DEFAULT_RADAR_PREFERENCES, normalizeRadarPreferences,
   RADAR_NUMERIC_RANGES, type RadarPreferences } from "../features/minimap/preferences.ts";
 
@@ -80,28 +81,31 @@ const MOCK_BOMBSITE_ROOMS = [
 
 /** Unity `room.Position + room.Rotation * offset` for a Y-only rotation (0 = +Z, 90 = +X). */
 export function mockBombsites(init: MinimapInit): MinimapBombsite[] {
-  const geometry = resolveMinimapSync(init);
   return MOCK_BOMBSITE_ROOMS.flatMap(({ label, roomName, offset }) => {
-    const room = geometry.rooms.find((candidate) => candidate.name === roomName);
+    const room = init.rooms.find((candidate) => candidate.name === roomName);
     if (!room) return [];
-    const angle = room.rotationY * Math.PI / 180;
-    return [{ label, x: room.position.x + offset.x * Math.cos(angle) + offset.z * Math.sin(angle), y: room.position.y + offset.y,
-      z: room.position.z - offset.x * Math.sin(angle) + offset.z * Math.cos(angle), zone: room.zone, room_id: room.id }];
+    const angle = room.yaw_degrees * Math.PI / 180;
+    return [{ label, x: room.x + offset.x * Math.cos(angle) + offset.z * Math.sin(angle), y: room.y + offset.y,
+      z: room.z - offset.x * Math.sin(angle) + offset.z * Math.cos(angle), zone: room.zone, room_id: room.room_id }];
   });
 }
 
-export function createMockMinimapInit(seed = 1062329959, mapId = "map-demo-1", bombsites = true): MinimapInit {
+/**
+ * Static layouts in the plugin's v6 `rooms` form (exported once from the former client-side generator; see the file's
+ * note). Layout 0 is the preview default, layout 1 the rebuilt map.
+ */
+export const MOCK_MINIMAP_LAYOUTS: readonly { grid: MinimapInit["grid"]; rooms: readonly MinimapRoom[] }[] =
+  layouts.layouts as { grid: MinimapInit["grid"]; rooms: MinimapRoom[] }[];
+
+export function createMockMinimapInit(layout = 0, mapId = "map-demo-1", bombsites = true): MinimapInit {
+  const { grid, rooms } = MOCK_MINIMAP_LAYOUTS[layout];
   const init: MinimapInit = {
     minimap_schema_version: MINIMAP_SCHEMA_VERSION,
     map_id: mapId,
-    game_version: "14.2.7",
-    map_generator: "@scpsl-tools/map-seed",
-    map_generator_version: "1.0.0",
-    map_schema_version: 1,
-    seed,
-    holiday: "None",
     coordinate_system: "unity-world-xz",
+    grid,
     position_update_hz: 15,
+    rooms: [...rooms],
     bombsites: [],
   };
   return bombsites ? { ...init, bombsites: mockBombsites(init) } : init;

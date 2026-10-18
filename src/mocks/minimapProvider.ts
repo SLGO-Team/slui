@@ -9,6 +9,8 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private readonly viewerTeam: "team-a" | "team-b";
   private previewOptions = { ...defaultMinimapPreviewOptions };
   private mapInit = { ...mockMinimapInit };
+  /** Index into `MOCK_MINIMAP_LAYOUTS` of the current map. */
+  private layout = 0;
   private timer: ReturnType<typeof setInterval> | undefined;
   private streamRoute: ServerRoute | null = null;
   private sequence = 0;
@@ -79,15 +81,16 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     this.previewOptions = next;
     // Bombsites are static init data: changing them is a new map generation, like the plugin's next round.
     if (bombsitesChanged) {
-      if (this.streamRoute) this.rebuildMinimap(this.mapInit.seed);
-      else this.mapInit = createMockMinimapInit(this.mapInit.seed, this.mapInit.map_id, next.bombsites);
+      if (this.streamRoute) this.rebuildMinimap(this.layout);
+      else this.mapInit = createMockMinimapInit(this.layout, this.mapInit.map_id, next.bombsites);
     }
     if (frameChanged && !next.paused) this.publishFrame();
   }
 
-  rebuildMinimap(seed = this.mapInit.seed === 1062329959 ? 142007 : 1062329959) {
+  rebuildMinimap(layout = this.layout === 0 ? 1 : 0) {
     this.generation += 1;
-    this.mapInit = createMockMinimapInit(seed, `map-demo-${this.generation}`, this.previewOptions.bombsites);
+    this.layout = layout;
+    this.mapInit = createMockMinimapInit(layout, `map-demo-${this.generation}`, this.previewOptions.bombsites);
     this.revision = 1;
     this.emit("minimap.init", this.mapInit);
     this.publishFrame(false);

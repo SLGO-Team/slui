@@ -1,8 +1,12 @@
 export const PROTOCOL_VERSION = 0 as const;
 export const SUPPORTED_SCHEMA_VERSION = 1 as const;
-export const MINIMAP_SCHEMA_VERSION = 5 as const;
+export const MINIMAP_SCHEMA_VERSION = 6 as const;
 /** At most one bombsite per letter A-Z. */
 export const MINIMAP_MAX_BOMBSITES = 26 as const;
+/** Upper bound of `minimap.init.rooms` (a generated map has about 60-75 Entrance / HeavyContainment rooms). */
+export const MINIMAP_MAX_ROOMS = 256 as const;
+/** Maximum UTF-16 length of a room's `room_id`, `name`, `shape` and `prefab`. */
+export const MINIMAP_MAX_ROOM_TEXT_LENGTH = 64 as const;
 /** CS2 GHOST_FADE_TIME: a last-known marker lives this long after the enemy was last spotted. */
 export const MINIMAP_LAST_KNOWN_MS = 6000 as const;
 /** CS2 DEAD_FADE_TIME: a death marker lives this long after the death. */
@@ -114,14 +118,15 @@ export type MatchSnapshot = {
 export type MinimapInit = {
   minimap_schema_version: typeof MINIMAP_SCHEMA_VERSION;
   map_id: string;
-  game_version: "14.2.7";
-  map_generator: "@scpsl-tools/map-seed";
-  map_generator_version: "1.0.0";
-  map_schema_version: 1;
-  seed: number;
-  holiday: "None" | "Christmas" | "Halloween" | "AprilFools";
   coordinate_system: "unity-world-xz";
+  /** The game's room grid cell (`RoomIdentifier.GridScale` x/z): one room canvas covers one cell. */
+  grid: MinimapGrid;
   position_update_hz: number;
+  /**
+   * The actual Entrance / HeavyContainment rooms of this map generation as the plugin read them from the game,
+   * static for the `map_id`. Every non-null `room_id` in this init and its frames names one of them.
+   */
+  rooms: MinimapRoom[];
   /**
    * Bombsites (SLGO generator sites) of this map generation, static for the `map_id`. The plugin alone decides the
    * set, letters and positions; the array order carries no meaning (the letter is the identity). May be empty.
@@ -138,6 +143,25 @@ export type Visibility = "self" | "teammate" | "spotted-by-self" | "spotted-by-t
 /** live = real-time pose; last-known = frozen pose of an enemy no longer spotted; dead = death marker. */
 export type MarkerStatus = "live" | "last-known" | "dead";
 export type MinimapZone = "Entrance" | "HeavyContainment";
+export type MinimapGrid = { x: number; z: number };
+/**
+ * One generated room. `name` (game `RoomName`), `shape` (game `RoomShape`) and `prefab` (the spawned prefab, holiday
+ * variants included) are the game's own identifiers, deliberately open strings: a game update that adds a value must
+ * not reject the init. The client renders what it recognizes and degrades the rest.
+ */
+export type MinimapRoom = {
+  room_id: string;
+  zone: MinimapZone;
+  name: string;
+  shape: string;
+  prefab: string;
+  /** World position of the room origin (its grid cell centre). */
+  x: number;
+  y: number;
+  z: number;
+  /** Room yaw in `[0, 360)`: zero points toward +Z and 90 toward +X, like a pose. */
+  yaw_degrees: number;
+};
 export type MinimapPose = {
   x: number;
   y: number;
@@ -707,19 +731,33 @@ export function parseMinimapInit(payload: unknown): ParseResult<MinimapInit> {
   if (!isRecord(payload)) return error("invalid-payload", "Minimap init must be an object");
   if (payload.minimap_schema_version !== MINIMAP_SCHEMA_VERSION) return error("unsupported-minimap-schema", "Unsupported minimap payload version");
   if (!hasOnlyKeys(payload, MINIMAP_INIT_KEYS)) return error("invalid-payload", "Minimap init contains unsupported fields");
-  if (payload.game_version !== "14.2.7" || payload.map_generator !== "@scpsl-tools/map-seed" || payload.map_generator_version !== "1.0.0" || payload.map_schema_version !== 1 || payload.coordinate_system !== "unity-world-xz") return error("unsupported-minimap-map", "Unsupported minimap generator, template, or coordinates");
-  if (!isNonEmptyString(payload.map_id) || !Number.isSafeInteger(payload.seed) || Number(payload.seed) < 1 || Number(payload.seed) > 2147483647 || typeof payload.holiday !== "string" || !["None", "Christmas", "Halloween", "AprilFools"].includes(payload.holiday) || !isFiniteNumber(payload.position_update_hz) || payload.position_update_hz <= 0 || payload.position_update_hz > 60) return error("invalid-payload", "Minimap init is invalid");
+  if (payload.coordinate_system !== "unity-world-xz") return error("unsupported-minimap-map", "Unsupported minimap coordinates");
+  if (!isNonEmptyString(payload.map_id) || !isFiniteNumber(payload.position_update_hz) || payload.position_update_hz <= 0 || payload.position_update_hz > 60) return error("invalid-payload", "Minimap init is invalid");
+  const grid = payload.grid;
+  if (!isRecord(grid) || !hasOnlyKeys(grid, MINIMAP_GRID_KEYS) || !isFiniteNumber(grid.x) || grid.x <= 0 || !isFiniteNumber(grid.z) || grid.z <= 0) return error("invalid-payload", "Minimap grid is invalid");
+  if (!Array.isArray(payload.rooms) || payload.rooms.length === 0 || payload.rooms.length > MINIMAP_MAX_ROOMS) return error("invalid-payload", "Minimap rooms are invalid");
+  const roomZones = new Map<string, unknown>();
+  for (const room of payload.rooms as unknown[]) {
+    if (!isRecord(room) || !hasOnlyKeys(room, MINIMAP_ROOM_KEYS) || !isRoomText(room.room_id) || !isRoomText(room.name) || !isRoomText(room.shape)
+      || !isRoomText(room.prefab) || !isMinimapPose({ ...room, room_id: null })) return error("invalid-payload", "Minimap room is invalid");
+    if (roomZones.has(room.room_id)) return error("invalid-payload", "Minimap room ids must be unique");
+    roomZones.set(room.room_id, room.zone);
+  }
   if (!Array.isArray(payload.bombsites) || payload.bombsites.length > MINIMAP_MAX_BOMBSITES) return error("invalid-payload", "Minimap bombsites are invalid");
   const labels = new Set<string>();
   for (const site of payload.bombsites as unknown[]) {
     if (!isRecord(site) || !hasOnlyKeys(site, MINIMAP_BOMBSITE_KEYS) || typeof site.label !== "string" || !/^[A-Z]$/.test(site.label) || !isMinimapPlace(site)) return error("invalid-payload", "Minimap bombsite is invalid");
+    // Like a frame's poses, a bombsite room must be one of this init's rooms, in its zone.
+    if (site.room_id !== null && roomZones.get(site.room_id as string) !== site.zone) return error("invalid-payload", "Minimap bombsite room is not a room of its zone");
     if (labels.has(site.label)) return error("invalid-payload", "Minimap bombsite labels must be unique");
     labels.add(site.label);
   }
   return { ok: true, value: payload as unknown as MinimapInit };
 }
 
-const MINIMAP_INIT_KEYS = new Set(["minimap_schema_version", "map_id", "game_version", "map_generator", "map_generator_version", "map_schema_version", "seed", "holiday", "coordinate_system", "position_update_hz", "bombsites"]);
+const MINIMAP_INIT_KEYS = new Set(["minimap_schema_version", "map_id", "coordinate_system", "grid", "position_update_hz", "rooms", "bombsites"]);
+const MINIMAP_GRID_KEYS = new Set(["x", "z"]);
+const MINIMAP_ROOM_KEYS = new Set(["room_id", "zone", "name", "shape", "prefab", "x", "y", "z", "yaw_degrees"]);
 const MINIMAP_BOMBSITE_KEYS = new Set(["label", "x", "y", "z", "zone", "room_id"]);
 const MINIMAP_FRAME_KEYS = new Set(["minimap_schema_version", "map_id", "visibility_revision", "viewer", "viewpoint", "scoreboard_visible", "positions", "commander_keycard"]);
 const MINIMAP_VIEWER_KEYS = new Set(["player_id", "team_id", "is_alive"]);
@@ -736,6 +774,8 @@ function isMarkerStatusAge(status: unknown, age: unknown): boolean {
   return false;
 }
 const hasOnlyKeys = (value: Record<string, unknown>, keys: ReadonlySet<string>) => Object.keys(value).every((key) => keys.has(key));
+
+const isRoomText = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MINIMAP_MAX_ROOM_TEXT_LENGTH;
 
 function isMinimapPlace(value: Record<string, unknown>): boolean {
   return isFiniteNumber(value.x) && isFiniteNumber(value.y) && isFiniteNumber(value.z)
