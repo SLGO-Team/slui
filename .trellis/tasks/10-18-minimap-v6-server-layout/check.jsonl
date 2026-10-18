@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Verify v6 contract, artwork fallback (prefab -> zone+shape -> skip) and removed generator rules"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Verify no generator/game-version pinning remains and plugin stays authoritative"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Required checks: lint, test, build, visual audit"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Parser, sidecar fixtures and plugin self-check must agree"}
