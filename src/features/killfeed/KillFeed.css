@@ -1,0 +1,135 @@
+/* CS2 top-right killfeed: CSGOHudDeathNotice (huddeathnotice.xml / huddeathnotice.css) on the 1920x1080 canvas,
+   checked against the user's 1080p captures of 2026-10-05 (kept locally): rows 31px high with the border, 3px
+   apart, the first at y 75, right edge at x 1910; the capture wins over Panorama where they differ (backgrounds).
+   Stratum2 bold ("Stratum2 Killfeed") is registered in src/shared/fonts.ts; CJK names fall back to Noto Sans SC
+   scaled by 0.9 like the other panels. No text shadow (cs2-visual-replication.md), although Panorama declares one.
+
+   Motion (Panorama): a new notice fades in over 0.2 s (`.Available`); 5 s after it arrived (7.5 s for the viewer's
+   own kill or death) it fades out over 1 s (`DeathNoticeFadeOutTime`); the others move up over 0.2 s. */
+@font-face {
+  font-family: "Noto Sans SC Killfeed";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+.killfeed-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.killfeed-overlay *,
+.killfeed-overlay *::before,
+.killfeed-overlay *::after {
+  box-sizing: border-box;
+}
+
+.killfeed-canvas {
+  --killfeed-scale: 1;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  margin-left: -960px;
+  transform: scale(var(--killfeed-scale));
+  transform-origin: top center;
+}
+
+/* CSGOHudDeathNotice: margin-top 72px, padding-right 10px, right-aligned; #VisibleNotices flows down. */
+.killfeed {
+  position: absolute;
+  top: 72px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* .DeathNotice margin-top 3px, radius 3px. Backgrounds as measured on the capture: every Panorama alpha shows at
+   about 0.79 of its value (plain hud-blur-bg-color #000000a0 reads 0.5, the viewer's kill #000000e7 0.72, the
+   viewer's death #630606d2 0.65); the overlay cannot blur the game behind it. The killer border keeps #e10000
+   (the capture's border luminance matches it; JPEG chroma dulls the red) and is drawn inset so a notice keeps its
+   size whatever the viewer's part in it. */
+.killfeed__notice {
+  margin-top: 3px;
+  border-radius: 3px;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.killfeed__notice--killer {
+  background-color: rgba(0, 0, 0, 0.72);
+  box-shadow: inset 0 0 0 2px #e10000;
+}
+
+.killfeed__notice--victim {
+  background-color: rgba(99, 6, 6, 0.65);
+}
+
+.killfeed__notice--timed {
+  animation: killfeed-fade 1000ms ease-out var(--killfeed-fade-delay, 0ms) forwards;
+}
+
+.killfeed__notice--timed.killfeed__notice--enter {
+  animation:
+    killfeed-enter 200ms ease-out both,
+    killfeed-fade 1000ms ease-out var(--killfeed-fade-delay, 0ms) forwards;
+}
+
+@keyframes killfeed-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes killfeed-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* .DeathNoticeContent: flow right, padding 6px 10px 3px 10px. */
+.killfeed__content {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px 3px 10px;
+}
+
+/* .DeathNoticeContent Label: 16px stratum bold, margins 0 2px 2px, at most 160px with an ellipsis. */
+.killfeed__name,
+.killfeed__plus {
+  margin: 0 2px 2px 2px;
+  font: 700 16px/20px "Stratum2 Killfeed", "Noto Sans SC Killfeed", sans-serif;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.killfeed__name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.killfeed__plus {
+  color: #fff;
+}
+
+/* .DeathNotice_Killer .DeathNoticeContent Label: 15px, letter-spacing .5px. */
+.killfeed__notice--killer .killfeed__name,
+.killfeed__notice--killer .killfeed__plus {
+  font-size: 15px;
+  letter-spacing: 0.5px;
+}
+
+/* .DeathNoticeIcon: 24px high, margin -2px 2px 0 2px, vertically centred. */
+.killfeed__icon {
+  flex: none;
+  height: 24px;
+  width: auto;
+  margin: -2px 2px 0 2px;
+}

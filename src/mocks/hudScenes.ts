@@ -1,5 +1,9 @@
 import type {
   HudAmmo,
+  HudKillfeedEntry,
+  HudKillfeedPlayer,
+  HudKillfeedSnapshot,
+  HudKillfeedWeapon,
   HudKillKind,
   HudMessagesSnapshot,
   HudStatusSnapshot,
@@ -43,6 +47,7 @@ export const HUD_SCENES = [
   "bottom-fire",
   "bottom-balance",
   "bottom-dead",
+  "killfeed",
 ] as const;
 export type HudScene = typeof HUD_SCENES[number];
 
@@ -70,6 +75,7 @@ export const HUD_SCENE_LABELS: Readonly<Record<HudScene, string>> = {
   "bottom-fire": "底部 开火与换弹",
   "bottom-balance": "底部 余额变化",
   "bottom-dead": "底部 死亡（隐藏）",
+  killfeed: "右上击杀信息",
 };
 
 export function readHudScene(value: string | null): HudScene {
@@ -170,7 +176,9 @@ function sceneScript(scene: HudScene, viewerRole: Role): SceneScript {
     case "bottom-kills":
     case "bottom-fire":
     case "bottom-balance":
-    case "bottom-dead": return {};
+    case "bottom-dead":
+    // The killfeed scene is scripted separately (KILLFEED_KILLS).
+    case "killfeed": return {};
     case "all-slots": return { messages: {
       progress: { key: "SLGO_Progress_Generator_Shutdown", text: "你正在关闭发电机。", tone: "default", visibleMs: null, progress: { remainingMs: 7_000, totalMs: 7_000 } },
       alert: { key: "SFUI_Notice_Alert_Match_Point", text: "赛点", tone: "match_point", visibleMs: null },
@@ -193,6 +201,7 @@ const slotMessages = (script: SlotScript): readonly ScriptedMessage[] => Array.i
 export function hudSceneLoopMs(scene: HudScene, viewerRole: Role): number | null {
   const bottomLoop = BOTTOM_LOOP_MS[scene];
   if (bottomLoop !== undefined) return bottomLoop;
+  if (scene === "killfeed") return KILLFEED_LOOP_MS;
   const script = sceneScript(scene, viewerRole);
   const ends = [
     ...Object.values(script.messages ?? {}).flatMap((slot) => slotMessages(slot).map(messageEndMs)),
@@ -249,7 +258,13 @@ function panelAt(scene: HudScene, panel: ScriptedPanel, viewerRole: Role, elapse
 /** Local player overrides the debug HUD applies to its match.snapshot (balance, life). */
 export type HudSceneSelf = { money: number | null; alive: boolean };
 
-export type HudSceneFrame = { messages: HudMessagesSnapshot; result: RoundResultSnapshot; status: HudStatusSnapshot; self: HudSceneSelf };
+export type HudSceneFrame = {
+  messages: HudMessagesSnapshot;
+  result: RoundResultSnapshot;
+  status: HudStatusSnapshot;
+  killfeed: HudKillfeedSnapshot;
+  self: HudSceneSelf;
+};
 
 /** E-11 SR (the mock local player's rifle): 40-round magazine, SLGO bound reserve 120. */
 const MOCK_CLIP_MAX = 40;
@@ -295,6 +310,81 @@ function bottomStatusAt(scene: HudScene, viewerRole: Role, elapsedMs: number): H
   return { ammo: armed(mockAmmo(MOCK_CLIP_MAX, MOCK_RESERVE)), round_kills: [] };
 }
 
+/** Plugin `KillFeedRules`: 5 s, 7.5 s when the viewer (the mock local player, Nova) is the killer or the victim. */
+const KILLFEED_LIFETIME_MS = 5_000;
+const KILLFEED_VIEWER_LIFETIME_MS = 7_500;
+
+type MockKillfeedPlayer = { id: string; name: string; side: "viewer" | "opponent" };
+const kfPlayer = (id: number, name: string, side: MockKillfeedPlayer["side"]): MockKillfeedPlayer =>
+  ({ id: `76561198${String(id).padStart(9, "0")}`, name, side });
+const KF_NOVA = kfPlayer(1, "Nova", "viewer");
+const KF_ATLAS = kfPlayer(2, "Atlas", "viewer");
+const KF_CIPHER = kfPlayer(3, "Cipher", "viewer");
+const KF_VANGUARD = kfPlayer(4, "Vanguard", "viewer");
+const KF_ECHO = kfPlayer(5, "Echo", "viewer");
+const KF_ROOK = kfPlayer(6, "Rook", "opponent");
+const KF_STRIKER = kfPlayer(7, "Striker", "opponent");
+const KF_SPECTER = kfPlayer(8, "Specter", "opponent");
+const KF_PHANTOM = kfPlayer(9, "Phantom", "opponent");
+const KF_WARDEN = { ...kfPlayer(10, "Warden", "opponent"), name: "TheLongestWardenNameOnTheServer_xX" };
+
+/**
+ * A kill of the `killfeed` scene; the weapon depends on the killer's side (NTF guns, SCP attacks). A killer that is
+ * the victim is a self-kill, no killer a death without an attacker; both are suicides (skull, no weapon).
+ */
+type ScriptedKill = {
+  atMs: number;
+  killer: MockKillfeedPlayer | null;
+  assister?: MockKillfeedPlayer;
+  victim: MockKillfeedPlayer;
+  weapon?: Readonly<Record<Role, HudKillfeedWeapon>>;
+  /** Headshots only happen to NTF firearms. */
+  headshot?: boolean;
+};
+
+/**
+ * `killfeed`: an enemy kill, the viewer's headshot with an assist, a self-kill, a weapon without artwork (fallback
+ * skull), a long name, a death without an attacker and the viewer's death, so the stack shows every notice style
+ * at once around 7 s.
+ */
+const KILLFEED_KILLS: readonly ScriptedKill[] = [
+  { atMs: 500, killer: KF_ROOK, victim: KF_ATLAS, weapon: { ntf: "ak", scp: "scp939" } },
+  { atMs: 1_800, killer: KF_NOVA, assister: KF_CIPHER, victim: KF_STRIKER, weapon: { ntf: "e11sr", scp: "scp173" }, headshot: true },
+  { atMs: 3_200, killer: KF_PHANTOM, victim: KF_PHANTOM },
+  { atMs: 4_400, killer: KF_VANGUARD, victim: KF_SPECTER, weapon: { ntf: "com45", scp: "other" } },
+  { atMs: 5_600, killer: KF_ECHO, victim: KF_WARDEN, weapon: { ntf: "grenade_he", scp: "scp096" } },
+  { atMs: 6_300, killer: null, victim: KF_CIPHER },
+  { atMs: 7_000, killer: KF_ROOK, victim: KF_NOVA, weapon: { ntf: "logicer", scp: "scp106" } },
+];
+const KILLFEED_LOOP_MS = Math.max(...KILLFEED_KILLS.map((kill) => kill.atMs)) + KILLFEED_VIEWER_LIFETIME_MS + 1_000 + LOOP_GAP_MS;
+
+function killfeedAt(scene: HudScene, viewerRole: Role, elapsedMs: number, run: number): HudKillfeedSnapshot {
+  if (scene !== "killfeed") return { entries: [] };
+  const sideRole = (player: MockKillfeedPlayer): Role => player.side === "viewer" ? viewerRole : otherRole(viewerRole);
+  const wire = (player: MockKillfeedPlayer): HudKillfeedPlayer => ({ player_id: player.id, display_name: player.name, team: sideRole(player) });
+  const entries: HudKillfeedEntry[] = [];
+  KILLFEED_KILLS.forEach((kill, index) => {
+    const suicide = kill.killer === null || kill.killer === kill.victim;
+    const viewer = kill.victim === KF_NOVA ? "victim" : kill.killer === KF_NOVA ? "killer" : null;
+    const lifetime = viewer === null ? KILLFEED_LIFETIME_MS : KILLFEED_VIEWER_LIFETIME_MS;
+    const left = kill.atMs + lifetime - elapsedMs;
+    if (elapsedMs < kill.atMs || left <= 0) return;
+    const killerRole = kill.killer === null ? null : sideRole(kill.killer);
+    entries.push({
+      entry_id: `${scene}-${run}-${index}`,
+      suicide,
+      killer: kill.killer === null ? null : wire(kill.killer),
+      assister: suicide || !kill.assister ? null : wire(kill.assister),
+      victim: wire(kill.victim),
+      weapon: suicide || killerRole === null || !kill.weapon ? "other" : kill.weapon[killerRole],
+      headshot: !suicide && killerRole === "ntf" && kill.headshot === true,
+      viewer,
+      visible_remaining_ms: Math.round(left),
+    });
+  });
+  return { entries };
+}
+
 function bottomSelfAt(scene: HudScene, elapsedMs: number): HudSceneSelf {
   if (scene === "bottom-dead") return { money: null, alive: false };
   if (scene !== "bottom-balance") return { money: null, alive: true };
@@ -321,6 +411,7 @@ export function createHudSceneFrame(scene: HudScene, viewerRole: Role, elapsedMs
     },
     result: { panel: script.panel ? panelAt(scene, script.panel, viewerRole, elapsedMs, run) : null },
     status: bottomStatusAt(scene, viewerRole, elapsedMs),
+    killfeed: killfeedAt(scene, viewerRole, elapsedMs, run),
     self: bottomSelfAt(scene, elapsedMs),
   };
 }
