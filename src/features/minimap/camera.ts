@@ -44,10 +44,11 @@ export function createRadarCamera(geometry: MapGeometry, viewpoint: MinimapViewp
     const mapScale = activeMapScale ?? settings.mapScale;
     const scale = RADAR_RADIUS / (RADAR_NORMAL_WORLD_RADIUS * 0.70 / mapScale);
     let center = { x: viewpoint.x, z: viewpoint.z };
-    if (!settings.alwaysCentered) {
-      // Clamp in camera axes, so heading-up uses the rotated zone's actual extent.
-      const points = geometry.rooms.filter((room) => room.zone === viewpoint.zone)
-        .flatMap((room) => room.footprint.flat()).map((point) => rotatePoint({ x: point.x, y: -point.z }, -yaw));
+    // Clamp in camera axes, so heading-up uses the rotated zone's actual extent. A layout may lack the viewpoint's
+    // zone (the protocol needs only one room); then there is nothing to clamp to.
+    const points = settings.alwaysCentered ? [] : geometry.rooms.filter((room) => room.zone === viewpoint.zone)
+      .flatMap((room) => room.footprint.flat()).map((point) => rotatePoint({ x: point.x, y: -point.z }, -yaw));
+    if (points.length) {
       const projected = rotatePoint({ x: center.x, y: -center.z }, -yaw);
       const clamp = (value: number, values: number[]): number => {
         const min = Math.min(...values), max = Math.max(...values), half = radius / scale;

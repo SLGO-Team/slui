@@ -76,7 +76,7 @@ declare global {
     __SLUI_MINIMAP_DEBUG__?: {
       configure(options: Partial<MinimapPreviewOptions>): void;
       setFocused(focused: boolean): void;
-      rebuild(seed?: number): void;
+      rebuild(layout?: number): void;
       invalidate(kind: "invalid" | "incompatible"): void;
       disconnect(): Promise<void>;
       reconnect(): void;
@@ -274,7 +274,7 @@ function App() {
     const control: NonNullable<Window["__SLUI_MINIMAP_DEBUG__"]> = {
       configure: (options) => setMinimapOptions((current) => ({ ...current, ...options })),
       setFocused: previewFocus.setFocused,
-      rebuild: (seed) => mockConnection.rebuildMinimap(seed),
+      rebuild: (layout) => mockConnection.rebuildMinimap(layout),
       invalidate: (kind) => mockConnection.invalidateMinimap(kind),
       disconnect: () => mockConnection.disconnect(),
       reconnect: session.retry,

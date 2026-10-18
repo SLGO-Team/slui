@@ -39,12 +39,13 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
 
 const MapRooms = memo(function MapRooms({ geometry, activeZone, filterPrefix }: {
   geometry: MapGeometry; activeZone: RadarCamera["zone"]; filterPrefix: string }) {
-  return geometry.rooms.map((room) => <g key={room.id} className="minimap-map__room" data-room-id={room.id} data-zone={room.zone}
-    data-prefab={room.prefabName} data-active={activeZone === null || activeZone === room.zone}
+  // A room of an unknown shape has no artwork and is not drawn; it still names a place for the location title.
+  return geometry.rooms.flatMap(({ artwork, ...room }) => artwork ? [<g key={room.id} className="minimap-map__room" data-room-id={room.id}
+    data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-active={activeZone === null || activeZone === room.zone}
     filter={`url(#${filterPrefix}-${room.zone === "Entrance" ? "entrance" : "hcz"})`}>
-    <image href={room.artwork.href} width={room.artwork.width} height={room.artwork.height}
-      transform={roomArtworkToWorld(room.artwork)} preserveAspectRatio="xMidYMid meet" />
-  </g>);
+    <image href={artwork.href} width={artwork.width} height={artwork.height}
+      transform={roomArtworkToWorld(artwork)} preserveAspectRatio="xMidYMid meet" />
+  </g>] : []);
 });
 
 function FrozenMarker({ marker, className, wash }: { marker: RadarMarker; className: string; wash: string }) {

@@ -163,10 +163,7 @@ function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { ty
   if (action.type === "resolved") {
     if (action.token !== state.requestToken || !state.init || !state.identity || !state.baselineAccepted
       || action.descriptorKey !== mapDescriptorKey(state.init) || action.geometry.descriptorKey !== action.descriptorKey) return state;
-    // Like a frame's poses, a bombsite room must belong to its zone; a mismatch rejects the whole init.
-    if (!state.init.bombsites.every((site) => site.room_id === null || action.geometry.roomById.get(site.room_id)?.zone === site.zone)) {
-      return clearInit({ ...state, ...NO_MAP }, "invalid");
-    }
+    // The parser already checked that every bombsite room is one of the init's rooms, in its zone.
     const next = { ...state, geometry: action.geometry, bombsites: state.init.bombsites, availability: "syncing" as const };
     return state.pendingFrame ? commitFrame(next, state.pendingFrame, action.nowMs) : next;
   }
