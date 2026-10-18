@@ -148,23 +148,71 @@ for (const [label, payload] of invalidFrames) {
   assert.equal(result.ok, false, label);
   assert.equal(result.error.code, "invalid-payload", label);
 }
-for (const minimap_schema_version of [undefined, 1, 2, 3, 4, 6]) {
+for (const minimap_schema_version of [undefined, 1, 2, 3, 4, 5, 7]) {
   assert.equal(parseMinimapInit({ ...init, minimap_schema_version }).error.code, "unsupported-minimap-schema");
   assert.equal(parseMinimapPositions({ ...frame, minimap_schema_version }).error.code, "unsupported-minimap-schema");
 }
-for (const key of ["game_version", "map_generator", "map_generator_version", "map_schema_version", "coordinate_system"]) {
-  assert.equal(parseMinimapInit({ ...init, [key]: "unknown" }).error.code, "unsupported-minimap-map");
-}
+assert.equal(parseMinimapInit({ ...init, coordinate_system: "unknown" }).error.code, "unsupported-minimap-map");
 for (const position_update_hz of [Number.NaN, Infinity, 0, -1, 61]) assert.equal(parseMinimapInit({ ...init, position_update_hz }).ok, false);
 assert.equal(parseMinimapInit({ ...init, all_players: [] }).ok, false);
-assert.equal(parseMinimapInit({ ...init, holiday: ["None"] }).ok, false, "holiday must be a wire string, not a coercible array");
+// v6 dropped the generator descriptor: the old fields are now unknown keys, never a version to negotiate.
+for (const [key, value] of [["game_version", "14.2.7"], ["map_generator", "@scpsl-tools/map-seed"], ["map_generator_version", "1.0.0"],
+  ["map_schema_version", 1], ["seed", 1062329959], ["holiday", "None"]]) {
+  assert.equal(parseMinimapInit({ ...init, [key]: value }).error.code, "invalid-payload", `v5 ${key} is rejected`);
+}
 
-// v5 bombsites: static init data, one uppercase letter each, a heading-less pose with the marker zone/room rules.
+// v6 layout: the plugin's actual rooms; name / shape / prefab are open game identifiers.
+const room = init.rooms[0];
+assert.ok(init.rooms.length >= 60, "public init example carries a complete generated layout");
+assert.equal(parseMinimapInit({ ...init, rooms: [room], bombsites: [] }).ok, true, "a single room is a layout");
+assert.equal(parseMinimapInit({ ...init, rooms: [...init.rooms, { ...room, room_id: "room-new", name: "HczFutureRoom", shape: "LShape", prefab: "HCZ_Future" }] }).ok, true,
+  "unknown name, shape and prefab strings are accepted for the client to degrade");
+assert.equal(parseMinimapInit({ ...init, rooms: Array.from({ length: 256 }, (_, index) => ({ ...room, room_id: `room-${index}` })), bombsites: [] }).ok, true,
+  "256 rooms");
+assert.equal(parseMinimapInit({ ...init, grid: { x: 15.5, z: 20 } }).ok, true, "grid is the game's value, not a pinned constant");
+const invalidLayouts = [
+  ["missing grid", { ...init, grid: undefined }],
+  ["grid zero", { ...init, grid: { x: 0, z: 15 } }],
+  ["grid negative", { ...init, grid: { x: 15, z: -15 } }],
+  ["grid non-finite", { ...init, grid: { x: Infinity, z: 15 } }],
+  ["grid string", { ...init, grid: { x: "15", z: 15 } }],
+  ["grid extra key", { ...init, grid: { x: 15, y: 100, z: 15 } }],
+  ["missing rooms", { ...init, rooms: undefined }],
+  ["empty rooms", { ...init, rooms: [], bombsites: [] }],
+  ["object rooms", { ...init, rooms: { [room.room_id]: room } }],
+  ["too many rooms", { ...init, rooms: Array.from({ length: 257 }, (_, index) => ({ ...room, room_id: `room-${index}` })), bombsites: [] }],
+  ["duplicate room id", { ...init, rooms: [...init.rooms, { ...room, x: room.x + 15 }] }],
+  ["null room", { ...init, rooms: [...init.rooms, null] }],
+  ["room unknown key", { ...init, rooms: [{ ...room, connectors: [] }, ...init.rooms.slice(1)] }],
+  ["room LCZ", { ...init, rooms: [{ ...room, zone: "LightContainment" }, ...init.rooms.slice(1)] }],
+  ["room yaw 360", { ...init, rooms: [{ ...room, yaw_degrees: 360 }, ...init.rooms.slice(1)] }],
+  ["room yaw negative", { ...init, rooms: [{ ...room, yaw_degrees: -90 }, ...init.rooms.slice(1)] }],
+];
+for (const key of ["room_id", "name", "shape", "prefab"]) {
+  for (const value of [undefined, null, "", " ", 1, ["Hcz049"], "x".repeat(65)]) {
+    invalidLayouts.push([`room ${key} ${JSON.stringify(value)}`, { ...init, rooms: [{ ...room, [key]: value }, ...init.rooms.slice(1)] }]);
+  }
+}
+for (const key of ["x", "y", "z", "yaw_degrees"]) {
+  for (const value of [Number.NaN, Infinity, -Infinity, "1", undefined]) {
+    invalidLayouts.push([`room ${key} ${String(value)}`, { ...init, rooms: [{ ...room, [key]: value }, ...init.rooms.slice(1)] }]);
+  }
+}
+for (const [label, payload] of invalidLayouts) {
+  const result = parseMinimapInit(payload);
+  assert.equal(result.ok, false, label);
+  assert.equal(result.error.code, "invalid-payload", label);
+}
+assert.equal(parseMinimapInit({ ...init, rooms: [{ ...room, name: "x".repeat(64) }, ...init.rooms.slice(1)] }).ok, true, "64 characters fit");
+
+// v5 bombsites: static init data, one uppercase letter each, a heading-less pose with the marker zone/room rules;
+// since v6 a non-null room must be one of the init's rooms, in the site's zone.
 const site = init.bombsites[0];
+const entranceRoom = init.rooms.find((candidate) => candidate.zone === "Entrance");
 assert.deepEqual(init.bombsites.map(({ label }) => label), ["A", "B"], "public init example carries A and B");
 assert.equal(parseMinimapInit({ ...init, bombsites: [] }).ok, true, "a map may have no bombsites");
 assert.equal(parseMinimapInit({ ...init, bombsites: [{ ...site, room_id: null }] }).ok, true, "an unmapped room is null");
-assert.equal(parseMinimapInit({ ...init, bombsites: [{ ...site, label: "B" }, { ...site, label: "A", zone: "Entrance", room_id: null }] }).ok, true,
+assert.equal(parseMinimapInit({ ...init, bombsites: [{ ...site, label: "B" }, { ...site, label: "A", zone: "Entrance", room_id: entranceRoom.room_id }] }).ok, true,
   "array order carries no meaning");
 assert.equal(parseMinimapInit({ ...init, bombsites: Array.from({ length: 26 }, (_, index) => ({ ...site, label: String.fromCharCode(65 + index) })) }).ok, true,
   "every letter A-Z");
@@ -187,6 +235,8 @@ const invalidInits = [
   ["unknown key", { ...init, bombsites: [{ ...site, radius: 5 }] }],
   ["non-object site", { ...init, bombsites: ["A"] }],
   ["null site", { ...init, bombsites: [null] }],
+  ["room not in layout", { ...init, bombsites: [{ ...site, room_id: "room-999" }] }],
+  ["room in the other zone", { ...init, bombsites: [{ ...site, room_id: entranceRoom.room_id }] }],
 ];
 for (const key of ["x", "y", "z"]) {
   for (const value of [Number.NaN, Infinity, -Infinity, "1", undefined]) invalidInits.push([`bombsite ${key} ${String(value)}`, { ...init, bombsites: [{ ...site, [key]: value }] }]);
@@ -196,9 +246,6 @@ for (const [label, payload] of invalidInits) {
   assert.equal(result.ok, false, label);
   assert.equal(result.error.code, "invalid-payload", label);
 }
-assert.equal(parseMinimapInit({ ...init, seed: 0 }).ok, false);
-assert.equal(parseMinimapInit({ ...init, seed: 1.5 }).ok, false);
-assert.equal(parseMinimapInit({ ...init, seed: 2147483648 }).ok, false);
 for (const event of [initExample, frameExample]) {
   for (const round_id of [undefined, null, " "]) assert.equal(parseEvent({ ...event, round_id }).error.code, "invalid-envelope");
   assert.equal(parseEvent({ ...event, sent_at: undefined }).error.code, "invalid-envelope");
@@ -269,7 +316,7 @@ assert.equal(statuses.length, statusCount, "old invalid baseline cannot disturb 
 assert.equal(connection.receive(event("minimap.positions", 6, sharedFrame)).ok, true);
 for (const [sequence, payload, kind] of [
   [7, { ...init, minimap_schema_version: undefined }, "incompatible-payload"],
-  [8, { ...init, game_version: "unknown" }, "incompatible-map"],
+  [8, { ...init, coordinate_system: "unknown" }, "incompatible-map"],
 ]) {
   assert.equal(connection.receive(event("minimap.init", sequence, payload)).ok, false);
   assert.equal(diagnostics.at(-1).kind, kind);

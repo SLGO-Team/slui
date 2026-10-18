@@ -626,7 +626,7 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
 }
 
 const minimapFrame = {
-  minimap_schema_version: 5, map_id: "map-1", visibility_revision: 1,
+  minimap_schema_version: 6, map_id: "map-1", visibility_revision: 1,
   viewer: { player_id: "p1", team_id: "team-a", is_alive: true },
   viewpoint: null, scoreboard_visible: false,
   positions: [{ player_id: "p1", team_id: "team-a", role: "ntf", visibility: "self", status: "live", status_age_ms: 0, has_commander_keycard: false, x: 0, y: -100, z: 0, yaw_degrees: 0, zone: "HeavyContainment", room_id: null }],

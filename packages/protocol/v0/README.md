@@ -20,9 +20,9 @@ minimap events stay on the sidecar connection.
 ## Compatibility
 
 - `protocol_version`: `0`
-- Envelope `schema_version`: `1`; minimap payload `minimap_schema_version`: `5`.
-- Current game template: SCP:SL `14.2.7`
-- Map generator: `@scpsl-tools/map-seed` pinned to release `1.0.0`
+- Envelope `schema_version`: `1`; minimap payload `minimap_schema_version`: `6`.
+- No game version is pinned: since minimap v6 the plugin sends the actual map
+  layout, so a game update does not change this protocol.
 - `schema_version` is an integer and must be rejected when unknown.
 - `sequence` is monotonic within one `server_id` + `instance_id` stream.
 - A new `instance_id` requires a fresh baseline before incremental events are
@@ -30,7 +30,7 @@ minimap events stay on the sidecar connection.
 - Clients skip event types they do not know (`unsupported-event-type`): the
   frame consumes its sequence and the stream stays live. New event types that
   older clients may simply ignore therefore need no handshake change; only
-  payloads older clients must not receive (like minimap v5) are negotiated in
+  payloads older clients must not receive (like minimap v6) are negotiated in
   `session.open`.
 
 ## Event envelope
@@ -67,7 +67,7 @@ Payload schemas:
 | client -> sidecar | `session.open` | First WebSocket frame: session token + capabilities |
 | sidecar -> client | `sidecar.baseline` | Validated synchronization barrier after connect/restart |
 | sidecar -> client | `match.snapshot` | Round, score, teams, players, timer |
-| sidecar -> client | `minimap.init` | Map seed and generator/template versions |
+| sidecar -> client | `minimap.init` | Actual room layout and bombsites of a map generation |
 | sidecar -> client | `minimap.positions` | Player positions already filtered by in-game visibility |
 | client -> sidecar | `command.shop.purchase` | Plugin-defined purchase request |
 | client -> sidecar | `command.chat.send` | Plugin-defined chat request |
@@ -204,7 +204,7 @@ kill this round in order (at most 64), reset when the buy phase starts like
 `match.snapshot` `kills`: `grenade` (explosion), `shock` (Micro-HID) or
 `default` (`HUD_KILL_KINDS`). Every object rejects unknown fields.
 
-## Minimap payload v5
+## Minimap payload v6
 
 Both minimap event types require non-empty envelope `round_id` and valid `sent_at`.
 Each physical map generation gets a non-reused `map_id`, including when a seed is
@@ -214,9 +214,9 @@ barrier, not a map snapshot. An invalid baseline cannot authorize later frames.
 
 Only `Entrance` and `HeavyContainment` are supported. The coordinate system is
 Unity world XZ projected as `(x, -z)`. Finite `yaw_degrees` lies in `[0, 360)`:
-zero points toward +Z and 90 toward +X. Non-null `room_id` refers to the pinned
-generator's room identity in the declared zone, requiring a trusted plugin
-mapping; an unknown room is represented by null, never a guessed id.
+zero points toward +Z and 90 toward +X. Non-null `room_id` names a room of the
+current `minimap.init.rooms` in the declared zone; a position outside any known
+room is represented by null, never a guessed id.
 
 Each frame atomically carries the stable authenticated `viewer`, spatial
 `viewpoint`, actual plugin `scoreboard_visible` state and filtered `positions`.
@@ -252,6 +252,31 @@ Observed players are sent as `live` (or `dead` for a death marker) without line
 of sight; they are never the viewer, never a teammate of an assigned viewer and
 never `last-known`. Whether a viewer has these rights is a plugin decision; the
 client does not infer it.
+
+### Layout (v6)
+
+v6 replaces the client-side map generator with the plugin's actual layout and
+changes nothing else; `minimap.positions` only bumps its version. `minimap.init`
+drops `game_version`, `map_generator`, `map_generator_version`,
+`map_schema_version`, `seed` and `holiday` (now unknown keys) and adds:
+
+- `grid`: `{ x, z }`, the game's room grid cell (`RoomIdentifier.GridScale`,
+  currently 15 x 15), finite and positive. One room canvas covers one cell.
+- `rooms`: 1 to 256 (`MINIMAP_MAX_ROOMS`) objects `{ room_id, zone, name,
+  shape, prefab, x, y, z, yaw_degrees }`, the Entrance / HeavyContainment rooms
+  the game actually spawned for this `map_id`. `room_id` is unique within the
+  init. `name` (game `RoomName`), `shape` (game `RoomShape`) and `prefab` (the
+  spawned prefab, holiday variants included) are the game's own identifiers and
+  deliberately open strings (non-blank, at most 64 characters,
+  `MINIMAP_MAX_ROOM_TEXT_LENGTH`): a game update that adds a room must not
+  reject the init. `x`/`y`/`z` is the room origin and `yaw_degrees` its
+  rotation, with the pose conventions above.
+
+The plugin numbers rooms `room-000`, `room-001`, ... sorted by zone, then x,
+then z; the client treats the id as opaque. The layout is static for a
+`map_id` and replaced only by a new init. Clients render the prefabs they have
+artwork for and degrade the rest (SLUI: generic artwork by zone and shape, or
+nothing for an unknown shape).
 
 ### Commander keycard (v4)
 
@@ -296,8 +321,8 @@ configuration order (first = `A`, second = `B`, ...) with the same calculation
 that places the generators, skips a room missing from this map without shifting
 later letters, and skips sites outside Entrance / HeavyContainment. Sites are
 static for a `map_id` (sent during warmup too, before any generator spawns) and
-are replaced only by a new init. The client validates that a non-null `room_id`
-belongs to its zone in the resolved geometry and otherwise rejects the init.
+are replaced only by a new init. Since v6 the parser itself rejects an init whose
+non-null bombsite `room_id` is not one of its `rooms` in the same zone.
 
 A non-null viewpoint must exactly match a `live` authorized marker's pose:
 self while alive; while not alive, a teammate or an `observed` player (the
@@ -320,13 +345,13 @@ The adapter validates envelope, route and sequence before ordinary payloads.
 Even a rejected payload consumes its valid sequence; old events are ignored
 without disturbing a live connection. Baseline payload validation happens before
 sequence acceptance so invalid baselines cannot activate synchronization.
-Unknown minimap payload/generator versions produce local safe diagnostics and
+Unknown minimap payload versions or coordinate systems produce local safe diagnostics and
 leave later valid HUD/shop/chat events usable. Invalid envelope/global versions,
 route and authentication errors use continuous connection-status notifications.
 Diagnostics contain fixed categories and validated envelope metadata only.
 
 Legacy or unknown minimap payload versions are rejected. A sidecar must negotiate
-v5 capability before sending these frames to older clients; the mock implementation
+v6 capability before sending these frames to older clients; the mock implementation
 does not provide production capability negotiation. Actual plugin scoreboard
 state, viewer/room mapping and server-side LOS filtering remain integration
 dependencies. The client does not compute or verify physical LOS.
@@ -355,8 +380,8 @@ The client opens a WebSocket to the route's `sidecar_endpoint`. Its first text
 frame must be [session-open.schema.json](./session-open.schema.json)
 (`parseSessionOpen`), sent within 5 seconds, and carries the route's
 `session_token`, never in the URL. `minimap_schema_versions` lists the minimap
-payload versions the client can render. If it does not include `5`, the sidecar
-sends no `minimap.*` events on that connection. This is the v5 capability
+payload versions the client can render. If it does not include `6`, the sidecar
+sends no `minimap.*` events on that connection. This is the v6 capability
 negotiation.
 
 The token binds SteamID64, `server_id`, `instance_id` and identity mode. On

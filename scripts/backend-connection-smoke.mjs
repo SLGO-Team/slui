@@ -201,7 +201,7 @@ async function live(options) {
   const open = parseSessionOpen(socket.sent[0]);
   assert.equal(open.ok, true);
   assert.equal(open.value.session_token, route.sessionToken);
-  assert.deepEqual(open.value.minimap_schema_versions, [5]);
+  assert.deepEqual(open.value.minimap_schema_versions, [6]);
   assert.equal(connection.getStatus(), "baseline-required");
   await assert.rejects(connection.send({ kind: "command.chat.send", command_id: "early", scope: "team", body: "hi" }), /connection-not-live/, "no command before the baseline (the sidecar would close with 4000)");
   assert.equal(socket.sent.length, 1);
@@ -357,7 +357,7 @@ for (const [name, incoming, status, retry] of [
   ["wrong instance", () => event("chat.message", {}, { instance_id: "instance-other" }), "stale", "reroute"],
   ["unknown schema", () => ({ ...chat(), schema_version: 99 }), "incompatible", "none"],
   ["foreign viewer", () => event("minimap.positions", {
-    minimap_schema_version: 5, map_id: "map-1", visibility_revision: 1,
+    minimap_schema_version: 6, map_id: "map-1", visibility_revision: 1,
     viewer: { player_id: "76561198000000001", team_id: "team-a", is_alive: true },
     viewpoint: null, scoreboard_visible: false, positions: [], commander_keycard: null,
   }), "unauthorized", "none"],
