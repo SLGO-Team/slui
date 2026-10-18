@@ -49,6 +49,7 @@ Payload schemas:
 - [hud-messages.schema.json](./hud-messages.schema.json)
 - [round-result.schema.json](./round-result.schema.json)
 - [hud-status.schema.json](./hud-status.schema.json)
+- [hud-killfeed.schema.json](./hud-killfeed.schema.json)
 - [instance-ended.schema.json](./instance-ended.schema.json)
 - [command.schema.json](./command.schema.json)
 - [command-result.schema.json](./command-result.schema.json)
@@ -78,6 +79,7 @@ Payload schemas:
 | sidecar -> client | `hud.messages` | The viewer's bottom-centre message slots (progress, alert, high/low hint) |
 | sidecar -> client | `round.result` | The viewer's round / match result panel (win panel, MVP) |
 | sidecar -> client | `hud.status` | The viewer's bottom HUD: held firearm ammo and this round's kills |
+| sidecar -> client | `hud.killfeed` | The viewer's top-right killfeed (who killed whom, with what) |
 | sidecar -> client | `instance.ended` | Why the instance ended; the last frame before the 4003 close |
 
 The shop and chat payloads intentionally remain plugin-defined. SLUI must not
@@ -203,6 +205,44 @@ magazines), `reserve_icon` one of `bullet`, `shotgun_shell`,
 kill this round in order (at most 64), reset when the buy phase starts like
 `match.snapshot` `kills`: `grenade` (explosion), `shock` (Micro-HID) or
 `default` (`HUD_KILL_KINDS`). Every object rejects unknown fields.
+
+## HUD killfeed
+
+`hud.killfeed` is the viewer's top-right killfeed (CS2 `HudDeathNotice`):
+`killer (+ assister) [weapon] [headshot] victim`, one entry per death, oldest
+first. Snapshot, one recipient per publish, cached per recipient and replayed
+after the baseline. The plugin sends it only to players whose SLUI declares
+`hud-killfeed`, whenever an entry is added or the feed is cleared (a new
+round starts); it does not republish as time passes, so a client drops each
+entry itself when its time runs out. `sent_at` is required.
+
+`{ entries }`, at most 16 (`MAX_HUD_KILLFEED_ENTRIES`). Each entry has exactly:
+
+- `entry_id`: unique within the instance, 1-64 characters; a replay keeps it,
+  so a client can tell a replayed entry from a new one.
+- `suicide`: CS2 `DeathNoticeSuicide`, the skull drawn instead of the weapon.
+  A suicide has `assister` null, `headshot` false, `weapon` `other` and
+  `viewer` never `killer` (your own suicide is your death). Its `killer` is
+  the victim themself (a self-kill: CS2 shows "name skull name") or null for a
+  death without an attacker (fall, tesla, team change: "skull name").
+- `killer`, `assister`, `victim`: `{ player_id, display_name, team }`, where
+  `player_id` is a SteamID64 or null (test dummy, non-Steam account),
+  `display_name` plugin-sanitised plain text of 1-64 characters and `team`
+  the side at the time of the death (`ntf`, `scp`, null when unassigned).
+  `killer` is null only for a suicide. `assister` is the one assist CS2 shows
+  (the qualifying assister with the most damage) or null. Outside a suicide
+  the three non-null `player_id`s differ.
+- `weapon`: one of `HUD_KILLFEED_WEAPONS`, a closed set covering every SCP:SL
+  kill source (firearms, `particle_disruptor`, `jailbird`, `micro_hid`,
+  `grenade_he`, `scp018`, the attacking SCP for SCP attacks, `other` for the
+  rest). A client draws a fallback icon for ids it has no artwork for.
+- `headshot`: the killing blow was a firearm hit to the head.
+- `viewer`: `killer` or `victim` when the recipient is that player, else null
+  (CS2 draws the viewer's own kills black with a red border and the viewer's
+  death dark red).
+- `visible_remaining_ms`: integer > 0, the time left at `sent_at` before the
+  entry starts its 1 s fade-out. CS2 shows an entry 5 s, 7.5 s when the viewer
+  is its killer or victim; the plugin has already applied that.
 
 ## Minimap payload v6
 
@@ -423,6 +463,8 @@ Known features:
   `match.snapshot`).
 - `hud-status`: SLUI draws the bottom HUD, so the plugin sends `hud.status`
   to this player.
+- `hud-killfeed`: SLUI draws the top-right killfeed, so the plugin hides its
+  own killfeed hint and sends `hud.killfeed` to this player.
 
 A sidecar that predates the frame logs and drops it like an invalid command;
 the session stays open. The sidecar answers `failed` itself if the plugin is

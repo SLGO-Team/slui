@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
 import {
@@ -23,6 +23,8 @@ import { WinPanel } from "./features/winpanel/WinPanel";
 import { BottomHud } from "./features/bottomhud/BottomHud";
 import { hudStatusReducer, initialHudStatusState, selectBottomHud } from "./features/bottomhud/model";
 import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
+import { KillFeed } from "./features/killfeed/KillFeed";
+import { initialKillfeedState, killfeedReducer, selectKillfeed } from "./features/killfeed/model";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
 import { ShopDebugPanel } from "./mocks/ShopDebugPanel";
@@ -58,6 +60,7 @@ const OVERLAY_CLIENT_FEATURES = [
   CLIENT_FEATURE_HUD_MESSAGES,
   CLIENT_FEATURE_HUD_MONEY,
   CLIENT_FEATURE_HUD_STATUS,
+  CLIENT_FEATURE_HUD_KILLFEED,
 ] as const;
 
 // Mocks only in the explicit `mock` mode (npm run dev:mock).
@@ -119,6 +122,7 @@ function App() {
   const [winPanelState, dispatchWinPanel] = useReducer(winPanelReducer, initialWinPanelState);
   const [hudMessagesState, dispatchHudMessages] = useReducer(hudMessagesReducer, initialHudMessagesState);
   const [hudStatusState, dispatchHudStatus] = useReducer(hudStatusReducer, initialHudStatusState);
+  const [killfeedState, dispatchKillfeed] = useReducer(killfeedReducer, initialKillfeedState);
   const shopFeature = useShopFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
@@ -141,6 +145,7 @@ function App() {
     dispatchWinPanel({ type: "event", event, receivedAtMs });
     dispatchHudMessages({ type: "event", event, receivedAtMs });
     dispatchHudStatus({ type: "event", event });
+    dispatchKillfeed({ type: "event", event, receivedAtMs });
     shopFeature.receiveEvent(event);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
@@ -154,6 +159,7 @@ function App() {
     dispatchWinPanel({ type: "connection", status });
     dispatchHudMessages({ type: "connection", status });
     dispatchHudStatus({ type: "connection", status });
+    dispatchKillfeed({ type: "connection", status });
     shopFeature.setConnectionStatus(status);
     connectionLiveRef.current = status === "live";
     chatFeature.setConnectionStatus(status);
@@ -420,6 +426,7 @@ function App() {
   const winPanel = useMemo(() => selectWinPanel(winPanelState, nowMs, winPanelRoster), [nowMs, winPanelRoster, winPanelState]);
   const hudSceneStill = HUD_DEBUG_ENABLED && debugOptions.hudSceneAt !== null;
   const messageZone = useMemo(() => selectMessageZone(hudMessagesState, nowMs), [hudMessagesState, nowMs]);
+  const killfeed = useMemo(() => selectKillfeed(killfeedState, nowMs), [killfeedState, nowMs]);
   // The mock identity is a team-a player; the debug build reads team-b's loadout from its first player.
   const progressPlayerId = HUD_DEBUG_ENABLED && hud.hasSnapshot
     && !hud.teams.some((team) => team.relation === "viewer" && team.players.some((player) => player.player_id === localSteamId))
@@ -467,6 +474,7 @@ function App() {
       <BottomHud view={bottomHud} still={hudSceneStill} />
       <ProgressCard card={progressCard} still={hudSceneStill} />
       <MessageZone zone={messageZone} still={hudSceneStill} />
+      <KillFeed notices={killfeed} still={hudSceneStill} />
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
         renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")

@@ -140,6 +140,8 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
     pack: stratum("stratum2bold_monodigit.ttf", CAP_CENTERED),
     fallback: barlow("Bold", CAP_CENTERED, true),
   },
+  // Killfeed (KillFeed.css): stratum-bold names, vertically centred against the icons like Panorama.
+  { family: "Stratum2 Killfeed", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
 ];
 
 export type ResolvedFontFace = {

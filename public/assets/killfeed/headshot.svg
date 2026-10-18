@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="32" viewBox="0 0 40 32">
+  <!-- SLUI-drawn headshot mark (CS2 #HeadShot, drawn after a 1080p capture): a head facing right with the entry
+       hole on its upper left and the round leaving through its right side. -->
+  <defs>
+    <mask id="head-holes" maskUnits="userSpaceOnUse" x="0" y="0" width="40" height="32">
+      <rect width="40" height="32" fill="#fff"/>
+      <circle cx="11" cy="10.2" r="3" fill="#000"/>
+      <circle cx="19.4" cy="14.6" r="1.2" fill="#000"/>
+    </mask>
+  </defs>
+  <ellipse cx="14.5" cy="16" rx="9.5" ry="12.6" transform="rotate(-10 14.5 16)" fill="#fff" mask="url(#head-holes)"/>
+  <path d="M23.4 11.2H35.6M25.6 14.2H31.4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M33.2 8.4L36.4 11.2L33.2 14" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

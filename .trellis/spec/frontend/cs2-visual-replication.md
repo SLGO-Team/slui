@@ -498,3 +498,50 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
   (no firearm). Run `npm run bottomhud-layout-audit` (CDP on port 9223, preview at `BOTTOMHUD_PREVIEW_URL`,
   viewport from `BOTTOMHUD_VIEWPORT_WIDTH/HEIGHT`) at 1920x1080 and a smaller 16:9 size before accepting a
   visual change.
+
+## 14. Killfeed-specific replication rules
+
+The killfeed is a hand-built React feature under `src/features/killfeed` (`model.ts`, `presentation.ts`,
+`KillFeed.tsx` / `KillFeed.css`), recreating CS2's `CSGOHudDeathNotice` (`huddeathnotice.xml` /
+`huddeathnotice.css`) from `hud.killfeed` (packages/protocol/v0 README "HUD killfeed"; plugin task
+`10-18-killfeed` in the SLGO repository). Checked against the user's 1080p captures of 2026-10-05 (Steam
+screenshots kept locally: the viewer's headshot kills, a bot's suicide, the viewer's suicide); the first build
+from Panorama alone was rejected in review (2026-10-18: "not like CS2 at all") for SLGO colours, too dark
+backgrounds and the wrong suicide and headshot marks.
+
+- Data: every `hud.killfeed` is the recipient's whole feed, oldest first. An entry keeps its first-seen time
+  across copies (a replay never slides in again) and starts fading at receive time + `visible_remaining_ms`
+  (the plugin already applied CS2's 1.5x for the viewer's own kill or death). An entry the next copy leaves out
+  disappears at once (a new round clears the feed) unless it is already fading, which it finishes. Another
+  instance's baseline or an ended session clears the feed; a reconnect to the same instance keeps it.
+- Content order (CS2): killer, `+` and the assister, weapon icon, headshot icon, victim. A suicide
+  (`suicide`, CS2 `DeathNoticeSuicide`) draws the skull and crossbones instead of the weapon; a self-kill keeps
+  the killer, so it reads "name skull name" as in the capture, and a death without an attacker is "skull name".
+- Colour: NTF names in CS2's killfeed blue `#6f9ce6` (`CTColor`, capture; NTF's blue everywhere else too),
+  SCP names in the SLGO red `ROLE_COLORS.scp` (user decision 2026-10-18, not CS2's `TColor` gold); `#888888`
+  (`FadedColor`) without a side. Icons are white.
+- Geometry at 1080p (Panorama): column at top 72px, right 10px, notices 3px apart, padding 6px 10px 3px 10px,
+  radius 3px; names `Stratum2 Killfeed` (stratum2-bold) 16px, margins 0 2px 2px, at most 160px with an
+  ellipsis, CJK in Noto Sans SC bold at 0.9; icons 24px high, margin -2px 2px 0 2px. Capture: rows 31px with
+  the border, 3px apart, the first at y 75, right edge at x 1910. Backgrounds as measured (every Panorama alpha
+  shows at about 0.79 of its value; the overlay cannot blur the game): plain `rgba(0,0,0,0.5)`, the viewer's
+  kill `rgba(0,0,0,0.72)` with a 2px `#e10000` border drawn inset (no size change; the capture's border
+  luminance matches #e10000, JPEG dulls the red) and labels 15px with 0.5px tracking, the viewer's death
+  (their own suicide included) `rgba(99,6,6,0.65)`. No text shadow (section 3), although Panorama declares one.
+- Icons (`presentation.ts`): firearms, Micro-HID, HE grenade and the SCPs reuse `public/assets/slui-svg/`
+  (muzzles point right, towards the victim, as in CS2). Weapons the shop does not sell have no art (user
+  decision 2026-10-18) and draw the plain skull (`hud/skull.svg`, never the suicide mark); adding art later only
+  touches `KILLFEED_WEAPON_ICONS`. `public/assets/killfeed/suicide.svg` (skull and crossbones) and `headshot.svg`
+  (a head facing right, entry hole upper left, the round leaving right with speed lines) are SLUI drawings
+  after the capture.
+- Motion (CSS animations fixed at mount, never the 250 ms UI clock): a new notice fades in over 0.2 s
+  (Panorama `.Available`); at its fade time it fades out over 1 s ease-out (`DeathNoticeFadeOutTime`), the
+  delay is `fadeAtMs - mountedAtMs` (negative when mounted part-way). A notice mounted more than 0.2 s after
+  its first copy (overlay re-enabled) just shows.
+- Layering: `.killfeed-overlay` is a fixed layer at z-index 4 on the scaled 1920x1080 canvas; nothing else
+  sits in the top-right corner.
+- Mock preview: `hudScene=killfeed` plays an enemy kill, the viewer's headshot with an assist, a self-kill, a
+  weapon without art (fallback skull), a long name, a death without an attacker and the viewer's death;
+  `hudSceneAt=7100` pins the moment six rows are on screen. Compare a full-resolution capture of it (e.g. headless
+  Edge `--screenshot --window-size=1920,1080`) with a CS2 capture cropped to the same region. A hidden preview pane renders no frames, so CSS animations stand still there;
+  check motion in a visible pane or by setting `getAnimations()` times.

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/hud-killfeed.schema.json",
+  "title": "SLGO top-right killfeed payload (hud.killfeed)",
+  "description": "The viewer's killfeed (CS2 HudDeathNotice), oldest first. One recipient per publish; sent only to clients declaring hud-killfeed. Times are remaining milliseconds at the envelope's sent_at. Entry ids are unique. A suicide has no assister, no headshot, weapon other, viewer never killer, and its killer is null (no attacker) or the victim themself; any other entry has a killer, and its killer, assister and victim are different players.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entries"],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_id", "suicide", "killer", "assister", "victim", "weapon", "headshot", "viewer", "visible_remaining_ms"],
+      "properties": {
+        "entry_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "suicide": { "description": "CS2 DeathNoticeSuicide: the skull replaces the weapon.", "type": "boolean" },
+        "killer": { "description": "null only for a suicide without an attacker (fall, tesla, team change).", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/player" }] },
+        "assister": { "description": "The one assist CS2 shows.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/player" }] },
+        "victim": { "$ref": "#/$defs/player" },
+        "weapon": {
+          "enum": [
+            "other",
+            "com15", "com18", "com45", "fsp9", "crossvec", "e11sr", "ak", "logicer", "frmg0", "shotgun", "revolver", "a7", "scp127",
+            "particle_disruptor", "jailbird", "micro_hid", "grenade_he", "scp018",
+            "scp049", "scp0492", "scp096", "scp106", "scp173", "scp939", "scp3114"
+          ]
+        },
+        "headshot": { "type": "boolean" },
+        "viewer": { "description": "The recipient's part in this entry.", "enum": [null, "killer", "victim"] },
+        "visible_remaining_ms": {
+          "description": "Time left before the entry starts fading out: 5 s, 7.5 s when the viewer is the killer or the victim.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400000
+        }
+      }
+    },
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "display_name", "team"],
+      "properties": {
+        "player_id": { "description": "SteamID64; null without one (test dummy).", "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[0-9]{17}$" }] },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "team": { "description": "Side at the time of the death; null when unassigned.", "enum": [null, "ntf", "scp"] }
+      }
+    }
+  }
+}
