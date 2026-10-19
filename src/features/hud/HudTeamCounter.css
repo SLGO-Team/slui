@@ -8,6 +8,12 @@
   user-select: none;
 }
 
+/* While the buy menu is open CS2 reparents the team counter into BuyMenuTeamCounterContainer, after
+   CSGOBuyMenu in hud.xml: it stays above the menu and its mask (ShopPanel.css, 29/30), under the chat. */
+#SlgoOverlayRoot:has(.shop-mask) .hud-overlay {
+  z-index: 31;
+}
+
 .hud-design-canvas {
   --hud-overlay-scale: 1;
   position: absolute;
