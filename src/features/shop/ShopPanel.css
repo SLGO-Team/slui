@@ -80,11 +80,11 @@
 /* CSGOMoneyPanel is a native control we do not replicate; the baseline puts the
    balance glyph 28px in from the panel edge, of which 10px is the Label margin
    of buymenu.css:214 and the rest is the control's own inset. */
-.shop-balance { margin-left: 18px; color: #eabe54; font: 700 22px/1 "Stratum2 Shop Monodigit", "Stratum2 Shop", sans-serif; }
+/* hudmoney.xml: the digits are hud-colorize-wash, the team colour (the T-side baseline's gold is t-color #eabe54). */
+.shop-balance { margin-left: 18px; color: var(--shop-wash); font: 700 22px/1 "Stratum2 Shop Monodigit", "Stratum2 Shop", sans-serif; }
 .shop-time { position: absolute; left: 50%; display: flex; align-items: center; width: max-content; transform: translateX(-50%); color: rgb(255 255 255 / 35.6%); font: 400 22px/1 "Stratum2 Shop", sans-serif; white-space: nowrap; }
 .shop-time > span:first-child { padding: 6px 0; color: rgb(255 255 255 / 58%); font: 400 22px/1 "Stratum2 Shop", sans-serif; }
 .shop-time b { display: block; box-sizing: border-box; width: 102px; margin-left: 10px; padding: 6px 0; color: #fff; font: 700 22px/1 "Stratum2 Shop Monodigit", "Stratum2 Shop", sans-serif; text-align: left; }
-.shop-time i { color: #eabe54; font-size: 12px; font-style: normal; }
 .shop-min-money { position: absolute; top: 50%; right: 10px; margin-left: 10px; padding: 6px 0; color: rgb(128 128 128); font: 400 14px/normal "Stratum2 Shop Regular Monodigit", "Stratum2 Shop", sans-serif; white-space: nowrap; transform: translateY(-50%); }
 .shop-body { position: relative; width: 950px; min-height: 590px; overflow: hidden; background: rgb(0 0 0 / 62%); }
 .shop-body::after { position: absolute; z-index: 0; inset: 0; content: ""; background: url("/assets/hud/dot-grid.png") 100% 100% / 360px 360px; opacity: .04; pointer-events: none; }
@@ -136,7 +136,6 @@
    (casual draws them all white). */
 .shop-card__owners { position: absolute; right: 0; bottom: 0; left: 0; display: flex; flex-direction: row-reverse; align-items: center; justify-content: center; height: 15px; pointer-events: none; }
 .shop-card__pip { flex: 0 0 auto; width: 5px; height: 5px; margin: 0 2px; border-radius: 50%; }
-.shop-card__pending-label { position: absolute; right: 10px; bottom: 30px; color: #eabe54; font-size: 11px; }
 /* 350px card + 32px inset = the 382px this column contributes; see the geometry
    note on .shop-content. The column spans the rest of the canvas; its preview,
    failure banner and details card are placed from its top. */
@@ -157,11 +156,14 @@
 /* buymenu.css:911-923 - name is 16px bold with a 10px gap, desc is 14px. */
 .shop-details-card strong { margin-bottom: 10px; font: 700 16px/22px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; }
 .shop-details-card span { color: #bbb; font: 400 14px/18px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; }
-/* buymenu.css:50-55 - the navbar is centred on the viewport, not on the 950px
-   content column. */
-.shop-navbar { position: absolute; bottom: 0; left: 50%; display: flex; gap: 36px; align-items: center; box-sizing: border-box; height: 58px; padding: 0 20px; transform: translateX(-50%); border-top: 1px solid rgb(255 255 255 / 5%); color: #ddd; font: 700 24px/1 "Stratum2 Shop Condensed", sans-serif; pointer-events: auto; }
-.shop-navbar button { display: inline-flex; gap: 8px; align-items: center; color: #ddd; background: transparent; border: 0; font: inherit; cursor: pointer; }
-.shop-navbar kbd { color: #eabe54; font: 400 18px/1 "Stratum2 Shop Mono", monospace; }
+/* buymenu.css:50-62 - the navbar is centred on the viewport, not on the 950px
+   content column. buymenu.xml:110 washes the whole navbar in the team colour, so the
+   bracketed key and its label are one 24px Condensed bold label in one colour; the
+   T-side baseline reads "[ESCAPE]返回" all in #eabe54 (t-color). */
+.shop-navbar { position: absolute; bottom: 0; left: 50%; display: flex; gap: 36px; align-items: center; box-sizing: border-box; height: 58px; padding: 0 20px; transform: translateX(-50%); border-top: 1px solid rgb(255 255 255 / 5%); color: var(--shop-wash); font: 700 24px/1 "Stratum2 Shop Condensed", "Noto Sans SC Shop", sans-serif; text-transform: uppercase; pointer-events: auto; }
+.shop-navbar button { padding: 0; color: inherit; background: transparent; border: 0; font: inherit; text-transform: inherit; cursor: pointer; }
+/* The baseline leaves 4px of ink gap between "]" and "返"; with these faces the glyphs alone leave 1.5px. */
+.shop-navbar__key { margin-right: 2.5px; }
 @keyframes shop-purchased { from { filter: brightness(2); } to { filter: brightness(1); } }
 @keyframes shop-failure-fadein { from { opacity: 0; } to { opacity: 1; } }
 @keyframes shop-failure-pulse { 0%, 100% { filter: saturate(1); } 50% { filter: saturate(0); } }
