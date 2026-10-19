@@ -13,9 +13,9 @@
   position: absolute;
   top: 0;
   left: 50%;
-  width: 1920px;
+  width: min(1920px, 100vw / var(--hud-overlay-scale));
   height: 1080px;
-  margin-left: -960px;
+  margin-left: calc(min(1920px, 100vw / var(--hud-overlay-scale)) / -2);
   transform: scale(var(--hud-overlay-scale));
   transform-origin: top center;
 }

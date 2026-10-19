@@ -46,7 +46,19 @@ When static source and observed output disagree, the in-game screenshot wins.
 ### Viewport
 
 - The first baseline is 1920x1080.
-- Other 16:9 viewports scale the complete 1920x1080 overlay uniformly.
+- Every overlay follows Panorama's layout space: one uniform scale `height / 1080`
+  (`overlayScaleForViewport`) and a design canvas 1080 units tall and
+  `min(1920, 1080 * width / height)` units wide, centred. CS2's
+  `endofmatch-characters.js` shows the rule (`1080 * (w / h) * 0.5 - 720` centres a
+  1440 band). 16:10 gives a 1728-wide canvas, 4:3 a 1440-wide one; wider than 16:9
+  keeps the 1920 canvas centred (ultrawide spreading is not replicated).
+- Each canvas rule computes its width in CSS from the panel's scale variable:
+  `width: min(1920px, 100vw / var(--<panel>-scale))` with
+  `margin-left: calc(<same> / -2)`. No viewport is special-cased in JS.
+- Panels keep their Panorama horizontal anchor on that canvas. A centred box is
+  `left: calc(50% - <half width>px)`, never a 1920-based pixel offset; left and
+  right anchors use `left` / `right` edge offsets. Children inside a positioned box
+  keep box-relative offsets.
 - Individual HUD regions must not independently reflow or use viewport-driven
   font sizing.
 
@@ -118,6 +130,7 @@ execute the discarded generator.
 | Dead teammate loadout | Money only; offline teammates show no equipment |
 | Non-positive viewport dimension | Use a stable scale of 1 |
 | 16:9 viewport below baseline | Uniformly scale the whole overlay |
+| 16:10 / 4:3 / 5:4 viewport | Scale by height; canvas narrows to `1080 * aspect`; anchors hold (bottom HUD 16 px above the bottom, killfeed 10 px from the right) |
 | Raw Panorama token or generated node appears | Fail the visual/layout audit |
 
 ## 5. Good / Base / Bad Cases

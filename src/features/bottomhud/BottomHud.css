@@ -37,9 +37,9 @@
   position: absolute;
   top: 0;
   left: 50%;
-  width: 1920px;
+  width: min(1920px, 100vw / var(--bhud-scale));
   height: 1080px;
-  margin-left: -960px;
+  margin-left: calc(min(1920px, 100vw / var(--bhud-scale)) / -2);
   transform: scale(var(--bhud-scale));
   transform-origin: top center;
 }
@@ -50,7 +50,7 @@
   --bhud-light: color-mix(in srgb, var(--bhud-wash) 55%, #fff);
   --bhud-fill: rgba(0, 0, 0, 0.5);
   position: absolute;
-  left: 560px;
+  left: calc(50% - 400px);
   top: 992px;
   width: 800px;
   height: 72px;

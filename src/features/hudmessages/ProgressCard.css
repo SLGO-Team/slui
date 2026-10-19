@@ -68,9 +68,9 @@
   position: absolute;
   top: 0;
   left: 50%;
-  width: 1920px;
+  width: min(1920px, 100vw / var(--hudprogress-scale));
   height: 1080px;
-  margin-left: -960px;
+  margin-left: calc(min(1920px, 100vw / var(--hudprogress-scale)) / -2);
   transform: scale(var(--hudprogress-scale));
   transform-origin: top center;
 }
@@ -82,7 +82,7 @@
 .hudprogress {
   position: absolute;
   top: 630px;
-  left: 710px;
+  left: calc(50% - 250px);
   width: 500px;
   height: 120px;
   transform-origin: center;
