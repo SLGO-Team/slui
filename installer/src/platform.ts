@@ -1,6 +1,7 @@
 // The only module that talks to Tauri. Outside Tauri (browser preview) it returns a mock
 // chosen by `?state=fresh|update|same|newer|fail|cancel` (add `&running=1` for the
-// running-app notice); the mock is never reachable inside the Tauri window.
+// running-app notice, `&unattended=1` for the update started by SLUI); the mock is never
+// reachable inside the Tauri window.
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Detect, DirCheck, InstallOutcome, InstallRequest, Stage } from "./model.ts";

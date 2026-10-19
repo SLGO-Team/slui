@@ -26,7 +26,8 @@ fn setup() -> i32 {
         // process exits; the next run removes the directory.
         return webview2::run_classic(&session);
     }
-    let code = slui_setup_lib::run(Role::Setup, session.clone(), false);
+    let unattended = slui_setup_lib::parse_unattended(std::env::args().skip(1));
+    let code = slui_setup_lib::run(Role::Setup, session.clone(), false, unattended);
     session.cleanup_after_exit();
     code
 }
@@ -52,7 +53,7 @@ fn uninstaller() -> i32 {
             }
         };
     }
-    let code = slui_setup_lib::run(Role::Uninstall, session.clone(), relocated);
+    let code = slui_setup_lib::run(Role::Uninstall, session.clone(), relocated, None);
     session.cleanup_after_exit();
     code
 }

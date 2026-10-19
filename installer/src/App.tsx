@@ -1,17 +1,19 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import { classify, initialState, optionsVisible, reduce } from "./model.ts";
+import { classify, initialState, optionsVisible, reduce, unavailableSummary } from "./model.ts";
 import { platform } from "./platform.ts";
 import { WindowControls } from "./screens/WindowControls.tsx";
 import { Welcome } from "./screens/Welcome.tsx";
 import { Progress } from "./screens/Progress.tsx";
 import { Done } from "./screens/Done.tsx";
 import { Failure, LoadFailure } from "./screens/Error.tsx";
+import { Cancelled, Unavailable } from "./screens/Unattended.tsx";
 
 // Screen switch and side effects only; every transition lives in model.ts.
-export function App() {
-  const [state, dispatch] = useReducer(reduce, initialState);
+export function App({ unattended }: { unattended: boolean }) {
+  const [state, dispatch] = useReducer(reduce, { ...initialState, unattended });
   const [launchError, setLaunchError] = useState<string | null>(null);
   const startedRun = useRef(0);
+  const launched = useRef(false);
 
   useEffect(() => {
     platform.detect().then(
@@ -56,6 +58,14 @@ export function App() {
     });
   };
 
+  // The unattended update reopens SLUI by itself; the Done screen stays only if that fails.
+  const updated = state.unattended && state.screen === "done";
+  useEffect(() => {
+    if (!updated || launched.current) return;
+    launched.current = true;
+    launch();
+  }, [updated]);
+
   const detect = state.detect;
   const installing = state.screen === "progress";
   let body: React.ReactNode;
@@ -88,9 +98,18 @@ export function App() {
         break;
       case "error":
         body = state.outcome?.kind === "failed"
-          ? <Failure outcome={state.outcome} mode={state.run?.mode ?? "fresh"}
-            onRetry={() => dispatch({ type: "retry" })} onClose={platform.close} />
+          ? <Failure outcome={state.outcome} mode={state.run?.mode ?? "fresh"} launchError={launchError}
+            onRetry={() => dispatch({ type: "retry" })} onClose={platform.close}
+            onLaunch={state.unattended && detect.installed ? launch : undefined} />
           : null;
+        break;
+      case "cancelled":
+        body = <Cancelled detect={detect} launchError={launchError}
+          onRetry={() => dispatch({ type: "retry" })} onLaunch={launch} />;
+        break;
+      case "unavailable":
+        body = <Unavailable summary={unavailableSummary(kind)} canLaunch={detect.installed !== null}
+          launchError={launchError} onLaunch={launch} onClose={platform.close} />;
         break;
     }
   }

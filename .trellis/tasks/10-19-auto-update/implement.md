@@ -32,11 +32,11 @@ Branch: `feat/auto-update`. One PR (UI changes → waits for the user's visual r
 
 ## 3. Branded shell — `installer/`
 
-- [ ] `main.rs`: parse `--update --after-pid <pid>`; `wait_for_pid`.
-- [ ] `lib.rs`: unattended flag via `initialization_script`.
-- [ ] `App.tsx` / `model.ts`: unattended path (detect → Progress or Failure), Cancelled screen with
+- [x] `main.rs`: parse `--update --after-pid <pid>`; `wait_for_pid`.
+- [x] `lib.rs`: unattended flag via `initialization_script`.
+- [x] `App.tsx` / `model.ts`: unattended path (detect → Progress or Failure), Cancelled screen with
       retry / open SLUI, Failure + open SLUI.
-- [ ] `scripts/installer-model-smoke.mjs`: unattended classification cases; Rust tests for args.
+- [x] `scripts/installer-model-smoke.mjs`: unattended classification cases; Rust tests for args.
 
 ## 4. Frontend — `src/`
 
