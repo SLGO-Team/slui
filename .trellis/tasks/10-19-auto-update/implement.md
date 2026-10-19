@@ -51,9 +51,9 @@ Branch: `feat/auto-update`. One PR (UI changes → waits for the user's visual r
 
 ## 6. Spec / docs
 
-- [ ] `.trellis/spec/frontend/system-boundaries.md`: update manifest contract, endpoint, fail-open
+- [x] `.trellis/spec/frontend/system-boundaries.md`: update manifest contract, endpoint, fail-open
       rule, Rust-owned update state.
-- [ ] README: short "updates" note if user-facing docs mention installation.
+- [x] README: short "updates" note if user-facing docs mention installation.
 
 ## Validation
 
