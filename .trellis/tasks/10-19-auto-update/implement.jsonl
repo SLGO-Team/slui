@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Control-plane / client contracts; the update manifest and endpoint join them"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where platform adapters, app models, installer and workspace-hack live; hakari regeneration after adding tauri-plugin-updater"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Installer/NSIS contract, CI checks, forbidden patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature spans Rust state, home/overlay webviews, branded shell and release workflow"}
+{"file": ".trellis/tasks/10-19-auto-update/research/tauri-updater-plugin.md", "reason": "Plugin check/download/verify/install behaviour the design relies on"}
