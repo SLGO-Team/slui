@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/SLGO-Team/slui/compare/v0.6.0...v0.7.0) (2026-10-18)
+
+
+### Features
+
+* **killfeed:** CS2 top-right killfeed from hud.killfeed ([#35](https://github.com/SLGO-Team/slui/issues/35)) ([14d1e1c](https://github.com/SLGO-Team/slui/commit/14d1e1c73a197befe89b940a96a112b308696f16))
+* **minimap:** v6 renders the plugin's actual room layout ([#33](https://github.com/SLGO-Team/slui/issues/33)) ([c1cd15f](https://github.com/SLGO-Team/slui/commit/c1cd15fb727a03a33a544e3c83255643550a76cf))
+
 ## [0.6.0](https://github.com/SLGO-Team/slui/compare/v0.5.0...v0.6.0) (2026-10-14)
 
 
