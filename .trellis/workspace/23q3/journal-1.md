@@ -698,3 +698,25 @@ ended 文案改为 正在重启 / 服务器重启后自动重连 与 SERVER REST
 ### Status
 
 [OK] **Completed**
+
+
+## Session 30: 16:10 and 4:3 overlay support
+<!-- trellis-session: v=2 fp=f31bd1f5181b36a4 -->
+
+**Date**: 2026-10-19
+**Task**: 16:10 and 4:3 overlay support
+**Branch**: `feat/aspect-ratio`
+
+### Summary
+
+Overlay scales by height/1080 on a 1080*aspect canvas (capped 1920), per Panorama endofmatch-characters.js; centred panels anchor to canvas centre; 16:9 unchanged; spec viewport contract updated; PR #37 visually approved.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0c424fc` | feat(overlay): 16:10 and 4:3 layouts follow Panorama's height scaling |
+
+### Status
+
+[OK] **Completed**
