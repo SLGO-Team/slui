@@ -55,9 +55,12 @@
    hints 170 / 236px + 2px margin) land 2px above the captures; the captures win: alert y 750, high
    hint y 802, low hint y 868. Each box is 40px for one line and grows with the text (the hint text
    panel caps at 60px, two lines). */
+/* hudalerts.xml / hudhinttext.xml: the side bars and glitch are `hud-colorize-wash`, the viewer's
+   team colour (--hudmsg-team, set inline; the T-side captures' gold is t-color). A team-less
+   observer gets neutral white. */
 .hudmsg {
-  --hudmsg-gold: rgb(236, 189, 87);
-  --hudmsg-bar: var(--hudmsg-gold);
+  --hudmsg-wash: var(--hudmsg-team, #fff);
+  --hudmsg-bar: var(--hudmsg-wash);
   /* Captures: grey ~65 at ~0.33 on a world blur. Without the blur (the overlay cannot read the game
      behind it) a denser fill with the same mean suppresses the scene detail (user review 2026-10-06). */
   --hudmsg-fill: rgba(62, 62, 62, 0.6);
@@ -69,10 +72,10 @@
 
 .hudmsg--alert {
   top: 750px;
-  /* The alert side bars are additive in Panorama; over any scene they read as the gold at half
+  /* The alert side bars are additive in Panorama; over any scene they read as the wash at half
      strength (captures). */
-  --hudmsg-bar: rgba(236, 189, 87, 0.5);
-  --hudmsg-glitch: color-mix(in srgb, var(--hudmsg-gold) 55%, #fff);
+  --hudmsg-bar: color-mix(in srgb, var(--hudmsg-wash) 50%, transparent);
+  --hudmsg-glitch: color-mix(in srgb, var(--hudmsg-wash) 55%, #fff);
 }
 
 .hudmsg--high {

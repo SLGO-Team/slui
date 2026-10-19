@@ -475,7 +475,7 @@ function App() {
       <WinPanel panel={winPanel} still={hudSceneStill} />
       <BottomHud view={bottomHud} still={hudSceneStill} />
       <ProgressCard card={progressCard} still={hudSceneStill} />
-      <MessageZone zone={messageZone} still={hudSceneStill} />
+      <MessageZone zone={messageZone} still={hudSceneStill} role={viewerRole} />
       <KillFeed notices={killfeed} still={hudSceneStill} />
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
@@ -490,7 +490,6 @@ function App() {
         open={shopOpen}
         volume={shopVolume}
         countdownSeconds={hud.hasSnapshot ? hud.phaseClockSeconds : null}
-        countdownPaused={hud.hasSnapshot ? hud.paused : false}
         onPurchase={handlePurchase}
         onClose={closeShop}
       />

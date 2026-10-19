@@ -20,7 +20,6 @@ export type ShopPanelProps = {
   volume?: number;
   /** Interpolated from MatchSnapshot.phase_remaining_ms by the HUD selector. */
   countdownSeconds?: number | null;
-  countdownPaused?: boolean;
   onPurchase(command: ShopPurchaseCommand): void;
   onClose(): void;
 };
@@ -68,7 +67,6 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onHover, onPreview }: { 
       ) : null}
       {/* The plugin answers in well under the timeout, so an in-flight purchase only blocks
           repeats and draws nothing; the label marks one that has outlived the timeout. */}
-      {item.commandState === "timedOut" ? <span className="shop-card__pending-label">等待确认</span> : null}
     </button>
   );
 }
@@ -81,7 +79,6 @@ export function ShopPanel({
   open,
   volume = DEFAULT_AUDIO_SETTINGS.shopVolume,
   countdownSeconds,
-  countdownPaused = false,
   onPurchase,
   onClose,
 }: ShopPanelProps) {
@@ -180,7 +177,7 @@ export function ShopPanel({
     <>
       <div className="shop-mask" aria-hidden="true" />
       <section className="shop-overlay" data-shop-availability={shop.availability} aria-label="商店">
-        <div className="shop-design-canvas" style={{ "--shop-overlay-scale": scale } as CSSProperties}>
+        <div className="shop-design-canvas" style={{ "--shop-overlay-scale": scale, "--shop-wash": wash } as CSSProperties}>
         <div className="shop-content" data-shop-content>
           <div className="shop-left">
             <div className="shop-info" data-shop-info>
@@ -188,7 +185,6 @@ export function ShopPanel({
               <span className="shop-time">
                 <span>剩余购买时间</span>
                 <b>{formatShopCountdown(countdownSeconds)}</b>
-                {countdownPaused ? <i>暂停</i> : null}
               </span>
               {shop.nextRoundMinMoney !== null ? <span className="shop-min-money" style={{ color: shopMinMoneyColor(shop.nextRoundMinMoney) }}>下回合最低金额: {formatShopMoney(shop.nextRoundMinMoney)}</span> : null}
             </div>
@@ -220,7 +216,7 @@ export function ShopPanel({
           </aside>
         </div>
         <nav className="shop-navbar" aria-label="商店操作">
-          <button type="button" onClick={onClose}><kbd>ESCAPE</kbd><span>返回</span></button>
+          <button type="button" onClick={onClose}>[ESCAPE]返回</button>
         </nav>
         </div>
       </section>

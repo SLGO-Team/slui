@@ -1,6 +1,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { HudMessageView, HudMessageZoneSlot, HudMessageZoneView } from "./model";
 import { useOverlayScale } from "../../shared/overlay.ts";
+import { ROLE_COLORS } from "../../shared/roleColors.ts";
+import type { Role } from "../../contracts/index.ts";
 import "./MessageZone.css";
 
 /**
@@ -92,17 +94,20 @@ export type MessageZoneProps = {
   zone: HudMessageZoneView;
   /** Debug captures: no enter, exit or flash animation, so a still frame is deterministic. */
   still?: boolean;
+  /** The viewer's team: the alert and low-hint bars are `hud-colorize-wash`; null (team-less) keeps the CSS default. */
+  role?: Role | null;
 };
 
 /**
  * CS2 `HudBottomCenter--float` (hud.xml): `CSGOHudAlerts` and the two `CSGOHudHintText` panels
  * (hudalerts.css / hudhinttext.css) on the 1920x1080 overlay canvas. Slots are fixed, not stacked.
  */
-export function MessageZone({ zone, still = false }: MessageZoneProps) {
+export function MessageZone({ zone, still = false, role = null }: MessageZoneProps) {
   const scale = useOverlayScale();
   return (
     <section className="hudmsg-overlay" aria-label="提示信息">
-      <div className="hudmsg-canvas" style={{ "--hudmsg-scale": scale } as CSSProperties}>
+      <div className="hudmsg-canvas" style={{ "--hudmsg-scale": scale,
+        ...(role ? { "--hudmsg-team": ROLE_COLORS[role] } : {}) } as CSSProperties}>
         <MessageSlot slot="alert" view={zone.alert} still={still} />
         <MessageSlot slot="hint_high" view={zone.hintHigh} still={still} />
         <MessageSlot slot="hint_low" view={zone.hintLow} still={still} />
