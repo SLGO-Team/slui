@@ -5579,6 +5579,7 @@ name = "workspace-hack"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.1",
+ "fastrand",
  "getrandom 0.4.3",
  "percent-encoding",
  "phf_shared",
@@ -5588,6 +5589,7 @@ dependencies = [
  "serde",
  "serde_core",
  "serde_json",
+ "smallvec",
  "stable_deref_trait",
  "syn 2.0.119",
  "syn 3.0.4",

@@ -24,11 +24,11 @@ Branch: `feat/auto-update`. One PR (UI changes → waits for the user's visual r
       `research/tauri-updater-plugin.md` (research read the main branch).
 - [x] `tauri.conf.json`: `plugins.updater { pubkey, endpoints: [] }`;
       `tauri.local.conf.json`: `dangerousInsecureTransportProtocol: true`.
-- [ ] `updater.rs`: state, loop with jitter, `updater_start`, `updater_check_now`,
+- [x] `updater.rs`: state, loop with jitter, `updater_start`, `updater_check_now`,
       `get_update_state`, `updater_install`, event emission, temp cleanup, tray item.
-- [ ] Unit tests: `min_version` comparison from raw JSON, state transitions (same version stays
+- [x] Unit tests: `min_version` comparison from raw JSON, state transitions (same version stays
       Ready, failure keeps `required`), temp path naming, shell argument line.
-- [ ] `cargo hakari generate && cargo hakari manage-deps`.
+- [x] `cargo hakari generate && cargo hakari manage-deps`.
 
 ## 3. Branded shell — `installer/`
 
