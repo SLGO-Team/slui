@@ -162,6 +162,8 @@
    T-side baseline reads "[ESCAPE]返回" all in #eabe54 (t-color). */
 .shop-navbar { position: absolute; bottom: 0; left: 50%; display: flex; gap: 36px; align-items: center; box-sizing: border-box; height: 58px; padding: 0 20px; transform: translateX(-50%); border-top: 1px solid rgb(255 255 255 / 5%); color: var(--shop-wash); font: 700 24px/1 "Stratum2 Shop Condensed", "Noto Sans SC Shop", sans-serif; text-transform: uppercase; pointer-events: auto; }
 .shop-navbar button { padding: 0; color: inherit; background: transparent; border: 0; font: inherit; text-transform: inherit; cursor: pointer; }
+/* The baseline leaves 4px of ink gap between "]" and "返"; with these faces the glyphs alone leave 1.5px. */
+.shop-navbar__key { margin-right: 2.5px; }
 @keyframes shop-purchased { from { filter: brightness(2); } to { filter: brightness(1); } }
 @keyframes shop-failure-fadein { from { opacity: 0; } to { opacity: 1; } }
 @keyframes shop-failure-pulse { 0%, 100% { filter: saturate(1); } 50% { filter: saturate(0); } }

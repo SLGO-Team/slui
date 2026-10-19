@@ -216,7 +216,7 @@ export function ShopPanel({
           </aside>
         </div>
         <nav className="shop-navbar" aria-label="商店操作">
-          <button type="button" onClick={onClose}>[ESCAPE]返回</button>
+          <button type="button" onClick={onClose}><span className="shop-navbar__key">[ESCAPE]</span>返回</button>
         </nav>
         </div>
       </section>
