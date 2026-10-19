@@ -141,3 +141,30 @@ auto `launch`.
 **Next concrete action:** in the worktree, `cd src-tauri && cargo test --workspace` and fix compile errors in
 `updater.rs` / `lib.rs`.
 
+
+## Status (10-19, second session)
+
+Steps 1–6 done (commits on `feat/auto-update`). Validation commands above all pass.
+
+**Before merge:** replace `plugins.updater.pubkey` in `src-tauri/tauri.conf.json` with the user's
+real public key (step 0) and add the two `release` environment secrets. The committed key is a
+throwaway whose private half does not exist.
+
+Local end-to-end walk (throwaway key pair outside the repo, stub control plane on
+`http://127.0.0.1:7800`, `npm run installer:build:local` at 0.7.1 then 0.7.0, the 0.7.0 `slui.exe`
+run uninstalled, DevTools protocol on its WebView2 for state and screenshots):
+
+- AC1: background download + verify; tile 「0.7.1 可用 · 更新并重启」. Tray item not inspected
+  visually (no desktop automation); its sync code ran without errors.
+- AC4 gating: `min_version` 0.7.1 → home server tile and version tile 「需要更新」, the overlay stops
+  route requests; back to `min_version` 0.6.0 → the overlay reconnects.
+- AC5: altered bytes, another key, and an older installer signed under its own name all end as
+  `failed { signature }`; nothing written to `%TEMP%`.
+- AC6: 204 → 已是最新版本; connection refused and 404 → quiet 检查更新失败 + 重试; the session keeps
+  routing throughout.
+- Hand-over without UAC: a 0.7.0 payload served as 0.7.1 → 「更新并重启」 writes
+  `%TEMP%\slui-update-<hex>\SLUI-Setup-0.7.1.exe`, starts it with `--update --after-pid`, SLUI exits 0,
+  the shell opens unattended on 「无法更新 · 已安装此版本的 SLUI」.
+- **Not done: AC2 / AC3 / AC4 install** need a person at the UAC prompt (the agent shell is not
+  elevated and cannot answer UAC). They also replace the installed SLUI with a local-backend test
+  build.

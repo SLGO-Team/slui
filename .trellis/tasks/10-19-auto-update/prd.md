@@ -65,7 +65,7 @@ on its own. Releases that break compatibility can require the update.
 
 ## Acceptance Criteria
 
-- [ ] AC1 (R1, R4) With a manifest offering a higher version, a fresh SLUI start downloads it
+- [x] AC1 (R1, R4) With a manifest offering a higher version, a fresh SLUI start downloads it
       without user action; the home version tile then shows the new version with
       「更新并重启」, and the tray menu shows 「更新到 X.Y.Z」.
 - [ ] AC2 (R1, R5) Clicking either action closes SLUI, the branded installer shows its progress
@@ -75,13 +75,13 @@ on its own. Releases that break compatibility can require the update.
       reopening starts the old version.
 - [ ] AC4 (R3) With `min_version` above the running version, the overlay's client session does not
       connect, the home window shows the update as required, and the update action works as in AC2.
-- [ ] AC5 (R6, R7) A manifest whose signature does not match (wrong key or altered file) never
+- [x] AC5 (R6, R7) A manifest whose signature does not match (wrong key or altered file) never
       installs; the tile shows a quiet failure and SLUI keeps working.
-- [ ] AC6 (R7) With the endpoint unreachable or answering 204, SLUI connects and plays normally and
+- [x] AC6 (R7) With the endpoint unreachable or answering 204, SLUI connects and plays normally and
       shows no update UI beyond the version tile.
 - [ ] AC7 (R6) The release workflow fails when the signing key secret is missing and otherwise
       attaches `SLUI-Setup-X.Y.Z.exe.sig` next to the installer.
-- [ ] AC8 `npm run lint`, `npm test`, `cargo test --workspace` (in `src-tauri`) and the hakari
+- [x] AC8 `npm run lint`, `npm test`, `cargo test --workspace` (in `src-tauri`) and the hakari
       check pass; the manifest contract has parser fixtures in the smoke tests.
 
 ## Out of Scope
