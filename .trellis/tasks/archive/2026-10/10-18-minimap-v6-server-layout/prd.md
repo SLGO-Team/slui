@@ -43,7 +43,7 @@ SLUI 小地图不再因为 SCP:SL 小版本更新而停发或需要人工改版�
 - [x] R6：backend v6 夹具 `bun run lint`、`bun test` 全过；插件 `IpcContractFixtureTests` 用 v6 夹具通过。
 - [x] R7：所列文档不再描述生成器钉版本或 v5 init 字段。
 - [x] 三仓改动各在 `claude/minimap-server-layout` 分支提交；上线顺序与核对步骤写在 `implement.md`。
-- [ ] 实机（用户发布后，未验证）：两实例插件日志出现「小地图已就绪 … 房间 N 个」、无布局不可用告警；新 SLUI 进服雷达正常、美术完整。
+- [x] 实机（2026-10-19 验收通过）：两实例插件日志出现「小地图已就绪 … 房间 N 个」、无布局不可用告警；新 SLUI 进服雷达正常、美术完整。
 
 ## Out of Scope
 
