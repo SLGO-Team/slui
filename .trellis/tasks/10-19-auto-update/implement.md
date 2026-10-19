@@ -47,7 +47,7 @@ Branch: `feat/auto-update`. One PR (UI changes → waits for the user's visual r
 
 ## 5. Release workflow
 
-- [ ] `release.yml`: key presence check, `tauri signer sign`, upload exe + `.sig`.
+- [x] `release.yml`: key presence check, `tauri signer sign`, upload exe + `.sig`.
 
 ## 6. Spec / docs
 
