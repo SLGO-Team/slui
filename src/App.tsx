@@ -442,6 +442,8 @@ function App() {
       : sceneSelf.money === null || sceneSelf.money === bottomHudBase.balance ? bottomHudBase : { ...bottomHudBase, balance: sceneSelf.money };
   // One slot colour per player across the HUD: radar markers and the shop's teammate-inventory pips.
   const playerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
+  // The viewer's team colour for the radar frame, as the bottom HUD uses; null for a team-less observer.
+  const viewerRole = hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer")?.role ?? null : null;
   const chatSelf = useMemo(() => resolveChatSelf(
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
   ), [hud, localSteamId]);
@@ -479,7 +481,7 @@ function App() {
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
         renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")
           && !("__TAURI_INTERNALS__" in window) }}
-        playerColors={playerColors} />
+        playerColors={playerColors} role={viewerRole} />
       <ShopPanel
         shop={displayedShop}
         role={shopRole}

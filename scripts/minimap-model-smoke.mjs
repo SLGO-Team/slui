@@ -319,6 +319,9 @@ assert.equal(event(incompatible, "minimap.positions", positions, 5).frame, null)
 const disconnected = minimapReducer(live, { type: "connection", status: "offline" });
 assert.equal(disconnected.frame, null);
 assert.equal(disconnected.baselineAccepted, false);
+assert.equal(selectMinimap(live, 150).connected, true);
+assert.equal(selectMinimap(disconnected, 150).connected, false, "no radar area while not connected to a server");
+assert.equal(selectMinimap(initialMinimapState, 0).connected, false, "no radar area before the first connection");
 assert.equal(event(disconnected, "minimap.init", init, 10).init, null);
 assert.strictEqual(minimapReducer(disconnected, { type: "resolved", token: live.requestToken, descriptorKey: geometry.descriptorKey, geometry, nowMs: 120 }), disconnected);
 let reconnected = event(disconnected, "sidecar.baseline", { baseline: true }, 10);
@@ -352,7 +355,7 @@ const locationState = event(ready(), "minimap.positions", anchoredFrame, 3, 100)
 assert.equal(selectMinimap(locationState, 180).locationLabel, namedRoom.label);
 assert.equal("labels" in selectMinimap(locationState, 180), false, "map room-label layer is removed");
 assert.equal(context.minimapTest.placeRoomLabels, undefined, "no obsolete layout shim remains");
-assert.equal(selectMinimap(locationState, 1101).locationLabel, "两区概览", "stale cannot retain the old location");
+assert.equal(selectMinimap(locationState, 1101).locationLabel, "", "stale cannot retain the old location");
 const unnamed = geometry.rooms.find((room) => room.label === null);
 const unnamedSelf = marker(self.player_id, unnamed, "self");
 const unnamedState = event(ready(), "minimap.positions", { ...positions, viewpoint: pose(unnamedSelf), positions: [unnamedSelf] }, 3, 100);
