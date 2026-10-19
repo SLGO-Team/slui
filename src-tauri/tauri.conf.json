@@ -44,6 +44,12 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZBRkZEMjE5MTk1NDdGQzMKUldURGYxUVpHZEwvYWo0TGR5NStEZmdIdDhpa1ZITmd5dGZydEc5WTF5ZGRXckNOY3FoMTFRbDEK",
+      "endpoints": []
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

@@ -1,5 +1,10 @@
 {
   "build": {
     "beforeBuildCommand": "npm run build:local"
+  },
+  "plugins": {
+    "updater": {
+      "dangerousInsecureTransportProtocol": true
+    }
   }
 }
