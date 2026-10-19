@@ -40,10 +40,10 @@ Branch: `feat/auto-update`. One PR (UI changes → waits for the user's visual r
 
 ## 4. Frontend — `src/`
 
-- [ ] `src/platform/updater.ts` adapter (+ browser no-op).
-- [ ] `src/app/updateModel.ts` + `scripts/update-model-smoke.mjs` (added to `npm test`).
-- [ ] `StatusBar.tsx` version tile, `home.css` grid; `HomeApp.tsx` start + subscribe.
-- [ ] `src/App.tsx`: gate the client session on `required`; home server tile 「需要更新」.
+- [x] `src/platform/updater.ts` adapter (+ browser no-op).
+- [x] `src/app/updateModel.ts` + `scripts/update-model-smoke.mjs` (added to `npm test`).
+- [x] `StatusBar.tsx` version tile, `home.css` grid; `HomeApp.tsx` start + subscribe.
+- [x] `src/App.tsx`: gate the client session on `required`; home server tile 「需要更新」.
 
 ## 5. Release workflow
 

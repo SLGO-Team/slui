@@ -458,7 +458,7 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 
 .home-section { display: flex; flex-direction: column; gap: 12px; }
 /* The Steam tile holds a 17-digit SteamID, so it gets the widest column. */
-.home-status { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.home-status { display: grid; grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr)); gap: 12px; }
 .home-tile {
   position: relative;
   display: flex;
