@@ -31,7 +31,8 @@
   --chat-font: "Stratum2 Chat", "Noto Sans SC Chat", sans-serif;
   position: fixed;
   inset: 0;
-  z-index: 31;
+  /* hud.xml draws HudChat after the buy menu and its team counter (ShopPanel.css, HudTeamCounter.css). */
+  z-index: 32;
   overflow: hidden;
   pointer-events: none;
   user-select: none;
