@@ -290,8 +290,12 @@ const STATUS_LABELS: Record<MinimapAvailability, string> = {
   disconnected: "连接已断开", invalid: "位置数据无效", incompatible: "地图版本不兼容",
 };
 
+const CONNECTED_STATUSES: ReadonlySet<ConnectionStatus> = new Set(["live", "baseline-required", "stale"]);
+
 export type MinimapViewModel = {
   availability: MinimapAvailability;
+  /** Connected to a server instance (live, awaiting its baseline, or delayed); otherwise the radar is not drawn at all. */
+  connected: boolean;
   statusLabel: string;
   geometry: MapGeometry | null;
   camera: RadarCamera | null;
@@ -411,10 +415,12 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
       hostile: viewerTeam !== null && item.team_id !== viewerTeam } : null;
   const bombsites = camera ? state.bombsites.map((site) => ({ ...clampToRadar(site, camera), label: site.label })) : [];
   const locationRoom = currentViewpoint?.room_id ? state.geometry?.roomById.get(currentViewpoint.room_id) : null;
+  // Without a viewpoint the title stays empty (no overview caption, user decision 2026-10-19).
   const locationLabel = currentViewpoint
-    ? locationRoom?.label ?? (currentViewpoint.zone === "Entrance" ? "办公区" : "重收容区") : "两区概览";
+    ? locationRoom?.label ?? (currentViewpoint.zone === "Entrance" ? "办公区" : "重收容区") : "";
   const pageBackdrop = renderCapabilities.pageBackdrop === true;
-  return { availability, statusLabel: STATUS_LABELS[availability], geometry: state.geometry, camera, markers, keycard, bombsites,
+  return { availability, connected: CONNECTED_STATUSES.has(state.connectionStatus),
+    statusLabel: STATUS_LABELS[availability], geometry: state.geometry, camera, markers, keycard, bombsites,
     shape, viewSize: shape === "square" ? 290 : 250, locationLabel,
     effects: { mapBlend: normalized.mapBlend, blurBackground: normalized.blurBackground && pageBackdrop, pageBackdrop },
     activeMapScale, alternateZoomActive, dynamicZoomActive,

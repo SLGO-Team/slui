@@ -19,8 +19,10 @@
   transform-origin: top center;
 }
 
+/* --radar-accent is the viewer's SLGO team colour (set inline, as in the bottom HUD), never CS2's T gold;
+   a team-less observer gets this neutral white. */
 .minimap-radar {
-  --radar-accent: #eabe54;
+  --radar-accent: #f4f5f1;
   position: absolute;
   top: 28px;
   left: 12px;
@@ -129,8 +131,8 @@
   font-size: 17px; font-weight: 900; line-height: 1; text-shadow: 0 0 1px #111, 0 0 1px #111, 0 0 2px #111; }
 .minimap-bombsite[data-edge="true"] .minimap-bombsite__letter { font-size: 25px; }
 
-/* The in-game title renders a paler gold than the 1px frame accent. */
-.minimap-radar__location { position: absolute; top: 300px; width: 300px; height: 28px; color: #fad27c; text-align: center; font-size: 16px; line-height: 28px; white-space: nowrap; }
+/* In game the title renders paler than the 1px frame accent (#fad27c over the #eabe54 frame). */
+.minimap-radar__location { position: absolute; top: 300px; width: 300px; height: 28px; color: color-mix(in srgb, var(--radar-accent) 75%, #fff); text-align: center; font-size: 16px; line-height: 28px; white-space: nowrap; }
 .minimap-radar__status { position: absolute; top: 332px; width: 300px; display: flex; justify-content: center; gap: 10px; font-size: 12px; line-height: 18px; color: #d1d5ce; text-shadow: 0 1px 2px #000; }
 .minimap-radar[data-availability="invalid"] .minimap-radar__status,
 .minimap-radar[data-availability="incompatible"] .minimap-radar__status { color: #ef7b77; }
