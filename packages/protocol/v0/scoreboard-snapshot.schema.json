@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/scoreboard-snapshot.schema.json",
+  "title": "SLGO scoreboard payload (scoreboard.snapshot)",
+  "description": "The CS2 scoreboard's data: both teams' per-side stats, ping, round history and loss bonus. The same payload goes to every client declaring scoreboard; roster, names, alive state, scores and the viewer team's money stay in match.snapshot. elapsed_ms is the match time at the envelope's sent_at. Also enforced by parsers: headshot_kills <= kills and utility_damage <= damage in every stats object; rounds strictly increasing; score_to_win <= max_rounds; halftime_after_round < max_rounds; every round <= max_rounds; unique player ids.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode_name", "mode_icon", "elapsed_ms", "max_rounds", "score_to_win", "halftime_after_round", "rounds", "loss_bonus", "players"],
+  "properties": {
+    "mode_name": { "description": "Plugin-authored mode label, e.g. 竞技模式.", "type": "string", "minLength": 1, "maxLength": 64 },
+    "mode_icon": { "enum": ["competitive", "casual"] },
+    "elapsed_ms": { "description": "Match time at sent_at.", "type": "integer", "minimum": 0, "maximum": 86400000 },
+    "max_rounds": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "score_to_win": { "description": "Wins that take the match (CS2 clinch).", "type": "integer", "minimum": 1, "maximum": 64 },
+    "halftime_after_round": { "description": "Last round of the first half; null without halftime.", "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 1, "maximum": 63 }] },
+    "rounds": {
+      "description": "Finished rounds in order; a round ended without a winner is left out.",
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/round" }
+    },
+    "loss_bonus": {
+      "description": "Loss-bonus level per team (CS2's four pips); null when the mode has no loss streaks.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["team-a", "team-b"],
+          "properties": {
+            "team-a": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "team-b": { "type": "integer", "minimum": 0, "maximum": 4 }
+          }
+        }
+      ]
+    },
+    "players": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/player" }
+    }
+  },
+  "$defs": {
+    "round": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["round", "winner_team_id", "winner_role", "reason"],
+      "properties": {
+        "round": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "winner_team_id": { "enum": ["team-a", "team-b"] },
+        "winner_role": { "description": "The winner's side in that round.", "enum": ["ntf", "scp"] },
+        "reason": { "enum": ["elimination", "generator_activated", "generator_deactivated", "time_expired"] }
+      }
+    },
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "ping_ms", "is_bot", "ntf", "scp"],
+      "properties": {
+        "player_id": { "description": "The match.snapshot player id.", "type": "string", "minLength": 1, "maxLength": 64 },
+        "ping_ms": { "description": "null for bots and when unknown.", "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0, "maximum": 999 }] },
+        "is_bot": { "description": "A test dummy or NPC.", "type": "boolean" },
+        "ntf": { "$ref": "#/$defs/stats" },
+        "scp": { "$ref": "#/$defs/stats" }
+      }
+    },
+    "stats": {
+      "description": "Match stats while playing one side.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rounds_played", "kills", "deaths", "assists", "damage", "headshot_kills", "mvps", "utility_damage", "enemies_flashed"],
+      "properties": {
+        "rounds_played": { "description": "Rounds finished on this side (ADR denominator).", "type": "integer", "minimum": 0 },
+        "kills": { "type": "integer", "minimum": 0 },
+        "deaths": { "type": "integer", "minimum": 0 },
+        "assists": { "type": "integer", "minimum": 0 },
+        "damage": { "description": "HP damage dealt to enemies.", "type": "integer", "minimum": 0 },
+        "headshot_kills": { "description": "Kills whose killing blow hit the head.", "type": "integer", "minimum": 0 },
+        "mvps": { "type": "integer", "minimum": 0 },
+        "utility_damage": { "description": "Part of damage dealt with the player's own HE grenades.", "type": "integer", "minimum": 0 },
+        "enemies_flashed": { "description": "Enemies blinded by the player's own flashbangs.", "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

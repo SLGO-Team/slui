@@ -5,11 +5,14 @@ import {
   CLIENT_FEATURE_HUD_MESSAGES,
   CLIENT_FEATURE_HUD_MONEY,
   CLIENT_FEATURE_HUD_STATUS,
+  CLIENT_FEATURE_SCOREBOARD,
   CLIENT_FEATURE_WIN_PANEL,
   HUD_KILL_KINDS,
   HUD_KILLFEED_WEAPONS,
   HUD_RESERVE_ICONS,
   MAX_HUD_KILLFEED_ENTRIES,
+  MAX_SCOREBOARD_PLAYERS,
+  SCOREBOARD_ROUND_REASONS,
   EventSequenceGuard,
   HUD_TONES,
   INSTANCE_END_REASONS,
@@ -28,6 +31,7 @@ import {
   parseMinimapPositions,
   parseRoundResult,
   parseRoute,
+  parseScoreboardSnapshot,
   parseShopSnapshot,
 } from "../src/contracts/index.ts";
 import { MockSidecarConnection } from "../src/platform/connection.ts";
@@ -640,6 +644,69 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseHudKillfeed(withKill({ suicide: "no" })).ok, false);
   const { suicide: _dropped, ...withoutFlag } = kill;
   assert.equal(parseHudKillfeed(feed(withoutFlag)).ok, false, "suicide is required");
+}
+
+{
+  // scoreboard.snapshot (packages/protocol/v0/README.md "Scoreboard").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/scoreboard-snapshot.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, "the v0 scoreboard.snapshot example parses");
+  assert.equal(parsed.value.payload.players.length, 2);
+  assert.equal(parseEvent({ ...example, sent_at: undefined }).ok, false, "scoreboard.snapshot needs sent_at");
+  assert.equal(CLIENT_FEATURE_SCOREBOARD, "scoreboard");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_SCOREBOARD] }).ok, true);
+  assert.deepEqual(SCOREBOARD_ROUND_REASONS, ["elimination", "generator_activated", "generator_deactivated", "time_expired"]);
+
+  const board = example.payload;
+  const [human, bot] = board.players;
+  const ok = (patch) => parseScoreboardSnapshot({ ...board, ...patch }).ok;
+  const withStats = (patch) => ok({ players: [{ ...human, ntf: { ...human.ntf, ...patch } }] });
+  const withPlayer = (patch) => ok({ players: [{ ...human, ...patch }] });
+  const withRound = (patch) => ok({ rounds: [{ ...board.rounds[0], ...patch }] });
+  assert.equal(ok({ rounds: [], players: [], loss_bonus: null, halftime_after_round: null }), true, "a match before its first round, casual rules");
+  assert.equal(ok({ extra: 1 }), false, "unknown field");
+  const { players: _players, ...withoutPlayers } = board;
+  assert.equal(parseScoreboardSnapshot(withoutPlayers).ok, false, "players is required");
+  assert.equal(ok({ mode_name: "" }), false);
+  assert.equal(ok({ mode_name: "x".repeat(65) }), false, "mode name is at most 64");
+  assert.equal(ok({ mode_icon: "wingman" }), false, "mode icon is a closed set");
+  assert.equal(ok({ elapsed_ms: -1 }), false);
+  assert.equal(ok({ elapsed_ms: 1.5 }), false);
+  assert.equal(ok({ max_rounds: 0 }), false);
+  assert.equal(ok({ max_rounds: 65 }), false, "at most 64 rounds");
+  assert.equal(ok({ max_rounds: 14 }), true, "rounds within max_rounds");
+  assert.equal(ok({ max_rounds: 13, score_to_win: 7 }), false, "a round beyond max_rounds");
+  assert.equal(ok({ score_to_win: 0 }), false);
+  assert.equal(ok({ score_to_win: 25 }), false, "score to win within max_rounds");
+  assert.equal(ok({ halftime_after_round: 24 }), false, "halftime before the last round");
+  assert.equal(ok({ halftime_after_round: 0 }), false);
+  assert.equal(ok({ rounds: [board.rounds[1], board.rounds[0]] }), false, "rounds in increasing order");
+  assert.equal(ok({ rounds: [board.rounds[0], board.rounds[0]] }), false, "round numbers are unique");
+  assert.equal(withRound({ round: 0 }), false);
+  assert.equal(withRound({ winner_team_id: "team-c" }), false);
+  assert.equal(withRound({ winner_role: "spectator" }), false);
+  for (const reason of SCOREBOARD_ROUND_REASONS) assert.equal(withRound({ reason }), true, reason);
+  assert.equal(withRound({ reason: "bomb" }), false, "reason is a closed set");
+  assert.equal(withRound({ extra: 1 }), false, "unknown round field");
+  assert.equal(ok({ loss_bonus: { "team-a": 4, "team-b": 0 } }), true);
+  assert.equal(ok({ loss_bonus: { "team-a": 5, "team-b": 0 } }), false, "loss bonus levels 0-4");
+  assert.equal(ok({ loss_bonus: { "team-a": 1 } }), false, "both teams");
+  assert.equal(ok({ players: [human, { ...bot, player_id: human.player_id }] }), false, "player ids are unique");
+  assert.equal(ok({ players: Array.from({ length: MAX_SCOREBOARD_PLAYERS }, (_, i) => ({ ...bot, player_id: `dummy-${i}` })) }), true);
+  assert.equal(ok({ players: Array.from({ length: MAX_SCOREBOARD_PLAYERS + 1 }, (_, i) => ({ ...bot, player_id: `dummy-${i}` })) }), false, "at most 64 players");
+  assert.equal(withPlayer({ player_id: "" }), false);
+  assert.equal(withPlayer({ ping_ms: null }), true, "unknown ping");
+  assert.equal(withPlayer({ ping_ms: 1000 }), false, "ping is at most 999");
+  assert.equal(withPlayer({ ping_ms: 12.5 }), false);
+  assert.equal(withPlayer({ is_bot: "no" }), false);
+  assert.equal(withPlayer({ extra: 1 }), false, "unknown player field");
+  assert.equal(withStats({ headshot_kills: human.ntf.kills + 1 }), false, "headshot kills within kills");
+  assert.equal(withStats({ utility_damage: human.ntf.damage + 1 }), false, "utility damage within damage");
+  assert.equal(withStats({ deaths: -1 }), false);
+  assert.equal(withStats({ mvps: 0.5 }), false);
+  assert.equal(withStats({ extra: 1 }), false, "unknown stats field");
+  const { enemies_flashed: _flashed, ...partialStats } = human.ntf;
+  assert.equal(withPlayer({ scp: partialStats }), false, "every stat is required");
 }
 
 {

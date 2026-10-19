@@ -432,6 +432,79 @@ export type HudKillfeedEntry = {
 /** `hud.killfeed`: the viewer's top-right killfeed, oldest first (one recipient; sent only to clients declaring `hud-killfeed`). */
 export type HudKillfeedSnapshot = { entries: HudKillfeedEntry[] };
 
+/** Most players one `scoreboard.snapshot` carries. */
+export const MAX_SCOREBOARD_PLAYERS = 64;
+/** Upper bound of `max_rounds` (and so of the round history). */
+export const MAX_SCOREBOARD_ROUNDS = 64;
+/** Longest `mode_name` and `player_id` (UTF-16 code units). */
+export const MAX_SCOREBOARD_TEXT_LENGTH = 64;
+/** Highest loss-bonus level (CS2 draws four pips per team). */
+export const MAX_SCOREBOARD_LOSS_BONUS = 4;
+export const SCOREBOARD_MODE_ICONS = ["competitive", "casual"] as const;
+export type ScoreboardModeIcon = (typeof SCOREBOARD_MODE_ICONS)[number];
+/** Why a round ended (timeline icon): CS2 elimination / bomb / defuse / time with SLGO's generators as the objective. */
+export const SCOREBOARD_ROUND_REASONS = ["elimination", "generator_activated", "generator_deactivated", "time_expired"] as const;
+export type ScoreboardRoundReason = (typeof SCOREBOARD_ROUND_REASONS)[number];
+/** One player's match stats while playing one side (the plugin keeps NTF and SCP apart). Non-negative integers. */
+export type ScoreboardSideStats = {
+  /** Rounds finished on this side (the ADR denominator). */
+  rounds_played: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  /** HP damage dealt to enemies. */
+  damage: number;
+  /** Kills in `kills` whose killing blow hit the head; never above `kills`. */
+  headshot_kills: number;
+  /** Round MVPs earned on this side. */
+  mvps: number;
+  /** The part of `damage` dealt with the player's own HE grenades; never above `damage`. */
+  utility_damage: number;
+  /** Enemies blinded by the player's own flashbangs (one per victim per detonation). */
+  enemies_flashed: number;
+};
+export type ScoreboardPlayer = {
+  /** The `match.snapshot` player id (SteamID64 for Steam players). */
+  player_id: string;
+  /** Round-trip time to the server; null for bots and when unknown. */
+  ping_ms: number | null;
+  /** A test dummy or NPC (CS2 draws the bot icon instead of the ping). */
+  is_bot: boolean;
+  ntf: ScoreboardSideStats;
+  scp: ScoreboardSideStats;
+};
+export type ScoreboardRound = {
+  /** 1-based round number, strictly increasing in `rounds`; a round ended without a winner is left out. */
+  round: number;
+  winner_team_id: TeamId;
+  /** The side the winner played that round (timeline icon colour). */
+  winner_role: Role;
+  reason: ScoreboardRoundReason;
+};
+/**
+ * `scoreboard.snapshot`: the CS2 scoreboard's data (both teams' stats, round history, loss bonus). The same payload
+ * goes to every client declaring `scoreboard`; roster, names, alive state, scores and the viewer team's money stay in
+ * `match.snapshot`.
+ */
+export type ScoreboardSnapshot = {
+  /** Plugin-authored mode label, e.g. 竞技模式. */
+  mode_name: string;
+  mode_icon: ScoreboardModeIcon;
+  /** Match time at `sent_at`; a client counts on from its receive time. */
+  elapsed_ms: number;
+  max_rounds: number;
+  /** Wins that take the match (CS2 clinch). */
+  score_to_win: number;
+  /** Last round of the first half; null in modes without halftime. */
+  halftime_after_round: number | null;
+  /** Finished rounds in order. */
+  rounds: ScoreboardRound[];
+  /** Loss-bonus level per team; null when the mode has no loss streaks. */
+  loss_bonus: Record<TeamId, number> | null;
+  /** Unique player ids. */
+  players: ScoreboardPlayer[];
+};
+
 /**
  * Why a server instance ended. Open set: newer sidecars may send values this list does not have yet,
  * which a client treats as unspecified (see `knownInstanceEndReason`).
@@ -487,6 +560,7 @@ export type HudMessagesEvent = ProtocolEnvelope<HudMessagesSnapshot, "hud.messag
 export type RoundResultEvent = ProtocolEnvelope<RoundResultSnapshot, "round.result"> & { sent_at: string };
 export type HudStatusEvent = ProtocolEnvelope<HudStatusSnapshot, "hud.status">;
 export type HudKillfeedEvent = ProtocolEnvelope<HudKillfeedSnapshot, "hud.killfeed"> & { sent_at: string };
+export type ScoreboardSnapshotEvent = ProtocolEnvelope<ScoreboardSnapshot, "scoreboard.snapshot"> & { sent_at: string };
 export type InstanceEndedEvent = ProtocolEnvelope<InstanceEnded, "instance.ended"> & { sent_at: string };
 
 export type SlgoEvent =
@@ -498,6 +572,7 @@ export type SlgoEvent =
   | RoundResultEvent
   | HudStatusEvent
   | HudKillfeedEvent
+  | ScoreboardSnapshotEvent
   | InstanceEndedEvent
   | ProtocolEnvelope<ShopSnapshot, "shop.snapshot">
   | ProtocolEnvelope<ChatMessage, "chat.message">
@@ -643,6 +718,8 @@ export const CLIENT_FEATURE_HUD_MONEY = "hud-money";
 export const CLIENT_FEATURE_HUD_STATUS = "hud-status";
 /** SLUI draws the top-right killfeed: the plugin hides its own killfeed hint and publishes `hud.killfeed` for this player. */
 export const CLIENT_FEATURE_HUD_KILLFEED = "hud-killfeed";
+/** SLUI draws the scoreboard: the plugin ignores its own scoreboard key and publishes `scoreboard.snapshot` for this player. */
+export const CLIENT_FEATURE_SCOREBOARD = "scoreboard";
 export const MAX_CLIENT_FEATURES = 16;
 const MAX_CLIENT_FEATURE_LENGTH = 64;
 const CLIENT_FEATURE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -1066,6 +1143,61 @@ export function parseHudKillfeed(payload: unknown): ParseResult<HudKillfeedSnaps
   return { ok: true, value: payload as unknown as HudKillfeedSnapshot };
 }
 
+const SCOREBOARD_KEYS = new Set(["mode_name", "mode_icon", "elapsed_ms", "max_rounds", "score_to_win", "halftime_after_round", "rounds", "loss_bonus", "players"]);
+const SCOREBOARD_STATS_KEYS = new Set(["rounds_played", "kills", "deaths", "assists", "damage", "headshot_kills", "mvps", "utility_damage", "enemies_flashed"]);
+const SCOREBOARD_PLAYER_KEYS = new Set(["player_id", "ping_ms", "is_bot", "ntf", "scp"]);
+const SCOREBOARD_ROUND_KEYS = new Set(["round", "winner_team_id", "winner_role", "reason"]);
+const SCOREBOARD_LOSS_BONUS_KEYS = new Set(["team-a", "team-b"]);
+/** Highest ping a scoreboard shows (CS2 caps its column at three digits). */
+const MAX_SCOREBOARD_PING_MS = 999;
+
+const hasExactKeys = (value: Record<string, unknown>, keys: ReadonlySet<string>) => hasOnlyKeys(value, keys) && keys.size === Object.keys(value).length;
+const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+const isScoreboardText = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MAX_SCOREBOARD_TEXT_LENGTH;
+
+function isScoreboardSideStats(value: unknown): value is ScoreboardSideStats {
+  if (!isRecord(value) || !hasExactKeys(value, SCOREBOARD_STATS_KEYS) || ![...SCOREBOARD_STATS_KEYS].every((key) => isCount(value[key]))) return false;
+  const stats = value as unknown as ScoreboardSideStats;
+  return stats.headshot_kills <= stats.kills && stats.utility_damage <= stats.damage;
+}
+
+function isScoreboardPlayer(value: unknown): value is ScoreboardPlayer {
+  return isRecord(value) && hasExactKeys(value, SCOREBOARD_PLAYER_KEYS) && isScoreboardText(value.player_id)
+    && (value.ping_ms === null || (isCount(value.ping_ms) && value.ping_ms <= MAX_SCOREBOARD_PING_MS))
+    && typeof value.is_bot === "boolean" && isScoreboardSideStats(value.ntf) && isScoreboardSideStats(value.scp);
+}
+
+function isScoreboardRound(value: unknown, maxRounds: number): value is ScoreboardRound {
+  return isRecord(value) && hasExactKeys(value, SCOREBOARD_ROUND_KEYS) && Number.isInteger(value.round)
+    && Number(value.round) >= 1 && Number(value.round) <= maxRounds && isTeamId(value.winner_team_id) && isRole(value.winner_role)
+    && (SCOREBOARD_ROUND_REASONS as readonly unknown[]).includes(value.reason);
+}
+
+/**
+ * `scoreboard.snapshot` payload: strict stats per side (headshot kills within kills, utility damage within damage),
+ * round history in increasing round order within `max_rounds`, unique player ids.
+ */
+export function parseScoreboardSnapshot(payload: unknown): ParseResult<ScoreboardSnapshot> {
+  if (!isRecord(payload) || !hasExactKeys(payload, SCOREBOARD_KEYS)) return error("invalid-payload", "Scoreboard needs exactly its nine fields");
+  if (!isScoreboardText(payload.mode_name) || !(SCOREBOARD_MODE_ICONS as readonly unknown[]).includes(payload.mode_icon) || !isHudMs(payload.elapsed_ms)) return error("invalid-payload", "Scoreboard mode or time is invalid");
+  const maxRounds = payload.max_rounds;
+  if (!Number.isInteger(maxRounds) || Number(maxRounds) < 1 || Number(maxRounds) > MAX_SCOREBOARD_ROUNDS) return error("invalid-payload", "Scoreboard max rounds is invalid");
+  const max = Number(maxRounds);
+  if (!Number.isInteger(payload.score_to_win) || Number(payload.score_to_win) < 1 || Number(payload.score_to_win) > max) return error("invalid-payload", "Scoreboard score to win is invalid");
+  const halftime = payload.halftime_after_round;
+  if (halftime !== null && (!Number.isInteger(halftime) || Number(halftime) < 1 || Number(halftime) >= max)) return error("invalid-payload", "Scoreboard halftime is invalid");
+  const rounds = payload.rounds;
+  if (!Array.isArray(rounds) || !rounds.every((round) => isScoreboardRound(round, max))) return error("invalid-payload", "Scoreboard round is invalid");
+  if (!rounds.every((round, index) => index === 0 || (round as ScoreboardRound).round > (rounds[index - 1] as ScoreboardRound).round)) return error("invalid-payload", "Scoreboard rounds must be in increasing order");
+  const lossBonus = payload.loss_bonus;
+  if (lossBonus !== null && (!isRecord(lossBonus) || !hasExactKeys(lossBonus, SCOREBOARD_LOSS_BONUS_KEYS)
+    || !Object.values(lossBonus).every((level) => isCount(level) && level <= MAX_SCOREBOARD_LOSS_BONUS))) return error("invalid-payload", "Scoreboard loss bonus is invalid");
+  const players = payload.players;
+  if (!Array.isArray(players) || players.length > MAX_SCOREBOARD_PLAYERS || !players.every(isScoreboardPlayer)) return error("invalid-payload", "Scoreboard player is invalid");
+  if (new Set(players.map((player) => (player as ScoreboardPlayer).player_id)).size !== players.length) return error("invalid-payload", "Scoreboard player ids must be unique");
+  return { ok: true, value: payload as unknown as ScoreboardSnapshot };
+}
+
 export function parseInstanceEnded(payload: unknown): ParseResult<InstanceEnded> {
   if (!isRecord(payload) || Object.keys(payload).length !== 1 || !isNonEmptyString(payload.reason) || payload.reason.length > MAX_INSTANCE_END_REASON_LENGTH) {
     return error("invalid-payload", "Instance end needs exactly a reason of 1-64 characters");
@@ -1124,6 +1256,11 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
       // Remaining times are counted from sent_at, as for hud.messages.
       if (envelope.sent_at === undefined) return error("invalid-envelope", "HUD killfeed timestamp is required", envelope.event_id);
       payloadResult = parseHudKillfeed(envelope.payload);
+      break;
+    case "scoreboard.snapshot":
+      // The elapsed match time is counted from sent_at.
+      if (envelope.sent_at === undefined) return error("invalid-envelope", "Scoreboard timestamp is required", envelope.event_id);
+      payloadResult = parseScoreboardSnapshot(envelope.payload);
       break;
     case "instance.ended":
       if (envelope.sent_at === undefined) return error("invalid-envelope", "Instance end timestamp is required", envelope.event_id);
