@@ -23,7 +23,7 @@
 }
 
 .shop-overlay { position: fixed; inset: 0; z-index: 30; pointer-events: none; user-select: none; }
-.shop-design-canvas { position: absolute; inset: 0 auto auto 50%; width: 1920px; height: 1080px; transform: translateX(-50%) scale(var(--shop-overlay-scale, 1)); transform-origin: top center; }
+.shop-design-canvas { position: absolute; inset: 0 auto auto 50%; width: min(1920px, 100vw / var(--shop-overlay-scale, 1)); height: 1080px; transform: translateX(-50%) scale(var(--shop-overlay-scale, 1)); transform-origin: top center; }
 /* Opening the buy menu does not just lay an alpha plate over the world - Source 2
    runs a screen-space blur and desaturation pass on the 3D scene behind it. That
    pass lives in the engine's render pipeline, so buymenu.css only ever declares

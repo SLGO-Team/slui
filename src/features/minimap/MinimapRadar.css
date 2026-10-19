@@ -12,9 +12,9 @@
   position: absolute;
   top: 0;
   left: 50%;
-  width: 1920px;
+  width: min(1920px, 100vw / var(--minimap-scale, 1));
   height: 1080px;
-  margin-left: -960px;
+  margin-left: calc(min(1920px, 100vw / var(--minimap-scale, 1)) / -2);
   transform: scale(var(--minimap-scale, 1));
   transform-origin: top center;
 }

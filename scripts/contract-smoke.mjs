@@ -67,7 +67,11 @@ import {
 
 assert.equal(hudScaleForViewport(1920, 1080), 1);
 assert.equal(hudScaleForViewport(1280, 720), 2 / 3);
-assert.equal(hudScaleForViewport(1920, 1200), 1);
+// Panorama scales by height at every aspect ratio (16:10, 4:3, 21:9); the canvas width follows in CSS.
+assert.equal(hudScaleForViewport(1920, 1200), 1200 / 1080);
+assert.equal(hudScaleForViewport(1024, 768), 768 / 1080);
+assert.equal(hudScaleForViewport(3440, 1440), 1440 / 1080);
+assert.equal(hudScaleForViewport(0, 1080), 1);
 {
   // Radar, HUD counter and chat share one slot colour per player: side palette by team-list index.
   const slots = playerSlotColors([

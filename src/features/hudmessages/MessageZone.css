@@ -44,9 +44,9 @@
   position: absolute;
   top: 0;
   left: 50%;
-  width: 1920px;
+  width: min(1920px, 100vw / var(--hudmsg-scale));
   height: 1080px;
-  margin-left: -960px;
+  margin-left: calc(min(1920px, 100vw / var(--hudmsg-scale)) / -2);
   transform: scale(var(--hudmsg-scale));
   transform-origin: top center;
 }
@@ -63,7 +63,7 @@
   --hudmsg-fill: rgba(62, 62, 62, 0.6);
   --hudmsg-glitch: color-mix(in srgb, var(--hudmsg-bar) 55%, #fff);
   position: absolute;
-  left: 810px;
+  left: calc(50% - 150px);
   width: 300px;
 }
 
