@@ -50,6 +50,7 @@ Payload schemas:
 - [round-result.schema.json](./round-result.schema.json)
 - [hud-status.schema.json](./hud-status.schema.json)
 - [hud-killfeed.schema.json](./hud-killfeed.schema.json)
+- [scoreboard-snapshot.schema.json](./scoreboard-snapshot.schema.json)
 - [instance-ended.schema.json](./instance-ended.schema.json)
 - [command.schema.json](./command.schema.json)
 - [command-result.schema.json](./command-result.schema.json)
@@ -80,6 +81,7 @@ Payload schemas:
 | sidecar -> client | `round.result` | The viewer's round / match result panel (win panel, MVP) |
 | sidecar -> client | `hud.status` | The viewer's bottom HUD: held firearm ammo and this round's kills |
 | sidecar -> client | `hud.killfeed` | The viewer's top-right killfeed (who killed whom, with what) |
+| sidecar -> client | `scoreboard.snapshot` | Scoreboard stats per side, ping, round history and loss bonus |
 | sidecar -> client | `instance.ended` | Why the instance ended; the last frame before the 4003 close |
 
 The shop and chat payloads intentionally remain plugin-defined. SLUI must not
@@ -243,6 +245,42 @@ entry itself when its time runs out. `sent_at` is required.
 - `visible_remaining_ms`: integer > 0, the time left at `sent_at` before the
   entry starts its 1 s fade-out. CS2 shows an entry 5 s, 7.5 s when the viewer
   is its killer or victim; the plugin has already applied that.
+
+## Scoreboard
+
+`scoreboard.snapshot` carries what the CS2 scoreboard shows beyond
+`match.snapshot`: both teams' stats, ping, the round history and the loss
+bonus. Snapshot, cached and replayed after the baseline (the replay adds the
+cache age to `elapsed_ms`). The payload is the same for every recipient, so
+one publish goes to every player whose SLUI declares `scoreboard`; the plugin
+publishes when anything but the clock changes, at most every 500 ms.
+Roster, names, avatars, alive and online state, team scores, the round number
+and the viewer team's money stay in `match.snapshot` (enemy money is never
+sent). `sent_at` is required. Every object rejects unknown fields.
+
+- `mode_name` (1-64 characters, plugin text such as 竞技模式) and `mode_icon`
+  (`competitive` or `casual`) for the header; `elapsed_ms` is the match time at
+  `sent_at`, which a client counts on from its receive time.
+- `max_rounds` (1-64), `score_to_win` (1..`max_rounds`, the CS2 clinch) and
+  `halftime_after_round` (the last first-half round, `1..max_rounds-1`, or null
+  in modes without halftime).
+- `rounds`: finished rounds in increasing `round` order, each
+  `{ round, winner_team_id, winner_role, reason }`: `winner_role` is the side
+  the winner played that round, `reason` one of `elimination`,
+  `generator_activated` (the NTF objective, CS2's bomb), `generator_deactivated`
+  (the SCP answer, CS2's defuse) or `time_expired`. A round ended without a
+  winner (an admin end) is left out, so numbers may skip.
+- `loss_bonus`: `{ "team-a": n, "team-b": n }` with levels 0-4 (CS2's four
+  pips), or null when the mode has no loss streaks.
+- `players` (at most 64, unique ids): `{ player_id, ping_ms, is_bot, ntf, scp }`.
+  `player_id` is the `match.snapshot` id; `ping_ms` 0-999 or null for bots and
+  when unknown; `is_bot` marks test dummies and NPCs. `ntf` and `scp` are the
+  player's match stats on each side (the plugin keeps the two apart):
+  `rounds_played` (rounds finished on that side, the ADR denominator), `kills`,
+  `deaths`, `assists`, `damage` (HP dealt to enemies), `headshot_kills` (at most
+  `kills`), `mvps`, `utility_damage` (the part of `damage` dealt by the player's
+  own HE grenades) and `enemies_flashed` (enemies blinded by the player's own
+  flashbangs), all non-negative integers.
 
 ## Minimap payload v6
 
@@ -465,6 +503,8 @@ Known features:
   to this player.
 - `hud-killfeed`: SLUI draws the top-right killfeed, so the plugin hides its
   own killfeed hint and sends `hud.killfeed` to this player.
+- `scoreboard`: SLUI draws the scoreboard on its own key, so the plugin ignores
+  its scoreboard keybind for this player and sends `scoreboard.snapshot`.
 
 A sidecar that predates the frame logs and drops it like an invalid command;
 the session stays open. The sidecar answers `failed` itself if the plugin is
