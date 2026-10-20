@@ -561,6 +561,13 @@ React components reach all of these only through `src/platform/desktop.ts`,
 `BroadcastChannel` and `localStorage` so a home tab and an overlay tab still drive
 each other.
 
+State a command reads with `state::<T>()` is registered on the `tauri::Builder`
+(`.manage`), never in `setup`: Tauri builds the `tauri.conf.json` windows before
+`setup` runs, and a release build's embedded page can invoke a command while the
+next window is still being built (the release exe aborted at launch in
+`updater_start` this way; dev builds load from Vite too late to show it). State
+created in `setup` (the tray items) is read only through `try_state`.
+
 ### 3.2 Auto-update
 
 The update manifest is `UpdateManifest` in `@slgo/protocol`
