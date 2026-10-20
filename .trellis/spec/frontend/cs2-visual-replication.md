@@ -581,7 +581,7 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
 - Geometry at 1080p (capture): panel 960 wide, centred, its centre at y 570; padding 20 20 0; meta 75 (row 1 38 with
   the divider, buttons 26 wide 10 apart ending at x 1360, top y 350, clipped to 19 visible pixels); labels row 26;
   rows 24 high, 26 apart, 770 wide from x 590 (status 24, ping 37, flair 32.4, avatar 24, name fill, page 1 money 66 /
-  K / D / A 50 / HS% 64, page 2 MVPs / utility / flashed / KDR / ADR 50, damage 50); team block at least 134 high
+  K / D / A 50 / hit rate 64 (CS2's HS% cell), page 2 MVPs / utility / flashed / KDR / ADR 50, damage 50); team block at least 134 high
   (emblem 80 + two 25px labels); timeline 103 + 2/2 margins with rounds 20 wide (first at x 659, divider 10/2/10),
   ticks 18x2 at y 584; spectator gap 40; footer 48 with the hint 10px from the right. 5v5 competitive = 584 high (y
   278-861); casual 10v10 grows and stays centred.
@@ -595,9 +595,10 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   (measured: 战败补偿 59px and 杀敌数 44px of ink at 18px; the chat's 0.9 overflows the 50px cells). No text shadow.
 - Behaviour (`presentation.ts`): sort = online first, then the clicked stat, then damage, kills, MVPs, assists
   (descending), deaths (ascending), roster order (CS2 `sortOrder_tmm`); no direction toggle; blanks sort last; re-sort
-  pauses while the pointer is over the rows. HS% = headshot kills / kills, KDR = kills / max(deaths, 1) (2 decimals),
+  pauses while the pointer is over the rows. 命中率 (hit rate, in CS2's HS% column) = shots hit / shots fired: SLGO's headshots only count for NTF
+  shooting SCP-049-2, so HS% would read 0 (user decision 2026-10-20). KDR = kills / max(deaths, 1) (2 decimals),
   ADR = damage / rounds played. Money only for the viewer's own team in the current view. Rows showing SCP-side
-  stats blank HS% / utility / flashed. Page, side and sort persist for the session (CS2 `_CycleStats`). The side
+  stats blank 命中率 / utility / flashed. Page, side and sort persist for the session (CS2 `_CycleStats`). The side
   switch exists only in the second half of a halftime mode; the other view shows each player's first-half bucket and
   a 上半场 marker where CS2 has the server line (D6: no map or server line). Timeline: winner icon by the team's block,
   coloured by the side it won with; SLGO reasons map to CS2's icons (elimination skull, generator activated = the

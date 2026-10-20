@@ -32,7 +32,8 @@ type ScoreboardSideStats = {
   deaths: number;
   assists: number;
   damage: number;           // integer HP damage, same rules as TotalDamage
-  headshot_kills: number;   // kills counted in `kills` whose killing blow was a headshot (kill-feed rule)
+  shots_fired: number;      // firearm shots (PlayerSideStats.ShotsFired, ShotTally: one per trigger pull)
+  shots_hit: number;        // shots that hit a player (ShotsHit), <= shots_fired
   mvps: number;             // round MVPs earned on this side
   utility_damage: number;   // part of `damage` dealt by the player's own HE grenades
   enemies_flashed: number;  // enemies blinded by the player's own flashbangs (one per victim per detonation)
@@ -68,7 +69,7 @@ type ScoreboardSnapshot = {
 };
 ```
 
-Validation (parser; plugin self-check equivalent): non-negative integers, `headshot_kills <= kills`,
+Validation (parser; plugin self-check equivalent): non-negative integers, `shots_hit <= shots_fired`,
 `utility_damage <= damage`, enums closed, rounds strictly increasing and `<= max_rounds`, unique player ids,
 `halftime_after_round` in `1..max_rounds-1` or null, no unknown fields. Rounds the plugin ends without a
 winner (`RoundEndReason.Unknown`, admin end) are not listed, so `rounds` may skip a number.
@@ -82,9 +83,10 @@ and to take the scoreboard over; the plugin then ignores its own scoreboard keyb
 
 ## 3. Plugin (SLGO)
 
-- Stats (`Features/Stats`): `PlayerSideStats` gains `RoundsPlayed`, `HeadshotKills`, `Mvps`, `UtilityDamage`,
+- Stats (`Features/Stats`): `PlayerSideStats` gains `RoundsPlayed`, `Mvps`, `UtilityDamage`,
   `EnemiesFlashed`, all per side bucket like the existing fields.
-  - Headshot: the killing damage handler's hitbox, the same rule as `KillFeedModel.Headshot`.
+  - Hit rate uses the existing `ShotsFired` / `ShotsHit` (the hint board's 命%). Headshots are not used: SLGO only
+    registers them for NTF shooting SCP-049-2 (user decision 2026-10-20).
   - MVP: `MvpManager` result at round end -> MVP player's bucket for the side they played that round.
   - Utility damage: damage already counted in `TotalDamage` whose handler is the attacker's own HE grenade
     explosion.
@@ -146,11 +148,11 @@ Reducer over `sidecar.baseline` / `scoreboard.snapshot` with the same source, se
 - View state (local, kept for the SLUI session): `page: 1 | 2`, `side: "current" | "other"`, `sortStat`.
   `side` falls back to `"current"` whenever the other side is unavailable (no halftime, first half, new match).
 - Displayed bucket per row: the role of the row's team now (`current`) or the other role (`other`).
-- Derived: HS% = round(100 * headshot_kills / kills) (0 when no kills), KDR = kills / max(deaths, 1) (2
+- Derived: 命中率 = round(100 * shots_hit / shots_fired) (0 without shots), in CS2's HS% column, KDR = kills / max(deaths, 1) (2
   decimals), ADR = round(damage / rounds_played) (0 when none).
-- Columns: page 1 金钱 / 杀敌数 / 死亡数 / 助攻数 / 爆% / 伤害; page 2 MVP次数 / 道具 / 致盲 / KDR / 伤/局 / 伤害.
+- Columns: page 1 金钱 / 杀敌数 / 死亡数 / 助攻数 / 命中率 / 伤害; page 2 MVP次数 / 道具 / 致盲 / KDR / 伤/局 / 伤害.
   Money only for the viewer's own team in the current view (spectators and the other view: blank). Rows whose
-  displayed bucket is SCP leave 爆% / 道具 / 致盲 blank (SCPs cannot earn them; the plugin's hint board blanks
+  displayed bucket is SCP leave 命中率 / 道具 / 致盲 blank (SCPs cannot earn them; the plugin's hint board blanks
   命% the same way).
 - Sort (CS2 `sortOrder_tmm`): online first, then damage desc, kills desc, MVPs desc, assists desc, deaths asc,
   roster order. A header click puts that stat first and keeps the chain for ties; no direction toggle; the

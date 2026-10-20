@@ -41,7 +41,7 @@ const MOCK_IDS: Readonly<Record<TeamId, readonly string[]>> = {
 
 /** Deterministic stats: the seed varies them per player and side, and NTF-only stats stay 0 on the SCP side. */
 function stats(seed: number, roundsPlayed: number, ntf: boolean): ScoreboardSideStats {
-  if (roundsPlayed === 0) return { rounds_played: 0, kills: 0, deaths: 0, assists: 0, damage: 0, headshot_kills: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0 };
+  if (roundsPlayed === 0) return { rounds_played: 0, kills: 0, deaths: 0, assists: 0, damage: 0, shots_fired: 0, shots_hit: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0 };
   const kills = (seed * 7) % (roundsPlayed + 4);
   const damage = kills * 92 + ((seed * 37) % 160);
   return {
@@ -50,7 +50,8 @@ function stats(seed: number, roundsPlayed: number, ntf: boolean): ScoreboardSide
     deaths: (seed * 5) % (roundsPlayed + 1),
     assists: (seed * 3) % 5,
     damage,
-    headshot_kills: ntf ? Math.floor(kills / 2) : 0,
+    shots_fired: ntf ? roundsPlayed * 18 + ((seed * 11) % 30) : 0,
+    shots_hit: ntf ? Math.floor((roundsPlayed * 18 + ((seed * 11) % 30)) * (0.2 + (seed % 5) * 0.06)) : 0,
     mvps: seed % 4 === 0 ? 2 : seed % 3 === 0 ? 1 : 0,
     utility_damage: ntf ? Math.min(damage, (seed * 13) % 90) : 0,
     enemies_flashed: ntf ? seed % 4 : 0,

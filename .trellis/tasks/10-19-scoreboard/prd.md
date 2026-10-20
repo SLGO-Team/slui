@@ -66,9 +66,10 @@ Panorama sources and behaviour notes: `research/cs2-scoreboard-reference.md`.
 - R5 In cursor mode during the second half of a halftime mode, the side button switches between current-side and
   other-side stats, marked 上半场 while showing the other side; it persists like the page and falls back to the
   current side when unavailable.
-- R6 Stats: K, D, A, damage, HS% (headshot kills / kills), MVPs, utility damage (own HE grenades), enemies
+- R6 Stats: K, D, A, damage, hit rate 命中率 (shots hit / shots fired, in CS2's HS% column: SLGO's headshots only count
+  for NTF shooting SCP-049-2; user decision 2026-10-20), MVPs, utility damage (own HE grenades), enemies
   flashed (own flashbangs), KDR (kills / max(deaths, 1)), ADR (damage / rounds played), all per side. Money only
-  for the viewer's own team in the current-side view. 爆% / 道具 / 致盲 blank on rows showing SCP-side stats.
+  for the viewer's own team in the current-side view. 命中率 / 道具 / 致盲 blank on rows showing SCP-side stats.
 - R7 Panel parts: header (mode icon + name, elapsed time), team blocks (SCP top, NTF bottom) with score emblem,
   side name and alive count; in halftime modes (CS2's competitive template; casual has none) half scores, round
   timeline with win-reason icons, trophies and halftime divider, and loss-bonus pips (modes with loss streaks);

@@ -703,7 +703,8 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(withPlayer({ ping_ms: 12.5 }), false);
   assert.equal(withPlayer({ is_bot: "no" }), false);
   assert.equal(withPlayer({ extra: 1 }), false, "unknown player field");
-  assert.equal(withStats({ headshot_kills: human.ntf.kills + 1 }), false, "headshot kills within kills");
+  assert.equal(withStats({ shots_hit: human.ntf.shots_fired + 1 }), false, "hits within shots");
+  assert.equal(withStats({ shots_fired: 0, shots_hit: 0 }), true, "no shots fired");
   assert.equal(withStats({ utility_damage: human.ntf.damage + 1 }), false, "utility damage within damage");
   assert.equal(withStats({ deaths: -1 }), false);
   assert.equal(withStats({ mvps: 0.5 }), false);

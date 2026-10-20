@@ -113,11 +113,11 @@ for (const scene of SCENES) {
   const top = 570 - height / 2;
   if (scene.rowsPerTeam === 5 && scene.timeline) near(top, 278, "5v5 competitive top");
 
-  // Columns (capture centres): page 1 kills 1121, deaths 1171, assists 1221, HS% 1278; page 2 MVPs 1085, ADR 1285; damage 1335.
+  // Columns (capture centres): page 1 kills 1121, deaths 1171, assists 1221, HS% (SLGO: hit rate) 1278; page 2 MVPs 1085, ADR 1285; damage 1335.
   const centre = (label) => label.x + label.width / 2;
   const expectedCentres = scene.page === 2
     ? { mvps: 1085, utilitydamage: 1135, enemiesflashed: 1185, kdr: 1235, adr: 1285, damage: 1335 }
-    : { money: 1063, kills: 1121, deaths: 1171, assists: 1221, hsp: 1278, damage: 1335 };
+    : { money: 1063, kills: 1121, deaths: 1171, assists: 1221, accuracy: 1278, damage: 1335 };
   assert.deepEqual(Object.keys(audit.labels), Object.keys(expectedCentres), `${scene.name} columns`);
   for (const [stat, x] of Object.entries(expectedCentres)) nearX(centre(audit.labels[stat]), x, `${scene.name} ${stat} label`);
   nearY(audit.labels.damage.y, top + 96, `${scene.name} label row y`);

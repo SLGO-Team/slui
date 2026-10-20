@@ -53,7 +53,7 @@ const match = (state = "ActionPhase", round = 15, scores = [6, 8]) => parsed(env
   ],
 }));
 
-const stats = (patch = {}) => ({ rounds_played: 2, kills: 0, deaths: 0, assists: 0, damage: 0, headshot_kills: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0, ...patch });
+const stats = (patch = {}) => ({ rounds_played: 2, kills: 0, deaths: 0, assists: 0, damage: 0, shots_fired: 0, shots_hit: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0, ...patch });
 const rounds = [
   ...Array.from({ length: 12 }, (_, i) => ({ round: i + 1, winner_team_id: i % 3 === 0 ? "team-a" : "team-b", winner_role: i % 3 === 0 ? "scp" : "ntf", reason: "elimination" })),
   { round: 13, winner_team_id: "team-a", winner_role: "ntf", reason: "generator_activated" },
@@ -63,10 +63,10 @@ const board = (patch = {}) => parsed(envelope("scoreboard.snapshot", 3, {
   mode_name: "竞技模式", mode_icon: "competitive", elapsed_ms: 591_000, max_rounds: 24, score_to_win: 13, halftime_after_round: 12,
   rounds, loss_bonus: { "team-a": 2, "team-b": 0 },
   players: [
-    { player_id: NOVA, ping_ms: 42, is_bot: false, ntf: stats({ kills: 3, deaths: 1, assists: 1, damage: 312, headshot_kills: 2, mvps: 1, utility_damage: 48, enemies_flashed: 2 }), scp: stats({ rounds_played: 12, kills: 9, deaths: 6, damage: 1410, mvps: 2 }) },
+    { player_id: NOVA, ping_ms: 42, is_bot: false, ntf: stats({ kills: 3, deaths: 1, assists: 1, damage: 312, shots_fired: 64, shots_hit: 23, mvps: 1, utility_damage: 48, enemies_flashed: 2 }), scp: stats({ rounds_played: 12, kills: 9, deaths: 6, damage: 1410, mvps: 2 }) },
     { player_id: KILO, ping_ms: 61, is_bot: false, ntf: stats({ kills: 3, deaths: 2, damage: 312, mvps: 1 }), scp: stats({ rounds_played: 12, kills: 4, damage: 500 }) },
     { player_id: LIMA, ping_ms: null, is_bot: false, ntf: stats({ kills: 5, damage: 900 }), scp: stats({ rounds_played: 12 }) },
-    { player_id: ECHO, ping_ms: 35, is_bot: false, scp: stats({ kills: 1, damage: 100 }), ntf: stats({ rounds_played: 12, kills: 7, deaths: 3, damage: 1200, headshot_kills: 3, utility_damage: 90, enemies_flashed: 4 }) },
+    { player_id: ECHO, ping_ms: 35, is_bot: false, scp: stats({ kills: 1, damage: 100 }), ntf: stats({ rounds_played: 12, kills: 7, deaths: 3, damage: 1200, shots_fired: 40, shots_hit: 17, utility_damage: 90, enemies_flashed: 4 }) },
     { player_id: BOT, ping_ms: null, is_bot: true, scp: stats({ kills: 1, damage: 100, assists: 2 }), ntf: stats() },
   ],
   ...patch,
@@ -121,24 +121,24 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   assert.equal(view.top.side, "ct");
   assert.equal(view.bottom.sideName, "NTF");
   assert.equal(view.bottom.aliveLabel, "存活：1/3");
-  assert.deepEqual(view.columns.map((column) => column.label), ["金钱", "杀敌数", "死亡数", "助攻数", "爆%", "伤害"]);
+  assert.deepEqual(view.columns.map((column) => column.label), ["金钱", "杀敌数", "死亡数", "助攻数", "命中率", "伤害"]);
 
   // NTF (viewer) block: Nova and Kilo tie on damage 312 and kills 3 and MVPs 1; Nova has more assists. Lima is offline: last.
   assert.deepEqual(ids(view.bottom), [NOVA, KILO, LIMA]);
   const [nova, kilo, lima] = view.bottom.rows;
   assert.equal(nova.local, true);
   assert.equal(cell(nova, "money"), "$4250", "own team money");
-  assert.equal(cell(nova, "hsp"), "67", "2 of 3 kills");
+  assert.equal(cell(nova, "accuracy"), "36", "23 of 64 shots hit");
   assert.equal(cell(nova, "damage"), "312");
   assert.equal(nova.ping, "42");
   assert.equal(kilo.state, "dead");
   assert.equal(lima.state, "offline");
   assert.equal(cell(lima, "money"), "", "offline teammate: no loadout");
 
-  // SCP block: SCP-side stats leave 爆% blank; enemy money is never shown; the bot has no ping.
+  // SCP block: SCP-side stats leave 命中率 blank; enemy money is never shown; the bot has no ping.
   const echo = view.top.rows.find((row) => row.playerId === ECHO);
   const bot = view.top.rows.find((row) => row.playerId === BOT);
-  assert.equal(cell(echo, "hsp"), "");
+  assert.equal(cell(echo, "accuracy"), "");
   assert.equal(cell(echo, "money"), "");
   assert.equal(bot.bot, true);
   assert.equal(bot.ping, "");
@@ -169,8 +169,8 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   assert.equal(byDeaths.sortStat, "deaths");
   const byAssists = select({ view: { ...initialScoreboardViewState, sortStat: "assists" } });
   assert.deepEqual(ids(byAssists.top), [BOT, ECHO, GONE]);
-  const byHsp = select({ view: { ...initialScoreboardViewState, sortStat: "hsp" } });
-  assert.deepEqual(ids(byHsp.top), [BOT, ECHO, GONE], "all blank: the chain decides (damage and kills tie, more assists first)");
+  const byAccuracy = select({ view: { ...initialScoreboardViewState, sortStat: "accuracy" } });
+  assert.deepEqual(ids(byAccuracy.top), [BOT, ECHO, GONE], "all blank: the chain decides (damage and kills tie, more assists first)");
 }
 
 {
@@ -181,9 +181,9 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   const nova = other.bottom.rows.find((row) => row.playerId === NOVA);
   assert.equal(cell(nova, "damage"), "1410", "Nova's SCP half");
   assert.equal(cell(nova, "money"), "", "no money in the other view");
-  assert.equal(cell(nova, "hsp"), "", "SCP-side bucket");
+  assert.equal(cell(nova, "accuracy"), "", "SCP-side bucket");
   const echo = other.top.rows.find((row) => row.playerId === ECHO);
-  assert.equal(cell(echo, "hsp"), "43", "Echo's NTF half: 3 of 7");
+  assert.equal(cell(echo, "accuracy"), "43", "Echo's NTF half: 17 of 40, rounded half up");
   assert.deepEqual(ids(other.bottom), [NOVA, KILO, LIMA]);
 
   const firstHalf = select({ hud: hudFor(match("ActionPhase", 5)), view: { ...initialScoreboardViewState, side: "other" } });

@@ -51,7 +51,7 @@ export function formatScoreboardElapsed(ms: number): string {
 }
 
 /** Stats a column shows (CS2 `data-stat` names). */
-export const SCOREBOARD_STATS = ["money", "kills", "deaths", "assists", "hsp", "mvps", "utilitydamage", "enemiesflashed", "kdr", "adr", "damage"] as const;
+export const SCOREBOARD_STATS = ["money", "kills", "deaths", "assists", "accuracy", "mvps", "utilitydamage", "enemiesflashed", "kdr", "adr", "damage"] as const;
 export type ScoreboardStat = (typeof SCOREBOARD_STATS)[number];
 
 /**

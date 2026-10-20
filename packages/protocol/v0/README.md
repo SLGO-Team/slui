@@ -277,10 +277,11 @@ sent). `sent_at` is required. Every object rejects unknown fields.
   when unknown; `is_bot` marks test dummies and NPCs. `ntf` and `scp` are the
   player's match stats on each side (the plugin keeps the two apart):
   `rounds_played` (rounds finished on that side, the ADR denominator), `kills`,
-  `deaths`, `assists`, `damage` (HP dealt to enemies), `headshot_kills` (at most
-  `kills`), `mvps`, `utility_damage` (the part of `damage` dealt by the player's
-  own HE grenades) and `enemies_flashed` (enemies blinded by the player's own
-  flashbangs), all non-negative integers.
+  `deaths`, `assists`, `damage` (HP dealt to enemies), `shots_fired` (firearm
+  shots, one per trigger pull, a shotgun blast once), `shots_hit` (the ones that
+  hit a player, at most `shots_fired`), `mvps`, `utility_damage` (the part of
+  `damage` dealt by the player's own HE grenades) and `enemies_flashed` (enemies
+  blinded by the player's own flashbangs), all non-negative integers.
 
 ## Minimap payload v6
 

@@ -19,15 +19,18 @@ export type ScoreboardColumn = Readonly<{
 
 const column = (stat: ScoreboardStat, label: string, width = 50, align: "center" | "right" = "center"): ScoreboardColumn => ({ stat, label, width, align });
 
-/** The two stat sets (CS2 competitive row: `data-set` 0 and 1), then damage, which every page shows. */
+/**
+ * The two stat sets (CS2 competitive row: `data-set` 0 and 1), then damage, which every page shows. SLGO shows the
+ * hit rate where CS2 has HS%: SLGO's headshots only count for NTF shooting SCP-049-2, so HS% would read 0.
+ */
 export const SCOREBOARD_PAGES: Readonly<Record<1 | 2, readonly ScoreboardColumn[]>> = {
-  1: [column("money", "金钱", 66, "right"), column("kills", "杀敌数"), column("deaths", "死亡数"), column("assists", "助攻数"), column("hsp", "爆%", 64)],
+  1: [column("money", "金钱", 66, "right"), column("kills", "杀敌数"), column("deaths", "死亡数"), column("assists", "助攻数"), column("accuracy", "命中率", 64)],
   2: [column("mvps", "MVP次数"), column("utilitydamage", "道具"), column("enemiesflashed", "致盲"), column("kdr", "KDR"), column("adr", "伤/局")],
 };
 export const SCOREBOARD_DAMAGE_COLUMN: ScoreboardColumn = column("damage", "伤害");
 
 /** Stats SCP players cannot earn: blank on rows that show SCP-side stats (the plugin's hint board blanks 命% too). */
-const HUMAN_ONLY_STATS: ReadonlySet<ScoreboardStat> = new Set(["hsp", "utilitydamage", "enemiesflashed"]);
+const HUMAN_ONLY_STATS: ReadonlySet<ScoreboardStat> = new Set(["accuracy", "utilitydamage", "enemiesflashed"]);
 
 /**
  * CS2 `sortOrder_tmm` after the online check: damage, kills, MVPs, assists (descending), deaths (ascending), then the
@@ -128,7 +131,7 @@ export const SCOREBOARD_HIDDEN_STATES: ReadonlySet<RoundState> = new Set(["Idle"
 const otherRole = (role: Role): Role => role === "ntf" ? "scp" : "ntf";
 
 const EMPTY_STATS: ScoreboardSideStats = {
-  rounds_played: 0, kills: 0, deaths: 0, assists: 0, damage: 0, headshot_kills: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0,
+  rounds_played: 0, kills: 0, deaths: 0, assists: 0, damage: 0, shots_fired: 0, shots_hit: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0,
 };
 
 /** One stat's sort value; NaN for a blank cell (CS2 `_lessthan` puts NaN below every number). */
@@ -139,7 +142,7 @@ function statValue(stat: ScoreboardStat, stats: ScoreboardSideStats, bucket: Rol
     case "kills": return stats.kills;
     case "deaths": return stats.deaths;
     case "assists": return stats.assists;
-    case "hsp": return stats.kills === 0 ? 0 : Math.round((100 * stats.headshot_kills) / stats.kills);
+    case "accuracy": return stats.shots_fired === 0 ? 0 : Math.round((100 * stats.shots_hit) / stats.shots_fired);
     case "mvps": return stats.mvps;
     case "utilitydamage": return stats.utility_damage;
     case "enemiesflashed": return stats.enemies_flashed;
@@ -217,7 +220,7 @@ export function selectScoreboard({ hud, frame, view, localPlayerId, nowMs }: Sel
       const stats = scoreboardPlayer?.[bucket] ?? EMPTY_STATS;
       const money = showMoney ? moneyOf(player) : null;
       const values = Object.fromEntries(
-        (["money", "kills", "deaths", "assists", "hsp", "mvps", "utilitydamage", "enemiesflashed", "kdr", "adr", "damage"] as const)
+        (["money", "kills", "deaths", "assists", "accuracy", "mvps", "utilitydamage", "enemiesflashed", "kdr", "adr", "damage"] as const)
           .map((stat) => [stat, statValue(stat, stats, bucket, money)]),
       ) as Record<ScoreboardStat, number>;
       const bot = scoreboardPlayer?.is_bot ?? false;
