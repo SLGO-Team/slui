@@ -602,7 +602,8 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   ADR = damage / rounds played. Money only for the viewer's own team in the current view. Rows showing SCP-side
   stats blank 命% / utility / flashed. Page, side and sort persist for the session (CS2 `_CycleStats`). The side
   switch exists only in the second half of a halftime mode; the other view shows each player's first-half bucket and
-  a 上半场 marker where CS2 has the server line (D6: no map or server line). Timeline: winner icon by the team's block,
+  a 上半场 marker where CS2 has the server line (D6: no map or server line). CS2's mode icon slot shows the SLGO badge
+  (`slgo-logo.svg`, the brand logo without its wordmark) in every mode (user decision 2026-10-20). Timeline: winner icon by the team's block,
   coloured by the side it won with; SLGO reasons map to CS2's icons (elimination skull, generator activated = the
   HUD's keycard, deactivated = wire cutters, time = SLUI timer); a trophy where the earlier team would clinch.
 - Motion: rows move 0.25 s ease-in-out on re-sort; the panel shows and hides at once (no recording yet).

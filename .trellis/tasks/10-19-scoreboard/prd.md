@@ -84,23 +84,23 @@ Panorama sources and behaviour notes: `research/cs2-scoreboard-reference.md`.
 
 ## Acceptance Criteria
 
-- [ ] AC1 (R1) In game, holding CapsLock shows the panel within one frame of the key event and releasing hides it;
+- [x] AC1 (R1) In game, holding CapsLock shows the panel within one frame of the key event and releasing hides it;
       it does not show in warmup waiting, with the shop or chat open, or against a plugin without scoreboard data.
-- [ ] AC2 (R2) With the panel shown, right-click does not make the game aim and turns on the cursor; WASD and left
+- [x] AC2 (R2) With the panel shown, right-click does not make the game aim and turns on the cursor; WASD and left
       click keep working before that right-click.
-- [ ] AC3 (R3) Clicking 杀敌数 orders each team by kills (ties by the CS2 chain); deaths sort ascending; reopening
+- [x] AC3 (R3) Clicking 杀敌数 orders each team by kills (ties by the CS2 chain); deaths sort ascending; reopening
       keeps the chosen sort.
-- [ ] AC4 (R4) Page 2 stays after release and re-hold until the stats button is clicked again.
-- [ ] AC5 (R5) In the competitive second half the side button shows first-half stats under the 上半场 marker; the
+- [x] AC4 (R4) Page 2 stays after release and re-hold until the stats button is clicked again.
+- [x] AC5 (R5) In the competitive second half the side button shows first-half stats under the 上半场 marker; the
       button is absent in the first half and in casual.
-- [ ] AC6 (R6) Model smoke tests cover derived stats, blank cells, money visibility and the sort chain; plugin
+- [x] AC6 (R6) Model smoke tests cover derived stats, blank cells, money visibility and the sort chain; plugin
       tests cover the new counters and reason mapping.
-- [ ] AC7 (R7, R10) Mock scenes `scoreboard-competitive` and `scoreboard-casual` match the screenshots in the
+- [x] AC7 (R7, R10) Mock scenes `scoreboard-competitive` and `scoreboard-casual` match the screenshots in the
       layout audit at 1920x1080, 16:10 and 4:3, and the user approves the visuals.
-- [ ] AC8 (R8) `scoreboard.snapshot` fixtures parse identically in `@slgo/protocol`, the sidecar and the plugin
+- [x] AC8 (R8) `scoreboard.snapshot` fixtures parse identically in `@slgo/protocol`, the sidecar and the plugin
       self-check; an old plugin leaves SLUI's panel off and its hint board on.
-- [ ] AC9 (R9) The home window rebinds the key with the conflict rules, and the Rust hook follows the change.
-- [ ] AC10 All validation commands in `implement.md` pass in the three repos; live test on a server passes.
+- [x] AC9 (R9) The home window rebinds the key with the conflict rules, and the Rust hook follows the change.
+- [x] AC10 All validation commands in `implement.md` pass in the three repos; live test on a server passes.
 
 ## Out of Scope
 
