@@ -10,9 +10,12 @@ pub mod payload;
 pub mod uninstall;
 pub mod webview2;
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    OnceLock,
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex, OnceLock,
+    },
+    time::Duration,
 };
 
 use tauri::{ipc::Channel, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
@@ -70,6 +73,36 @@ impl Role {
     }
 }
 
+/// `--update --after-pid <pid>`: SLUI's updater started this setup exe after verifying it.
+/// The shell skips the welcome screen and updates the installed SLUI right away.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Unattended {
+    /// The SLUI process that is exiting; the update waits for it.
+    pub after_pid: Option<u32>,
+}
+
+/// Reads the unattended update flags; anything else on the command line is ignored.
+pub fn parse_unattended(args: impl IntoIterator<Item = String>) -> Option<Unattended> {
+    let mut update = false;
+    let mut after_pid = None;
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--update" => update = true,
+            "--after-pid" => after_pid = args.next().and_then(|pid| pid.parse().ok()),
+            _ => {}
+        }
+    }
+    update.then_some(Unattended { after_pid })
+}
+
+/// How long an unattended update waits for the old SLUI to exit; NSIS closes a leftover
+/// `slui.exe` itself afterwards.
+const AFTER_PID_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// The pid to wait for before the first unattended update run; taken once.
+struct AfterPid(Mutex<Option<u32>>);
+
 /// Set while an NSIS package runs; the window refuses to close meanwhile.
 #[derive(Default)]
 struct Installing(AtomicBool);
@@ -119,7 +152,14 @@ async fn install(
     }
     let session = window.state::<Session>().inner().clone();
     let parent = window.hwnd().map(|hwnd| hwnd.0 as isize).unwrap_or(0);
+    let after_pid = match req.mode {
+        install::Mode::Update => window.state::<AfterPid>().0.lock().ok().and_then(|mut pid| pid.take()),
+        install::Mode::Fresh | install::Mode::Reinstall => None,
+    };
     let outcome = tauri::async_runtime::spawn_blocking(move || {
+        if let Some(pid) = after_pid {
+            payload::wait_for_app_exit(pid, AFTER_PID_TIMEOUT);
+        }
         install::install(&session, &req, parent, |stage| {
             if let Err(error) = on_stage.send(stage) {
                 eprintln!("slui-setup: cannot report stage {stage:?}: {error}");
@@ -185,13 +225,15 @@ async fn uninstall(
 }
 
 /// Runs the window of `role` until it closes and returns the exit code.
-/// `relocated` only matters to the uninstaller.
-pub fn run(role: Role, session: Session, relocated: bool) -> i32 {
+/// `relocated` only matters to the uninstaller, `unattended` only to the setup role.
+pub fn run(role: Role, session: Session, relocated: bool, unattended: Option<Unattended>) -> i32 {
     let data_dir = session.webview_data_dir();
+    let unattended = unattended.filter(|_| role == Role::Setup);
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Installing::default())
         .manage(Relocated(relocated))
+        .manage(AfterPid(Mutex::new(unattended.and_then(|unattended| unattended.after_pid))))
         .manage(session)
         .setup(move |app| {
             // Created here rather than in tauri.conf.json so the WebView2 user data goes to
@@ -208,6 +250,10 @@ pub fn run(role: Role, session: Session, relocated: bool) -> i32 {
             if role == Role::Uninstall {
                 // Read synchronously by installer/src/main.tsx to pick the uninstall UI.
                 window = window.initialization_script("window.__SLUI_SETUP_ROLE__ = \"uninstall\";");
+            }
+            if unattended.is_some() {
+                // Read synchronously by installer/src/main.tsx to start the update right away.
+                window = window.initialization_script("window.__SLUI_SETUP_UNATTENDED__ = true;");
             }
             window.build()?;
             Ok(())
@@ -228,4 +274,29 @@ pub fn run(role: Role, session: Session, relocated: bool) -> i32 {
         .build(tauri::generate_context!())
         .expect("error while building the installer shell");
     app.run_return(|_, _| {})
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(line: &str) -> Vec<String> {
+        line.split_whitespace().map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn the_updater_command_line_selects_the_unattended_update() {
+        assert_eq!(parse_unattended(args("--update --after-pid 4242")), Some(Unattended { after_pid: Some(4242) }));
+        assert_eq!(parse_unattended(args("--after-pid 7 --update")), Some(Unattended { after_pid: Some(7) }));
+        assert_eq!(parse_unattended(args("--update")), Some(Unattended { after_pid: None }));
+        assert_eq!(parse_unattended(args("--update --after-pid nope")), Some(Unattended { after_pid: None }));
+        assert_eq!(parse_unattended(args("--update --after-pid")), Some(Unattended { after_pid: None }));
+    }
+
+    #[test]
+    fn a_normal_start_is_not_unattended() {
+        assert_eq!(parse_unattended(args("")), None);
+        assert_eq!(parse_unattended(args("--after-pid 4242")), None);
+        assert_eq!(parse_unattended(args("/S --UPDATE")), None);
+    }
 }

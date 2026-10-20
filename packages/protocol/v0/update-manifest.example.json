@@ -1,0 +1,12 @@
+{
+  "version": "0.8.0",
+  "min_version": "0.7.0",
+  "notes": "Example release notes.",
+  "pub_date": "2026-10-20T08:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "https://downloads.example.com/slui/SLUI-Setup-0.8.0.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IGV4YW1wbGUgc2lnbmF0dXJlCg=="
+    }
+  }
+}

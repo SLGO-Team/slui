@@ -8,6 +8,11 @@ import type { AudioSettings as Audio } from "../../platform/audioSettings";
 import type { HotkeySettings as Hotkeys } from "../../platform/hotkeys";
 import type { OverlaySettings as Overlay } from "../../platform/overlaySettings";
 import { createSettingsStore, DEFAULT_APP_SETTINGS, type AppSettings } from "../../platform/settings";
+import { readBackendConfig } from "../../platform/backend";
+import { createUpdateSource, type UpdateState } from "../../platform/updater";
+import { readUpdatePreview } from "../../mocks/updatePreview";
+import { aboutUpdate, homeServerStatus, requiredBanner, titleBarUpdate, type UpdateAction } from "../updateModel";
+import { AboutSettings } from "./AboutSettings";
 import { AudioSettings } from "./AudioSettings";
 import { HotkeySettings } from "./HotkeySettings";
 import { KeyHints } from "./KeyHints";
@@ -16,9 +21,12 @@ import { SystemSettings } from "./SystemSettings";
 import { OverlaySwitch } from "./OverlaySwitch";
 import { RadarSettings } from "./RadarSettings";
 import { StatusBar } from "./StatusBar";
-import { serverStatus } from "./status";
 import { TitleBar } from "./TitleBar";
+import { UpdateBanner } from "./UpdateBanner";
 import "./home.css";
+
+// Mock mode has no control plane, so no update checks.
+const BACKEND = readBackendConfig(import.meta.env);
 
 // Slider drags are merged into one write; the overlay applies each saved value.
 const SAVE_DEBOUNCE_MS = 150;
@@ -30,6 +38,7 @@ const SETTINGS_GROUPS = [
   { id: "home-settings-radar", label: "雷达" },
   { id: "home-settings-hotkeys", label: "快捷键" },
   { id: "home-settings-audio", label: "声音" },
+  { id: "home-settings-about", label: "关于" },
 ] as const;
 
 export function HomeApp() {
@@ -38,6 +47,8 @@ export function HomeApp() {
   const gameSource = useMemo(() => createGameProcessSource(), []);
   const sessionSource = useMemo(() => createSessionStatusSubscriber(), []);
   const windowControls = useMemo(() => createWindowControls(), []);
+  const updateSource = useMemo(() => createUpdateSource(undefined, undefined,
+    import.meta.env.DEV ? readUpdatePreview(window.location.search) : null), []);
 
   const [page, setPage] = useState<HomePage>("home");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -47,6 +58,7 @@ export function HomeApp() {
   const [overlayError, setOverlayError] = useState<string | null>(null);
   const [gameRunning, setGameRunning] = useState<boolean | null>(null);
   const [session, setSession] = useState<SessionStatusSnapshot | null>(null);
+  const [update, setUpdate] = useState<UpdateState | null>(null);
   const saveTimer = useRef<number | null>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -99,6 +111,30 @@ export function HomeApp() {
     return () => window.clearInterval(timer);
   }, [session, sessionSource]);
 
+  // The home window starts the update checks (Rust keeps them running while it is hidden).
+  useEffect(() => {
+    let active = true;
+    let changed = false;
+    const unsubscribe = updateSource.subscribe((state) => {
+      changed = true;
+      setUpdate(state);
+    });
+    const initial = BACKEND.kind === "real" ? updateSource.start(BACKEND.controlPlaneUrl) : updateSource.get();
+    void initial.catch((error: unknown) => {
+      console.error("Unable to start update checks", error);
+      return updateSource.get();
+    }).then((state) => {
+      if (active && !changed && state) setUpdate(state);
+    }).catch((error: unknown) => console.error("Unable to read the update state", error));
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [updateSource]);
+  const updateAction = useCallback((action: UpdateAction) => {
+    const run = action === "install" ? updateSource.install() : updateSource.checkNow();
+    void run.catch((error: unknown) => console.error(`Update ${action} failed`, error));
+  }, [updateSource]);
   useEffect(() => () => { if (saveTimer.current !== null) window.clearTimeout(saveTimer.current); }, []);
 
   // Each section edits its own block; the whole file is saved so blocks never drop each other.
@@ -126,13 +162,15 @@ export function HomeApp() {
       .finally(() => setOverlayBusy(false));
   }, [overlay.enabled, overlaySource]);
 
+  const banner = requiredBanner(update);
   return <div className="home">
-    <TitleBar controls={windowControls} />
-    <NavRail page={page} onNavigate={setPage} overlay={overlay} server={serverStatus(session)} />
+    <TitleBar controls={windowControls} update={titleBarUpdate(update)} onUpdate={() => updateAction("install")} />
+    <NavRail page={page} onNavigate={setPage} overlay={overlay} server={homeServerStatus(session, update)} />
     <main className={page === "home" ? "home-main" : "home-main home-main--split"} key={page}>
       {page === "home" ? <div className="home-page">
+        {banner ? <UpdateBanner banner={banner} onAction={updateAction} /> : null}
         <OverlaySwitch state={overlay} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
-        <StatusBar session={session} gameRunning={gameRunning} onRetry={sessionSource.retry} />
+        <StatusBar session={session} gameRunning={gameRunning} update={update} onRetry={sessionSource.retry} />
         <KeyHints shopKey={settings.hotkeys.shop} />
       </div> : <>
         <header className="home-page__header">
@@ -157,6 +195,7 @@ export function HomeApp() {
               onReset={() => updateHotkeys(DEFAULT_APP_SETTINGS.hotkeys)} />
             <AudioSettings id="home-settings-audio" value={settings.audio} onChange={updateAudio}
               onReset={() => updateAudio(DEFAULT_APP_SETTINGS.audio)} />
+            <AboutSettings id="home-settings-about" update={aboutUpdate(update)} onAction={updateAction} />
           </div>
         </div>
       </>}

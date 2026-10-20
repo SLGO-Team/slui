@@ -169,6 +169,17 @@ pub fn app_processes() -> ProcessSet {
     ProcessSet::open(pids)
 }
 
+/// Waits for the SLUI process that started an unattended update (`--after-pid`) to exit.
+/// A pid that is not `slui.exe` (already exited and reused) is not waited for.
+pub fn wait_for_app_exit(pid: u32, timeout: Duration) {
+    let is_app = detect::process_names()
+        .iter()
+        .any(|(id, _, name)| *id == pid && name.eq_ignore_ascii_case(detect::APP_EXE));
+    if is_app {
+        ProcessSet::open(vec![pid]).wait(timeout);
+    }
+}
+
 /// Processes held open by handle, so an exiting process cannot be replaced by a reused pid.
 pub struct ProcessSet(Vec<windows_sys::Win32::Foundation::HANDLE>);
 

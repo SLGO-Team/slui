@@ -5,14 +5,15 @@ export function SettingsGroup({ id, title, eyebrow, onReset, children }: {
   id: string;
   title: string;
   eyebrow: string;
-  onReset(): void;
+  /** Omitted for groups with nothing to reset. */
+  onReset?(): void;
   children: ReactNode;
 }) {
   const titleId = useId();
   return <section id={id} className="home-panel" aria-labelledby={titleId}>
     <header className="home-panel__header">
       <h2 id={titleId} className="home-section__title">{title}<span className="home-eyebrow">{eyebrow}</span></h2>
-      <button type="button" className="home-button home-button--ghost" onClick={onReset}><ResetIcon />恢复默认</button>
+      {onReset ? <button type="button" className="home-button home-button--ghost" onClick={onReset}><ResetIcon />恢复默认</button> : null}
     </header>
     {children}
   </section>;

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 30
-- **Last Active**: 2026-10-19
+- **Total Sessions**: 31
+- **Last Active**: 2026-10-20
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~722 | Active |
+| `journal-1.md` | ~752 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 31 | 2026-10-20 | One-click auto-update (PR #43) | `700b65a`, `9943583`, `08755d7`, `6ea6e43`, `8c5b2ac`, `23c43d4`, `79b463c`, `f22057a`, `625d2cf` | `claude/busy-blackwell-bc6894` |
 | 30 | 2026-10-19 | 16:10 and 4:3 overlay support | `0c424fc` | `feat/aspect-ratio` |
 | 29 | 2026-10-14 | 实例结束原因端到端传给 SLUI | `2dea224` | `feat/instance-end-reason` |
 | 28 | 2026-10-14 | ended 状态改为正在重启语义 | `715e6d5` | `fix/ended-restarting-copy` |

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { ConnectionStatus, MinimapDiagnostic, SlgoEvent } from "../contracts";
 import type { ClientSessionDependencies } from "./clientSession";
 import { clientSessionReducer, initialClientSessionState, nextFailureCount, retryDelayMs, runClientSessionAttempt } from "./clientSession";
+import { updateRequiredDetail } from "./updateModel";
 
 const IDENTITY_POLL_INTERVAL_MS = 3_000;
 
@@ -10,6 +11,8 @@ export function useClientSession(
   onEvent: (event: SlgoEvent) => void,
   onDiagnostic?: (diagnostic: MinimapDiagnostic) => void,
   onStatus?: (status: ConnectionStatus) => void,
+  /** The SLUI version a required update asks for; while set, nothing connects. */
+  updateRequired: string | null = null,
 ) {
   const [state, dispatch] = useReducer(clientSessionReducer, initialClientSessionState);
   const [retryKey, requestRetry] = useReducer((value: number) => value + 1, 0);
@@ -33,6 +36,11 @@ export function useClientSession(
 
   useEffect(() => {
     const attempt = retryKey + 1;
+    if (updateRequired) {
+      dispatch({ type: "failed", attempt, status: "incompatible", detail: updateRequiredDetail(updateRequired), retry: "none" });
+      statusHandlerRef.current?.("incompatible");
+      return undefined;
+    }
     const quiet = backgroundRetryRef.current;
     let current = true;
     let unsubscribe: () => void = () => undefined;
@@ -53,7 +61,7 @@ export function useClientSession(
       unsubscribe();
       void dependencies.connection.disconnect();
     };
-  }, [dependencies, retryKey]);
+  }, [dependencies, retryKey, updateRequired]);
 
   useEffect(() => {
     let active = true;

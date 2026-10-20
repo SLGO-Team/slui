@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Lint/test/hakari gates and installer contract rules to verify against"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Check the manifest contract and fail-open rule are recorded and respected"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify data flow across Rust updater, webviews, shell and CI"}
+{"file": ".trellis/tasks/10-19-auto-update/research/tauri-updater-plugin.md", "reason": "Confirm the implementation matches the plugin's verified behaviour"}

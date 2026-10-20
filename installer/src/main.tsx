@@ -9,9 +9,12 @@ import "./installer.css";
 const uninstall = window.__SLUI_SETUP_ROLE__ === "uninstall"
   || new URLSearchParams(location.search).get("role") === "uninstall";
 document.title = uninstall ? "SLUI 卸载程序" : "SLUI 安装程序";
+// SLUI's updater starts the setup exe with `--update`; the browser preview uses `?unattended=1`.
+const unattended = window.__SLUI_SETUP_UNATTENDED__ === true
+  || new URLSearchParams(location.search).get("unattended") === "1";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {uninstall ? <UninstallApp /> : <App />}
+    {uninstall ? <UninstallApp /> : <App unattended={unattended} />}
   </React.StrictMode>,
 );

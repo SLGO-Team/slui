@@ -1,6 +1,7 @@
 // The only module that talks to Tauri. Outside Tauri (browser preview) it returns a mock
 // chosen by `?state=fresh|update|same|newer|fail|cancel` (add `&running=1` for the
-// running-app notice); the mock is never reachable inside the Tauri window.
+// running-app notice, `&unattended=1` for the update started by SLUI); the mock is never
+// reachable inside the Tauri window.
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Detect, DirCheck, InstallOutcome, InstallRequest, Stage } from "./model.ts";
@@ -56,6 +57,8 @@ function mockPlatform(params: URLSearchParams): Platform {
   const installed = state === "update" || state === "same" || state === "newer"
     ? { version: installedVersion[state], dir: "D:\\Games\\SLUI", relation: relation[state] }
     : null;
+  // `&outcome=cancel|fail` gives an update or reinstall the outcome of the cancel / fail states.
+  const outcome = state === "cancel" || state === "fail" ? state : params.get("outcome");
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   return {
     detect: async () => {
@@ -87,10 +90,10 @@ function mockPlatform(params: URLSearchParams): Platform {
       await wait(700);
       onStage("elevating");
       await wait(900);
-      if (state === "cancel") return { kind: "cancelled" };
+      if (outcome === "cancel") return { kind: "cancelled" };
       onStage("installing");
       await wait(2200);
-      if (state === "fail") return { kind: "failed", code: 2, reason: "exit_code", detail: null };
+      if (outcome === "fail") return { kind: "failed", code: 2, reason: "exit_code", detail: null };
       return { kind: "ok", dir: request.dir };
     },
     launch: async () => console.info("slui-setup mock: launch"),

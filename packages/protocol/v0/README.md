@@ -452,6 +452,17 @@ Rejections match [route-rejected.schema.json](./route-rejected.schema.json)
 (`parseRouteRejected`). A route is not an authorization by itself: the sidecar
 admits the session only through IP binding (see Security boundary).
 
+## Update manifest
+
+`GET {control_plane}/v0/update` returns `200` with a manifest matching
+[update-manifest.schema.json](./update-manifest.schema.json) (`parseUpdateManifest`), or
+`204` when no release is published. The body is tauri-plugin-updater's static format plus
+`min_version`: a running SLUI below it does not connect until it has updated. `url` points at
+the branded installer `SLUI-Setup-X.Y.Z.exe`; `signature` is the content of its minisign `.sig`
+file, verified by SLUI against the public key it was built with. Versions are plain `X.Y.Z`;
+`min_version` may not exceed `version`. SLUI treats any failure here as "no update" and keeps
+working.
+
 ## Sidecar session handshake
 
 The client opens a WebSocket to the route's `sidecar_endpoint`. Its first text
