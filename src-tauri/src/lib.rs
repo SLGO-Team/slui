@@ -955,6 +955,10 @@ fn start_keyboard_hook(_app: tauri::AppHandle) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    // Managed on the builder, not in `setup`: Tauri builds the config windows before `setup` runs,
+    // and the home window can invoke `updater_start` while the overlay window is still being built.
+    let updater = updater::Updater::new(context.package_info().version.to_string());
     tauri::Builder::default()
         // Must be registered first: a second launch exits here and surfaces the running app.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -965,6 +969,7 @@ pub fn run() {
         .manage(Mutex::new(OverlaySnapshot::default()))
         .manage(GameRunningState::default())
         .manage(sidecar_socket::SidecarSockets::default())
+        .manage(updater)
         .setup(|app| {
             // The overlay starts disabled on every launch and never takes input on its own.
             if let Some(overlay) = app.get_webview_window(OVERLAY_WINDOW) {
@@ -972,7 +977,6 @@ pub fn run() {
                 apply_overlay_input_mode(&overlay, false);
                 let _ = overlay.hide();
             }
-            app.manage(updater::Updater::new(app.package_info().version.to_string()));
             thread::spawn(updater::remove_old_installers);
             build_tray(app)?;
             start_foreground_tracking(app.handle().clone());
@@ -1014,7 +1018,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         // Rust API only: no capability grants its JS commands; see updater.rs.
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }
 
