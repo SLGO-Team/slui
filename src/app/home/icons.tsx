@@ -28,7 +28,7 @@ export const ServerIcon = (props: IconProps) => <Icon {...props}>
   <path d="M7.5 7.25h.01M7.5 16.75h.01M12 7.25h5M12 16.75h5" />
 </Icon>;
 
-export const VersionIcon = (props: IconProps) => <Icon {...props}>
+export const UpdateIcon = (props: IconProps) => <Icon {...props}>
   <path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5" /><path d="M4 14.5v6h16v-6" />
 </Icon>;
 

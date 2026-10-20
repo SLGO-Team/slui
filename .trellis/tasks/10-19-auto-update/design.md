@@ -71,7 +71,7 @@ UpdateState {
     verified inside the plugin) → bytes kept in memory (`Arc<Vec<u8>>`, ~34 MB) → `Ready`.
   - Errors → `Failed`, logged with `eprintln!("SLGO: update …")`; next tick retries. `required`
     keeps its last known value within the process; at startup it starts as `None` (fail-open).
-- `updater_check_now()` command: triggers an immediate check (used by the tile's retry).
+- `updater_check_now()` command: triggers an immediate check (used by 「检查更新」 and the banner's 「重试」).
 - `get_update_state()` command + event `slui://update-state` emitted to all windows on change.
 - `updater_install()` command and the tray item share one function:
   1. only in `Ready`; set `Installing`;
@@ -103,15 +103,15 @@ UpdateState {
 ## 4. Frontend
 
 - `src/platform/updater.ts`: Tauri adapter (`invoke`/`listen`) + a browser no-op for vite dev.
-- `src/app/updateModel.ts` (pure, node-smoke-tested): `UpdateState` → tile view
-  `{ tone, value, detail?, action?: "install" | "retry" }`, e.g.
-  - Idle: `0.8.0` · 「已是最新」 (muted/ok)
-  - Downloading: 「正在下载 0.9.0 · 45%」
-  - Ready: 「0.9.0 可用」 + 「更新并重启」
-  - Required: tone error, 「需要更新到 0.9.0」 + action when ready
-  - Failed: 「检查更新失败」 + 「重试」 (muted, no dialog)
-- `StatusBar.tsx`: fourth tile 「版本」 (`.home-status` grid gains a column; layout checked at
-  960×620 and the 820 min width).
+- `src/app/updateModel.ts` (pure, node-smoke-tested), one view per surface (revised 10-20: the
+  first cut's 「版本」 tile in the connection-status section was rejected in visual review):
+  - `titleBarUpdate` → `TitleBar.tsx` button 「更新到 X.Y.Z」 left of the window controls, only in
+    `ready` (and disabled 「正在启动更新…」 while `installing`);
+  - `aboutUpdate` → `AboutSettings.tsx`, a 关于 group (no reset) last on the settings page:
+    `SLUI <current>` + status (已是最新版本 / 正在检查更新… / 正在下载 0.9.0 · 45% /
+    0.9.0 已下载，重启后完成更新 / quiet failure text) + 「检查更新」 or 「更新并重启」;
+  - `requiredBanner` → `UpdateBanner.tsx`, red banner at the top of the home page while
+    `required` is set: 「需要更新到 X 才能连接服务器」 + progress / 「更新并重启」 / 「重试」.
 - `HomeApp.tsx`: calls `updater_start` once with the real backend URL; subscribes to state.
 - Overlay gating (`src/App.tsx`): while `required` is set the client session is not started (or is
   stopped); the home server tile shows 「需要更新」 instead of a connection error. Implemented in the
@@ -158,5 +158,5 @@ local / slgo-deploy builds need no key (they are just not update-eligible).
 ## Rollback
 
 Each part is additive. Disabling distribution needs no client release (manifest 204). Reverting
-the client change removes the plugin, commands and tile; the shell's `--update` flag is ignored by
+the client change removes the plugin, commands and update UI; the shell's `--update` flag is ignored by
 older SLUI versions.

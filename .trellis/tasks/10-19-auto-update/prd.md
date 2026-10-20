@@ -50,9 +50,12 @@ on its own. Releases that break compatibility can require the update.
   (enabled once the download is verified). The server-side hard gate stays `protocol_version`;
   the route request carries no client version.
 - **R4 Timing and surfaces.** Check at startup and every 6 hours (with jitter) while running.
-  Surfaces: a version tile in the home window's status section and a tray menu item
-  「更新到 X.Y.Z」 when ready. The in-game overlay never shows update UI. Installation starts only
-  on a user click.
+  Surfaces (revised 10-20 after visual review: not in the connection-status section): a title-bar
+  button 「更新到 X.Y.Z」 left of the window controls, shown only while an update is ready; a 关于
+  group at the end of the settings page with the running version, the update status and
+  「检查更新」 / 「更新并重启」; a red banner at the top of the home page while an update is required;
+  and the tray menu item 「更新到 X.Y.Z」 when ready. The in-game overlay never shows update UI.
+  Installation starts only on a user click.
 - **R5 Branded install UI.** The update installs through the branded shell, not the stock NSIS
   window: it skips the wizard, shows its progress screen, and on UAC decline or failure offers
   retry or reopening the current SLUI, so the user is never left without SLUI.
@@ -60,13 +63,13 @@ on its own. Releases that break compatibility can require the update.
   SLUI is ever written to disk and run. The release workflow signs the branded installer with a
   key held in the `release` environment and attaches the `.sig` to the release.
 - **R7 Failure tolerance.** An unreachable or empty update endpoint never blocks SLUI (fail-open):
-  no error dialogs, the version tile shows the failure quietly, and the next check retries. A
+  no error dialogs, the 关于 row shows the failure quietly, and the next check retries. A
   signature or download failure never installs anything.
 
 ## Acceptance Criteria
 
 - [x] AC1 (R1, R4) With a manifest offering a higher version, a fresh SLUI start downloads it
-      without user action; the home version tile then shows the new version with
+      without user action; the title bar then shows 「更新到 X.Y.Z」, the 关于 row shows
       「更新并重启」, and the tray menu shows 「更新到 X.Y.Z」.
 - [ ] AC2 (R1, R5) Clicking either action closes SLUI, the branded installer shows its progress
       screen, UAC appears once, and afterwards the new version runs (non-elevated) from the same
@@ -76,9 +79,9 @@ on its own. Releases that break compatibility can require the update.
 - [ ] AC4 (R3) With `min_version` above the running version, the overlay's client session does not
       connect, the home window shows the update as required, and the update action works as in AC2.
 - [x] AC5 (R6, R7) A manifest whose signature does not match (wrong key or altered file) never
-      installs; the tile shows a quiet failure and SLUI keeps working.
+      installs; the 关于 row shows a quiet failure and SLUI keeps working.
 - [x] AC6 (R7) With the endpoint unreachable or answering 204, SLUI connects and plays normally and
-      shows no update UI beyond the version tile.
+      shows no update UI beyond the 关于 row.
 - [ ] AC7 (R6) The release workflow fails when the signing key secret is missing and otherwise
       attaches `SLUI-Setup-X.Y.Z.exe.sig` next to the installer.
 - [x] AC8 `npm run lint`, `npm test`, `cargo test --workspace` (in `src-tauri`) and the hakari

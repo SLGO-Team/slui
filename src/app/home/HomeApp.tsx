@@ -11,7 +11,8 @@ import { createSettingsStore, DEFAULT_APP_SETTINGS, type AppSettings } from "../
 import { readBackendConfig } from "../../platform/backend";
 import { createUpdateSource, type UpdateState } from "../../platform/updater";
 import { readUpdatePreview } from "../../mocks/updatePreview";
-import { homeServerStatus, type UpdateAction } from "../updateModel";
+import { aboutUpdate, homeServerStatus, requiredBanner, titleBarUpdate, type UpdateAction } from "../updateModel";
+import { AboutSettings } from "./AboutSettings";
 import { AudioSettings } from "./AudioSettings";
 import { HotkeySettings } from "./HotkeySettings";
 import { KeyHints } from "./KeyHints";
@@ -21,6 +22,7 @@ import { OverlaySwitch } from "./OverlaySwitch";
 import { RadarSettings } from "./RadarSettings";
 import { StatusBar } from "./StatusBar";
 import { TitleBar } from "./TitleBar";
+import { UpdateBanner } from "./UpdateBanner";
 import "./home.css";
 
 // Mock mode has no control plane, so no update checks.
@@ -36,6 +38,7 @@ const SETTINGS_GROUPS = [
   { id: "home-settings-radar", label: "雷达" },
   { id: "home-settings-hotkeys", label: "快捷键" },
   { id: "home-settings-audio", label: "声音" },
+  { id: "home-settings-about", label: "关于" },
 ] as const;
 
 export function HomeApp() {
@@ -159,14 +162,15 @@ export function HomeApp() {
       .finally(() => setOverlayBusy(false));
   }, [overlay.enabled, overlaySource]);
 
+  const banner = requiredBanner(update);
   return <div className="home">
-    <TitleBar controls={windowControls} />
+    <TitleBar controls={windowControls} update={titleBarUpdate(update)} onUpdate={() => updateAction("install")} />
     <NavRail page={page} onNavigate={setPage} overlay={overlay} server={homeServerStatus(session, update)} />
     <main className={page === "home" ? "home-main" : "home-main home-main--split"} key={page}>
       {page === "home" ? <div className="home-page">
+        {banner ? <UpdateBanner banner={banner} onAction={updateAction} /> : null}
         <OverlaySwitch state={overlay} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
-        <StatusBar session={session} gameRunning={gameRunning} update={update} onRetry={sessionSource.retry}
-          onUpdateAction={updateAction} />
+        <StatusBar session={session} gameRunning={gameRunning} update={update} onRetry={sessionSource.retry} />
         <KeyHints shopKey={settings.hotkeys.shop} />
       </div> : <>
         <header className="home-page__header">
@@ -191,6 +195,7 @@ export function HomeApp() {
               onReset={() => updateHotkeys(DEFAULT_APP_SETTINGS.hotkeys)} />
             <AudioSettings id="home-settings-audio" value={settings.audio} onChange={updateAudio}
               onReset={() => updateAudio(DEFAULT_APP_SETTINGS.audio)} />
+            <AboutSettings id="home-settings-about" update={aboutUpdate(update)} onAction={updateAction} />
           </div>
         </div>
       </>}

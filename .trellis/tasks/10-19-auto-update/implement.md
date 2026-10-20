@@ -42,7 +42,9 @@ Branch: `feat/auto-update`. One PR (UI changes → waits for the user's visual r
 
 - [x] `src/platform/updater.ts` adapter (+ browser no-op).
 - [x] `src/app/updateModel.ts` + `scripts/update-model-smoke.mjs` (added to `npm test`).
-- [x] `StatusBar.tsx` version tile, `home.css` grid; `HomeApp.tsx` start + subscribe.
+- [x] Update UI (revised 10-20 after visual review): title-bar button (`TitleBar.tsx`), 关于 group
+      (`AboutSettings.tsx`), required banner (`UpdateBanner.tsx`); `HomeApp.tsx` start + subscribe.
+      The first cut's 「版本」 tile in `StatusBar.tsx` was removed.
 - [x] `src/App.tsx`: gate the client session on `required`; home server tile 「需要更新」.
 
 ## 5. Release workflow

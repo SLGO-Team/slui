@@ -1,7 +1,7 @@
 import type { SessionStatusSnapshot } from "../../platform/desktop";
 import type { UpdateState } from "../../platform/updater";
-import { homeServerStatus, updateTile, type UpdateAction } from "../updateModel";
-import { AccountIcon, GameIcon, ServerIcon, VersionIcon } from "./icons";
+import { homeServerStatus } from "../updateModel";
+import { AccountIcon, GameIcon, ServerIcon } from "./icons";
 import type { Tone } from "./status";
 
 function StatusTile({ icon, name, value, tone, children }: {
@@ -22,17 +22,13 @@ function StatusTile({ icon, name, value, tone, children }: {
   </div>;
 }
 
-const UPDATE_ACTION_LABEL: Record<UpdateAction, string> = { install: "更新并重启", retry: "重试" };
-
-export function StatusBar({ session, gameRunning, update, onRetry, onUpdateAction }: {
+export function StatusBar({ session, gameRunning, update, onRetry }: {
   session: SessionStatusSnapshot | null;
   gameRunning: boolean | null;
   update: UpdateState | null;
   onRetry(): void;
-  onUpdateAction(action: UpdateAction): void;
 }) {
   const server = homeServerStatus(session, update);
-  const version = updateTile(update);
   return <section className="home-section" aria-labelledby="home-status-title">
     <h2 id="home-status-title" className="home-section__title">连接状态<span className="home-eyebrow">STATUS</span></h2>
     <div className="home-status">
@@ -44,15 +40,6 @@ export function StatusBar({ session, gameRunning, update, onRetry, onUpdateActio
         {server.hint ? <span className="home-tile__detail">{server.hint}</span>
           : session?.detail && server.retry ? <span className="home-tile__detail" title={session.detail}>{session.detail}</span> : null}
         {server.retry ? <button type="button" className="home-button home-button--small" onClick={onRetry}>重试</button> : null}
-      </StatusTile>
-      <StatusTile icon={<VersionIcon />} name="版本" tone={version.tone} value={version.value}>
-        {version.detail ? <span className="home-tile__detail" title={version.detail}>{version.detail}</span> : null}
-        {version.action
-          ? <button type="button" onClick={() => onUpdateAction(version.action!)}
-            className={version.action === "install" ? "home-button home-button--small home-button--primary" : "home-button home-button--small"}>
-            {UPDATE_ACTION_LABEL[version.action]}
-          </button>
-          : null}
       </StatusTile>
     </div>
   </section>;

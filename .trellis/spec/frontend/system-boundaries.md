@@ -588,7 +588,7 @@ signature }`) plus `min_version`. The control plane serves it at
   重试 / 打开 SLUI, failure shows 重试 / 打开 SLUI, success relaunches SLUI
   non-elevated. Leftover `slui-update-*` directories are removed at the next start.
 - **Fail-open.** An unreachable endpoint, a non-2xx answer (404 before the backend
-  ships it) or a bad manifest is a quiet `failed { network }` on the version tile;
+  ships it) or a bad manifest is a quiet `failed { network }` in the 关于 row;
   no dialog, the next check retries. `required` starts unknown (`null`) at every
   launch and is set only by a successful check, so a broken update server never
   blocks play.
@@ -597,8 +597,10 @@ signature }`) plus `min_version`. The control plane serves it at
   (`useClientSession(..., updateRequired)` → status `incompatible`, retry `none`)
   and the home server tile shows 「需要更新」. The server-side hard gate stays
   `protocol_version`; the route request carries no client version.
-- Update UI lives only in the home window (version tile) and the tray
-  (「更新到 X.Y.Z」 while `ready`). The in-game overlay never shows update UI.
+- Update UI lives only in the home window and the tray: the title-bar button
+  「更新到 X.Y.Z」 (only while `ready`), the settings page's 关于 group (version, status,
+  「检查更新」), the home banner while `required`, and the tray item while `ready`. It does not
+  belong in the connection-status section. The in-game overlay never shows update UI.
 
 ---
 
@@ -641,7 +643,7 @@ signature }`) plus `min_version`. The control plane serves it at
 | Overlay is disabled | Keep it hidden and click-through; ignore overlay shortcuts; reject interactive mode; close the shop and chat |
 | Shop hotkey pressed outside the game or buy window | Ignore it; never take the mouse |
 | Saved shop hotkey is not bindable | Fall back to `B` via `normalizeHotkeys()` |
-| Update endpoint unreachable, non-2xx, or manifest malformed | `failed { network }` on the version tile only; keep the last known `required`; retry at the next check |
+| Update endpoint unreachable, non-2xx, or manifest malformed | `failed { network }` in the 关于 row only; keep the last known `required`; retry at the next check |
 | Update signature does not verify, or its signed `file:` is not `SLUI-Setup-<version>.exe` | `failed { signature }`; never write or run the file |
 | Manifest `min_version` above the running version | `required` set: the overlay does not connect, home shows 「需要更新」 and the install action once the download is verified |
 | The update installer cannot be written or started | `failed { launch }`; SLUI keeps running; 重试 re-checks and reuses the verified bytes |
@@ -717,7 +719,7 @@ signature }`) plus `min_version`. The control plane serves it at
 - `src-tauri/src/settings.rs` unit tests: atomic save, rejection of non-objects,
   and backup of corrupt or non-UTF-8 files.
 - Auto-update: `scripts/contract-smoke.mjs` (manifest fixture and rejections),
-  `scripts/update-model-smoke.mjs` (state parsing, version tile, required gating,
+  `scripts/update-model-smoke.mjs` (state parsing, title bar, 关于 row, required banner and gating,
   adapter), `src-tauri/src/updater.rs` unit tests (state machine, `min_version`,
   signed file name, temp directories, installer arguments),
   `scripts/installer-model-smoke.mjs` and `installer/src-tauri/src/lib.rs` tests

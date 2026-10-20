@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { homeServerStatus, requiredUpdate, updateRequiredDetail, updateTile } from "../src/app/updateModel.ts";
+import { aboutUpdate, homeServerStatus, requiredBanner, requiredUpdate, titleBarUpdate, updateRequiredDetail } from "../src/app/updateModel.ts";
 import { createUpdateSource, parseUpdateState, UPDATE_STATE_EVENT } from "../src/platform/updater.ts";
 import { readUpdatePreview, UPDATE_PREVIEWS } from "../src/mocks/updatePreview.ts";
 
@@ -24,36 +24,49 @@ for (const bad of [null, "x", { ...fromRust, current: 7 }, { ...fromRust, requir
   assert.equal(parseUpdateState(bad), null, JSON.stringify(bad));
 }
 
-// Version tile.
-assert.deepEqual(updateTile(null), { tone: "muted", value: "正在获取…", detail: null, action: null });
-assert.deepEqual(updateTile(state({ kind: "idle" }, { lastChecked: null })),
-  { tone: "muted", value: "0.7.0", detail: "尚未检查更新", action: null });
-assert.deepEqual(updateTile(state({ kind: "idle" })), { tone: "ok", value: "0.7.0", detail: "已是最新版本", action: null });
-assert.deepEqual(updateTile(state({ kind: "checking" })), { tone: "pending", value: "0.7.0", detail: "正在检查更新…", action: null });
-assert.equal(updateTile(state({ kind: "downloading", version: "0.8.0", received: 15_300_000, total: 34_000_000 })).detail,
-  "正在下载 0.8.0 · 45%");
-assert.equal(updateTile(state({ kind: "downloading", version: "0.8.0", received: 5, total: null })).detail, "正在下载 0.8.0",
-  "no percentage without a length");
-assert.equal(updateTile(state({ kind: "downloading", version: "0.8.0", received: 9, total: 3 })).detail, "正在下载 0.8.0 · 100%");
-assert.deepEqual(updateTile(state({ kind: "ready", version: "0.8.0", notes: null })),
-  { tone: "warn", value: "0.8.0 可用", detail: "当前版本 0.7.0", action: "install" });
-assert.deepEqual(updateTile(state({ kind: "installing", version: "0.8.0" })),
-  { tone: "pending", value: "0.7.0", detail: "正在启动安装程序…", action: null });
-// Failures stay quiet (muted) and offer a retry.
-assert.deepEqual(updateTile(state({ kind: "failed", reason: "network" })),
-  { tone: "muted", value: "0.7.0", detail: "检查更新失败", action: "retry" });
-assert.equal(updateTile(state({ kind: "failed", reason: "signature" })).detail, "更新文件校验失败");
-assert.equal(updateTile(state({ kind: "failed", reason: "launch" })).detail, "无法启动安装程序");
+// Title bar: nothing until an update can be installed.
+for (const phase of [{ kind: "idle" }, { kind: "checking" }, { kind: "failed", reason: "network" },
+  { kind: "downloading", version: "0.8.0", received: 1, total: 2 }]) {
+  assert.equal(titleBarUpdate(state(phase)), null, phase.kind);
+}
+assert.equal(titleBarUpdate(null), null);
+assert.deepEqual(titleBarUpdate(state({ kind: "ready", version: "0.8.0", notes: null })), { label: "更新到 0.8.0", busy: false });
+assert.deepEqual(titleBarUpdate(state({ kind: "installing", version: "0.8.0" })), { label: "正在启动更新…", busy: true });
 
-// Required: an error tone in every phase; the install action as soon as the update is ready.
-const required = (phase) => updateTile(state(phase, { required: "0.8.0" }));
-assert.deepEqual(required({ kind: "ready", version: "0.9.0", notes: null }),
-  { tone: "error", value: "需要更新", detail: "0.9.0 已下载", action: "install" });
-assert.deepEqual(required({ kind: "downloading", version: "0.9.0", received: 1, total: 4 }),
-  { tone: "error", value: "需要更新", detail: "正在下载 0.9.0 · 25%", action: null });
-assert.deepEqual(required({ kind: "failed", reason: "network" }),
-  { tone: "error", value: "需要更新", detail: "检查更新失败", action: "retry" });
-assert.deepEqual(required({ kind: "idle" }), { tone: "error", value: "需要更新", detail: "需要 0.8.0 或更高版本", action: null });
+// 关于 row.
+assert.deepEqual(aboutUpdate(null), { version: "…", tone: "muted", status: "正在获取…", action: "check", busy: true });
+assert.deepEqual(aboutUpdate(state({ kind: "idle" }, { lastChecked: null })),
+  { version: "0.7.0", tone: "muted", status: "尚未检查更新", action: "check", busy: false });
+assert.deepEqual(aboutUpdate(state({ kind: "idle" })), { version: "0.7.0", tone: "ok", status: "已是最新版本", action: "check", busy: false });
+assert.deepEqual(aboutUpdate(state({ kind: "checking" })),
+  { version: "0.7.0", tone: "pending", status: "正在检查更新…", action: "check", busy: true });
+assert.equal(aboutUpdate(state({ kind: "downloading", version: "0.8.0", received: 15_300_000, total: 34_000_000 })).status,
+  "正在下载 0.8.0 · 45%");
+assert.equal(aboutUpdate(state({ kind: "downloading", version: "0.8.0", received: 5, total: null })).status, "正在下载 0.8.0",
+  "no percentage without a length");
+assert.equal(aboutUpdate(state({ kind: "downloading", version: "0.8.0", received: 9, total: 3 })).status, "正在下载 0.8.0 · 100%");
+assert.deepEqual(aboutUpdate(state({ kind: "ready", version: "0.8.0", notes: null })),
+  { version: "0.7.0", tone: "warn", status: "0.8.0 已下载，重启后完成更新", action: "install", busy: false });
+assert.deepEqual(aboutUpdate(state({ kind: "installing", version: "0.8.0" })),
+  { version: "0.7.0", tone: "pending", status: "正在启动安装程序…", action: "install", busy: true });
+// Failures stay quiet (muted); checking again is the retry.
+assert.deepEqual(aboutUpdate(state({ kind: "failed", reason: "network" })),
+  { version: "0.7.0", tone: "muted", status: "检查更新失败", action: "check", busy: false });
+assert.equal(aboutUpdate(state({ kind: "failed", reason: "signature" })).status, "更新文件校验失败");
+assert.equal(aboutUpdate(state({ kind: "failed", reason: "launch" })).status, "无法启动安装程序");
+
+// Required banner: only while required; the install action as soon as the update is ready.
+assert.equal(requiredBanner(null), null);
+assert.equal(requiredBanner(state({ kind: "ready", version: "0.8.0", notes: null })), null, "an optional update has no banner");
+const banner = (phase) => requiredBanner(state(phase, { required: "0.8.0" }));
+const title = "需要更新到 0.8.0 才能连接服务器";
+assert.deepEqual(banner({ kind: "ready", version: "0.9.0", notes: null }), { title, detail: "0.9.0 已下载", action: "install", busy: false });
+assert.deepEqual(banner({ kind: "installing", version: "0.9.0" }), { title, detail: "正在启动安装程序…", action: "install", busy: true });
+assert.deepEqual(banner({ kind: "downloading", version: "0.9.0", received: 1, total: 4 }),
+  { title, detail: "正在下载 0.9.0 · 25%", action: null, busy: false });
+assert.deepEqual(banner({ kind: "checking" }), { title, detail: "正在检查更新…", action: null, busy: false });
+assert.deepEqual(banner({ kind: "failed", reason: "network" }), { title, detail: "检查更新失败", action: "check", busy: false });
+assert.deepEqual(banner({ kind: "idle" }), { title, detail: null, action: null, busy: false });
 
 // The home server tile: a required update replaces the session status; otherwise the session's own.
 const live = { status: "live", steamId: "76561198000000000", detail: null, endReason: null };
@@ -100,4 +113,4 @@ for (const [name, fixture] of Object.entries(UPDATE_PREVIEWS)) {
 assert.equal(readUpdatePreview("?update=toString"), null);
 assert.equal(readUpdatePreview(""), null);
 
-console.log("update model smoke: state parsing, version tile, required gating, adapter ok");
+console.log("update model smoke: state parsing, title bar, about row, required banner and gating, adapter ok");
