@@ -167,6 +167,11 @@ run uninstalled, DevTools protocol on its WebView2 for state and screenshots):
 - Hand-over without UAC: a 0.7.0 payload served as 0.7.1 → 「更新并重启」 writes
   `%TEMP%\slui-update-<hex>\SLUI-Setup-0.7.1.exe`, starts it with `--update --after-pid`, SLUI exits 0,
   the shell opens unattended on 「无法更新 · 已安装此版本的 SLUI」.
-- **Not done: AC2 / AC3 / AC4 install** need a person at the UAC prompt (the agent shell is not
-  elevated and cannot answer UAC). They also replace the installed SLUI with a local-backend test
-  build.
+- **AC2 / AC3 / AC4 install: passed 10-20 on the dev PC, with the user at the UAC prompt.** These were
+  local test builds of the current PR code (f22057a) signed with a throwaway key, served by a local stub on
+  `127.0.0.1:7800`:
+  - AC2: 0.7.0 → 0.7.1. The title-bar button appeared after the background download; one UAC prompt;
+    SLUI reopened as 0.7.1.
+  - AC4 + AC3: the stub required 0.7.2. The red home banner appeared; declining UAC showed 重试 / 打开 SLUI;
+    重试 installed 0.7.2 without a second download.
+  - These runs replaced the installed SLUI with a local-backend test build. Reinstall a release build afterwards.

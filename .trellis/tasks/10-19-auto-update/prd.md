@@ -71,12 +71,12 @@ on its own. Releases that break compatibility can require the update.
 - [x] AC1 (R1, R4) With a manifest offering a higher version, a fresh SLUI start downloads it
       without user action; the title bar then shows 「更新到 X.Y.Z」, the 关于 row shows
       「更新并重启」, and the tray menu shows 「更新到 X.Y.Z」.
-- [ ] AC2 (R1, R5) Clicking either action closes SLUI, the branded installer shows its progress
+- [x] AC2 (R1, R5) Clicking either action closes SLUI, the branded installer shows its progress
       screen, UAC appears once, and afterwards the new version runs (non-elevated) from the same
       directory; shortcuts and `theme-pack` are unchanged.
-- [ ] AC3 (R5) Declining UAC leaves the installer on a screen offering retry and reopening SLUI;
+- [x] AC3 (R5) Declining UAC leaves the installer on a screen offering retry and reopening SLUI;
       reopening starts the old version.
-- [ ] AC4 (R3) With `min_version` above the running version, the overlay's client session does not
+- [x] AC4 (R3) With `min_version` above the running version, the overlay's client session does not
       connect, the home window shows the update as required, and the update action works as in AC2.
 - [x] AC5 (R6, R7) A manifest whose signature does not match (wrong key or altered file) never
       installs; the 关于 row shows a quiet failure and SLUI keeps working.
