@@ -148,11 +148,11 @@ Reducer over `sidecar.baseline` / `scoreboard.snapshot` with the same source, se
 - View state (local, kept for the SLUI session): `page: 1 | 2`, `side: "current" | "other"`, `sortStat`.
   `side` falls back to `"current"` whenever the other side is unavailable (no halftime, first half, new match).
 - Displayed bucket per row: the role of the row's team now (`current`) or the other role (`other`).
-- Derived: 命中率 = round(100 * shots_hit / shots_fired) (0 without shots), in CS2's HS% column, KDR = kills / max(deaths, 1) (2
+- Derived: 命% = round(100 * shots_hit / shots_fired) (0 without shots), in CS2's HS% column, KDR = kills / max(deaths, 1) (2
   decimals), ADR = round(damage / rounds_played) (0 when none).
-- Columns: page 1 金钱 / 杀敌数 / 死亡数 / 助攻数 / 命中率 / 伤害; page 2 MVP次数 / 道具 / 致盲 / KDR / 伤/局 / 伤害.
+- Columns: page 1 金钱 / 杀敌数 / 死亡数 / 助攻数 / 命% / 伤害; page 2 MVP次数 / 道具 / 致盲 / KDR / 伤/局 / 伤害.
   Money only for the viewer's own team in the current view (spectators and the other view: blank). Rows whose
-  displayed bucket is SCP leave 命中率 / 道具 / 致盲 blank (SCPs cannot earn them; the plugin's hint board blanks
+  displayed bucket is SCP leave 命% / 道具 / 致盲 blank (SCPs cannot earn them; the plugin's hint board blanks
   命% the same way).
 - Sort (CS2 `sortOrder_tmm`): online first, then damage desc, kills desc, MVPs desc, assists desc, deaths asc,
   roster order. A header click puts that stat first and keeps the chain for ties; no direction toggle; the

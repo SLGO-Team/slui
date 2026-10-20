@@ -24,7 +24,7 @@ const column = (stat: ScoreboardStat, label: string, width = 50, align: "center"
  * hit rate where CS2 has HS%: SLGO's headshots only count for NTF shooting SCP-049-2, so HS% would read 0.
  */
 export const SCOREBOARD_PAGES: Readonly<Record<1 | 2, readonly ScoreboardColumn[]>> = {
-  1: [column("money", "金钱", 66, "right"), column("kills", "杀敌数"), column("deaths", "死亡数"), column("assists", "助攻数"), column("accuracy", "命中率", 64)],
+  1: [column("money", "金钱", 66, "right"), column("kills", "杀敌数"), column("deaths", "死亡数"), column("assists", "助攻数"), column("accuracy", "命%", 64)],
   2: [column("mvps", "MVP次数"), column("utilitydamage", "道具"), column("enemiesflashed", "致盲"), column("kdr", "KDR"), column("adr", "伤/局")],
 };
 export const SCOREBOARD_DAMAGE_COLUMN: ScoreboardColumn = column("damage", "伤害");

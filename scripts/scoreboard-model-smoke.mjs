@@ -121,7 +121,7 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   assert.equal(view.top.side, "ct");
   assert.equal(view.bottom.sideName, "NTF");
   assert.equal(view.bottom.aliveLabel, "存活：1/3");
-  assert.deepEqual(view.columns.map((column) => column.label), ["金钱", "杀敌数", "死亡数", "助攻数", "命中率", "伤害"]);
+  assert.deepEqual(view.columns.map((column) => column.label), ["金钱", "杀敌数", "死亡数", "助攻数", "命%", "伤害"]);
 
   // NTF (viewer) block: Nova and Kilo tie on damage 312 and kills 3 and MVPs 1; Nova has more assists. Lima is offline: last.
   assert.deepEqual(ids(view.bottom), [NOVA, KILO, LIMA]);
@@ -135,7 +135,7 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   assert.equal(lima.state, "offline");
   assert.equal(cell(lima, "money"), "", "offline teammate: no loadout");
 
-  // SCP block: SCP-side stats leave 命中率 blank; enemy money is never shown; the bot has no ping.
+  // SCP block: SCP-side stats leave 命% blank; enemy money is never shown; the bot has no ping.
   const echo = view.top.rows.find((row) => row.playerId === ECHO);
   const bot = view.top.rows.find((row) => row.playerId === BOT);
   assert.equal(cell(echo, "accuracy"), "");

@@ -595,10 +595,10 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   (measured: 战败补偿 59px and 杀敌数 44px of ink at 18px; the chat's 0.9 overflows the 50px cells). No text shadow.
 - Behaviour (`presentation.ts`): sort = online first, then the clicked stat, then damage, kills, MVPs, assists
   (descending), deaths (ascending), roster order (CS2 `sortOrder_tmm`); no direction toggle; blanks sort last; re-sort
-  pauses while the pointer is over the rows. 命中率 (hit rate, in CS2's HS% column) = shots hit / shots fired: SLGO's headshots only count for NTF
+  pauses while the pointer is over the rows. 命% (hit rate, in CS2's HS% column) = shots hit / shots fired: SLGO's headshots only count for NTF
   shooting SCP-049-2, so HS% would read 0 (user decision 2026-10-20). KDR = kills / max(deaths, 1) (2 decimals),
   ADR = damage / rounds played. Money only for the viewer's own team in the current view. Rows showing SCP-side
-  stats blank 命中率 / utility / flashed. Page, side and sort persist for the session (CS2 `_CycleStats`). The side
+  stats blank 命% / utility / flashed. Page, side and sort persist for the session (CS2 `_CycleStats`). The side
   switch exists only in the second half of a halftime mode; the other view shows each player's first-half bucket and
   a 上半场 marker where CS2 has the server line (D6: no map or server line). Timeline: winner icon by the team's block,
   coloured by the side it won with; SLGO reasons map to CS2's icons (elimination skull, generator activated = the
