@@ -585,8 +585,10 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   (emblem 80 + two 25px labels); timeline 103 + 2/2 margins with rounds 20 wide (first at x 659, divider 10/2/10),
   ticks 18x2 at y 584; spectator gap 40; footer 48 with the hint 10px from the right. 5v5 competitive = 584 high (y
   278-861); casual 10v10 grows and stays centred.
-- Colours (capture, not Panorama): panel `rgba(0,0,0,0.7)` (capture ~0.6 on the world blur, denser for the missing
-  blur) with Panorama's dot texture (`hud/dot-grid.png` at 360px, opacity 0.05: ~3.4px pitch, ~12 grey levels);
+- Colours (capture, not Panorama): the capture reads 0.33 of the blurred world inside the panel, neutral in tone; the
+  overlay cannot blur, so the fill is a denser dark grey `rgba(14,16,19,0.84)` (same mean over dark and bright scenes,
+  0.16 of the scene detail instead of a third) with Panorama's dot texture (`hud/dot-grid.png` at 360px, opacity
+  0.085: neutral dots every ~3.4px, high-pass amplitude 5.1-6.5 grey levels over a flat backdrop, as captured);
   存活 n/N the tint at 0.45 (Panorama 0.2); cell fills white 0.06, the sorted column 0.15; local row team tint at 0.2 (Panorama says 0.07; the capture
   reads 0.2); dead rows `brightness(0.6)` without fills; offline rows `#ccc`; footer hint white 0.4; timeline result
   icons team tint 0.8, played ticks 0.7, the current tick white 0.78, trophy white 0.7, past-clinch rounds 0.1.

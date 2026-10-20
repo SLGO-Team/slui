@@ -65,7 +65,10 @@
   transform-origin: top center;
 }
 
-/* .sb-main. Fill: the captures read ~0.6 black on the blurred world; the overlay cannot blur, so denser. */
+/* .sb-main. Fill: inside the panel the captures read 0.33 of the (blurred) world behind it, a neutral tone (21,22,24 over
+   60,71,84; 49,40,37 over 152,123,112). The overlay cannot blur the game, so a black 0.67 would keep a third of the
+   scene's detail: a denser dark grey keeps about the same mean over dark and bright scenes (14,16,19 at 0.84 gives
+   21,25,29 and 36,33,34 there) while letting only 0.16 of the detail through. */
 .scoreboard {
   isolation: isolate;
   position: absolute;
@@ -75,13 +78,13 @@
   padding: 20px 20px 0;
   transform: translateY(-50%);
   border-radius: 5px;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(14, 16, 19, 0.84);
   color: #cccccc;
   font-family: var(--sb-font);
 }
 
-/* Panorama bluedots_large at backgroundDotsSize 360px: the capture's dots repeat every ~3.4px and lift the fill by
-   ~12 grey levels, i.e. the shared SLUI dot grid at 0.05. */
+/* Panorama bluedots_large at backgroundDotsSize 360px: neutral dots every ~3.4px. Over a flat backdrop the capture's
+   high-pass amplitude is 5.1-6.5 grey levels; the shared SLUI dot grid reaches that at 0.085. */
 .scoreboard::before {
   content: "";
   position: absolute;
@@ -89,7 +92,7 @@
   inset: 0;
   border-radius: inherit;
   background: url("/assets/hud/dot-grid.png") 0 0 / 360px 360px;
-  opacity: 0.05;
+  opacity: 0.085;
   pointer-events: none;
 }
 
