@@ -167,7 +167,8 @@ Reducer over `sidecar.baseline` / `scoreboard.snapshot` with the same source, se
 
 ### Component (`Scoreboard.tsx` / `Scoreboard.css`)
 
-- Header row: mode icon + `mode_name`, elapsed time on the right. No map and no server line.
+- Header row: the SLGO badge (`slgo-logo.svg`, CS2's mode icon slot, every mode; `mode_icon` stays in the
+  contract unused) + `mode_name`, elapsed time on the right. No map and no server line.
 - Cursor mode: buttons top-right: side swap (second half of a halftime mode only) then stats; the footer hint
   "[MOUSE2] 启用光标" shows only when passive.
 - Team blocks: SCP on top, NTF below (fixed by role: CS2 fixes CT on top and SLGO's SCP is CT in `hudSideForRole`;
@@ -178,7 +179,7 @@ Reducer over `sidecar.baseline` / `scoreboard.snapshot` with the same source, se
 - In the other-side view, team blocks keep their positions and a 上半场 marker states which data is shown.
 - Layout, colours, fonts and transitions from the user screenshots (visual authority) measured with Panorama
   `scoreboard.css` (row transition 0.25 s, hover 0.1 s); canvas and scale per `cs2-visual-replication.md`.
-- Assets in `public/assets/scoreboard/`, SLUI-drawn: mode icons, stats and side-swap buttons, round reason icons
+- Assets in `public/assets/scoreboard/`, SLUI-drawn: the SLGO badge (from the brand logo), stats and side-swap buttons, round reason icons
   (elimination, time), trophy, star, bot, ping bars, dead X, team-logo discs. The two generator reasons reuse the
   existing analogues: activated = `KeycardNTFCommander.svg` (the HUD's bomb stand-in), deactivated =
   `icons/wire-cutters.svg` (the HUD's defuser stand-in).

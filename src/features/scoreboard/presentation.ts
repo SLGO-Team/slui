@@ -1,4 +1,4 @@
-import type { Role, RoundState, ScoreboardModeIcon, ScoreboardPlayer, ScoreboardRoundReason, ScoreboardSideStats, TeamId } from "../../contracts/index.ts";
+import type { Role, RoundState, ScoreboardPlayer, ScoreboardRoundReason, ScoreboardSideStats, TeamId } from "../../contracts/index.ts";
 import type { HudPlayerView, HudTeamView, HudViewerPlayerView, RoundHudViewModel } from "../hud/model.ts";
 import { DEFAULT_AVATAR_BY_SIDE, hudPlayerState, hudSideForRole, playerSlotColors, type HudPlayerState, type HudSide } from "../hud/presentation.ts";
 import { formatScoreboardElapsed, scoreboardElapsedMs, type ScoreboardFrame, type ScoreboardStat, type ScoreboardViewState } from "./model.ts";
@@ -41,10 +41,8 @@ const ASCENDING: ReadonlySet<ScoreboardStat> = new Set(["deaths"]);
 
 export const SCOREBOARD_SIDE_NAMES: Readonly<Record<Role, string>> = { ntf: "NTF", scp: "SCP" };
 
-export const SCOREBOARD_MODE_ICONS: Readonly<Record<ScoreboardModeIcon, string>> = {
-  competitive: "/assets/scoreboard/mode-competitive.svg",
-  casual: "/assets/scoreboard/mode-casual.svg",
-};
+/** CS2's mode icon slot shows the SLGO badge in every mode (`mode_icon` stays in the contract). */
+export const SCOREBOARD_LOGO = "/assets/scoreboard/slgo-logo.svg";
 
 /** Timeline result icons: CS2 kill / bomb / defuser / timer with SLGO's analogues (the HUD's keycard and wire cutters). */
 export const SCOREBOARD_REASON_ICONS: Readonly<Record<ScoreboardRoundReason, string>> = {
@@ -110,7 +108,7 @@ export type ScoreboardTimelineView = Readonly<{
 
 export type ScoreboardView = Readonly<{
   modeName: string;
-  modeIcon: string;
+  logo: string;
   elapsed: string;
   page: 1 | 2;
   /** The side switch exists only in the second half of a halftime mode. */
@@ -253,7 +251,7 @@ export function selectScoreboard({ hud, frame, view, localPlayerId, nowMs }: Sel
 
   return {
     modeName: board.mode_name,
-    modeIcon: SCOREBOARD_MODE_ICONS[board.mode_icon],
+    logo: SCOREBOARD_LOGO,
     elapsed: formatScoreboardElapsed(scoreboardElapsedMs(frame, nowMs)),
     page: view.page,
     sideSwitchAvailable,

@@ -52,6 +52,7 @@ Panorama sources and behaviour notes: `research/cs2-scoreboard-reference.md`.
 - D5 The side switch is a second button top-right in cursor mode, next to the stats button; like the page it
   stays until clicked again.
 - D6 The header shows the mode only: no map name, no server line.
+- D7 (2026-10-20) The header's icon is the SLGO badge in every mode, where CS2 shows the mode icon.
 
 ## Requirements
 
@@ -70,7 +71,7 @@ Panorama sources and behaviour notes: `research/cs2-scoreboard-reference.md`.
   for NTF shooting SCP-049-2; user decision 2026-10-20), MVPs, utility damage (own HE grenades), enemies
   flashed (own flashbangs), KDR (kills / max(deaths, 1)), ADR (damage / rounds played), all per side. Money only
   for the viewer's own team in the current-side view. 命% / 道具 / 致盲 blank on rows showing SCP-side stats.
-- R7 Panel parts: header (mode icon + name, elapsed time), team blocks (SCP top, NTF bottom) with score emblem,
+- R7 Panel parts: header (SLGO badge + mode name, elapsed time), team blocks (SCP top, NTF bottom) with score emblem,
   side name and alive count; in halftime modes (CS2's competitive template; casual has none) half scores, round
   timeline with win-reason icons, trophies and halftime divider, and loss-bonus pips (modes with loss streaks);
   rows with ping or bot icon, slot-coloured avatar, name, MVP star with count, dead and offline styles, local row

@@ -182,7 +182,7 @@ export function Scoreboard({ view, mode, onSort, onCyclePage, onToggleSide }: Sc
       <section className="scoreboard" aria-label="计分板" data-page={view.page}>
         <header className="sb-meta">
           <div className="sb-meta__row sb-meta__row--title">
-            <img className="sb-meta__mode-icon" src={view.modeIcon} alt="" />
+            <img className="sb-meta__logo" src={view.logo} alt="" />
             <span className="sb-meta__mode">{view.modeName}</span>
             <span className="sb-meta__time">{view.elapsed}</span>
           </div>
