@@ -33,6 +33,9 @@ import {
   parseRoute,
   parseScoreboardSnapshot,
   parseShopSnapshot,
+  parseUpdateManifest,
+  compareReleaseVersions,
+  UPDATE_PLATFORM,
 } from "../src/contracts/index.ts";
 import { MockSidecarConnection } from "../src/platform/connection.ts";
 import { HUD_SCENES, createHudSceneFrame, hudSceneLoopMs, readHudScene } from "../src/mocks/hudScenes.ts";
@@ -933,3 +936,30 @@ assert.deepEqual(liveActions.filter((action) => action.type === "connection-stat
 assert.equal(liveActions.at(-1)?.status, "live");
 
 console.log("contract smoke: ok");
+
+{
+  // Update manifest (packages/protocol/v0/README.md "Update manifest").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/update-manifest.example.json", import.meta.url), "utf8"));
+  assert.equal(parseUpdateManifest(example).ok, true, "update manifest example parses");
+  const withTarget = (target) => ({ ...example, platforms: { [UPDATE_PLATFORM]: { ...example.platforms[UPDATE_PLATFORM], ...target } } });
+  const { min_version: _min, notes: _notes, pub_date: _date, ...minimal } = example;
+  assert.equal(parseUpdateManifest(minimal).ok, true, "min_version, notes and pub_date are optional");
+  for (const [name, manifest] of [
+    ["min_version above version", { ...example, min_version: "0.9.0" }],
+    ["pre-release version", { ...example, version: "0.8.0-beta.1" }],
+    ["leading zero", { ...example, version: "0.08.0" }],
+    ["unknown field", { ...example, channel: "beta" }],
+    ["other platform", { ...example, platforms: { ...example.platforms, "darwin-aarch64": example.platforms[UPDATE_PLATFORM] } }],
+    ["http url", withTarget({ url: "http://downloads.example.com/slui/SLUI-Setup-0.8.0.exe" })],
+    ["empty signature", withTarget({ signature: " " })],
+    ["bad pub_date", { ...example, pub_date: "yesterday" }],
+  ]) {
+    const result = parseUpdateManifest(manifest);
+    assert.equal(result.ok, false, `update manifest rejects ${name}`);
+    assert.equal(result.error.code, "invalid-update-manifest");
+  }
+  assert.equal(compareReleaseVersions("0.10.0", "0.9.9"), 1, "versions compare numerically");
+  assert.equal(compareReleaseVersions("1.2.3", "1.2.3"), 0);
+  assert.equal(compareReleaseVersions("0.7.0", "0.7.1"), -1);
+  assert.equal(compareReleaseVersions("0.7", "0.7.0"), null);
+}

@@ -720,3 +720,33 @@ Overlay scales by height/1080 on a 1080*aspect canvas (capped 1920), per Panoram
 ### Status
 
 [OK] **Completed**
+
+
+## Session 31: One-click auto-update (PR #43)
+<!-- trellis-session: v=2 fp=6048fe2287b710d3 -->
+
+**Date**: 2026-10-20
+**Task**: One-click auto-update (PR #43)
+**Branch**: `claude/busy-blackwell-bc6894`
+
+### Summary
+
+Planned and shipped one-click auto-update: @slgo/protocol update manifest (GET /v0/update, min_version), Rust-owned updater on tauri-plugin-updater (6 h checks, minisign verify, hand-over to the branded installer's unattended --update mode), release workflow signing. After visual review the update UI moved out of the connection status to a title-bar button, a settings 关于 group and a required-update banner. Real-install e2e passed on the dev PC (0.7.0->0.7.1, required 0.7.2 with UAC decline/retry). Maintainer generated the release signing key and secrets with their own script; backup intentionally skipped. Follow-ups: control-plane GET /v0/update (slgo-backend), publish-slui + download route (slgo-deploy).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `700b65a` | feat(protocol): update manifest contract and auto-update plan |
+| `9943583` | wip(updater): partial step 2, see implement.md handoff |
+| `08755d7` | feat(updater): background check, download and install hand-over |
+| `6ea6e43` | feat(installer): unattended update mode for the updater |
+| `8c5b2ac` | feat(updater): home version tile and required-update gating |
+| `23c43d4` | ci(release): sign the installer for the updater and attach the .sig |
+| `79b463c` | docs(updater): spec and README for auto-update |
+| `f22057a` | fix(updater): move update UI out of the connection status |
+| `625d2cf` | feat(updater): use the release signing public key |
+
+### Status
+
+[OK] **Completed**

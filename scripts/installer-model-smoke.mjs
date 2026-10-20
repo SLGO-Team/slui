@@ -7,6 +7,7 @@ import {
   optionsGate,
   optionsVisible,
   reduce,
+  unavailableSummary,
   welcomeModes,
 } from "../installer/src/model.ts";
 
@@ -157,9 +158,40 @@ assert.equal(detectFailed.detectError, "boom");
 assert.equal(optionsVisible(detectFailed), false);
 assert.equal(reduce(detectFailed, { type: "start", mode: "fresh" }), detectFailed);
 
+// Unattended update (started by SLUI's updater): an older install starts updating at once.
+const unattended = { ...initialState, unattended: true };
+state = reduce(unattended, { type: "detected", detect: detect(installedAt("older")) });
+assert.equal(state.screen, "progress", "no welcome screen");
+assert.deepEqual(request(state.run),
+  { dir: "D:\\Games\\SLUI", mode: "update", startMenuShortcut: false, desktopShortcut: false });
+const unattendedRun = state.run.id;
+// UAC declined: a screen of its own (retry / open SLUI), not the welcome screen.
+const declined = reduce(state, { type: "finished", runId: unattendedRun, outcome: { kind: "cancelled" } });
+assert.equal(declined.screen, "cancelled");
+assert.equal(declined.notice, null);
+const retriedUpdate = reduce(declined, { type: "retry" });
+assert.equal(retriedUpdate.screen, "progress");
+assert.notEqual(retriedUpdate.run.id, unattendedRun);
+assert.deepEqual(request(retriedUpdate.run), request(state.run));
+assert.equal(reduce(retriedUpdate, { type: "finished", runId: retriedUpdate.run.id, outcome: { kind: "ok", dir: "D:\\Games\\SLUI" } }).screen,
+  "done");
+assert.equal(reduce(state, { type: "finished", runId: unattendedRun, outcome: failure }).screen, "error");
+// Nothing older installed: nothing to update.
+for (const [installed, kind] of [[null, "fresh"], [installedAt("same", "0.1.1"), "same"], [installedAt("newer", "0.2.0"), "newerInstalled"]]) {
+  const unavailable = reduce(unattended, { type: "detected", detect: detect(installed) });
+  assert.equal(unavailable.screen, "unavailable", kind);
+  assert.equal(unavailable.run, null, kind);
+  assert.equal(reduce(unavailable, { type: "retry" }), unavailable, kind);
+}
+assert.match(unavailableSummary("fresh"), /未检测到/);
+assert.match(unavailableSummary("same"), /此版本/);
+assert.match(unavailableSummary("newerInstalled"), /更新版本/);
+// A normal start never goes unattended.
+assert.equal(reduce(initialState, { type: "detected", detect: detect(installedAt("older")) }).screen, "welcome");
+
 assert.equal(formatBytes(112 * MB), "112 MB");
 assert.equal(formatBytes(108_921_856), "104 MB");
 assert.equal(formatBytes(186.4 * GB), "186.4 GB");
 assert.equal(formatBytes(0), "0 MB");
 
-console.log("installer model smoke: classify, inline options, shortcuts, reinstall, gate, cancel, failure/retry ok");
+console.log("installer model smoke: classify, inline options, shortcuts, reinstall, gate, cancel, failure/retry, unattended update ok");

@@ -61,12 +61,18 @@ export function classify(detect: Detect): Kind {
   }
 }
 
-export type Screen = "welcome" | "progress" | "done" | "error";
+/**
+ * `cancelled` and `unavailable` belong to the unattended update (`--update`, started by SLUI's
+ * updater): UAC declined, or nothing older is installed to update.
+ */
+export type Screen = "welcome" | "progress" | "done" | "error" | "cancelled" | "unavailable";
 
 /** One install attempt; `id` changes per attempt so the App effect starts exactly one. */
 export type Run = InstallRequest & { id: number };
 
 export type State = {
+  /** Started by SLUI's updater: no welcome screen, the update starts once detected. */
+  unattended: boolean;
   detect: Detect | null;
   detectError: string | null;
   screen: Screen;
@@ -98,6 +104,7 @@ export type Action =
   | { type: "retry" };
 
 export const initialState: State = {
+  unattended: false,
   detect: null,
   detectError: null,
   screen: "welcome",
@@ -213,6 +220,27 @@ export function failureSummary(outcome: Extract<InstallOutcome, { kind: "failed"
   }
 }
 
+/** Why an unattended update has nothing to do; `update` never gets here. */
+export function unavailableSummary(kind: Kind): string {
+  switch (kind) {
+    case "fresh":
+      return "未检测到已安装的 SLUI。";
+    case "update":
+    case "same":
+      return "已安装此版本的 SLUI。";
+    case "newerInstalled":
+      return "已安装更新版本的 SLUI。";
+  }
+}
+
+/** The unattended update starts as soon as an older install is detected. */
+function unattendedStart(state: State): State {
+  const detect = state.detect;
+  if (!detect) return state;
+  if (classify(detect) !== "update") return { ...state, screen: "unavailable" };
+  return beginRun(state, { dir: initialDir(detect), mode: "update", startMenuShortcut: false, desktopShortcut: false });
+}
+
 function startRun(state: State, mode: InstallMode): State {
   const detect = state.detect;
   if (!detect || state.screen !== "welcome") return state;
@@ -241,7 +269,8 @@ function beginRun(state: State, request: InstallRequest): State {
 export function reduce(state: State, action: Action): State {
   switch (action.type) {
     case "detected": {
-      return { ...state, detect: action.detect, detectError: null, dir: initialDir(action.detect), check: null };
+      const detected = { ...state, detect: action.detect, detectError: null, dir: initialDir(action.detect), check: null };
+      return state.unattended && state.screen === "welcome" ? unattendedStart(detected) : detected;
     }
     case "detectFailed":
       return { ...state, detectError: action.message };
@@ -269,14 +298,16 @@ export function reduce(state: State, action: Action): State {
         case "ok":
           return { ...state, screen: "done", outcome: action.outcome };
         case "cancelled":
-          return { ...state, screen: "welcome", outcome: null, notice: CANCELLED_NOTICE };
+          return state.unattended
+            ? { ...state, screen: "cancelled", outcome: action.outcome }
+            : { ...state, screen: "welcome", outcome: null, notice: CANCELLED_NOTICE };
         case "failed":
           return { ...state, screen: "error", outcome: action.outcome };
       }
     }
     case "retry": {
       const run = state.run;
-      if (state.screen !== "error" || !run) return state;
+      if ((state.screen !== "error" && state.screen !== "cancelled") || !run) return state;
       const { id: _id, ...request } = run;
       return beginRun(state, request);
     }

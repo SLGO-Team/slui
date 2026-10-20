@@ -595,7 +595,8 @@ export type ParseErrorCode =
   | "expired-route"
   | "unauthorized"
   | "not-in-game"
-  | "rate-limited";
+  | "rate-limited"
+  | "invalid-update-manifest";
 
 export type ParseError = { code: ParseErrorCode; message: string; eventId?: string };
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: ParseError };
@@ -787,6 +788,58 @@ export function parseRouteRejected(raw: unknown): ParseResult<RouteRejected> {
   if (!["invalid-request", "unsupported-protocol", "unauthorized", "not-in-game", "rate-limited"].includes(String(raw.reason))) return error("invalid-route", "Route rejection reason is invalid");
   if (raw.message !== undefined && typeof raw.message !== "string") return error("invalid-route", "Route rejection message is invalid");
   return { ok: true, value: raw as unknown as RouteRejected };
+}
+
+/** Control-plane endpoint serving the SLUI update manifest: `200` manifest, `204` none published. */
+export const UPDATE_PATH = "/v0/update";
+/** The only `platforms` key SLUI reads (tauri-plugin-updater's Windows x64 target). */
+export const UPDATE_PLATFORM = "windows-x86_64";
+
+/**
+ * tauri-plugin-updater's static manifest plus `min_version`: a running SLUI below it must update
+ * before connecting. `signature` is the content of the installer's minisign `.sig` file.
+ */
+export type UpdateManifest = {
+  version: string;
+  min_version?: string;
+  notes?: string;
+  pub_date?: string;
+  platforms: Record<typeof UPDATE_PLATFORM, { url: string; signature: string }>;
+};
+
+const UPDATE_MANIFEST_KEYS = ["version", "min_version", "notes", "pub_date", "platforms"];
+const RELEASE_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+
+/** Orders two release versions (`X.Y.Z`); `null` when either is not one. */
+export function compareReleaseVersions(a: string, b: string): number | null {
+  const left = RELEASE_VERSION.exec(a);
+  const right = RELEASE_VERSION.exec(b);
+  if (!left || !right) return null;
+  for (let index = 1; index <= 3; index += 1) {
+    const difference = Number(left[index]) - Number(right[index]);
+    if (difference !== 0) return Math.sign(difference);
+  }
+  return 0;
+}
+
+export function parseUpdateManifest(raw: unknown): ParseResult<UpdateManifest> {
+  const invalid = (message: string) => error("invalid-update-manifest", message);
+  if (!isRecord(raw)) return invalid("Update manifest is not an object");
+  if (Object.keys(raw).some((key) => !UPDATE_MANIFEST_KEYS.includes(key))) return invalid("Update manifest contains unsupported fields");
+  if (typeof raw.version !== "string" || !RELEASE_VERSION.test(raw.version)) return invalid("version must be X.Y.Z");
+  if (raw.min_version !== undefined) {
+    if (typeof raw.min_version !== "string" || !RELEASE_VERSION.test(raw.min_version)) return invalid("min_version must be X.Y.Z");
+    if ((compareReleaseVersions(raw.min_version, raw.version) ?? 1) > 0) return invalid("min_version is above version");
+  }
+  if (raw.notes !== undefined && typeof raw.notes !== "string") return invalid("notes must be a string");
+  if (raw.pub_date !== undefined && (typeof raw.pub_date !== "string" || Number.isNaN(Date.parse(raw.pub_date)))) return invalid("pub_date must be an RFC 3339 date");
+  if (!isRecord(raw.platforms)) return invalid("platforms is missing");
+  if (Object.keys(raw.platforms).some((key) => key !== UPDATE_PLATFORM)) return invalid("platforms contains unsupported targets");
+  const target = raw.platforms[UPDATE_PLATFORM];
+  if (!isRecord(target) || Object.keys(target).some((key) => key !== "url" && key !== "signature")) return invalid(`platforms.${UPDATE_PLATFORM} is invalid`);
+  if (typeof target.url !== "string" || !/^https:\/\/[^/\s]+\/\S+$/.test(target.url)) return invalid("url must be an https URL");
+  if (!isNonEmptyString(target.signature)) return invalid("signature is missing");
+  return { ok: true, value: raw as unknown as UpdateManifest };
 }
 
 export function parseRoute(raw: unknown, now = Date.now()): ParseResult<ServerRoute> {

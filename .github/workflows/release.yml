@@ -1,6 +1,7 @@
 # release-please keeps a release PR open on main (versions + CHANGELOG.md). Merging it
 # creates a draft GitHub Release with its vX.Y.Z tag; the installer job then builds
-# SLUI-Setup-X.Y.Z.exe and attaches it to the draft, which a maintainer publishes.
+# SLUI-Setup-X.Y.Z.exe, signs it for the updater and attaches both files to the draft,
+# which a maintainer publishes.
 name: release
 
 on:
@@ -39,7 +40,8 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: windows-latest
-    # The control-plane URL is a secret of this environment, which only main may use.
+    # The control-plane URL and the updater signing key are secrets of this environment,
+    # which only main may use.
     environment: release
     permissions:
       contents: write
@@ -63,15 +65,35 @@ jobs:
         shell: bash
         env:
           VITE_CONTROL_PLANE_URL: ${{ secrets.CONTROL_PLANE_URL }}
+          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
           if [ -z "$VITE_CONTROL_PLANE_URL" ]; then
             echo "::error::CONTROL_PLANE_URL is not set in the release environment"
             exit 1
           fi
+          # Checked before the build: an unsigned release can never be offered as an update.
+          if [ "$HAS_SIGNING_KEY" != "true" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set in the release environment"
+            exit 1
+          fi
           npm run installer:build
-      # Re-running this job replaces the asset. gh finds draft releases by tag.
+      # minisign signature checked by SLUI's updater (src-tauri/src/updater.rs) against the
+      # public key in tauri.conf.json. The signed comment carries the file name, which the
+      # updater requires to be exactly SLUI-Setup-<manifest version>.exe, so sign that file.
+      - name: Sign installer for the updater
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          npx tauri signer sign "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe"
+          test -s "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe.sig"
+      # Re-running this job replaces the assets. gh finds draft releases by tag.
       - name: Upload to the draft release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe" --clobber
+        run: |
+          gh release upload "$TAG" --clobber \
+            "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe" \
+            "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe.sig"

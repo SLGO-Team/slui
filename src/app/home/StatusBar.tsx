@@ -1,6 +1,8 @@
 import type { SessionStatusSnapshot } from "../../platform/desktop";
+import type { UpdateState } from "../../platform/updater";
+import { homeServerStatus } from "../updateModel";
 import { AccountIcon, GameIcon, ServerIcon } from "./icons";
-import { serverStatus, type Tone } from "./status";
+import type { Tone } from "./status";
 
 function StatusTile({ icon, name, value, tone, children }: {
   icon: React.ReactNode;
@@ -20,12 +22,13 @@ function StatusTile({ icon, name, value, tone, children }: {
   </div>;
 }
 
-export function StatusBar({ session, gameRunning, onRetry }: {
+export function StatusBar({ session, gameRunning, update, onRetry }: {
   session: SessionStatusSnapshot | null;
   gameRunning: boolean | null;
+  update: UpdateState | null;
   onRetry(): void;
 }) {
-  const server = serverStatus(session);
+  const server = homeServerStatus(session, update);
   return <section className="home-section" aria-labelledby="home-status-title">
     <h2 id="home-status-title" className="home-section__title">连接状态<span className="home-eyebrow">STATUS</span></h2>
     <div className="home-status">

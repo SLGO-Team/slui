@@ -566,6 +566,9 @@ by window label (`?window=home` in a browser preview).
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
 | `get_game_running()` | home | `boolean` (SCPSL process present, independent of focus) |
 | `sidecar_open(url, onEvent: Channel)` / `sidecar_send(id, data)` / `sidecar_close(id, code, reason)` | overlay (via `sidecarSocket.ts`) | socket id; `onEvent` gets `{kind:"open"}`, `{kind:"message",data}`, then exactly one `{kind:"close",code,reason}`; send/close on a closed id are dropped |
+| `updater_start(controlPlaneUrl)` | home (via `updater.ts`) | `UpdateState`; the first call starts the check loop, later calls only return the state; error for a non-http(s) URL |
+| `get_update_state()` | both | `UpdateState` |
+| `updater_check_now()` / `updater_install()` | home | check: ignored while checking / downloading / installing; install: error unless `ready` |
 
 | Event | Direction | Payload |
 | --- | --- | --- |
@@ -577,10 +580,53 @@ by window label (`?window=home` in a browser preview).
 | `slgo-game-running` | Rust → all | `boolean`, on change (2s poll) |
 | `slgo-session-status` | overlay → home | `{ status: ConnectionStatus, steamId: string \| null, detail: string \| null }` |
 | `slgo-session-status-request` / `slgo-session-retry` | home → overlay | `null` |
+| `slui://update-state` | Rust → all | `UpdateState` (see 3.2), on every change |
 
-React components reach all of these only through `src/platform/desktop.ts`
-and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
-`localStorage` so a home tab and an overlay tab still drive each other.
+React components reach all of these only through `src/platform/desktop.ts`,
+`src/platform/settings.ts` and `src/platform/updater.ts`. Browser previews use a
+`BroadcastChannel` and `localStorage` so a home tab and an overlay tab still drive
+each other.
+
+### 3.2 Auto-update
+
+The update manifest is `UpdateManifest` in `@slgo/protocol`
+(`packages/protocol/v0/update-manifest.schema.json`): the Tauri updater static
+format (`version`, `notes`, `pub_date`, `platforms["windows-x86_64"] { url,
+signature }`) plus `min_version`. The control plane serves it at
+`GET {controlPlaneUrl}/v0/update` (`UPDATE_PATH`): `200` manifest or `204` none.
+
+- **Rust owns the state** (`src-tauri/src/updater.rs`), so it survives the hidden
+  home window and drives the tray. `UpdateState { current, phase, required,
+  lastChecked }`, `phase.kind` one of `idle | checking | downloading {version,
+  received, total} | ready {version, notes} | installing {version} | failed
+  {reason: network | signature | launch}`.
+- The home window calls `updater_start` once with the `readBackendConfig` URL
+  (mock mode never does). Checks run at start and every 6 h + 0–30 min jitter.
+- tauri-plugin-updater downloads into memory and verifies the minisign signature
+  against `plugins.updater.pubkey` before returning any byte. The signature's
+  trusted comment must name `SLUI-Setup-<manifest version>.exe` (the comment is
+  signed; the manifest's `version` is not), so release and publish steps must keep
+  that exact file name. A mismatch is `failed { signature }`; nothing is written.
+- Install: the verified bytes go to a fresh `%TEMP%\slui-update-<16 hex>\`, the
+  branded installer starts with `--update --after-pid <pid>` and SLUI exits. The
+  shell waits for that pid (only if it is `slui.exe`, 15 s), skips the welcome
+  screen and runs the NSIS package elevated with `/S /UPDATE`; UAC declined shows
+  重试 / 打开 SLUI, failure shows 重试 / 打开 SLUI, success relaunches SLUI
+  non-elevated. Leftover `slui-update-*` directories are removed at the next start.
+- **Fail-open.** An unreachable endpoint, a non-2xx answer (404 before the backend
+  ships it) or a bad manifest is a quiet `failed { network }` in the 关于 row;
+  no dialog, the next check retries. `required` starts unknown (`null`) at every
+  launch and is set only by a successful check, so a broken update server never
+  blocks play.
+- **`required`** = `min_version` while the running version is below it. The
+  overlay (`src/App.tsx`) then holds the client session back
+  (`useClientSession(..., updateRequired)` → status `incompatible`, retry `none`)
+  and the home server tile shows 「需要更新」. The server-side hard gate stays
+  `protocol_version`; the route request carries no client version.
+- Update UI lives only in the home window and the tray: the title-bar button
+  「更新到 X.Y.Z」 (only while `ready`), the settings page's 关于 group (version, status,
+  「检查更新」), the home banner while `required`, and the tray item while `ready`. It does not
+  belong in the connection-status section. The in-game overlay never shows update UI.
 
 ---
 
@@ -623,6 +669,10 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
 | Overlay is disabled | Keep it hidden and click-through; ignore overlay shortcuts; reject interactive mode; close the shop and chat |
 | Shop hotkey pressed outside the game or buy window | Ignore it; never take the mouse |
 | Saved shop hotkey is not bindable | Fall back to `B` via `normalizeHotkeys()` |
+| Update endpoint unreachable, non-2xx, or manifest malformed | `failed { network }` in the 关于 row only; keep the last known `required`; retry at the next check |
+| Update signature does not verify, or its signed `file:` is not `SLUI-Setup-<version>.exe` | `failed { signature }`; never write or run the file |
+| Manifest `min_version` above the running version | `required` set: the overlay does not connect, home shows 「需要更新」 and the install action once the download is verified |
+| The update installer cannot be written or started | `failed { launch }`; SLUI keeps running; 重试 re-checks and reuses the verified bytes |
 
 ---
 
@@ -694,6 +744,12 @@ and `src/platform/settings.ts`. Browser previews use a `BroadcastChannel` and
   session status bridge, including invalid payloads and event routing.
 - `src-tauri/src/settings.rs` unit tests: atomic save, rejection of non-objects,
   and backup of corrupt or non-UTF-8 files.
+- Auto-update: `scripts/contract-smoke.mjs` (manifest fixture and rejections),
+  `scripts/update-model-smoke.mjs` (state parsing, title bar, 关于 row, required banner and gating,
+  adapter), `src-tauri/src/updater.rs` unit tests (state machine, `min_version`,
+  signed file name, temp directories, installer arguments),
+  `scripts/installer-model-smoke.mjs` and `installer/src-tauri/src/lib.rs` tests
+  (unattended update flow and `--update --after-pid` parsing).
 
 ---
 

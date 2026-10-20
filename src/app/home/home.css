@@ -110,6 +110,8 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 }
 .home-titlebar__button:hover { background: #18222f; color: var(--home-text); }
 .home-titlebar__button--close:hover { background: #c42b1c; color: #fff; }
+/* Appears only while an update is ready; sits left of the window controls. */
+.home-titlebar__update { align-self: center; margin-right: 10px; }
 
 /* ---- Navigation rail ---- */
 
@@ -209,6 +211,25 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
   font-size: 12.5px;
   user-select: text;
 }
+
+/* Required update: the only page-level alert, above everything else on the home page. */
+.home-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 93, 93, 0.35);
+  border-left: 3px solid var(--home-error);
+  background: rgba(255, 93, 93, 0.1);
+}
+.home-banner__icon { flex: none; display: grid; color: var(--home-error); }
+.home-banner__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.home-banner__title { font-size: 14px; font-weight: 600; color: var(--home-text); }
+.home-banner__detail { color: #ff8a8a; font-size: 12px; }
+
+.home-about__status[data-tone="ok"] { color: var(--home-ok); }
+.home-about__status[data-tone="pending"] { color: var(--home-pending); }
+.home-about__status[data-tone="warn"] { color: var(--home-warn); }
 
 /* ---- Buttons ---- */
 

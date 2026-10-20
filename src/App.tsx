@@ -53,6 +53,8 @@ import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "./platform/ov
 import { createSettingsStore, type AppSettings } from "./platform/settings";
 import type { RadarPreferences } from "./features/minimap/preferences";
 import { createOverlayStateSource, createSessionStatusPublisher, isTauri, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
+import { createUpdateSource } from "./platform/updater";
+import { requiredUpdate } from "./app/updateModel";
 import "./App.css";
 
 /** Plugin features the enabled overlay takes over (reported via client.features). */
@@ -182,7 +184,26 @@ function App() {
     minimapFeature.setConnectionStatus(status);
   }, [overlayController, shopFeature.setConnectionStatus, chatFeature.setConnectionStatus, minimapFeature.setConnectionStatus]);
   const dependencies = useMemo(() => ({ identity, proof, controlPlane, connection }), [connection, controlPlane, identity, proof]);
-  const session = useClientSession(dependencies, handleEvent, handleDiagnostic, handleStatus);
+  // A required update (manifest `min_version` above this version) keeps the session from connecting.
+  // Unknown until a check succeeds, so a failing update server never blocks play. No update UI here.
+  const updateSource = useMemo(() => createUpdateSource(), []);
+  const [updateRequired, setUpdateRequired] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    let changed = false;
+    const unsubscribe = updateSource.subscribe((state) => {
+      changed = true;
+      setUpdateRequired(requiredUpdate(state));
+    });
+    void updateSource.get().then((state) => {
+      if (active && !changed) setUpdateRequired(requiredUpdate(state));
+    }).catch((error: unknown) => console.error("Unable to read the update state", error));
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [updateSource]);
+  const session = useClientSession(dependencies, handleEvent, handleDiagnostic, handleStatus, updateRequired);
   const settingsStore = useMemo(() => createSettingsStore(), []);
   const overlayState = useMemo(() => createOverlayStateSource(), []);
   const sessionPublisher = useMemo(() => createSessionStatusPublisher(), []);

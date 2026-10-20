@@ -1,6 +1,7 @@
 mod settings;
 mod sidecar_socket;
 mod theme_pack;
+mod updater;
 
 #[cfg(windows)]
 use std::sync::{atomic::AtomicIsize, mpsc, OnceLock};
@@ -606,6 +607,9 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &toggle, &separator, &quit])?;
     app.manage(TrayOverlayItem(toggle));
+    // Inserted after 「启用 UI」 while an update is ready.
+    let update = MenuItem::with_id(app, updater::TRAY_ITEM_ID, "", true, None::<&str>)?;
+    app.manage(updater::TrayItem::new(menu.clone(), update, 2));
 
     let mut tray = TrayIconBuilder::with_id("slui")
         .tooltip("SLUI")
@@ -619,6 +623,7 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
                     eprintln!("SLGO: {error}");
                 }
             }
+            updater::TRAY_ITEM_ID => updater::install_from_tray(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -967,6 +972,8 @@ pub fn run() {
                 apply_overlay_input_mode(&overlay, false);
                 let _ = overlay.hide();
             }
+            app.manage(updater::Updater::new(app.package_info().version.to_string()));
+            thread::spawn(updater::remove_old_installers);
             build_tray(app)?;
             start_foreground_tracking(app.handle().clone());
             start_keyboard_hook(app.handle().clone());
@@ -998,9 +1005,15 @@ pub fn run() {
             theme_pack::list_theme_pack_files,
             sidecar_socket::sidecar_open,
             sidecar_socket::sidecar_send,
-            sidecar_socket::sidecar_close
+            sidecar_socket::sidecar_close,
+            updater::updater_start,
+            updater::updater_check_now,
+            updater::get_update_state,
+            updater::updater_install
         ])
         .plugin(tauri_plugin_opener::init())
+        // Rust API only: no capability grants its JS commands; see updater.rs.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
