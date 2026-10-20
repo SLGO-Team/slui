@@ -4,13 +4,14 @@ Branch: `feat/auto-update`. One PR (UI changes → waits for the user's visual r
 
 ## 0. User prerequisites (before step 6 / before the first release with the updater)
 
-- [ ] Generate the updater key pair outside the repo (password-protected):
+- [x] Generate the updater key pair outside the repo (password-protected):
       `npx tauri signer generate -w <path outside the repo>\slui-updater.key`
-- [ ] Back it up offline (losing it ends verified updates).
-- [ ] Add `release` environment secrets `TAURI_SIGNING_PRIVATE_KEY` (key file contents) and
+- [x] Backup: skipped by the maintainer's choice (10-20). Losing the key only means a new key pair and one
+      manual reinstall for every player.
+- [x] Add `release` environment secrets `TAURI_SIGNING_PRIVATE_KEY` (key file contents) and
       `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-- [ ] Hand over the **public** key (`.key.pub` contents) for `tauri.conf.json`. Until then a
-      throwaway dev key pair is used locally and must be replaced before merge.
+- [x] Public key committed to `tauri.conf.json` (10-20). The key was generated and the secrets were
+      uploaded by the maintainer's own script; the private key never passed through the agent.
 
 ## 1. Contract — `packages/protocol`
 
@@ -99,7 +100,7 @@ Worktree used: `<main checkout>/.claude/worktrees/auto-update` (branch `feat/aut
   tauri 2.11.5; `zip` only reads Tauri v1 archives), `semver = "1"`, `base64 = "0.22"`.
 - `src-tauri/tauri.conf.json`: `plugins.updater { pubkey, endpoints: [] }`. **The pubkey is a throwaway dev
   key** whose private half is not in the repo (for local e2e generate a new throwaway pair with
-  `npx tauri signer generate` and swap the pubkey); replace it with the user's key (step 0) before merge.
+  `npx tauri signer generate` and swap the pubkey); replace it with the user's key (step 0) before merge. *(Done 10-20.)*
 - `src-tauri/tauri.local.conf.json`: `plugins.updater.dangerousInsecureTransportProtocol: true`.
 - `src-tauri/src/updater.rs` (new): pure `Machine` (state transitions), `Updater` managed state, `TrayItem`
   (「更新到 X.Y.Z」 inserted at menu index 2 while Ready), commands `updater_start` / `updater_check_now` /
@@ -148,9 +149,8 @@ auto `launch`.
 
 Steps 1–6 done (commits on `feat/auto-update`). Validation commands above all pass.
 
-**Before merge:** replace `plugins.updater.pubkey` in `src-tauri/tauri.conf.json` with the user's
-real public key (step 0) and add the two `release` environment secrets. The committed key is a
-throwaway whose private half does not exist.
+**Signing key (done 10-20):** `plugins.updater.pubkey` is the maintainer's real key; the `release`
+environment has `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
 Local end-to-end walk (throwaway key pair outside the repo, stub control plane on
 `http://127.0.0.1:7800`, `npm run installer:build:local` at 0.7.1 then 0.7.0, the 0.7.0 `slui.exe`
