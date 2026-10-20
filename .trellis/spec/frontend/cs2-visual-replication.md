@@ -575,8 +575,9 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   columns in every mode.
 - Blocks: CS2 fixes CT on top; SLGO's SCP is CT (`hudSideForRole`), so the SCP team is the top block
   (`SCOREBOARD_TOP_ROLE`). Team tint = `ROLE_COLORS` (names, stats, emblem digit, timeline), as in the bottom HUD.
-  The emblem disc follows the side: CT a dark disc with a thin ring, T a dim filled disc, each with the SLUI emblem
-  (`bottomhud/emblem-*.svg`) at 0.22.
+  The emblem disc follows the side: CT a dark disc with a thin ring, T a dim filled disc; the SLUI emblem
+  (`bottomhud/emblem-*.svg`, 64px) fills it behind the digit, lighter than the CT ring (tint 0.3) and a dark cut-out
+  of the T disc (black 0.45). The 70px digit's cap height is centred on the disc (capture ink y 416-461 in 399-478).
 - Geometry at 1080p (capture): panel 960 wide, centred, its centre at y 570; padding 20 20 0; meta 75 (row 1 38 with
   the divider, buttons 26 wide 10 apart ending at x 1360, top y 350, clipped to 19 visible pixels); labels row 26;
   rows 24 high, 26 apart, 770 wide from x 590 (status 24, ping 37, flair 32.4, avatar 24, name fill, page 1 money 66 /
@@ -585,7 +586,8 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   ticks 18x2 at y 584; spectator gap 40; footer 48 with the hint 10px from the right. 5v5 competitive = 584 high (y
   278-861); casual 10v10 grows and stays centred.
 - Colours (capture, not Panorama): panel `rgba(0,0,0,0.7)` (capture ~0.6 on the world blur, denser for the missing
-  blur); cell fills white 0.06, the sorted column 0.15; local row team tint at 0.2 (Panorama says 0.07; the capture
+  blur) with Panorama's dot texture (`hud/dot-grid.png` at 360px, opacity 0.05: ~3.4px pitch, ~12 grey levels);
+  存活 n/N the tint at 0.45 (Panorama 0.2); cell fills white 0.06, the sorted column 0.15; local row team tint at 0.2 (Panorama says 0.07; the capture
   reads 0.2); dead rows `brightness(0.6)` without fills; offline rows `#ccc`; footer hint white 0.4; timeline result
   icons team tint 0.8, played ticks 0.7, the current tick white 0.78, trophy white 0.7, past-clinch rounds 0.1.
 - Fonts: `Stratum2 Scoreboard` (names, medium), `... Condensed` (labels, side names, phase and tick labels), `... Mono`

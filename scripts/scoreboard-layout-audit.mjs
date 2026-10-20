@@ -58,6 +58,8 @@ const measure = `JSON.stringify((() => {
   const teams = [...panel.querySelectorAll(".sb-team")].map((team) => ({
     role: team.dataset.role,
     emblem: box(team.querySelector(".sb-team__emblem")),
+    logo: { ...box(team.querySelector(".sb-team__logo")), mask: getComputedStyle(team.querySelector(".sb-team__logo")).maskImage },
+    score: box(team.querySelector(".sb-team__score")),
     rows: [...team.querySelectorAll(".sb-row")].map((row) => ({ ...box(row), id: row.dataset.playerId, state: row.dataset.state })),
   }));
   const rounds = Object.fromEntries([...panel.querySelectorAll(".sb-round")].map((round) => [round.dataset.round, box(round.querySelector(".sb-round__tick"))]));
@@ -71,6 +73,7 @@ const measure = `JSON.stringify((() => {
     hint: { ...box(hint), opacity: getComputedStyle(hint).opacity },
     timeline: panel.querySelector(".sb-timeline:not(.sb-timeline--spacer)") !== null,
     shadows,
+    dots: getComputedStyle(panel, "::before").backgroundImage,
     mode: document.querySelector(".scoreboard-overlay").dataset.mode,
     generatedNodeCount: document.querySelectorAll("[data-panorama-tag]").length,
     hasRawBindingText: /#Scoreboard_|#SFUI_|\\{[sdg]:/.test(panel.innerText),
@@ -129,6 +132,10 @@ for (const scene of SCENES) {
     nearX(team.emblem.x, 500, `${scene.name} emblem x`);
     nearY(team.emblem.y, blockTop, `${scene.name} emblem y`);
     nearSize(team.emblem.width, 80, `${scene.name} emblem size`);
+    // The team logo fills the disc behind the digit; the 70px digit line starts 1px above the disc (cap centred).
+    assert.match(team.logo.mask, /emblem-(ntf|scp)\.svg/, `${scene.name} team logo drawn`);
+    nearSize(team.logo.width, 64, `${scene.name} team logo size`);
+    nearY(team.score.y, blockTop - 1, `${scene.name} score digit line`);
     assert.equal(team.rows.length, scene.rowsPerTeam);
     const ys = team.rows.map((row) => row.y).sort((a, b) => a - b);
     ys.forEach((y, index) => nearY(y, blockTop + 1 + index * 26, `${scene.name} ${team.role} row ${index}`));
@@ -170,6 +177,7 @@ for (const scene of SCENES) {
     near(audit.hint.right, canvasX + (panelX + 1410 - 480) * scale, "mouse hint right edge", 1.5);
   }
 
+  assert.match(audit.dots, /dot-grid\.png/, `${scene.name}: Panorama's dot texture`);
   assert.equal(audit.shadows, 0, `${scene.name}: no text shadow on new UI`);
   assert.equal(audit.generatedNodeCount, 0);
   assert.equal(audit.hasRawBindingText, false);

@@ -77,7 +77,7 @@ function TeamBlock({ team, columns, sortStat, cursor }: { team: ScoreboardTeamVi
   return <div className="sb-team" data-side={team.side} data-role={team.role} style={teamStyle(team.role)}>
     <div className="sb-team__info">
       <div className="sb-team__emblem">
-        <Mask className="sb-team__logo" src={ICONS.emblem[team.role]} />
+        <Mask className="sb-icon sb-team__logo" src={ICONS.emblem[team.role]} />
         <span className="sb-team__score">{team.score}</span>
       </div>
       <span className="sb-team__name">{team.sideName}</span>
