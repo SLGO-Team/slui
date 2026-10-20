@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES } from "../src/features/minimap/preferences.ts";
 import { DEFAULT_APP_SETTINGS, parseSettings, parseSettingsText, serializeSettings, SETTINGS_VERSION } from "../src/platform/settings.ts";
 import { DEFAULT_AUDIO_SETTINGS } from "../src/platform/audioSettings.ts";
-import { DEFAULT_HOTKEYS, hotkeyLabel, hotkeyVirtualKey, isBindableHotkey } from "../src/platform/hotkeys.ts";
+import { DEFAULT_HOTKEYS, hotkeyLabel, hotkeyVirtualKey, isBindableHotkey, isBindableScoreboardHotkey } from "../src/platform/hotkeys.ts";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "../src/platform/overlaySettings.ts";
 
 // Missing or unreadable files fall back to the radar contract defaults.
@@ -80,11 +80,26 @@ assert.equal(hotkeyVirtualKey("Digit1"), null);
 assert.equal(hotkeyLabel("KeyG"), "G");
 assert.equal(hotkeyLabel("F5"), "F5");
 
+// Scoreboard key (held): the shop's keys plus CapsLock, never the shop key itself; each
+// key recovers on its own (Rust is_bindable_scoreboard_hotkey / validate_hotkeys).
+assert.deepEqual(DEFAULT_HOTKEYS, { shop: "KeyB", scoreboard: "CapsLock" });
+for (const code of ["CapsLock", "KeyA", "KeyT", "F1", "F12"]) assert.equal(isBindableScoreboardHotkey(code), true, code);
+for (const code of ["Tab", "KeyY", "KeyU", "Digit1", "ShiftLeft", "", null]) assert.equal(isBindableScoreboardHotkey(code), false, String(code));
+assert.equal(isBindableHotkey("CapsLock"), false, "CapsLock never opens the shop");
+const hotkeysOf = (hotkeys) => parseSettings({ version: SETTINGS_VERSION, hotkeys }).hotkeys;
+assert.deepEqual(hotkeysOf({ shop: "KeyB", scoreboard: "KeyT" }), { shop: "KeyB", scoreboard: "KeyT" });
+assert.deepEqual(hotkeysOf({ shop: "KeyT", scoreboard: "KeyT" }), { shop: "KeyT", scoreboard: "CapsLock" }, "a shared key goes back to CapsLock");
+assert.deepEqual(hotkeysOf({ shop: "KeyY", scoreboard: "KeyB" }), DEFAULT_HOTKEYS, "the shop falls back to B, which the scoreboard then cannot keep");
+assert.deepEqual(hotkeysOf({ shop: "F3", scoreboard: "Tab" }), { shop: "F3", scoreboard: "CapsLock" });
+assert.deepEqual(hotkeysOf({ shop: "F3" }), { shop: "F3", scoreboard: "CapsLock" }, "files from before the scoreboard key");
+assert.equal(hotkeyVirtualKey("CapsLock"), 0x14);
+assert.equal(hotkeyLabel("CapsLock"), "Caps Lock");
+
 // Round trip keeps all eleven preferences plus the overlay, hotkeys and audio blocks.
 const custom = {
   overlay: { autoEnableOnConnect: false },
   radar: { ...DEFAULT_RADAR_PREFERENCES, orientation: "heading-up", mapScale: 0.25, hudScale: 1.1, dynamicZoom: true },
-  hotkeys: { shop: "F3" },
+  hotkeys: { shop: "F3", scoreboard: "KeyT" },
   audio: { shopVolume: 0.55 },
 };
 const text = serializeSettings(custom);

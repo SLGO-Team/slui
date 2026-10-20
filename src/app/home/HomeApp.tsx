@@ -133,7 +133,7 @@ export function HomeApp() {
       {page === "home" ? <div className="home-page">
         <OverlaySwitch state={overlay} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
         <StatusBar session={session} gameRunning={gameRunning} onRetry={sessionSource.retry} />
-        <KeyHints shopKey={settings.hotkeys.shop} />
+        <KeyHints shopKey={settings.hotkeys.shop} scoreboardKey={settings.hotkeys.scoreboard} />
       </div> : <>
         <header className="home-page__header">
           <div className="home-page__header-inner">

@@ -11,7 +11,7 @@ import {
   type SteamIdentity,
   type SteamIdentityProof,
 } from "../contracts";
-import { DEFAULT_HOTKEYS, hotkeyVirtualKey, isBindableHotkey, type HotkeyCode } from "./hotkeys";
+import { DEFAULT_HOTKEYS, hotkeyVirtualKey, normalizeHotkeys, type HotkeySettings } from "./hotkeys";
 
 export interface SteamClientIdentity {
   getCurrentUser(): Promise<SteamIdentity | null>;
@@ -63,6 +63,16 @@ function parseShortcutEvent(payload: unknown): { shortcut: OverlayShortcut; game
   return { shortcut: shortcut as OverlayShortcut, gameForeground };
 }
 
+/**
+ * Scoreboard key events: `held` true when the scoreboard key went down over the game (or
+ * over the page in the browser preview), false when it went up anywhere. Releases may
+ * arrive twice (page and hook); `cursor` is a right-click the passive scoreboard took.
+ */
+export type ScoreboardInputListener = {
+  held(held: boolean): void;
+  cursor(): void;
+};
+
 // Interaction is never a user toggle: the overlay derives it from which UI is open.
 export type OverlayWindowController = {
   setInteractive(interactive: boolean): Promise<void>;
@@ -70,14 +80,25 @@ export type OverlayWindowController = {
   setKeyboardFocus(focused: boolean): Promise<void>;
   /** Overlay diagnostics; the desktop app prints them to its stderr (the `tauri dev` terminal). */
   log(message: string): void;
-  setShopHotkey(code: HotkeyCode): Promise<void>;
+  /** Applies the shop and scoreboard keys (normalized; Rust rejects an invalid pair). */
+  setHotkeys(hotkeys: HotkeySettings): Promise<void>;
   subscribeShortcut(listener: OverlayShortcutListener): () => void;
+  /** While true and the game holds the foreground, right-click goes to the scoreboard instead of the game. */
+  setScoreboardCapture(capture: boolean): Promise<void>;
+  subscribeScoreboard(listener: ScoreboardInputListener): () => void;
 };
+
+async function listenTauri(event: string, handler: (payload: unknown) => void): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<unknown>(event, ({ payload }) => handler(payload));
+}
 
 export function createOverlayWindowController(): OverlayWindowController {
   const isTauri = "__TAURI_INTERNALS__" in window;
   // Browser preview matches keys itself; Tauri matches them in the Rust keyboard hook.
-  let shopHotkey: HotkeyCode = DEFAULT_HOTKEYS.shop;
+  let hotkeys: HotkeySettings = DEFAULT_HOTKEYS;
+  // Mirrors the Rust capture flag so the browser preview's right-click plays the hook's part.
+  let scoreboardCapture = false;
   return {
     async setInteractive(interactive) {
       if (!isTauri) return;
@@ -98,20 +119,78 @@ export function createOverlayWindowController(): OverlayWindowController {
         .then(({ invoke }) => invoke("log_overlay_event", { message }))
         .catch((error: unknown) => console.error("Unable to log overlay event", message, error));
     },
-    async setShopHotkey(code) {
-      const virtualKey = hotkeyVirtualKey(code);
-      if (!isBindableHotkey(code) || virtualKey === null) throw new Error(`Unsupported hotkey ${code}`);
-      shopHotkey = code;
+    async setHotkeys(next) {
+      const normalized = normalizeHotkeys(next);
+      const shop = hotkeyVirtualKey(normalized.shop);
+      const scoreboard = hotkeyVirtualKey(normalized.scoreboard);
+      if (shop === null || scoreboard === null) throw new Error(`Unsupported hotkeys ${normalized.shop} / ${normalized.scoreboard}`);
+      hotkeys = normalized;
       if (!isTauri) return;
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("set_shop_hotkey", { virtualKey });
+      await invoke("set_hotkeys", { shop, scoreboard });
+    },
+    async setScoreboardCapture(capture) {
+      scoreboardCapture = capture;
+      if (!isTauri) return;
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("set_scoreboard_capture", { capture });
+    },
+    subscribeScoreboard(listener) {
+      let active = true;
+      const cleanups: (() => void)[] = [];
+      // The browser preview has no hook: the page's own key events stand in, and right-click
+      // on the page plays the captured right-click. In the app the hook reports both; the
+      // page adds the key-up while the overlay holds the foreground (cursor mode), where an
+      // IME can keep keys from the hook.
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (active && !isTauri && !event.repeat && event.code === hotkeys.scoreboard) listener.held(true);
+      };
+      const onKeyUp = (event: KeyboardEvent) => {
+        if (active && event.code === hotkeys.scoreboard) listener.held(false);
+      };
+      const onContextMenu = (event: MouseEvent) => {
+        if (!active || isTauri || !scoreboardCapture) return;
+        event.preventDefault();
+        listener.cursor();
+      };
+      window.addEventListener("keydown", onKeyDown);
+      window.addEventListener("keyup", onKeyUp);
+      window.addEventListener("contextmenu", onContextMenu);
+      cleanups.push(
+        () => window.removeEventListener("keydown", onKeyDown),
+        () => window.removeEventListener("keyup", onKeyUp),
+        () => window.removeEventListener("contextmenu", onContextMenu),
+      );
+      if (isTauri) {
+        const subscriptions = [
+          listenTauri("slgo-scoreboard-key", (payload) => {
+            const held = (payload as { held?: unknown } | null)?.held;
+            if (!active) return;
+            if (typeof held === "boolean") listener.held(held);
+            else console.error("Invalid scoreboard key event", payload);
+          }),
+          listenTauri("slgo-scoreboard-cursor", () => {
+            if (active) listener.cursor();
+          }),
+        ];
+        for (const subscription of subscriptions) {
+          void subscription.then((cleanup) => {
+            if (active) cleanups.push(cleanup);
+            else cleanup();
+          }).catch((error: unknown) => console.error("Unable to subscribe to scoreboard input", error));
+        }
+      }
+      return () => {
+        active = false;
+        for (const cleanup of cleanups.splice(0)) cleanup();
+      };
     },
     subscribeShortcut(listener) {
       let active = true;
       const onKeyDown = (event: KeyboardEvent) => {
         if (!active || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
         if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
-        const shortcut = event.code === shopHotkey ? "shop" : CHAT_KEYS[event.code];
+        const shortcut = event.code === hotkeys.shop ? "shop" : CHAT_KEYS[event.code];
         if (!shortcut) return;
         event.preventDefault();
         // While the overlay holds the foreground (the open shop), keys reach this page

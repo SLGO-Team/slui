@@ -15,7 +15,9 @@ import type {
   RoundResultOutcome,
   RoundResultPanel,
   RoundResultSnapshot,
+  ScoreboardSnapshot,
 } from "../contracts/index.ts";
+import { scoreboardSnapshotForScene } from "./scoreboardScenes.ts";
 
 /**
  * Scripted `hud.messages` / `round.result` states for the mock provider, one per state captured from CS2
@@ -48,6 +50,8 @@ export const HUD_SCENES = [
   "bottom-balance",
   "bottom-dead",
   "killfeed",
+  "scoreboard-competitive",
+  "scoreboard-casual",
 ] as const;
 export type HudScene = typeof HUD_SCENES[number];
 
@@ -76,6 +80,8 @@ export const HUD_SCENE_LABELS: Readonly<Record<HudScene, string>> = {
   "bottom-balance": "底部 余额变化",
   "bottom-dead": "底部 死亡（隐藏）",
   killfeed: "右上击杀信息",
+  "scoreboard-competitive": "计分板 竞技下半场",
+  "scoreboard-casual": "计分板 休闲 10v10",
 };
 
 export function readHudScene(value: string | null): HudScene {
@@ -177,8 +183,10 @@ function sceneScript(scene: HudScene, viewerRole: Role): SceneScript {
     case "bottom-fire":
     case "bottom-balance":
     case "bottom-dead":
-    // The killfeed scene is scripted separately (KILLFEED_KILLS).
-    case "killfeed": return {};
+    // The killfeed scene is scripted separately (KILLFEED_KILLS); the scoreboard scenes in scoreboardScenes.ts.
+    case "killfeed":
+    case "scoreboard-competitive":
+    case "scoreboard-casual": return {};
     case "all-slots": return { messages: {
       progress: { key: "SLGO_Progress_Generator_Shutdown", text: "你正在关闭发电机。", tone: "default", visibleMs: null, progress: { remainingMs: 7_000, totalMs: 7_000 } },
       alert: { key: "SFUI_Notice_Alert_Match_Point", text: "赛点", tone: "match_point", visibleMs: null },
@@ -263,6 +271,7 @@ export type HudSceneFrame = {
   result: RoundResultSnapshot;
   status: HudStatusSnapshot;
   killfeed: HudKillfeedSnapshot;
+  scoreboard: ScoreboardSnapshot;
   self: HudSceneSelf;
 };
 
@@ -412,6 +421,7 @@ export function createHudSceneFrame(scene: HudScene, viewerRole: Role, elapsedMs
     result: { panel: script.panel ? panelAt(scene, script.panel, viewerRole, elapsedMs, run) : null },
     status: bottomStatusAt(scene, viewerRole, elapsedMs),
     killfeed: killfeedAt(scene, viewerRole, elapsedMs, run),
+    scoreboard: scoreboardSnapshotForScene(scene),
     self: bottomSelfAt(scene, elapsedMs),
   };
 }

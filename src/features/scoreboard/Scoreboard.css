@@ -1,0 +1,624 @@
+/* CS2 competitive scoreboard (scoreboard.xml / scoreboard.css) on the 1920x1080 canvas. Every number is measured on
+   the user's captures of 2026-10-19 (kept locally) and listed in the task research `cs2-scoreboard-layout.md`; the
+   capture wins over Panorama where they differ (cell fills, local row tint, timeline opacities, footer hint).
+   Panel 960 wide, centred, its centre at y 570 (Panorama vertical centre + `y: 30px`); padding 20 20 0.
+   Vertical stack: meta 75, labels 26, team 134 (rows 26 apart), timeline 107 (casual: 24), team 134, spectator
+   gap 40, footer 48 = 584 for 5v5 competitive.
+   Fonts: Stratum2 Scoreboard / Condensed / Mono (src/shared/fonts.ts); CJK falls back to Noto Sans SC, here at 0.84
+   (measured: 战败补偿 59px and 杀敌数 44px of ink at 18px, where the chat's 0.9 overflows the 50px cells).
+   No text shadow (cs2-visual-replication.md), although Panorama declares some.
+   Motion (Panorama): rows move 0.25 s ease-in-out when re-sorted; the panel shows and hides at once. */
+@font-face {
+  font-family: "Noto Sans SC Scoreboard";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-light.ttf") format("truetype");
+  size-adjust: 84%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Noto Sans SC Scoreboard";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  size-adjust: 84%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+.scoreboard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  --sb-font: "Stratum2 Scoreboard", "Noto Sans SC Scoreboard", sans-serif;
+  --sb-condensed: "Stratum2 Scoreboard Condensed", "Noto Sans SC Scoreboard", sans-serif;
+  --sb-mono: "Stratum2 Scoreboard Mono", "Noto Sans SC Scoreboard", sans-serif;
+  /* Cell fills as measured (Panorama #ffffff05 / 08 / 10 read about twice as strong on the world blur). */
+  --sb-cell: rgba(255, 255, 255, 0.06);
+  --sb-cell-sorted: rgba(255, 255, 255, 0.15);
+}
+
+.scoreboard-overlay *,
+.scoreboard-overlay *::before,
+.scoreboard-overlay *::after {
+  box-sizing: border-box;
+}
+
+.scoreboard-overlay[data-mode="cursor"] .scoreboard {
+  pointer-events: auto;
+}
+
+.scoreboard-canvas {
+  --scoreboard-scale: 1;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: min(1920px, 100vw / var(--scoreboard-scale));
+  height: 1080px;
+  margin-left: calc(min(1920px, 100vw / var(--scoreboard-scale)) / -2);
+  transform: scale(var(--scoreboard-scale));
+  transform-origin: top center;
+}
+
+/* .sb-main. Fill: the captures read ~0.6 black on the blurred world; the overlay cannot blur, so denser. */
+.scoreboard {
+  position: absolute;
+  top: 570px;
+  left: calc(50% - 480px);
+  width: 960px;
+  padding: 20px 20px 0;
+  transform: translateY(-50%);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #cccccc;
+  font-family: var(--sb-font);
+}
+
+.scoreboard button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+/* .sb-meta: 75 high; row 1 is 37 + a 1px divider (#80808030); row 2 clips the buttons at 19 visible pixels. */
+.sb-meta {
+  height: 75px;
+  overflow: hidden;
+}
+
+.sb-meta__row {
+  position: relative;
+  width: 860px;
+}
+
+.sb-meta__row--title {
+  height: 38px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.19);
+}
+
+.sb-meta__mode-icon {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+}
+
+.sb-meta__mode {
+  position: absolute;
+  top: 4px;
+  left: 40px;
+  max-width: 550px;
+  overflow: hidden;
+  color: #808080;
+  font: 700 22px/29px var(--sb-condensed);
+  white-space: nowrap;
+}
+
+.sb-meta__time {
+  position: absolute;
+  /* Digits ink at y 306-317 in the capture (Panorama bottom-aligns this label). */
+  top: -1px;
+  right: 0;
+  color: #808080;
+  font: 400 18px/29px var(--sb-mono);
+}
+
+.sb-meta__row--buttons {
+  height: 37px;
+}
+
+/* SLGO: names which data the other-side view shows, where CS2 has the server line (not drawn, D6). */
+.sb-meta__other-side {
+  position: absolute;
+  top: 10px;
+  left: 6px;
+  color: #808080;
+  font: 700 14px/20px var(--sb-font);
+}
+
+.sb-meta__buttons {
+  position: absolute;
+  top: 14px;
+  right: 0;
+  display: flex;
+  gap: 10px;
+  opacity: 0;
+}
+
+.scoreboard-overlay[data-mode="cursor"] .sb-meta__buttons {
+  opacity: 1;
+}
+
+.sb-meta__button {
+  width: 26px;
+  height: 26px;
+  padding: 3px !important;
+  background: rgba(128, 128, 128, 0.5) !important;
+}
+
+.sb-meta__button[data-active] {
+  background: rgba(250, 250, 250, 0.2) !important;
+}
+
+.sb-meta__button:hover:not(:disabled) {
+  filter: brightness(2);
+}
+
+.sb-meta__button-icon {
+  width: 20px;
+  height: 20px;
+  background-color: #cccccc;
+}
+
+/* Masked white SLUI art in a CSS colour. */
+.sb-icon {
+  display: block;
+  -webkit-mask: var(--sb-mask) center / contain no-repeat;
+  mask: var(--sb-mask) center / contain no-repeat;
+  background-color: var(--sb-team, #ffffff);
+}
+
+/* Labels row and player rows: 770 wide at x 590 (the 80 info column + 10 margin sit left of the table). */
+.sb-labels,
+.sb-row {
+  display: flex;
+  width: 770px;
+  height: 24px;
+}
+
+.sb-labels {
+  margin: 1px 0 1px 90px;
+}
+
+.sb-cell {
+  flex: none;
+  position: relative;
+  height: 24px;
+}
+
+.sb-cell--status { width: 24px; }
+.sb-cell--ping { width: 37px; }
+.sb-cell--flair { width: 32.4px; }
+.sb-cell--avatar { width: 24px; }
+.sb-cell--name { flex: 1 1 0; min-width: 0; padding: 0 6px; }
+
+.sb-row .sb-cell { background: var(--sb-cell); }
+.sb-row .sb-cell[data-sort] { background: var(--sb-cell-sorted); }
+
+.sb-label {
+  display: flex;
+  justify-content: center;
+  padding-top: 5px !important;
+}
+
+.sb-label__text {
+  display: block;
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  color: #cccccc;
+  font: 500 18px/19px var(--sb-condensed);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-label[data-sort] .sb-label__text {
+  color: #ffffff;
+}
+
+.scoreboard-overlay[data-mode="cursor"] .sb-label:hover .sb-label__text {
+  color: #ffffff;
+}
+
+.sb-icon--ping {
+  position: absolute;
+  bottom: 1px;
+  left: calc(50% - 8px);
+  width: 16px;
+  height: 16px;
+  background-color: #ffffff;
+}
+
+/* Team block: info column 80 + 10, table of rows at 26px pitch; at least 134 high (emblem 80 + two labels). */
+.sb-team {
+  display: flex;
+  min-height: 134px;
+}
+
+.sb-team__info {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  width: 80px;
+  margin-right: 10px;
+}
+
+/* The team-logo disc after CS2: the CT side a dark disc with a thin ring, the T side a dim filled disc. */
+.sb-team__emblem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+}
+
+.sb-team__emblem::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+}
+
+.sb-team[data-side="ct"] .sb-team__emblem::before {
+  border: 2px solid color-mix(in srgb, var(--sb-team) 22%, transparent);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.sb-team[data-side="t"] .sb-team__emblem::before {
+  background: color-mix(in srgb, var(--sb-team) 18%, transparent);
+}
+
+.sb-team__logo {
+  position: absolute;
+  inset: 14px;
+  opacity: 0.22;
+}
+
+.sb-team__score {
+  position: relative;
+  color: var(--sb-team);
+  font: 700 70px/70px var(--sb-mono);
+}
+
+.sb-team__name,
+.sb-team__alive {
+  margin-top: 2px;
+  color: var(--sb-team);
+  font: 500 20px/25px var(--sb-condensed);
+  white-space: nowrap;
+}
+
+.sb-team__alive {
+  opacity: 0.2;
+}
+
+.sb-team__table {
+  position: relative;
+  flex: none;
+  width: 830px;
+  min-height: 120px;
+}
+
+.sb-row {
+  position: absolute;
+  top: 1px;
+  left: 0;
+  color: var(--sb-team);
+  transition: transform 250ms ease-in-out;
+}
+
+.sb-row[data-local] {
+  background: color-mix(in srgb, var(--sb-team) 20%, transparent);
+}
+
+/* Dead: Panorama washes the row #999 (the tint at 0.6) and drops the cell fills; disconnected reads #ccc. */
+.sb-row[data-state="dead"] { filter: brightness(0.6); }
+.sb-row[data-state="dead"] .sb-cell,
+.sb-row[data-state="offline"] .sb-cell { background: transparent; }
+.sb-row[data-state="offline"] { color: #cccccc; }
+.sb-row[data-state="offline"] .sb-cell--avatar img { filter: grayscale(1) brightness(0.6); }
+
+.sb-icon--dead {
+  position: absolute;
+  inset: 2px;
+}
+
+.sb-cell--ping {
+  display: grid;
+  place-items: center;
+  color: #888888;
+  font: 400 18px/24px var(--sb-mono);
+}
+
+.sb-icon--bot {
+  width: 16px;
+  height: 16px;
+}
+
+/* Avatar 24x24 framed in the player's slot colour (Panorama's player-color image over the avatar). */
+.sb-cell--avatar img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+}
+
+.sb-row .sb-cell--avatar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--sb-slot);
+}
+
+.sb-name {
+  display: block;
+  overflow: hidden;
+  font: 500 18px/24px var(--sb-font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-cell--stat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sb-cell--stat[data-align="right"] {
+  justify-content: flex-end;
+}
+
+.sb-value {
+  margin: 0 6px;
+  font: 400 18px/24px var(--sb-mono);
+  white-space: nowrap;
+}
+
+.sb-row .sb-cell[data-sort] .sb-value {
+  filter: brightness(1.25);
+}
+
+.sb-mvps {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.sb-icon--star {
+  width: 16px;
+  height: 16px;
+}
+
+.sb-mvps__count {
+  position: absolute;
+  top: -4px;
+  left: 14px;
+  font: 400 10px/10px var(--sb-mono);
+}
+
+/* Timeline (competitive template): 107 with margins; half scores 80, rounds area 650, loss bonus centred in the rest. */
+.sb-timeline {
+  display: flex;
+  height: 103px;
+  margin: 2px 0;
+}
+
+.sb-timeline--spacer {
+  height: 20px;
+}
+
+.sb-timeline__halves {
+  display: flex;
+  flex: none;
+  width: 80px;
+}
+
+.sb-timeline__half {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 40px;
+}
+
+.sb-timeline__half-score {
+  font: 500 20px/24px var(--sb-condensed);
+}
+
+.sb-timeline__phase {
+  width: 36px;
+  margin: 4px 0;
+  color: #cccccc;
+  font: 500 18px/23px var(--sb-condensed);
+  text-align: center;
+}
+
+.sb-timeline__rounds {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: 650px;
+}
+
+.sb-timeline__segments {
+  display: flex;
+  height: 100px;
+  padding-left: 10px;
+}
+
+.sb-timeline__divider {
+  align-self: center;
+  width: 2px;
+  height: 50px;
+  margin: 0 10px;
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.sb-round {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 20px;
+}
+
+.sb-round__team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 49px;
+}
+
+.sb-round__team--top { justify-content: flex-end; }
+.sb-round__team--bottom { justify-content: flex-start; }
+
+/* Result 20x20 (padding 3) with 2px margins; a won round adds 4px toward the tick and a fading wash. */
+.sb-round__result {
+  width: 20px;
+  margin: 2px 0;
+  padding: 3px;
+}
+
+.sb-round__result--won {
+  --sb-wash: rgba(255, 255, 255, 0.13);
+}
+
+.sb-round__team--top .sb-round__result--won {
+  margin-bottom: 0;
+  padding-bottom: 7px;
+  background: linear-gradient(to top, var(--sb-wash), transparent);
+}
+
+.sb-round__team--bottom .sb-round__result--won {
+  margin-top: 0;
+  padding-top: 7px;
+  background: linear-gradient(to bottom, var(--sb-wash), transparent);
+}
+
+.sb-round__icon {
+  /* The capture's skull is 15px of ink in Panorama's 14px-wide, 20px-tall box (stretch-to-fit-y). */
+  width: 16px;
+  height: 16px;
+  margin-left: -1px;
+  opacity: 0.8;
+}
+
+.sb-round__result--clinch .sb-round__icon {
+  background-color: #ffffff;
+  opacity: 0.7;
+}
+
+.sb-round__tick {
+  flex: none;
+  width: 18px;
+  height: 2px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sb-round[data-active] .sb-round__tick {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.sb-round__tick[data-won] {
+  background: var(--sb-team) !important;
+  opacity: 0.7;
+}
+
+.sb-round__label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  padding: 0 2px;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font: 500 14px/14px var(--sb-condensed);
+  opacity: 0.6;
+}
+
+.sb-round__label[data-won] {
+  color: var(--sb-team);
+}
+
+.sb-round[data-past-clinch] {
+  opacity: 0.1;
+}
+
+.sb-round:not([data-active]):not([data-past-clinch]) .sb-round__label {
+  opacity: 0.3;
+}
+
+.sb-loss {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  margin: 0 auto;
+}
+
+.sb-loss__pips {
+  display: flex;
+  gap: 1px;
+}
+
+.sb-loss__pips--top { padding: 10px 0 2px; }
+.sb-loss__pips--bottom { padding: 2px 0 10px; }
+
+.sb-loss__pip {
+  width: 14px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sb-loss__pip[data-lit] {
+  background: var(--sb-team);
+}
+
+.sb-loss__label {
+  margin: 4px 0;
+  color: #cccccc;
+  font: 500 18px/23px var(--sb-condensed);
+  white-space: nowrap;
+}
+
+.sb-spectators {
+  height: 40px;
+}
+
+/* Footer 48: the mouse hint, passive only (Panorama #ffffff20 reads about 0.4 white in the capture). */
+.sb-footer {
+  position: relative;
+  height: 48px;
+}
+
+.sb-footer__hint {
+  position: absolute;
+  top: 16px;
+  right: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  font: 700 12px/14px var(--sb-font);
+}
+
+.scoreboard-overlay[data-mode="cursor"] .sb-footer__hint {
+  opacity: 0;
+}

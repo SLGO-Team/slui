@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import {
   CLIENT_FEATURE_HUD_KILLFEED,
   CLIENT_FEATURE_HUD_MESSAGES,
@@ -707,6 +707,22 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(withStats({ extra: 1 }), false, "unknown stats field");
   const { enemies_flashed: _flashed, ...partialStats } = human.ntf;
   assert.equal(withPlayer({ scp: partialStats }), false, "every stat is required");
+
+  // The plugin's IPC v1 fixtures are authoritative for the wire shape; the sibling checkout is optional for this repo.
+  const backendDir = new URL("../../slgo-backend/protocol/ipc/v1/", import.meta.url);
+  if (existsSync(backendDir)) {
+    for (const name of ["publish-scoreboard-snapshot.example.json", "publish-scoreboard-snapshot-casual.example.json"]) {
+      const publish = JSON.parse(readFileSync(new URL(name, backendDir), "utf8"));
+      assert.equal(parseScoreboardSnapshot(publish.payload).ok, true, `slgo-backend ${name} parses`);
+    }
+    const semantic = new URL("invalid/semantic/", backendDir);
+    const invalid = readdirSync(semantic).filter((name) => name.startsWith("publish-scoreboard-"));
+    assert.ok(invalid.length >= 5, "slgo-backend scoreboard semantic fixtures");
+    for (const name of invalid) {
+      const publish = JSON.parse(readFileSync(new URL(name, semantic), "utf8"));
+      assert.equal(parseScoreboardSnapshot(publish.payload).ok, false, `slgo-backend ${name} is rejected`);
+    }
+  }
 }
 
 {

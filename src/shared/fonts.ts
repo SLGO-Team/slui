@@ -108,6 +108,24 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
     pack: stratum("stratum2regular_monodigit.ttf", CAP_CENTERED),
     fallback: barlow("Regular", CAP_CENTERED, true),
   },
+  // Scoreboard (Scoreboard.css): names stratum-medium, stats stratum-regular-mono, labels Stratum2 Condensed
+  // (Panorama's regular condensed; the medium cut is the lightest condensed file the theme pack carries besides light).
+  { family: "Stratum2 Scoreboard", weight: 500, pack: stratum("stratum2-medium.otf", CAP_CENTERED), fallback: barlow("Medium", CAP_CENTERED) },
+  { family: "Stratum2 Scoreboard", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
+  {
+    family: "Stratum2 Scoreboard Condensed",
+    weight: 500,
+    pack: stratum("stratum2condensed-medium.otf", CAP_CENTERED),
+    fallback: sairaCondensed("medium", CAP_CENTERED),
+  },
+  {
+    family: "Stratum2 Scoreboard Condensed",
+    weight: 700,
+    pack: stratum("stratum2condensed-bold.otf", CAP_CENTERED),
+    fallback: sairaCondensed("bold", CAP_CENTERED),
+  },
+  { family: "Stratum2 Scoreboard Mono", weight: 400, pack: stratum("stratum2mono-regular.otf", CAP_CENTERED), fallback: barlow("Regular", CAP_CENTERED, true) },
+  { family: "Stratum2 Scoreboard Mono", weight: 700, pack: stratum("stratum2mono-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED, true) },
   // Chat (ChatInput.css)
   { family: "Stratum2 Chat", weight: 300, pack: stratum("stratum2-light.otf", CAP_CENTERED), fallback: barlow("Light", CAP_CENTERED) },
   { family: "Stratum2 Chat", weight: 400, pack: stratum("stratum2-regular.otf", CAP_CENTERED), fallback: barlow("Regular", CAP_CENTERED) },

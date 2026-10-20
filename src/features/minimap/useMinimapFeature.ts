@@ -52,7 +52,8 @@ export function useMinimapFeature(options: { now?: () => number } = {}) {
   const setGameForeground = useCallback(({ focused, revision }: { focused: boolean; revision: number }) => {
     store.dispatch({ type: "focus", focused, revision });
   }, [store]);
-  return { store, setConnectionStatus, receiveEvent, receiveDiagnostic, setGameForeground };
+  const setLocalScoreboard = useCallback((visible: boolean) => store.dispatch({ type: "local-scoreboard", visible }), [store]);
+  return { store, setConnectionStatus, receiveEvent, receiveDiagnostic, setGameForeground, setLocalScoreboard };
 }
 
 /** Subscribes the radar to the store and drives everything time- and option-dependent from there. */

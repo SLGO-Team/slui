@@ -1,9 +1,10 @@
 import { hotkeyLabel } from "../../platform/hotkeys";
 
-// Y/U are fixed chat keys (see isBindableHotkey); only the shop key is configurable.
-export function KeyHints({ shopKey }: { shopKey: string }) {
+// Y/U are fixed chat keys (see isBindableHotkey); the shop and scoreboard keys are configurable.
+export function KeyHints({ shopKey, scoreboardKey }: { shopKey: string; scoreboardKey: string }) {
   const hints = [
     { key: hotkeyLabel(shopKey), action: "打开 / 关闭商店" },
+    { key: hotkeyLabel(scoreboardKey), action: "按住显示计分板" },
     { key: "Y", action: "全体聊天" },
     { key: "U", action: "队伍聊天" },
   ];

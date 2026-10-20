@@ -45,6 +45,8 @@ export type MinimapState = {
   focused: boolean;
   focusRevision: number;
   scoreboardArmed: boolean;
+  /** SLUI's own scoreboard is on screen (the plugin's `scoreboard_visible` covers only its hint board). */
+  localScoreboard: boolean;
   preferences: RadarPreferences;
   alternateZoomRequested: boolean;
   alternateZoomArmed: boolean;
@@ -57,7 +59,7 @@ export const initialMinimapState: MinimapState = {
   identity: null, init: null, knownMaps: {}, requestToken: 0, geometry: null, bombsites: [],
   frame: null, frames: [], clock: [], playout: null, pendingFrame: null, visibilityRevision: -1,
   authorizationKey: null, availability: "syncing", focused: false, focusRevision: -1, scoreboardArmed: false,
-  preferences: normalizeRadarPreferences(), alternateZoomRequested: false, alternateZoomArmed: false,
+  localScoreboard: false, preferences: normalizeRadarPreferences(), alternateZoomRequested: false, alternateZoomArmed: false,
   dynamicZoom: null, radarUpdatedAtMs: 0,
 };
 
@@ -68,6 +70,7 @@ export type MinimapAction =
   | { type: "resolved"; token: number; descriptorKey: string; geometry: MapGeometry; nowMs: number }
   | { type: "resolve-error"; token: number }
   | { type: "focus"; focused: boolean; revision: number }
+  | { type: "local-scoreboard"; visible: boolean }
   | { type: "radar-options"; preferences?: Partial<RadarPreferences>; controls?: Partial<RadarControls>; nowMs: number }
   | { type: "tick"; nowMs: number };
 
@@ -156,6 +159,9 @@ function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { ty
       scoreboardArmed: action.focused === state.focused ? state.scoreboardArmed : false,
       alternateZoomArmed: action.focused === state.focused ? state.alternateZoomArmed : false };
   }
+  if (action.type === "local-scoreboard") {
+    return action.visible === state.localScoreboard ? state : { ...state, localScoreboard: action.visible };
+  }
   if (action.type === "tick") {
     const frame = state.frame ?? state.pendingFrame;
     return frame && action.nowMs - frame.receivedAtMs > minimapStaleAfterMs(state.init) ? clearDynamic(state, "stale") : state;
@@ -243,7 +249,8 @@ function playableFrames(frames: readonly Frame[], renderAtMs: number): readonly 
 
 function radarContext(state: MinimapState, nowMs: number, preferences: RadarPreferences) {
   const frame = state.frame && nowMs - state.frame.receivedAtMs <= minimapStaleAfterMs(state.init) ? state.frame : null;
-  const fullMap = Boolean(frame && state.focused && state.scoreboardArmed && frame.payload.scoreboard_visible);
+  // SLUI's scoreboard is local and current; the plugin's flag needs the arming that drops a stale held key.
+  const fullMap = Boolean(frame && (state.localScoreboard || (state.focused && state.scoreboardArmed && frame.payload.scoreboard_visible)));
   const { positions, fading, viewpoint } = interpolatedRadarPoses(state, frame, nowMs);
   const alternateZoomActive = Boolean(frame && viewpoint && state.focused && !fullMap
     && state.alternateZoomArmed && state.alternateZoomRequested);

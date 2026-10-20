@@ -15,6 +15,7 @@ import {
 import type { HudPresentationVariant } from "../features/hud/presentation";
 import { mockMatchSnapshot, projectMockLoadout, scpMockVitals } from "./provider";
 import { readHudScene, type HudScene } from "./hudScenes";
+import { scoreboardSceneMatch } from "./scoreboardScenes.ts";
 
 export const HUD_DEBUG_ROUND_STATES = [
   "Idle",
@@ -250,9 +251,13 @@ function publicMockPlayer(player: MatchPlayer, presence: PlayerPresence): MatchP
 export function createHudDebugSnapshot(options: HudDebugOptions): MatchSnapshot {
   const viewerTeamId = options.viewerTeam === "spectator" ? null : options.viewerTeam;
   const timing = ROUND_TIMING[options.roundState];
+  // The scoreboard scenes pin the match their board belongs to (round, scores, roster size).
+  const sceneMatch = scoreboardSceneMatch(options.hudScene);
+  const rosterPreset = sceneMatch?.largeRoster ? "large-roster" : options.preset;
   const teams = mockMatchSnapshot.teams.map((team) => ({
     ...team,
-    players: playersForPreset(team, options.preset).map((player, index) => {
+    score: sceneMatch?.scores[team.team_id] ?? team.score,
+    players: playersForPreset(team, rosterPreset).map((player, index) => {
       const presence = presenceForPreset(options.preset, team.team_id, index, player);
       const publicPlayer = publicMockPlayer(player, presence);
       return team.team_id === viewerTeamId
@@ -269,6 +274,7 @@ export function createHudDebugSnapshot(options: HudDebugOptions): MatchSnapshot 
 
   return {
     ...mockMatchSnapshot,
+    ...(sceneMatch ? { round: sceneMatch.round, max_rounds: sceneMatch.maxRounds } : {}),
     viewer_team_id: viewerTeamId,
     state: options.roundState,
     // A tactical pause reports the phase as paused at 0, like the plugin.
