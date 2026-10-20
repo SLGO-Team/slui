@@ -454,8 +454,10 @@ export type ScoreboardSideStats = {
   assists: number;
   /** HP damage dealt to enemies. */
   damage: number;
-  /** Kills in `kills` whose killing blow hit the head; never above `kills`. */
-  headshot_kills: number;
+  /** Firearm shots fired (a shotgun blast or one trigger pull counts once). */
+  shots_fired: number;
+  /** Shots in `shots_fired` that hit a player; never above `shots_fired`. */
+  shots_hit: number;
   /** Round MVPs earned on this side. */
   mvps: number;
   /** The part of `damage` dealt with the player's own HE grenades; never above `damage`. */
@@ -1197,7 +1199,7 @@ export function parseHudKillfeed(payload: unknown): ParseResult<HudKillfeedSnaps
 }
 
 const SCOREBOARD_KEYS = new Set(["mode_name", "mode_icon", "elapsed_ms", "max_rounds", "score_to_win", "halftime_after_round", "rounds", "loss_bonus", "players"]);
-const SCOREBOARD_STATS_KEYS = new Set(["rounds_played", "kills", "deaths", "assists", "damage", "headshot_kills", "mvps", "utility_damage", "enemies_flashed"]);
+const SCOREBOARD_STATS_KEYS = new Set(["rounds_played", "kills", "deaths", "assists", "damage", "shots_fired", "shots_hit", "mvps", "utility_damage", "enemies_flashed"]);
 const SCOREBOARD_PLAYER_KEYS = new Set(["player_id", "ping_ms", "is_bot", "ntf", "scp"]);
 const SCOREBOARD_ROUND_KEYS = new Set(["round", "winner_team_id", "winner_role", "reason"]);
 const SCOREBOARD_LOSS_BONUS_KEYS = new Set(["team-a", "team-b"]);
@@ -1211,7 +1213,7 @@ const isScoreboardText = (value: unknown): value is string => isNonEmptyString(v
 function isScoreboardSideStats(value: unknown): value is ScoreboardSideStats {
   if (!isRecord(value) || !hasExactKeys(value, SCOREBOARD_STATS_KEYS) || ![...SCOREBOARD_STATS_KEYS].every((key) => isCount(value[key]))) return false;
   const stats = value as unknown as ScoreboardSideStats;
-  return stats.headshot_kills <= stats.kills && stats.utility_damage <= stats.damage;
+  return stats.shots_hit <= stats.shots_fired && stats.utility_damage <= stats.damage;
 }
 
 function isScoreboardPlayer(value: unknown): value is ScoreboardPlayer {
@@ -1227,7 +1229,7 @@ function isScoreboardRound(value: unknown, maxRounds: number): value is Scoreboa
 }
 
 /**
- * `scoreboard.snapshot` payload: strict stats per side (headshot kills within kills, utility damage within damage),
+ * `scoreboard.snapshot` payload: strict stats per side (hits within shots, utility damage within damage),
  * round history in increasing round order within `max_rounds`, unique player ids.
  */
 export function parseScoreboardSnapshot(payload: unknown): ParseResult<ScoreboardSnapshot> {

@@ -36,15 +36,15 @@
         "player_id": "76561198000000100",
         "ping_ms": 42,
         "is_bot": false,
-        "ntf": { "rounds_played": 2, "kills": 3, "deaths": 1, "assists": 1, "damage": 312, "headshot_kills": 2, "mvps": 1, "utility_damage": 48, "enemies_flashed": 2 },
-        "scp": { "rounds_played": 11, "kills": 9, "deaths": 6, "assists": 2, "damage": 1410, "headshot_kills": 0, "mvps": 2, "utility_damage": 0, "enemies_flashed": 0 }
+        "ntf": { "rounds_played": 2, "kills": 3, "deaths": 1, "assists": 1, "damage": 312, "shots_fired": 64, "shots_hit": 23, "mvps": 1, "utility_damage": 48, "enemies_flashed": 2 },
+        "scp": { "rounds_played": 11, "kills": 9, "deaths": 6, "assists": 2, "damage": 1410, "shots_fired": 0, "shots_hit": 0, "mvps": 2, "utility_damage": 0, "enemies_flashed": 0 }
       },
       {
         "player_id": "dummy-7",
         "ping_ms": null,
         "is_bot": true,
-        "ntf": { "rounds_played": 0, "kills": 0, "deaths": 0, "assists": 0, "damage": 0, "headshot_kills": 0, "mvps": 0, "utility_damage": 0, "enemies_flashed": 0 },
-        "scp": { "rounds_played": 13, "kills": 4, "deaths": 9, "assists": 1, "damage": 655, "headshot_kills": 0, "mvps": 0, "utility_damage": 0, "enemies_flashed": 0 }
+        "ntf": { "rounds_played": 0, "kills": 0, "deaths": 0, "assists": 0, "damage": 0, "shots_fired": 0, "shots_hit": 0, "mvps": 0, "utility_damage": 0, "enemies_flashed": 0 },
+        "scp": { "rounds_played": 13, "kills": 4, "deaths": 9, "assists": 1, "damage": 655, "shots_fired": 0, "shots_hit": 0, "mvps": 0, "utility_damage": 0, "enemies_flashed": 0 }
       }
     ]
   }

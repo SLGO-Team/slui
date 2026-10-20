@@ -266,6 +266,14 @@ assert.equal(selectMinimap(state, 290).fullMap, false, "late true cannot rearm a
 state = event(state, "minimap.positions", death, 12, 300);
 state = event(state, "minimap.positions", { ...death, scoreboard_visible: true }, 13, 320);
 assert.equal(selectMinimap(state, 330).fullMap, true);
+// SLUI's own scoreboard is local and current: it squares the radar without the plugin flag or the arming, even with
+// the overlay holding the foreground (cursor mode).
+let local = minimapReducer(state, { type: "focus", focused: false, revision: 4 });
+assert.equal(selectMinimap(local, 330).fullMap, false, "the plugin flag needs the focused game");
+local = minimapReducer(local, { type: "local-scoreboard", visible: true });
+assert.equal(selectMinimap(local, 330).fullMap, true, "SLUI scoreboard squares the radar");
+assert.equal(selectMinimap(minimapReducer(local, { type: "local-scoreboard", visible: false }), 330).fullMap, false);
+assert.strictEqual(minimapReducer(local, { type: "local-scoreboard", visible: true }), local, "unchanged flag keeps the state");
 state = event(state, "minimap.positions", { ...death, scoreboard_visible: true }, 14, 1500);
 assert.equal(selectMinimap(state, 1510).fullMap, false, "an unobserved stale gap also resets scoreboard arming");
 const stale = minimapReducer(state, { type: "tick", nowMs: 2600 });

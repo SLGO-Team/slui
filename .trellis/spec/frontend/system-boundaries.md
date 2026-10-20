@@ -275,6 +275,15 @@ Required boundary rules:
   declares `hud-money` (`CLIENT_FEATURE_HUD_MONEY`) so the plugin hides its own
   balance hint. `hudStatusReducer` keeps the latest status of the baseline's
   instance (another instance clears it, a reconnect keeps it).
+- `scoreboard.snapshot` (`parseScoreboardSnapshot`; wire rules in `packages/protocol/v0/README.md` "Scoreboard") is
+  one payload for every client declaring `scoreboard` (`CLIENT_FEATURE_SCOREBOARD`): per-side stats (NTF and SCP
+  buckets), ping, bot flag, round history, loss bonus, mode and the match time at `sent_at` (counted on locally).
+  Roster, names, avatars, alive / online, scores and the viewer team's money stay in `match.snapshot`; enemy money
+  is never sent. `scoreboardReducer` keeps the latest snapshot of the baseline's instance (another instance clears
+  it, a reconnect keeps it), and `selectScoreboard` joins it with the round HUD view; without a snapshot (an old
+  plugin) the panel stays off and the plugin keeps its hint board. Declaring `scoreboard` makes the plugin ignore its
+  own scoreboard key for that player. The plugin's `minimap.positions.scoreboard_visible` then stays false, so the
+  overlay tells the minimap store itself (`local-scoreboard`) while SLUI's scoreboard is on screen.
 - Minimap payloads contain the plugin's actual map layout (the Entrance /
   HeavyContainment rooms of the current map generation) and player positions
   already filtered for the authenticated player's in-game visibility. The
@@ -325,7 +334,7 @@ request", "Sidecar session handshake", "Security boundary").
   `setFeatures` stores the latest `client.features` list; it is sent on change
   while `live` and after every accepted baseline when not empty, so callers
   never resend after a reconnect. `App.tsx` maps overlay `enabled` to
-  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages", "hud-money", "hud-status"]` / `[]`: a disabled overlay
+  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages", "hud-money", "hud-status", "hud-killfeed", "scoreboard"]` / `[]`: a disabled overlay
   keeps the session live, so it must withdraw the features explicitly or the plugin keeps
   ignoring Y, keeps refusing to open its in-game shop from B and keeps its own
   chat feed, top HUD, win panel, message zone (alerts, hints, progress) and balance hidden.
@@ -425,7 +434,7 @@ by window label (`?window=home` in a browser preview).
   game window. Show/hide runs on the main thread (`sync_overlay_visibility`),
   serialized with the enable / interactive commands and the tray.
 - `interactive` is derived in the overlay, not toggled by the player:
-  `interactive = (shopOpen && window_open) || chatOpen`. The shop
+  `interactive = (shopOpen && window_open) || chatOpen || scoreboard cursor mode`. The shop
   hotkey (default `B`, `settings.hotkeys.shop`) always closes the shop and
   opens it only while the game is foreground and the buy window is open; Esc
   or the buy window closing also closes it. The Rust hook emits
@@ -454,6 +463,17 @@ by window label (`?window=home` in a browser preview).
   place, so a key pressed while the shop's window has focus also counts as over
   the game. While chat is open the overlay ignores every `slgo-shortcut` (the
   hook still fires for keys typed into the input).
+- The scoreboard key (default CapsLock, `settings.hotkeys.scoreboard`) is held, not pressed: the hook reports its
+  first key-down while the game holds the foreground as `slgo-scoreboard-key { held: true }` and its key-up from any
+  window as `{ held: false }` (cursor mode moves the foreground to the overlay; the page's own `keyup` reports the
+  release too, for an IME that keeps keys from the hook). Keys are never swallowed, so CapsLock still toggles, as with
+  the plugin's binding. While the panel is on screen and passive the overlay sets `set_scoreboard_capture(true)`; a
+  `WH_MOUSE_LL` hook on the keyboard hook's thread then swallows the right button (press and its release) while the
+  game window (cached by the foreground thread, never a process query inside the hook) holds the foreground, and
+  emits `slgo-scoreboard-cursor`. Every other mouse event passes. Swallowing clicks this way keeps them from Unity
+  (task `10-02-shop-input-passthrough`, below). Cursor mode then takes the mouse and keyboard like the shop until the
+  key goes up; the shop or chat opening over the scoreboard hides it and ends cursor mode. A debug build started with
+  `SLUI_SCOREBOARD_SPIKE=1` captures while the key is held even without the panel (in-game check of the capture).
 - The shop cannot let the game keep the keyboard (walking while it is open).
   Verified in game (task `10-02-shop-input-passthrough`): a `WH_MOUSE_LL` hook
   blocks clicks and the wheel but not mouse movement, which Unity reads through
@@ -508,7 +528,7 @@ by window label (`?window=home` in a browser preview).
 - A second launch exits through `tauri-plugin-single-instance` and surfaces
   the running home window, flashing its taskbar button.
 - Settings live in `app_config_dir()/settings.json` as
-  `{ "version": 1, "overlay": { "autoEnableOnConnect": boolean }, "radar": RadarPreferences, "hotkeys": { "shop": KeyboardEvent.code }, "audio": { "shopVolume": number } }`.
+  `{ "version": 1, "overlay": { "autoEnableOnConnect": boolean }, "radar": RadarPreferences, "hotkeys": { "shop": KeyboardEvent.code, "scoreboard": KeyboardEvent.code }, "audio": { "shopVolume": number } }`.
   A block missing from an older version-1 file falls back to its defaults.
   `autoEnableOnConnect` (default `true`; a file without the block, older ones included, gets it on) lets the overlay window, which owns
   the session, switch the overlay on through the same `set_overlay_enabled`
@@ -523,8 +543,11 @@ by window label (`?window=home` in a browser preview).
   `settings.json.bad-<unix-seconds>`. The frontend parses with
   `parseSettings()`, which delegates to `normalizeRadarPreferences()` and
   `normalizeHotkeys()`. Bindable shop keys are letters except Y and U (chat) and
-  F1-F12; digits are reserved for shop item selection. `hotkeys.ts` and the
-  Rust `is_bindable_shop_hotkey()` must accept the same set.
+  F1-F12; digits are reserved for shop item selection. The scoreboard key adds
+  CapsLock (Tab is the SCP:SL inventory) and never equals the shop key; each key
+  recovers to its default on its own. `hotkeys.ts` and the Rust
+  `is_bindable_shop_hotkey()` / `is_bindable_scoreboard_hotkey()` /
+  `validate_hotkeys()` must accept the same sets.
   Action state (`alternateZoomActive`) and render capability (`pageBackdrop`)
   are never saved.
 - Home is the only settings writer. It applies edits locally, saves with a
@@ -538,7 +561,8 @@ by window label (`?window=home` in a browser preview).
 | `set_overlay_enabled(enabled)` / `get_overlay_state()` | home | `{ enabled, interactive }` |
 | `set_overlay_interactive(interactive)` | overlay | error while disabled; called only from derived UI state |
 | `set_overlay_keyboard_focus(focused)` | overlay | `true` errors unless interactive or when Windows refuses the foreground |
-| `set_shop_hotkey(virtualKey)` | overlay | error for keys outside the bindable set |
+| `set_hotkeys(shop, scoreboard)` | overlay | virtual-key codes; error for keys outside the bindable sets or one key for both |
+| `set_scoreboard_capture(capture)` | overlay | right-click goes to the scoreboard while true and the game is foreground |
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
 | `get_game_running()` | home | `boolean` (SCPSL process present, independent of focus) |
 | `sidecar_open(url, onEvent: Channel)` / `sidecar_send(id, data)` / `sidecar_close(id, code, reason)` | overlay (via `sidecarSocket.ts`) | socket id; `onEvent` gets `{kind:"open"}`, `{kind:"message",data}`, then exactly one `{kind:"close",code,reason}`; send/close on a closed id are dropped |
@@ -550,6 +574,8 @@ by window label (`?window=home` in a browser preview).
 | --- | --- | --- |
 | `slgo-overlay-state` | Rust → all | `{ enabled, interactive }` |
 | `slgo-shortcut` | Rust → overlay | `{ shortcut: "shop" \| "chat-global" \| "chat-team", game_foreground: boolean }`, first key-down only, while enabled |
+| `slgo-scoreboard-key` | Rust → overlay | `{ held: boolean }`: first key-down over the game, then the key-up anywhere |
+| `slgo-scoreboard-cursor` | Rust → overlay | `null`: a right-click swallowed for the scoreboard's cursor mode |
 | `slgo-settings-changed` | Rust → all | saved settings JSON text |
 | `slgo-game-running` | Rust → all | `boolean`, on change (2s poll) |
 | `slgo-session-status` | overlay → home | `{ status: ConnectionStatus, steamId: string \| null, detail: string \| null }` |

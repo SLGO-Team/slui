@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "CS2 replication rules: visual authority, overlay canvas and scale, assets, no text shadow"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "wire contracts, client features, desktop commands and events, hotkeys"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "feature folder layout"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "required checks and forbidden patterns"}
+{"file": ".trellis/tasks/10-19-scoreboard/research/cs2-scoreboard-reference.md", "reason": "Panorama scoreboard structure, sort chain, page cycling, timings"}

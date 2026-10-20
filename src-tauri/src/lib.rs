@@ -29,6 +29,10 @@ static OVERLAY_ENABLED: AtomicBool = AtomicBool::new(false);
 // foreground thread.
 #[cfg(windows)]
 static OVERLAY_OVER_GAME: AtomicBool = AtomicBool::new(false);
+// The game window while it holds the foreground, else 0; written by the foreground
+// thread and the keyboard events, read by the mouse hook, which must not query processes.
+#[cfg(windows)]
+static GAME_FOREGROUND_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
 // An enabled overlay is visible only over the game.
 #[cfg(windows)]
@@ -39,8 +43,11 @@ fn overlay_may_show() -> bool {
 // Fixed chat keys, as in CS2: Y opens global chat, U opens team chat.
 const VK_Y: u32 = 0x59;
 const VK_U: u32 = 0x55;
+const VK_CAPITAL: u32 = 0x14;
 // Windows virtual-key code of the configurable shop hotkey; B until settings load.
 static SHOP_HOTKEY: AtomicU32 = AtomicU32::new(0x42);
+// The configurable scoreboard key (held to show); CapsLock until settings load.
+static SCOREBOARD_HOTKEY: AtomicU32 = AtomicU32::new(VK_CAPITAL);
 
 // Must match isBindableHotkey in src/platform/hotkeys.ts: letters except the chat
 // keys Y and U, and F1-F12. Digits are taken by shop item selection.
@@ -48,13 +55,53 @@ fn is_bindable_shop_hotkey(virtual_key: u32) -> bool {
     matches!(virtual_key, 0x41..=0x5A | 0x70..=0x7B) && virtual_key != VK_Y && virtual_key != VK_U
 }
 
-#[tauri::command]
-fn set_shop_hotkey(virtual_key: u32) -> Result<(), String> {
-    if !is_bindable_shop_hotkey(virtual_key) {
-        return Err(format!("Unsupported shop hotkey {virtual_key:#04x}"));
+// Must match isBindableScoreboardHotkey: the shop's keys plus CapsLock (CS2 holds Tab,
+// which SCP:SL uses for the inventory).
+fn is_bindable_scoreboard_hotkey(virtual_key: u32) -> bool {
+    virtual_key == VK_CAPITAL || is_bindable_shop_hotkey(virtual_key)
+}
+
+fn validate_hotkeys(shop: u32, scoreboard: u32) -> Result<(), String> {
+    if !is_bindable_shop_hotkey(shop) {
+        return Err(format!("Unsupported shop hotkey {shop:#04x}"));
     }
-    SHOP_HOTKEY.store(virtual_key, Ordering::SeqCst);
+    if !is_bindable_scoreboard_hotkey(scoreboard) {
+        return Err(format!("Unsupported scoreboard hotkey {scoreboard:#04x}"));
+    }
+    if shop == scoreboard {
+        return Err("The shop and the scoreboard need different keys".into());
+    }
     Ok(())
+}
+
+#[tauri::command]
+fn set_hotkeys(shop: u32, scoreboard: u32) -> Result<(), String> {
+    validate_hotkeys(shop, scoreboard)?;
+    SHOP_HOTKEY.store(shop, Ordering::SeqCst);
+    SCOREBOARD_HOTKEY.store(scoreboard, Ordering::SeqCst);
+    Ok(())
+}
+
+// Set by the hook's event thread while the scoreboard key, pressed over the game, is
+// down; cleared by its key-up wherever the foreground is (cursor mode moves it).
+static SCOREBOARD_HELD: AtomicBool = AtomicBool::new(false);
+// The overlay asks for right-click only while it actually shows the passive scoreboard,
+// so a press that shows nothing never eats a right-click.
+static SCOREBOARD_CAPTURE: AtomicBool = AtomicBool::new(false);
+// Development spike (SLUI_SCOREBOARD_SPIKE=1 in a debug build): capture whenever the key
+// is held, without the panel, to check in game that a swallowed right-click never aims.
+#[cfg_attr(not(windows), allow(dead_code))]
+static SCOREBOARD_SPIKE: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+fn set_scoreboard_capture(capture: bool) {
+    SCOREBOARD_CAPTURE.store(capture, Ordering::SeqCst);
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn scoreboard_captures_right_click() -> bool {
+    SCOREBOARD_CAPTURE.load(Ordering::SeqCst)
+        || (SCOREBOARD_SPIKE.load(Ordering::SeqCst) && SCOREBOARD_HELD.load(Ordering::SeqCst))
 }
 
 #[derive(Clone, Copy, Default, serde::Serialize)]
@@ -604,6 +651,7 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
     thread::spawn(move || loop {
         let foreground = unsafe { GetForegroundWindow() };
         let game_foreground = is_game_foreground(foreground);
+        GAME_FOREGROUND_WINDOW.store(if game_foreground { foreground as isize } else { 0 }, Ordering::SeqCst);
         publish_game_foreground(&app, game_foreground);
 
         let overlay_hwnd = app
@@ -713,8 +761,44 @@ fn overlay_shortcut(vk: u32, shop_hotkey: u32) -> Option<&'static str> {
     }
 }
 
+/// `slgo-scoreboard-key` payload: the scoreboard key went down over the game (held) or up.
+#[cfg_attr(not(windows), allow(dead_code))]
+#[derive(Clone, Copy, serde::Serialize)]
+struct ScoreboardKeyEvent {
+    held: bool,
+}
+
 #[cfg(windows)]
-static KEY_PRESSES: OnceLock<mpsc::Sender<u32>> = OnceLock::new();
+#[derive(Clone, Copy)]
+enum HookEvent {
+    /// A non-repeat key-down of a key the overlay handles.
+    KeyDown(u32),
+    /// The scoreboard key went up.
+    ScoreboardUp,
+    /// A right-click swallowed for the scoreboard's cursor mode.
+    ScoreboardCursor,
+}
+
+#[cfg(windows)]
+static HOOK_EVENTS: OnceLock<mpsc::Sender<HookEvent>> = OnceLock::new();
+// Set when a right-button press was swallowed, so its release is swallowed too.
+#[cfg(windows)]
+static RIGHT_BUTTON_SWALLOWED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(windows)]
+fn send_hook_event(event: HookEvent) {
+    if let Some(sender) = HOOK_EVENTS.get() {
+        let _ = sender.send(event);
+    }
+}
+
+#[cfg(windows)]
+fn emit_scoreboard_key(app: &AppHandle, held: bool) {
+    eprintln!("SLGO: scoreboard key {}", if held { "held" } else { "released" });
+    if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-scoreboard-key", ScoreboardKeyEvent { held }) {
+        eprintln!("SLGO: failed to emit scoreboard key: {error}");
+    }
+}
 
 #[cfg(windows)]
 fn start_keyboard_hook(app: tauri::AppHandle) {
@@ -728,74 +812,141 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
             Input::KeyboardAndMouse::GetAsyncKeyState,
             WindowsAndMessaging::{
                 CallNextHookEx, DispatchMessageW, GetForegroundWindow, GetMessageW,
-                SetWindowsHookExW, UnhookWindowsHookEx, HC_ACTION, KBDLLHOOKSTRUCT, WH_KEYBOARD_LL,
-                WM_KEYDOWN, WM_SYSKEYDOWN,
+                SetWindowsHookExW, UnhookWindowsHookEx, HC_ACTION, KBDLLHOOKSTRUCT,
+                WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN, WM_KEYUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
+                WM_SYSKEYDOWN, WM_SYSKEYUP,
             },
         },
     };
 
     // Runs on the hook thread for every key event, so it only classifies and hands off.
+    // Keys are never swallowed (CapsLock keeps toggling, as with the plugin's binding).
     unsafe extern "system" fn keyboard_proc(code: i32, wparam: usize, lparam: isize) -> isize {
         let is_down = wparam == WM_KEYDOWN as usize || wparam == WM_SYSKEYDOWN as usize;
-        if code == HC_ACTION as i32 && is_down && lparam != 0 {
+        let is_up = wparam == WM_KEYUP as usize || wparam == WM_SYSKEYUP as usize;
+        if code == HC_ACTION as i32 && (is_down || is_up) && lparam != 0 {
             let vk = (*(lparam as *const KBDLLHOOKSTRUCT)).vkCode;
-            // Windows calls low-level hooks before it updates the key's asynchronous
-            // state, so that state still tells whether the key was already down: if it
-            // was, this key-down is auto-repeat. It is the system's own record of the
-            // physical key, so unlike tracking key-ups ourselves it cannot drift when
-            // an event is missed, and no timing guess is involved.
-            let repeat = (GetAsyncKeyState(vk as i32) as u16) & 0x8000 != 0;
-            if !repeat && overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::Relaxed)).is_some() {
-                if let Some(sender) = KEY_PRESSES.get() {
-                    let _ = sender.send(vk);
+            let scoreboard = vk == SCOREBOARD_HOTKEY.load(Ordering::Relaxed);
+            if is_down {
+                // Windows calls low-level hooks before it updates the key's asynchronous
+                // state, so that state still tells whether the key was already down: if it
+                // was, this key-down is auto-repeat. It is the system's own record of the
+                // physical key, so unlike tracking key-ups ourselves it cannot drift when
+                // an event is missed, and no timing guess is involved.
+                let repeat = (GetAsyncKeyState(vk as i32) as u16) & 0x8000 != 0;
+                let handled = scoreboard || overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::Relaxed)).is_some();
+                if !repeat && handled {
+                    send_hook_event(HookEvent::KeyDown(vk));
                 }
+            } else if scoreboard {
+                send_hook_event(HookEvent::ScoreboardUp);
             }
         }
         CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam)
     }
 
-    let (sender, receiver) = mpsc::channel::<u32>();
-    let _ = KEY_PRESSES.set(sender);
+    // Swallows the right button only while the passive scoreboard asks for it and the
+    // game holds the foreground; every other mouse event passes untouched.
+    unsafe extern "system" fn mouse_proc(code: i32, wparam: usize, lparam: isize) -> isize {
+        if code == HC_ACTION as i32 {
+            if wparam == WM_RBUTTONDOWN as usize && scoreboard_captures_right_click() {
+                let game = GAME_FOREGROUND_WINDOW.load(Ordering::Relaxed);
+                if game != 0 && GetForegroundWindow() as isize == game {
+                    RIGHT_BUTTON_SWALLOWED.store(true, Ordering::SeqCst);
+                    send_hook_event(HookEvent::ScoreboardCursor);
+                    return 1;
+                }
+            } else if wparam == WM_RBUTTONUP as usize && RIGHT_BUTTON_SWALLOWED.swap(false, Ordering::SeqCst) {
+                return 1;
+            }
+        }
+        CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam)
+    }
+
+    #[cfg(debug_assertions)]
+    if std::env::var("SLUI_SCOREBOARD_SPIKE").is_ok_and(|value| value == "1") {
+        eprintln!("SLGO: scoreboard spike on: right-click is captured while the scoreboard key is held");
+        SCOREBOARD_SPIKE.store(true, Ordering::SeqCst);
+    }
+
+    let (sender, receiver) = mpsc::channel::<HookEvent>();
+    let _ = HOOK_EVENTS.set(sender);
 
     thread::spawn(move || {
-        while let Ok(vk) = receiver.recv() {
-            if !OVERLAY_ENABLED.load(Ordering::SeqCst) {
-                continue;
-            }
-            let Some(shortcut) = overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::SeqCst)) else {
-                continue;
-            };
-            // Read at the press itself: the foreground poll lags up to 100ms, so a
-            // press right after chat hands the game back would otherwise be dropped.
-            let game_foreground = is_game_foreground(unsafe { GetForegroundWindow() });
-            eprintln!("SLGO: hotkey {shortcut} (game foreground {game_foreground})");
-            let event = ShortcutEvent {
-                shortcut,
-                game_foreground,
-            };
-            if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-shortcut", event) {
-                eprintln!("SLGO: failed to emit shortcut: {error}");
+        while let Ok(event) = receiver.recv() {
+            match event {
+                HookEvent::KeyDown(vk) => {
+                    if !OVERLAY_ENABLED.load(Ordering::SeqCst) {
+                        continue;
+                    }
+                    // Read at the press itself: the foreground poll lags up to 100ms, so a
+                    // press right after chat hands the game back would otherwise be dropped.
+                    let foreground = unsafe { GetForegroundWindow() };
+                    let game_foreground = is_game_foreground(foreground);
+                    if game_foreground {
+                        GAME_FOREGROUND_WINDOW.store(foreground as isize, Ordering::SeqCst);
+                    }
+                    if vk == SCOREBOARD_HOTKEY.load(Ordering::SeqCst) {
+                        if game_foreground && !SCOREBOARD_HELD.swap(true, Ordering::SeqCst) {
+                            emit_scoreboard_key(&app, true);
+                        }
+                        continue;
+                    }
+                    let Some(shortcut) = overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::SeqCst)) else {
+                        continue;
+                    };
+                    eprintln!("SLGO: hotkey {shortcut} (game foreground {game_foreground})");
+                    let event = ShortcutEvent {
+                        shortcut,
+                        game_foreground,
+                    };
+                    if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-shortcut", event) {
+                        eprintln!("SLGO: failed to emit shortcut: {error}");
+                    }
+                }
+                HookEvent::ScoreboardUp => {
+                    if SCOREBOARD_HELD.swap(false, Ordering::SeqCst) {
+                        emit_scoreboard_key(&app, false);
+                    }
+                }
+                HookEvent::ScoreboardCursor => {
+                    eprintln!("SLGO: scoreboard right-click captured");
+                    if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-scoreboard-cursor", ()) {
+                        eprintln!("SLGO: failed to emit scoreboard cursor: {error}");
+                    }
+                }
             }
         }
     });
 
     thread::spawn(move || {
         // Windows skips a low-level hook that misses LowLevelHooksTimeout; keep this
-        // thread ahead of a busy game so no key event passes unseen.
+        // thread ahead of a busy game so no input event passes unseen. Both hooks share
+        // it: their callbacks only classify and hand off.
         unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
         let module = unsafe { GetModuleHandleW(std::ptr::null()) };
-        let hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), module, 0) };
-        if hook.is_null() {
+        let keyboard = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), module, 0) };
+        if keyboard.is_null() {
             eprintln!("SLGO: failed to install WH_KEYBOARD_LL hook ({})", unsafe {
                 GetLastError()
             });
             return;
         }
+        let mouse = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), module, 0) };
+        if mouse.is_null() {
+            eprintln!(
+                "SLGO: failed to install WH_MOUSE_LL hook ({}); scoreboard cursor mode unavailable",
+                unsafe { GetLastError() }
+            );
+        }
         let mut message = unsafe { std::mem::zeroed() };
         while unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
             unsafe { DispatchMessageW(&message) };
         }
-        unsafe { UnhookWindowsHookEx(hook) };
+        unsafe { UnhookWindowsHookEx(keyboard) };
+        if !mouse.is_null() {
+            unsafe { UnhookWindowsHookEx(mouse) };
+        }
     });
 }
 
@@ -847,7 +998,8 @@ pub fn run() {
             set_overlay_keyboard_focus,
             log_overlay_event,
             set_overlay_enabled,
-            set_shop_hotkey,
+            set_hotkeys,
+            set_scoreboard_capture,
             get_overlay_state,
             load_settings,
             save_settings,
@@ -872,7 +1024,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod hotkey_tests {
-    use super::{is_bindable_shop_hotkey, overlay_shortcut};
+    use super::{is_bindable_scoreboard_hotkey, is_bindable_shop_hotkey, overlay_shortcut, validate_hotkeys};
 
     #[test]
     fn overlay_shortcuts_map_the_chat_keys_and_the_configured_shop_key() {
@@ -898,9 +1050,24 @@ mod hotkey_tests {
             assert!(is_bindable_shop_hotkey(vk), "{vk:#x}");
         }
         // Y and U (chat), digits, Escape, F13 and modifiers are rejected.
-        for vk in [0x59, 0x55, 0x30, 0x31, 0x39, 0x1B, 0x7C, 0x10, 0x11, 0xA0, 0] {
+        for vk in [0x59, 0x55, 0x30, 0x31, 0x39, 0x1B, 0x7C, 0x10, 0x11, 0xA0, 0x14, 0x09, 0] {
             assert!(!is_bindable_shop_hotkey(vk), "{vk:#x}");
         }
+    }
+
+    #[test]
+    fn scoreboard_hotkey_adds_caps_lock_and_never_shares_the_shop_key() {
+        for vk in [0x14, 0x41, 0x5A, 0x70, 0x7B] {
+            assert!(is_bindable_scoreboard_hotkey(vk), "{vk:#x}");
+        }
+        // Tab (the SCP:SL inventory), Y, U, digits and modifiers are rejected.
+        for vk in [0x09, 0x59, 0x55, 0x31, 0x10, 0xA0, 0] {
+            assert!(!is_bindable_scoreboard_hotkey(vk), "{vk:#x}");
+        }
+        assert!(validate_hotkeys(0x42, 0x14).is_ok(), "B and CapsLock");
+        assert!(validate_hotkeys(0x42, 0x42).is_err(), "one key for both");
+        assert!(validate_hotkeys(0x14, 0x42).is_err(), "CapsLock cannot open the shop");
+        assert!(validate_hotkeys(0x42, 0x59).is_err(), "Y is the chat key");
     }
 }
 

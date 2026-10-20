@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "required checks"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "contract parity and desktop boundary rules"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "visual replication quality gates"}
+{"file": ".trellis/tasks/10-19-scoreboard/research/cs2-scoreboard-reference.md", "reason": "CS2 behaviour to verify against"}

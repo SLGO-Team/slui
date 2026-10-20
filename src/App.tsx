@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
 import {
@@ -25,6 +25,10 @@ import { hudStatusReducer, initialHudStatusState, selectBottomHud } from "./feat
 import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
 import { KillFeed } from "./features/killfeed/KillFeed";
 import { initialKillfeedState, killfeedReducer, selectKillfeed } from "./features/killfeed/model";
+import { Scoreboard } from "./features/scoreboard/Scoreboard";
+import { initialScoreboardState, initialScoreboardViewState, scoreboardReducer, type ScoreboardMode, type ScoreboardStat } from "./features/scoreboard/model";
+import { selectScoreboard } from "./features/scoreboard/presentation";
+import { readScoreboardDebugPins } from "./mocks/scoreboardScenes";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
 import { ShopDebugPanel } from "./mocks/ShopDebugPanel";
@@ -63,6 +67,7 @@ const OVERLAY_CLIENT_FEATURES = [
   CLIENT_FEATURE_HUD_MONEY,
   CLIENT_FEATURE_HUD_STATUS,
   CLIENT_FEATURE_HUD_KILLFEED,
+  CLIENT_FEATURE_SCOREBOARD,
 ] as const;
 
 // Mocks only in the explicit `mock` mode (npm run dev:mock).
@@ -125,6 +130,15 @@ function App() {
   const [hudMessagesState, dispatchHudMessages] = useReducer(hudMessagesReducer, initialHudMessagesState);
   const [hudStatusState, dispatchHudStatus] = useReducer(hudStatusReducer, initialHudStatusState);
   const [killfeedState, dispatchKillfeed] = useReducer(killfeedReducer, initialKillfeedState);
+  const [scoreboardState, dispatchScoreboard] = useReducer(scoreboardReducer, initialScoreboardState);
+  // Page, side and sort persist for the session; held and cursor follow the scoreboard key.
+  // The debug build pins held / cursor / page / side from the URL (?scoreboard=passive|cursor) for captures.
+  const [scoreboardPins] = useState(() => HUD_DEBUG_ENABLED ? readScoreboardDebugPins() : null);
+  const [scoreboardViewState, setScoreboardViewState] = useState(() => scoreboardPins
+    ? { ...initialScoreboardViewState, page: scoreboardPins.page, side: scoreboardPins.side } : initialScoreboardViewState);
+  const [scoreboardHeld, setScoreboardHeld] = useState(() => scoreboardPins?.mode != null);
+  const [scoreboardCursor, setScoreboardCursor] = useState(() => scoreboardPins?.mode === "cursor");
+  const scoreboardModeRef = useRef<ScoreboardMode>("hidden");
   const shopFeature = useShopFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
@@ -148,6 +162,7 @@ function App() {
     dispatchHudMessages({ type: "event", event, receivedAtMs });
     dispatchHudStatus({ type: "event", event });
     dispatchKillfeed({ type: "event", event, receivedAtMs });
+    dispatchScoreboard({ type: "event", event, receivedAtMs });
     shopFeature.receiveEvent(event);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
@@ -162,6 +177,7 @@ function App() {
     dispatchHudMessages({ type: "connection", status });
     dispatchHudStatus({ type: "connection", status });
     dispatchKillfeed({ type: "connection", status });
+    dispatchScoreboard({ type: "connection", status });
     shopFeature.setConnectionStatus(status);
     connectionLiveRef.current = status === "live";
     chatFeature.setConnectionStatus(status);
@@ -214,8 +230,8 @@ function App() {
       if (!active) return;
       setShopVolume(settings.audio.shopVolume);
       setOverlaySettings(settings.overlay);
-      void overlayController.setShopHotkey(settings.hotkeys.shop)
-        .catch((error: unknown) => console.error("Unable to apply shop hotkey", error));
+      void overlayController.setHotkeys(settings.hotkeys)
+        .catch((error: unknown) => console.error("Unable to apply hotkeys", error));
     };
     void settingsStore.load().then(apply).catch((error: unknown) => console.error("Unable to load settings", error));
     const unsubscribe = settingsStore.subscribe(apply);
@@ -392,13 +408,49 @@ function App() {
   // screen, and it always takes the foreground too. A foreground game keeps its
   // cursor locked to the centre and turns the camera with the mouse, so the mouse
   // alone is not enough even for the shop.
-  const overlayInteractive = (shopOpen && shopAvailable) || chatOpen;
+  const localSteamIdForScoreboard = session.identity?.steamId ?? null;
+  const scoreboardHud = HUD_DEBUG_ENABLED ? debugHud : liveHud;
+  const scoreboard = useMemo(() => selectScoreboard({
+    hud: scoreboardHud, frame: scoreboardState.frame, view: scoreboardViewState, localPlayerId: localSteamIdForScoreboard, nowMs,
+  }), [localSteamIdForScoreboard, nowMs, scoreboardHud, scoreboardState.frame, scoreboardViewState]);
+  // Shown while its key is held over the game, never under the shop or chat, never without data (an old plugin
+  // keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up.
+  const scoreboardMode: ScoreboardMode = !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen
+    ? "hidden" : scoreboardCursor ? "cursor" : "passive";
+  scoreboardModeRef.current = scoreboardMode;
+  const overlayInteractive = (shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor";
   const wasChatOpenRef = useRef(false);
   // Diagnostics: every close, including a send and a session change.
   useEffect(() => {
     if (wasChatOpenRef.current && !chatOpen) overlayController.log("chat state closed");
     wasChatOpenRef.current = chatOpen;
   }, [chatOpen, overlayController]);
+  // Right-click goes to the scoreboard only while the passive panel is on screen.
+  useEffect(() => {
+    void overlayController.setScoreboardCapture(scoreboardMode === "passive")
+      .catch((error: unknown) => console.error("Unable to switch scoreboard capture", error));
+  }, [overlayController, scoreboardMode]);
+  useEffect(() => overlayController.subscribeScoreboard({
+    held(held) {
+      setScoreboardHeld(held);
+      if (!held) setScoreboardCursor(false);
+    },
+    cursor() {
+      if (scoreboardModeRef.current === "passive") setScoreboardCursor(true);
+    },
+  }), [overlayController]);
+  // The shop or chat opening over the scoreboard drops cursor mode, so it never comes back holding the mouse. A
+  // scoreboard that only lost its data (a waiting state) keeps it while the key stays down.
+  const scoreboardCovered = (shopOpen && shopAvailable) || chatOpen;
+  useEffect(() => {
+    if (scoreboardCovered && scoreboardCursor) setScoreboardCursor(false);
+  }, [scoreboardCovered, scoreboardCursor]);
+  useEffect(() => {
+    minimapFeature.setLocalScoreboard(scoreboardMode !== "hidden");
+  }, [minimapFeature.setLocalScoreboard, scoreboardMode]);
+  const handleScoreboardSort = useCallback((sortStat: ScoreboardStat) => setScoreboardViewState((current) => ({ ...current, sortStat })), []);
+  const handleScoreboardPage = useCallback(() => setScoreboardViewState((current) => ({ ...current, page: current.page === 1 ? 2 : 1 })), []);
+  const handleScoreboardSide = useCallback(() => setScoreboardViewState((current) => ({ ...current, side: current.side === "current" ? "other" : "current" })), []);
   const sentInteractiveRef = useRef(false);
   const inputQueueRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -498,6 +550,8 @@ function App() {
       <ProgressCard card={progressCard} still={hudSceneStill} />
       <MessageZone zone={messageZone} still={hudSceneStill} role={viewerRole} />
       <KillFeed notices={killfeed} still={hudSceneStill} />
+      {scoreboard !== null && scoreboardMode !== "hidden" ? <Scoreboard view={scoreboard} mode={scoreboardMode}
+        onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
         renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")

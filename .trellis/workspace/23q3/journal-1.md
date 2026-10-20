@@ -750,3 +750,27 @@ Planned and shipped one-click auto-update: @slgo/protocol update manifest (GET /
 ### Status
 
 [OK] **Completed**
+
+
+## Session 32: Scoreboard deploy, live test and launch-crash fix
+<!-- trellis-session: v=2 fp=cd3b9ce315fc8827 -->
+
+**Date**: 2026-10-20
+**Task**: Scoreboard deploy, live test and launch-crash fix
+**Branch**: `feat/scoreboard`
+
+### Summary
+
+Kept SCP on top. Merged SLGO feat/scoreboard (8eadbad) and released 20261020-071902-8eadbad-78ccac7 (plugin + backend). The deploy build-slui exe aborted at launch: Tauri builds config windows before setup, and the embedded home page invoked updater_start before setup managed Updater; #45 manages it on the builder (spec rule in system-boundaries.md). Live test passed. The header's placeholder mode icons became the SLGO badge (brand logo without wordmark) in every mode at the user's request; mode_icon stays in the contract. Task archived; PR #44 merges on the user's go.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f81954` | fix(scoreboard): SLGO badge in the header instead of the placeholder mode icons |
+| `4ee24e3` | docs(scoreboard): SLGO badge in the spec; acceptance criteria met |
+| `3f92954` | fix(updater): manage the updater state before the windows are built (#45) |
+
+### Status
+
+[OK] **Completed**

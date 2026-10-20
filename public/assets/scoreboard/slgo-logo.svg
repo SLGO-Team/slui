@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-300 -300 600 600">
+  <!-- The SLGO badge (brand logo without the wordmark): CS sight ring and ticks, SCP containment ring and arrows. -->
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f7941d" stop-opacity="0.14"/>
+      <stop offset="60%" stop-color="#f7941d" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#f7941d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle r="205" fill="url(#glow)"/>
+  <g fill="none" stroke="#f08a14" stroke-width="13">
+    <path d="M 26.34 -250.62 A 252 252 0 0 1 250.62 -26.34"/>
+    <path d="M 250.62 26.34 A 252 252 0 0 1 26.34 250.62"/>
+    <path d="M -26.34 250.62 A 252 252 0 0 1 -250.62 26.34"/>
+    <path d="M -250.62 -26.34 A 252 252 0 0 1 -26.34 -250.62"/>
+  </g>
+  <g fill="#f7941d">
+    <rect x="-8" y="-294" width="16" height="88"/>
+    <rect x="-8" y="206" width="16" height="88"/>
+    <rect x="-294" y="-8" width="88" height="16"/>
+    <rect x="206" y="-8" width="88" height="16"/>
+  </g>
+  <g fill="none" stroke="#ecf2f8" stroke-width="30">
+    <path d="M 26.28 -165.93 A 168 168 0 0 1 156.84 60.21"/>
+    <path d="M 130.56 105.73 A 168 168 0 0 1 -130.56 105.73"/>
+    <path d="M -156.84 60.21 A 168 168 0 0 1 -26.28 -165.93"/>
+  </g>
+  <g fill="#ecf2f8">
+    <path d="M -14 -196 H 14 V -100 H 34 L 0 -46 L -34 -100 H -14 Z"/>
+    <path d="M -14 -196 H 14 V -100 H 34 L 0 -46 L -34 -100 H -14 Z" transform="rotate(120)"/>
+    <path d="M -14 -196 H 14 V -100 H 34 L 0 -46 L -34 -100 H -14 Z" transform="rotate(240)"/>
+  </g>
+  <circle r="15" fill="#f7941d"/>
+</svg>
