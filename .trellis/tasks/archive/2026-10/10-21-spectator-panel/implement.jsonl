@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Event contracts, client features and the bottom HUD data rules"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "CS2 replication rules, world blur, bottom HUD section 13"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards and forbidden patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plugin -> sidecar -> SLUI payload crosses three repos"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Share hud.status ammo/kill validation and the ADR rule instead of copying"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Feature module layout"}

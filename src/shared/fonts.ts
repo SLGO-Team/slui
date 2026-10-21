@@ -160,6 +160,10 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
   },
   // Killfeed (KillFeed.css): stratum-bold names, vertically centred against the icons like Panorama.
   { family: "Stratum2 Killfeed", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
+  // Spectator panel (BottomHud.css): stratum-bold name and ADR title, medium item name, stratum-bold-mono ADR.
+  { family: "Stratum2 Spectator", weight: 500, pack: stratum("stratum2-medium.otf", CAP_CENTERED), fallback: barlow("Medium", CAP_CENTERED) },
+  { family: "Stratum2 Spectator", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
+  { family: "Stratum2 Spectator Mono", weight: 700, pack: stratum("stratum2mono-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED, true) },
 ];
 
 export type ResolvedFontFace = {

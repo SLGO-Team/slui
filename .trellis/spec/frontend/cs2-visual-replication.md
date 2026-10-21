@@ -462,11 +462,23 @@ centre emblem, and the right block shows the clip and the reserve rounds (SLGO c
 Measurements and motion are in the task research file `cs2-bottom-hud-motion.md` (archived with
 `10-07-cs2-bottom-hud`); keep the timeline at the top of `BottomHud.css` in sync.
 
-- Data: `selectBottomHud(hud, status, localPlayerId)` is null (nothing drawn) without a snapshot or viewer
-  team, when the local player is not on it or has no loadout, and while they are dead (user decision
-  2026-10-07: no spectator panel). Balance = `loadout.money`; ammo and kills from `hud.status`. The debug
-  build uses the same local player as the progress card, and the `bottom-*` scenes may override its balance
-  and life (`RealtimeMockProvider.hudSceneSelf`).
+- Data: `selectBottomHud({ hud, status, spectating, scoreboard, localPlayerId })` draws the local player while
+  they are alive on the viewer team (null without a loadout): balance = `loadout.money`, ammo and kills from
+  `hud.status`. Otherwise (dead, or a team-less observer) it draws the player `hud.spectating` names, in that
+  player's team colour, with the spectator panel; null when it names nobody or someone outside the roster (user
+  decision 2026-10-21, reversing 2026-10-07's "no spectator panel"). The row is keyed by `subjectId`, so a target
+  switch shows the new player without a kill burst or a balance roll. The debug build uses the same local player
+  as the progress card; the `bottom-*` scenes may override its balance and life
+  (`RealtimeMockProvider.hudSceneSelf`), and `bottom-spectating` / `bottom-spectating-enemy` play a dead player
+  watching a teammate (with a target switch) and an SCP opponent.
+- Spectator panel (CS2 `HudSpecplayer__Bg` in `hudhealthammocenter.xml`, user reference capture 2026-10-21):
+  the alive layout stays (user decision: balance left, ammo right, no health / armour); a 460 x 72 panel
+  (`spec-width`) at x 730-1190, radius 5, the circle's 0.5 fill over the world blur, 2px washed bars on both
+  edges, sits between them; the strokes go and the watched player's avatar (57px round, side default on
+  failure) covers the emblem inside the ring. Left block 14px in, 190 wide, centred: an empty 17px clan line
+  (SLGO has no clan tags), the name 20px washed at 0.753, then `伤/局` 13px (washed title, white mono value).
+  Right block 14px in from the right: the item label 18px medium, right-aligned, above the centre like CS2's
+  two-line weapon / finish label. The key hints under the panel are not drawn (user decision 2026-10-21).
 - Colour: every washed element (numbers, strokes, ring, emblem, card art) uses `ROLE_COLORS[role]` through
   `--bhud-wash` (user decision 2026-10-07, like the win panel), never CS2's T gold / CT blue. White SLUI art
   is drawn through a CSS mask in that colour.

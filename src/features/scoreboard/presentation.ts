@@ -132,6 +132,11 @@ const EMPTY_STATS: ScoreboardSideStats = {
   rounds_played: 0, kills: 0, deaths: 0, assists: 0, damage: 0, shots_fired: 0, shots_hit: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0,
 };
 
+/** Average damage per round on one side (the 伤/局 column, also the spectator panel's ADR); 0 before a finished round. */
+export function scoreboardAdr(stats: ScoreboardSideStats): number {
+  return stats.rounds_played === 0 ? 0 : Math.round(stats.damage / stats.rounds_played);
+}
+
 /** One stat's sort value; NaN for a blank cell (CS2 `_lessthan` puts NaN below every number). */
 function statValue(stat: ScoreboardStat, stats: ScoreboardSideStats, bucket: Role, money: number | null): number {
   if (bucket === "scp" && HUMAN_ONLY_STATS.has(stat)) return Number.NaN;
@@ -145,7 +150,7 @@ function statValue(stat: ScoreboardStat, stats: ScoreboardSideStats, bucket: Rol
     case "utilitydamage": return stats.utility_damage;
     case "enemiesflashed": return stats.enemies_flashed;
     case "kdr": return stats.kills / Math.max(stats.deaths, 1);
-    case "adr": return stats.rounds_played === 0 ? 0 : Math.round(stats.damage / stats.rounds_played);
+    case "adr": return scoreboardAdr(stats);
     case "damage": return stats.damage;
   }
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { hudStatusReducer, initialHudStatusState, selectBottomHud } from "../src/features/bottomhud/model.ts";
+import { hudStatusReducer, initialHudStatusState, selectBottomHud, selectWatchedHud } from "../src/features/bottomhud/model.ts";
 import {
   KILL_FAN,
   clipBarFraction,
@@ -13,7 +13,7 @@ import { createKillParticles, KILL_PARTICLE_SECONDS } from "../src/features/bott
 import { MASK_SECONDS } from "../src/features/bottomhud/particles/systems.ts";
 import { LINE_Y, srgbToLinear } from "../src/features/bottomhud/particles/engine.ts";
 import { particleTexture } from "../src/features/bottomhud/particles/textures.ts";
-import { parseHudStatus } from "../src/contracts/index.ts";
+import { parseHudSpectating, parseHudStatus } from "../src/contracts/index.ts";
 
 const envelope = (type, payload, { serverId = "slgo-1", instanceId = "instance-1", sequence = 2 } = {}) => ({
   protocol_version: 0,
@@ -42,6 +42,15 @@ const status = { ammo: { clip: 23, clip_max: 30, reserve: 90, reserve_icon: "bul
   assert.equal(hudStatusReducer(state, { type: "event", event: baseline({ instanceId: "instance-2" }) }).status, null, "a new instance clears it");
   assert.equal(hudStatusReducer(state, { type: "connection", status: "offline" }), state, "a lost connection keeps it");
   assert.equal(hudStatusReducer(state, { type: "connection", status: "ended" }), initialHudStatusState, "an ended instance clears it");
+
+  // hud.spectating rides the same source rules.
+  const watching = { target: { player_id: "76561198000000004", money: 200, item_name: "CrossVec", ammo: status.ammo, round_kills: ["default"] } };
+  const spectating = hudStatusReducer(state, { type: "event", event: envelope("hud.spectating", watching) });
+  assert.deepEqual(spectating.spectating, watching);
+  assert.equal(spectating.status, state.status, "hud.spectating leaves hud.status alone");
+  assert.equal(hudStatusReducer(spectating, { type: "event", event: envelope("hud.spectating", { target: null }, { instanceId: "other" }) }).spectating, watching,
+    "another instance's frame is ignored");
+  assert.equal(hudStatusReducer(spectating, { type: "event", event: baseline({ instanceId: "instance-2" }) }).spectating, null, "a new instance clears it");
 }
 
 {
@@ -51,15 +60,61 @@ const status = { ammo: { clip: 23, clip_max: 30, reserve: 90, reserve_icon: "bul
     hasSnapshot: true,
     teams: [{ relation, role: "ntf", players: [player] }, { relation: "opponent", role: "scp", players: [] }],
   });
-  const view = selectBottomHud(hudWith(self), status, self.player_id);
-  assert.deepEqual(view, { role: "ntf", balance: 4250, ammo: status.ammo, kills: status.round_kills });
-  assert.deepEqual(selectBottomHud(hudWith(self), null, self.player_id), { role: "ntf", balance: 4250, ammo: null, kills: [] }, "before hud.status: balance only");
-  assert.equal(selectBottomHud(hudWith({ ...self, is_alive: false }), status, self.player_id), null, "hidden while dead");
-  assert.equal(selectBottomHud(hudWith({ ...self, loadout: null }), status, self.player_id), null, "no loadout (offline)");
-  assert.equal(selectBottomHud(hudWith(self), status, "76561198000000002"), null, "not on the viewer team");
-  assert.equal(selectBottomHud(hudWith(self, "opponent"), status, self.player_id), null, "spectator: no viewer team");
-  assert.equal(selectBottomHud({ hasSnapshot: false }, status, self.player_id), null);
-  assert.equal(selectBottomHud(hudWith(self), status, null), null);
+  const select = (hud, localPlayerId = self.player_id, extra = {}) =>
+    selectBottomHud({ hud, status, spectating: null, scoreboard: null, localPlayerId, ...extra });
+  const view = select(hudWith(self));
+  assert.deepEqual(view, { subjectId: self.player_id, role: "ntf", balance: 4250, ammo: status.ammo, kills: status.round_kills, spectator: null });
+  assert.deepEqual(select(hudWith(self), self.player_id, { status: null }),
+    { subjectId: self.player_id, role: "ntf", balance: 4250, ammo: null, kills: [], spectator: null }, "before hud.status: balance only");
+  assert.equal(select(hudWith({ ...self, is_alive: false })), null, "dead and watching nobody");
+  assert.equal(select(hudWith({ ...self, loadout: null })), null, "no loadout (offline)");
+  assert.equal(select(hudWith(self), "76561198000000002"), null, "not on the viewer team");
+  assert.equal(select(hudWith(self, "opponent")), null, "spectator: no viewer team, watching nobody");
+  assert.equal(select({ hasSnapshot: false }), null);
+  assert.equal(select(hudWith(self), null), null);
+}
+
+{
+  // Spectating: the dead local player (or a team-less observer) sees the player hud.spectating names, in that team's colours.
+  const self = { player_id: "76561198000000001", display_name: "Nova", avatar_url: null, is_online: true, is_alive: false, kills: 0, loadout: { money: 300 } };
+  const mate = { player_id: "76561198000000004", display_name: "Vanguard", avatar_url: "https://avatars.example/vanguard.jpg", is_online: true, is_alive: true, kills: 2, loadout: { money: 200 } };
+  const enemy = { player_id: "76561198000000007", display_name: "Striker", avatar_url: null, is_online: true, is_alive: true, kills: 1 };
+  const hud = (viewerRelation = "viewer") => ({
+    hasSnapshot: true,
+    teams: [{ relation: viewerRelation, role: "ntf", players: [self, mate] }, { relation: "opponent", role: "scp", players: [enemy] }],
+  });
+  const stats = (rounds, damage) => ({ rounds_played: rounds, kills: 0, deaths: 0, assists: 0, damage, shots_fired: 0, shots_hit: 0, mvps: 0, utility_damage: 0, enemies_flashed: 0 });
+  const scoreboard = { players: [
+    { player_id: mate.player_id, ping_ms: 30, is_bot: false, ntf: stats(4, 290), scp: stats(2, 900) },
+    { player_id: enemy.player_id, ping_ms: 40, is_bot: false, ntf: stats(0, 0), scp: stats(3, 200) },
+  ] };
+  const target = (player, fields = {}) => ({ target: { player_id: player.player_id, money: 200, item_name: "CrossVec", ammo: status.ammo, round_kills: ["default", "grenade"], ...fields } });
+  const select = (spectating, extra = {}) => selectBottomHud({ hud: hud(), status, spectating, scoreboard, localPlayerId: self.player_id, ...extra });
+
+  const watched = select(target(mate));
+  assert.deepEqual(watched, {
+    subjectId: mate.player_id, role: "ntf", balance: 200, ammo: status.ammo, kills: ["default", "grenade"],
+    spectator: { name: "Vanguard", avatarUrl: mate.avatar_url, fallbackAvatarUrl: "/assets/hud/avatar-terrorist.png", adr: 73, itemName: "CrossVec" },
+  }, "a teammate: their balance, ammo, kills; ADR = round(290 / 4) on the team's current side");
+  const opponent = select(target(enemy, { money: 1450, item_name: "SCP-939", ammo: null, round_kills: [] }));
+  assert.equal(opponent.role, "scp", "an opponent draws in their team's colour");
+  assert.equal(opponent.balance, 1450, "the opponent's balance comes from hud.spectating");
+  assert.equal(opponent.spectator.avatarUrl, "/assets/hud/avatar-ct.svg", "no avatar: the side's default");
+  assert.equal(opponent.spectator.adr, 67);
+  assert.equal(opponent.ammo, null);
+  assert.equal(select(target(mate), { scoreboard: null }).spectator.adr, 0, "no scoreboard yet: ADR 0");
+  assert.equal(select(target(mate, { item_name: null })).spectator.itemName, null, "empty hands");
+  assert.equal(select({ target: null }), null, "watching nobody");
+  assert.equal(select(null), null, "an older plugin never sends hud.spectating");
+  assert.equal(select(target({ player_id: "76561198000000099" })), null, "a target outside the roster is not drawn");
+  assert.equal(selectBottomHud({ hud: hud("opponent"), status, spectating: target(enemy), scoreboard, localPlayerId: "76561198000000050" }).subjectId, enemy.player_id,
+    "a team-less observer watches too");
+  const alive = selectBottomHud({ hud: { ...hud(), teams: [{ relation: "viewer", role: "ntf", players: [{ ...self, is_alive: true }, mate] }, hud().teams[1]] },
+    status, spectating: target(mate), scoreboard, localPlayerId: self.player_id });
+  assert.equal(alive.subjectId, self.player_id, "alive: always the local player, a stale hud.spectating is ignored");
+  assert.equal(alive.spectator, null);
+  assert.deepEqual(selectWatchedHud(hud(), target(mate), scoreboard), watched, "the debug HUD's dead-scene path is the same view");
+  assert.equal(parseHudSpectating(target(mate)).ok, true, "the fixture is a valid payload");
 }
 
 {

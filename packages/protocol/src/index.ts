@@ -380,6 +380,26 @@ export type HudStatusSnapshot = {
   /** One entry per kill this round, in order; reset when the buy phase starts (same rule as match.snapshot `kills`). */
   round_kills: HudKillKind[];
 };
+/** Longest `hud.spectating` `player_id` and `item_name` (UTF-16 code units). */
+export const MAX_HUD_SPECTATING_TEXT_LENGTH = 64;
+/** The player the viewer watches in first person, with what the bottom HUD shows of them (CS2 spectator HUD). */
+export type HudSpectatingTarget = {
+  /** The `match.snapshot` player id; name, avatar and team come from that entry. */
+  player_id: string;
+  /** The watched player's balance. */
+  money: number;
+  /** Plugin-resolved label of the held item (its shop name; an SCP's role name); null with empty hands. */
+  item_name: string | null;
+  /** The watched player's held firearm, as `hud.status` `ammo`. */
+  ammo: HudAmmo | null;
+  /** The watched player's kills this round, as `hud.status` `round_kills`. */
+  round_kills: HudKillKind[];
+};
+/**
+ * `hud.spectating`: whom the viewer watches (one recipient; sent only to clients declaring `hud-spectating`).
+ * `target` is null while the viewer is alive or watches nobody the plugin's observation rights allow.
+ */
+export type HudSpectatingSnapshot = { target: HudSpectatingTarget | null };
 
 /**
  * Weapon icon of a killfeed entry (CS2 `#Weapon`). A closed set covering every SCP:SL kill source; a client draws
@@ -561,6 +581,7 @@ export type MinimapPositionsEvent = ProtocolEnvelope<MinimapPositions, "minimap.
 export type HudMessagesEvent = ProtocolEnvelope<HudMessagesSnapshot, "hud.messages"> & { sent_at: string };
 export type RoundResultEvent = ProtocolEnvelope<RoundResultSnapshot, "round.result"> & { sent_at: string };
 export type HudStatusEvent = ProtocolEnvelope<HudStatusSnapshot, "hud.status">;
+export type HudSpectatingEvent = ProtocolEnvelope<HudSpectatingSnapshot, "hud.spectating">;
 export type HudKillfeedEvent = ProtocolEnvelope<HudKillfeedSnapshot, "hud.killfeed"> & { sent_at: string };
 export type ScoreboardSnapshotEvent = ProtocolEnvelope<ScoreboardSnapshot, "scoreboard.snapshot"> & { sent_at: string };
 export type InstanceEndedEvent = ProtocolEnvelope<InstanceEnded, "instance.ended"> & { sent_at: string };
@@ -573,6 +594,7 @@ export type SlgoEvent =
   | HudMessagesEvent
   | RoundResultEvent
   | HudStatusEvent
+  | HudSpectatingEvent
   | HudKillfeedEvent
   | ScoreboardSnapshotEvent
   | InstanceEndedEvent
@@ -719,6 +741,8 @@ export const CLIENT_FEATURE_WIN_PANEL = "win-panel";
 export const CLIENT_FEATURE_HUD_MONEY = "hud-money";
 /** SLUI draws the bottom HUD and wants `hud.status` (ammo, round kills) for this player. */
 export const CLIENT_FEATURE_HUD_STATUS = "hud-status";
+/** SLUI draws the spectator panel and wants `hud.spectating` (the watched player) for this player. */
+export const CLIENT_FEATURE_HUD_SPECTATING = "hud-spectating";
 /** SLUI draws the top-right killfeed: the plugin hides its own killfeed hint and publishes `hud.killfeed` for this player. */
 export const CLIENT_FEATURE_HUD_KILLFEED = "hud-killfeed";
 /** SLUI draws the scoreboard: the plugin ignores its own scoreboard key and publishes `scoreboard.snapshot` for this player. */
@@ -1139,16 +1163,38 @@ const HUD_STATUS_KEYS = new Set(["ammo", "round_kills"]);
 const HUD_AMMO_KEYS = new Set(["clip", "clip_max", "reserve", "reserve_icon"]);
 const isHudAmmoCount = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= MAX_HUD_AMMO;
 
+/** `ammo` of `hud.status` and `hud.spectating`: null, or every field present and in range. */
+const isHudAmmoOrNull = (ammo: unknown): boolean => ammo === null || (isRecord(ammo) && hasOnlyKeys(ammo, HUD_AMMO_KEYS)
+  && HUD_AMMO_KEYS.size === Object.keys(ammo).length && isHudAmmoCount(ammo.clip) && isHudAmmoCount(ammo.clip_max) && ammo.clip_max >= 1
+  && isHudAmmoCount(ammo.reserve) && (HUD_RESERVE_ICONS as readonly unknown[]).includes(ammo.reserve_icon));
+/** `round_kills` of `hud.status` and `hud.spectating`: a short list of known kinds. */
+const isHudRoundKills = (kills: unknown): boolean =>
+  Array.isArray(kills) && kills.length <= MAX_HUD_ROUND_KILLS && kills.every((kind) => (HUD_KILL_KINDS as readonly unknown[]).includes(kind));
+
 /** `hud.status` payload: both fields present; ammo null or strict; kills a short list of known kinds. */
 export function parseHudStatus(payload: unknown): ParseResult<HudStatusSnapshot> {
   if (!isRecord(payload) || !hasOnlyKeys(payload, HUD_STATUS_KEYS) || HUD_STATUS_KEYS.size !== Object.keys(payload).length) return error("invalid-payload", "HUD status needs exactly ammo and round_kills");
-  const ammo = payload.ammo;
-  if (ammo !== null && (!isRecord(ammo) || !hasOnlyKeys(ammo, HUD_AMMO_KEYS) || HUD_AMMO_KEYS.size !== Object.keys(ammo).length
-    || !isHudAmmoCount(ammo.clip) || !isHudAmmoCount(ammo.clip_max) || ammo.clip_max < 1 || !isHudAmmoCount(ammo.reserve)
-    || !(HUD_RESERVE_ICONS as readonly unknown[]).includes(ammo.reserve_icon))) return error("invalid-payload", "HUD status ammo is invalid");
-  const kills = payload.round_kills;
-  if (!Array.isArray(kills) || kills.length > MAX_HUD_ROUND_KILLS || !kills.every((kind) => (HUD_KILL_KINDS as readonly unknown[]).includes(kind))) return error("invalid-payload", "HUD status round kills are invalid");
+  if (!isHudAmmoOrNull(payload.ammo)) return error("invalid-payload", "HUD status ammo is invalid");
+  if (!isHudRoundKills(payload.round_kills)) return error("invalid-payload", "HUD status round kills are invalid");
   return { ok: true, value: payload as unknown as HudStatusSnapshot };
+}
+
+const HUD_SPECTATING_KEYS = new Set(["target"]);
+const HUD_SPECTATING_TARGET_KEYS = new Set(["player_id", "money", "item_name", "ammo", "round_kills"]);
+const isHudSpectatingText = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MAX_HUD_SPECTATING_TEXT_LENGTH;
+
+/** `hud.spectating` payload: `target` null, or every field present; ammo and kills as in `hud.status`. */
+export function parseHudSpectating(payload: unknown): ParseResult<HudSpectatingSnapshot> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, HUD_SPECTATING_KEYS) || !("target" in payload)) return error("invalid-payload", "HUD spectating needs exactly target");
+  const target = payload.target;
+  if (target === null) return { ok: true, value: { target: null } };
+  if (!isRecord(target) || !hasOnlyKeys(target, HUD_SPECTATING_TARGET_KEYS) || HUD_SPECTATING_TARGET_KEYS.size !== Object.keys(target).length) return error("invalid-payload", "HUD spectating target fields are invalid");
+  if (!isHudSpectatingText(target.player_id)) return error("invalid-payload", "HUD spectating player id is invalid");
+  if (!Number.isSafeInteger(target.money) || Number(target.money) < 0) return error("invalid-payload", "HUD spectating money is invalid");
+  if (target.item_name !== null && !isHudSpectatingText(target.item_name)) return error("invalid-payload", "HUD spectating item name is invalid");
+  if (!isHudAmmoOrNull(target.ammo)) return error("invalid-payload", "HUD spectating ammo is invalid");
+  if (!isHudRoundKills(target.round_kills)) return error("invalid-payload", "HUD spectating round kills are invalid");
+  return { ok: true, value: payload as unknown as HudSpectatingSnapshot };
 }
 
 const HUD_KILLFEED_KEYS = new Set(["entries"]);
@@ -1307,6 +1353,7 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
       payloadResult = envelope.type === "hud.messages" ? parseHudMessages(envelope.payload) : parseRoundResult(envelope.payload);
       break;
     case "hud.status": payloadResult = parseHudStatus(envelope.payload); break;
+    case "hud.spectating": payloadResult = parseHudSpectating(envelope.payload); break;
     case "hud.killfeed":
       // Remaining times are counted from sent_at, as for hud.messages.
       if (envelope.sent_at === undefined) return error("invalid-envelope", "HUD killfeed timestamp is required", envelope.event_id);

@@ -275,6 +275,21 @@ Required boundary rules:
   declares `hud-money` (`CLIENT_FEATURE_HUD_MONEY`) so the plugin hides its own
   balance hint. `hudStatusReducer` keeps the latest status of the baseline's
   instance (another instance clears it, a reconnect keeps it).
+- `hud.spectating` (`{ target }`, `parseHudSpectating`; wire rules in
+  `packages/protocol/v0/README.md` "HUD spectating") is whom the viewer watches
+  while not alive: `null`, or the target's `player_id`, `money`, plugin-resolved
+  `item_name` and the `hud.status` `ammo` / `round_kills` computed for the
+  target. One recipient, no time fields, sent only to clients declaring
+  `hud-spectating` (`CLIENT_FEATURE_HUD_SPECTATING`). The plugin alone decides
+  the target (the game's spectated player, kept only when its observation
+  rights allow it, so possibly an opponent in Casual); SLUI never infers it from
+  minimap viewpoints. Name, avatar and team come from the target's
+  `match.snapshot` entry and the ADR from `scoreboard.snapshot` (`scoreboardAdr`,
+  the scoreboard column's rule), so a target outside the roster is not drawn.
+  `hudStatusReducer` holds it beside `hud.status` under the same source rules;
+  `selectBottomHud` draws the local player while they are alive on the viewer
+  team and the watched player otherwise. An older plugin never sends it: the
+  bottom HUD stays hidden while dead, as before.
 - `scoreboard.snapshot` (`parseScoreboardSnapshot`; wire rules in `packages/protocol/v0/README.md` "Scoreboard") is
   one payload for every client declaring `scoreboard` (`CLIENT_FEATURE_SCOREBOARD`): per-side stats (NTF and SCP
   buckets), ping, bot flag, round history, loss bonus, mode and the match time at `sent_at` (counted on locally).
@@ -334,7 +349,7 @@ request", "Sidecar session handshake", "Security boundary").
   `setFeatures` stores the latest `client.features` list; it is sent on change
   while `live` and after every accepted baseline when not empty, so callers
   never resend after a reconnect. `App.tsx` maps overlay `enabled` to
-  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages", "hud-money", "hud-status", "hud-killfeed", "scoreboard"]` / `[]`: a disabled overlay
+  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages", "hud-money", "hud-status", "hud-spectating", "hud-killfeed", "scoreboard"]` / `[]`: a disabled overlay
   keeps the session live, so it must withdraw the features explicitly or the plugin keeps
   ignoring Y, keeps refusing to open its in-game shop from B and keeps its own
   chat feed, top HUD, win panel, message zone (alerts, hints, progress) and balance hidden.
@@ -711,6 +726,7 @@ signature }`) plus `min_version`. The control plane serves it at
 | `hud.messages` / `round.result` omits `sent_at` | Reject the event as `invalid-envelope` |
 | HUD message has an unknown field or tone, text blank or over 256 UTF-16 units, a countdown token (`{time_remaining}` / `{seconds_remaining}`) without `countdown_remaining_ms` (or the reverse), both token kinds in one text, non-integer or out-of-range ms, or progress `remaining_ms > total_ms` | Reject the payload as `invalid-payload` |
 | `hud.status` has an unknown field, a missing field, a count outside `0..65535`, `clip_max` 0, an unknown `reserve_icon` or kill kind, or more than 64 kills | Reject the payload as `invalid-payload` |
+| `hud.spectating` has an unknown or missing field, a blank or over-64 `player_id` / `item_name`, `money` not a non-negative safe integer, or `ammo` / `round_kills` breaking the `hud.status` rules | Reject the payload as `invalid-payload` |
 | Round result is a draw outside a match end, or `outcome` is `draw` without a null `winner_team` (or the reverse) | Reject the payload as `invalid-payload` |
 | Friendly health is absent or null | Render an explicit unknown state; never infer a numeric value |
 | HUD source changes by `server_id` or `instance_id` | Clear the prior frame, require a new baseline, and show restarted/syncing state |

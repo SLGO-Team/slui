@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
 import {
@@ -21,7 +21,7 @@ import { progressViewerFromHud } from "./features/hudmessages/presentation";
 import { ProgressCard } from "./features/hudmessages/ProgressCard";
 import { WinPanel } from "./features/winpanel/WinPanel";
 import { BottomHud } from "./features/bottomhud/BottomHud";
-import { hudStatusReducer, initialHudStatusState, selectBottomHud } from "./features/bottomhud/model";
+import { hudStatusReducer, initialHudStatusState, selectBottomHud, selectWatchedHud } from "./features/bottomhud/model";
 import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
 import { KillFeed } from "./features/killfeed/KillFeed";
 import { initialKillfeedState, killfeedReducer, selectKillfeed } from "./features/killfeed/model";
@@ -67,6 +67,7 @@ const OVERLAY_CLIENT_FEATURES = [
   CLIENT_FEATURE_HUD_MESSAGES,
   CLIENT_FEATURE_HUD_MONEY,
   CLIENT_FEATURE_HUD_STATUS,
+  CLIENT_FEATURE_HUD_SPECTATING,
   CLIENT_FEATURE_HUD_KILLFEED,
   CLIENT_FEATURE_SCOREBOARD,
 ] as const;
@@ -509,11 +510,15 @@ function App() {
     : localSteamId;
   const progressViewer = useMemo(() => progressViewerFromHud(hud, progressPlayerId), [hud, progressPlayerId]);
   const progressCard = useMemo(() => selectProgressCard(hudMessagesState, progressViewer), [hudMessagesState, progressViewer]);
-  // The bottom HUD is the same local player; a debug scene may override their balance and life.
-  const bottomHudBase = useMemo(() => selectBottomHud(hud, hudStatusState.status, progressPlayerId), [hud, hudStatusState.status, progressPlayerId]);
+  // The bottom HUD is the same local player; a debug scene may override their balance and life (a dead one watches
+  // whom the scene's hud.spectating names).
+  const scoreboardSnapshot = scoreboardState.frame?.snapshot ?? null;
+  const bottomHudBase = useMemo(() => selectBottomHud({
+    hud, status: hudStatusState.status, spectating: hudStatusState.spectating, scoreboard: scoreboardSnapshot, localPlayerId: progressPlayerId,
+  }), [hud, hudStatusState.spectating, hudStatusState.status, progressPlayerId, scoreboardSnapshot]);
   const sceneSelf = HUD_DEBUG_ENABLED ? mockConnection?.hudSceneSelf() ?? null : null;
-  const bottomHud = bottomHudBase === null || sceneSelf === null ? bottomHudBase
-    : !sceneSelf.alive ? null
+  const bottomHud = bottomHudBase === null || bottomHudBase.spectator !== null || sceneSelf === null ? bottomHudBase
+    : !sceneSelf.alive ? selectWatchedHud(hud, hudStatusState.spectating, scoreboardSnapshot)
       : sceneSelf.money === null || sceneSelf.money === bottomHudBase.balance ? bottomHudBase : { ...bottomHudBase, balance: sceneSelf.money };
   // One slot colour per player across the HUD: radar markers and the shop's teammate-inventory pips.
   const playerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
