@@ -69,11 +69,16 @@ When static source and observed output disagree, the in-game screenshot wins.
   result, bottom HUD centre circle and kill cards, radar, team counter equipment) and
   under the buy menu (`HudBlur` in `hud.xml`). `hud-blur-bg-color` is only a fill
   colour, not the blur. List: task research `cs2-world-blur-sources.md`.
-- Such a panel registers its element for SLUI's own world blur
-  (`useBackdropRegion`, system-boundaries 3.1) and keeps two fills: the dense stand-in
-  as the default (no blur: setting off, Windows 10, capture failure) and the CS2 fill
-  under `[data-world-blur="on"]`. Corner radius and opacity come from the element's
-  CSS, so the blur follows the panel's shape and fades.
+- Such a panel puts `ref={useBackdropRef()}` on the element that draws its fill (SLUI's
+  own world blur, system-boundaries 3.1) and keeps two fills: the dense stand-in as the
+  default (no blur: setting off, Windows 10, capture failure) and the CS2 fill under
+  `[data-world-blur="on"]`. A fill that was read from captures over CS2's blur and never
+  made denser (killfeed, win panel, bottom HUD circle and cards, equipment, radar) is the
+  same in both. The box, turn (kill cards), corner radius, opacity and an `inset()` clip
+  (equipment reveal) are read from the element as drawn, so the blur follows the panel's
+  shape, motion and fades; a vertical CSS mask is passed as `fade` samples
+  (`sampleFade`, the equipment panel's `fade-mask.svg`). Every panel in the list is
+  registered; the radar only while its "模糊背景" preference is on.
 - Page `backdrop-filter` never blurs the game. It is allowed only (a) where SLUI's own
   panels must blur under another panel (the shop mask over the HUD) and (b) as the
   mock preview's stand-in for the world blur (`src/platform/backdrop.ts`, mock mode
@@ -380,14 +385,13 @@ reducer and has its own card.
   (stratum-medium-tf) with CJK in `Noto Sans SC Messages` (light, `size-adjust: 90%`), white, no text
   shadow; padding 7.5 / 10.5px instead of Panorama's 8 / 8px because the CJK fallback sits ~1.75px
   below the cap-centred Latin baseline (CJK ink then matches the captures to the pixel).
-- Colours (captures): side bars 2px at both ends; low hint gold `rgb(236, 189, 87)`, alert the same gold
-  at 0.5 (its bars are additive in Panorama), high hint `rgb(255, 24, 0)`. Fill: in game the
-  captures read grey ~65 at ~0.33 (alert, low hint) and black ~0.52 (high hint) on Panorama's world
-  blur. The overlay window cannot read, so cannot blur, the game behind it (`backdrop-filter` only sees
-  the page), so the fills are denser with about the same mean to suppress the scene detail the blur
-  removes (user review 2026-10-06): `rgba(62, 62, 62, 0.6)` and `rgba(16, 16, 16, 0.7)`. Never use
-  `backdrop-filter`: it would blur the mock preview's page background and misrepresent the game. The dot
-  texture is not recreated.
+- Colours (captures): side bars 2px at both ends; alert and low hint in the viewer's team colour
+  (`hud-colorize-wash`; the T-side captures' gold is the T colour), the alert's at 0.5 (its bars are
+  additive in Panorama), high hint `rgb(255, 24, 0)`. Fill: in game the captures read grey ~65 at ~0.33
+  (alert, low hint) and black ~0.52 (high hint) on Panorama's world blur: those are the fills over SLUI's
+  world blur (`rgba(65, 65, 65, 0.33)`, `rgba(0, 0, 0, 0.52)`). Without a blur the fills are denser with
+  about the same mean to suppress the scene detail the blur removes (user review 2026-10-06):
+  `rgba(62, 62, 62, 0.6)` and `rgba(16, 16, 16, 0.7)`. The dot texture is not recreated.
 - Motion (recording, numbers in the parent task's research file, "Message zone motion"): enter for all
   three, box opens from its centre in 233ms (`cubic-bezier(0.3, 0.05, 0.65, 0.9)`) under 0.92 white
   that clears 250-470ms, text fades in from 233ms, a 30 fps glitch (`message-glitch.svg`, SLUI-drawn,
@@ -424,8 +428,8 @@ card).
   viewer team (the debug build falls back to that team's first player, since the mock identity is a
   team-a player). The card has no local expiry: at 0 it shows `00:00.000` until the plugin clears it.
 - Geometry at 1080p (recording, +-1px): card 500x120 at x 710 / y 630, radius 10px, fill
-  `rgba(34, 34, 34, 0.72)` (recorded black ~0.43 on the world blur, made denser for the missing blur,
-  see section 11);
+  black 0.43 over SLUI's world blur (as recorded on CS2's), `rgba(34, 34, 34, 0.72)` without a blur
+  (denser, see section 11);
   4px side bars; the layout row (ring, info) is centred horizontally, so the ring moves with the title
   width, but top-aligned: ring 95px 10px under the card top (centre y 687.5), 8px track
   `rgba(128,128,128,.25)`, 82% inner border 2px `#00000049`, icon 50x50 centred; info 96px high with
@@ -467,7 +471,8 @@ Measurements and motion are in the task research file `cs2-bottom-hud-motion.md`
   `--bhud-wash` (user decision 2026-10-07, like the win panel), never CS2's T gold / CT blue. White SLUI art
   is drawn through a CSS mask in that colour.
 - Geometry at 1080p (recording, Panorama for proportions): row 800 x 72 at x 560 / y 992, circle 64px centred
-  at (960, 1028) with a 2px ring and a `rgba(0,0,0,0.5)` fill (denser than CS2's blur, see section 11); strokes
+  at (960, 1028) with a 2px ring and a `rgba(0,0,0,0.5)` fill (`hud-blur-bg-color` as it reads in game, the
+  killfeed capture of the same colour; with or without the world blur); strokes
   1px, 184px each from the circle outwards; numbers `Stratum2 HUD Timer` 42px; balance right edge at x 710 in
   at least six odometer cells (CS2 pads to "$16000"); clip label 70px from x 1192 with a 65 x 2 bar at y 1047-1048
   over a faint track (Panorama's 1px black border and 4px height do not show in game, user review 2026-10-08); reserve 32px then a 26px reserve icon (user review 2026-10-07: 18px read
@@ -554,7 +559,8 @@ backgrounds and the wrong suicide and headshot marks.
   radius 3px; names `Stratum2 Killfeed` (stratum2-bold) 16px, margins 0 2px 2px, at most 160px with an
   ellipsis, CJK in Noto Sans SC bold at 0.9; icons 24px high, margin -2px 2px 0 2px. Capture: rows 31px with
   the border, 3px apart, the first at y 75, right edge at x 1910. Backgrounds as measured (every Panorama alpha
-  shows at about 0.79 of its value; the overlay cannot blur the game): plain `rgba(0,0,0,0.5)`, the viewer's
+  shows at about 0.79 of its value; the same with SLUI's world blur under each notice and without it): plain
+  `rgba(0,0,0,0.5)`, the viewer's
   kill `rgba(0,0,0,0.72)` with a 2px `#e10000` border drawn inset (no size change; the capture's border
   luminance matches #e10000, JPEG dulls the red) and labels 15px with 0.5px tracking, the viewer's death
   (their own suicide included) `rgba(99,6,6,0.65)`. No text shadow (section 3), although Panorama declares one.

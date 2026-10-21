@@ -548,8 +548,7 @@ by window label (`?window=home` in a browser preview).
   recovers to its default on its own. `hotkeys.ts` and the Rust
   `is_bindable_shop_hotkey()` / `is_bindable_scoreboard_hotkey()` /
   `validate_hotkeys()` must accept the same sets.
-  Action state (`alternateZoomActive`) and render capability (`pageBackdrop`)
-  are never saved.
+  Action state (`alternateZoomActive`) is never saved.
 - Home is the only settings writer. It applies edits locally, saves with a
   150ms debounce, and does not consume `slgo-settings-changed` (that would
   echo stale values back during a slider drag).
@@ -604,8 +603,9 @@ game itself:
   reported by the foreground thread), borderless (`SetIsBorderRequired(false)`, Windows
   11), started on the first non-empty region list, stopped after 5 s without a
   visible blurred panel. Each captured frame is blurred per region on the GPU (copy
-  with a 3σ margin, mips to 1/4, separable Gaussian, upscale with a rounded-rect mask
-  and the region's opacity) and presented. σ = 20 / 30 / 40 px at 1080p (strength
+  with a 3σ margin, mips to 1/4, separable Gaussian, upscale into the region's bounds
+  with a rounded-rect mask turned by its `angle`, its `fade` profile and its opacity)
+  and presented. σ = 20 / 30 / 40 px at 1080p (strength
   1-3), scaled with the height.
 - Shown only when the overlay may show and is visible, the setting is on, the blur is
   available, a region exists and a frame with the current regions was presented.
@@ -618,14 +618,17 @@ game itself:
 
 | Command / event | Direction | Payload |
 | --- | --- | --- |
-| `set_backdrop_regions` | overlay → Rust | `{ regions: { x, y, w, h, radius, alpha }[] }` in overlay CSS px, sent only on change; ≤ 64 kept |
+| `set_backdrop_regions` | overlay → Rust | `{ regions: { x, y, w, h, radius, alpha, angle?, fade? }[] }` in overlay CSS px, sent only on change; ≤ 64 kept. `x, y, w, h` is the box before `angle` (radians, clockwise, about its centre) turns it; `fade` `{ offset, length, stops }` is 2-16 opacity samples evenly spaced from `offset` to `offset + length` px down the box (its own frame); an unusable fade is dropped |
 | `set_backdrop_options` | overlay → Rust | `{ enabled: boolean, strength: 1 \| 2 \| 3 }` from `overlay.worldBlur` / `overlay.worldBlurStrength` |
 | `get_backdrop_available` | overlay → Rust | → `boolean` |
 | `slgo-backdrop-available` | Rust → all | `{ available: boolean }`, on change |
 
-Panels register with `useBackdropRegion(ref)`; one animation-frame loop reads each
-element's rect, CSS corner radius and effective opacity, so motion and fades are
-followed. `<html data-world-blur="on|off">` (setting × availability) picks each
+Panels register with the callback ref `useBackdropRef({ enabled?, fade? })` (attached
+while mounted, so conditionally rendered elements work); one animation-frame loop reads
+each element's box and turn (its transforms down from the root), CSS corner radius,
+effective opacity and `inset()` clip-path, so motion, turns, reveals and fades are
+followed. Unregistering re-sends at the end of the commit (microtask): a leaving panel
+takes its blur at once, and one remounted under a new key keeps it. `<html data-world-blur="on|off">` (setting × availability) picks each
 panel's fill.
 
 State a command reads with `state::<T>()` is registered on the `tauri::Builder`
