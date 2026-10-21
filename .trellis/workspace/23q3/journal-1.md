@@ -799,3 +799,29 @@ In-game tests showed DWM accent blur refreshes at ~30 Hz over the game (stutter,
 ### Status
 
 [OK] **Completed**
+
+
+## Session 34: World blur under the remaining HUD panels
+<!-- trellis-session: v=2 fp=38d5ed9e9e45035c -->
+
+**Date**: 2026-10-21
+**Task**: World blur under the remaining HUD panels
+**Branch**: `feat/backdrop-panels`
+
+### Summary
+
+Every remaining panel CS2 draws on hudWorldBlur now has SLUI's own world blur: message zone, progress card, killfeed rows, win panel result, bottom HUD circle and kill cards, radar, team counter equipment. Regions gained angle (turned kill cards) and a vertical fade profile (equipment mask), plus inset() clip-path from the page; panels register via the callback ref useBackdropRef; unregister re-sends in a microtask. Alerts/hints/progress use capture fills over the blur. Radar pageBackdrop capability and page backdrop-filters removed. Mock desktop build gained a no-background option (default in Tauri) so the blur can be reviewed in game. User approved in game; PR #47.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `91901b5` | feat(overlay): world blur regions turn, fade and follow inset clips |
+| `aaa31ce` | feat(hud): world blur under the message zone, progress card, killfeed and win panel |
+| `b4f76de` | feat(hud): world blur under the bottom HUD circle and kill cards, radar and team counter equipment |
+| `66dc0cc` | docs(spec): world blur under every listed panel, turned and faded regions |
+| `8634bd1` | fix(mock): HUD debug background can be none, the default in the desktop build |
+
+### Status
+
+[OK] **Completed**

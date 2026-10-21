@@ -24,12 +24,10 @@ normalizeRadarPreferences(value?: Partial<RadarPreferences> | null): RadarPrefer
 useMinimapFeature(options?: {
   preferences?: Partial<RadarPreferences>;
   controls?: Partial<{ alternateZoomActive: boolean }>;
-  renderCapabilities?: Partial<{ pageBackdrop: boolean }>;
   now?: () => number;
 });
 selectMinimap(state: MinimapState, nowMs: number,
-  preferences?: Partial<RadarPreferences>,
-  renderCapabilities?: Partial<{ pageBackdrop: boolean }>): MinimapViewModel;
+  preferences?: Partial<RadarPreferences>): MinimapViewModel;
 subscribeGameForeground(listener: (state: GameForegroundState) => void): () => void;
 
 interface SlgoConnection {
@@ -258,18 +256,17 @@ last batched status can miss a connecting/baseline-required reset.
   fitting; an unrelated off-zone change must not postpone local recovery.
   Fit the displayed interpolated poses shared by the camera and markers, not
   the raw latest pose alone, so new targets enter immediately during movement.
-- Render capabilities distinguish a composited page backdrop from an external
-  game window. Requested `blurBackground` only becomes effective with a page
-  backdrop; transparent native WebView cannot claim to blur the external game.
-  `mapBlend` can blend artwork with the radar's own background, with source
-  opacity detail preserved. Do not globally fade markers/text for background
-  alpha or simulate native success based only on CSS support detection.
-  Apply effective backdrop blur at the shared radar viewport boundary, not
-  only to a background sibling below a screen-blended map: that sibling setup
-  can let the map resample the unblurred scene. A viewport backdrop filter
-  blurs pixels behind the radar without blurring its artwork/markers. The
-  visually calibrated CSS radius is 64px; it is not a conversion of Source2's
-  `gaussian(2,2,2)` values. Background alpha remains independently configurable.
+- The radar blur is SLUI's world blur (cs2-visual-replication "World blur",
+  system-boundaries 3.1): with `blurBackground` on, the viewport (circle or
+  square, its own corner radius) registers through `useBackdropRef`, and the
+  game behind it blurs at the shared world-blur strength (CS2's radar uses the
+  same `hudWorldBlur` as every HUD panel). Never a page `backdrop-filter` (the
+  transparent WebView cannot sample the game); the mock preview shows the
+  world-blur stand-in. The blur sits under the whole viewport, so the artwork and
+  markers stay sharp. `mapBlend` can blend artwork with the radar's own
+  background, with source opacity detail preserved. Do not globally fade
+  markers/text for background alpha. Background alpha remains independently
+  configurable.
 - Freshness uses local `performance.now()` and
   `max(1000, 3000 / position_update_hz)` milliseconds. Other feature events do
   not renew minimap age. Invalid/stale/disconnected frames clear all markers
@@ -285,7 +282,7 @@ last batched status can miss a connecting/baseline-required reset.
   `minimapPreset=cs2-reference` selects the supplied screenshot configuration;
   `minimap<FieldName>` parameters override fields (e.g. `minimapMapScale=1`).
   Debug `configure` accepts the same direct fields and `alternateZoomActive`.
-  `background=0` explicitly disables the page scene and backdrop capability.
+  `background=0` explicitly disables the page scene.
   The preview-only `dynamicTargets=near|far` fixture exercises real zoom changes;
   it changes existing authorized marker poses and never adds wire fields.
   `minimapLastKnown=1` turns the second enemy into a looping 6 s last-known marker
@@ -357,8 +354,10 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
   cameras, base/alternate/dynamic precedence and focus/stale/permission resets.
   Browser audits assert no room-label layer, a correct bottom location title,
   independently scaled radar HUD, and actual pixel changes for blur/blend/alpha
-  switches under a fixed page background. Native capability fallback is tested
-  separately and does not constitute real game-window blur acceptance.
+  switches under a fixed page background (the radar crop counts once two
+  consecutive shots agree: the stand-in layer coming or going re-rasterises the
+  turned room art once). The mock stand-in does not constitute real game-window
+  blur acceptance.
   Blur verification must measure reduced contrast of a known background test
   pattern; computed styles and a changed screenshot hash are insufficient.
   Use a browser that actually composites backdrop filters. The local Chromium

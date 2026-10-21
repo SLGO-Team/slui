@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { ConnectionStatus, MinimapDiagnostic, SlgoEvent } from "../../contracts";
 import { initialMinimapState, minimapReducer, selectMinimap, type MinimapAction, type MinimapState, type MinimapViewModel } from "./model";
 import { mapDescriptorKey, resolveMinimap } from "./resolver";
-import { normalizeRadarPreferences, type RadarPreferences, type RadarControls, type RadarRenderCapabilities } from "./preferences";
+import { normalizeRadarPreferences, type RadarPreferences, type RadarControls } from "./preferences";
 
 const monotonicNow = () => performance.now();
-export type { RadarPreferences, RadarControls, RadarRenderCapabilities } from "./preferences";
+export type { RadarPreferences, RadarControls } from "./preferences";
 
 /** The reducer state plus the presentation time the radar is sampled at. */
 type MinimapSnapshot = { state: MinimapState; nowMs: number };
@@ -57,8 +57,8 @@ export function useMinimapFeature(options: { now?: () => number } = {}) {
 }
 
 /** Subscribes the radar to the store and drives everything time- and option-dependent from there. */
-export function useMinimapView(store: MinimapStore, options: { preferences?: Partial<RadarPreferences>; controls?: Partial<RadarControls>;
-  renderCapabilities?: Partial<RadarRenderCapabilities> } = {}): MinimapViewModel {
+export function useMinimapView(store: MinimapStore, options: { preferences?: Partial<RadarPreferences>;
+  controls?: Partial<RadarControls> } = {}): MinimapViewModel {
   const { state, nowMs } = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const { now } = store;
   const preferences = normalizeRadarPreferences(options.preferences);
@@ -101,5 +101,5 @@ export function useMinimapView(store: MinimapStore, options: { preferences?: Par
     return () => window.cancelAnimationFrame(frame);
   }, [clockRunning, store, now]);
 
-  return selectMinimap(state, nowMs, preferences, options.renderCapabilities);
+  return selectMinimap(state, nowMs, preferences);
 }

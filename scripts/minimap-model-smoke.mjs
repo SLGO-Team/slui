@@ -432,12 +432,13 @@ for (const yaw of [0, 37, 90, 180, 270]) for (const forceSquare of [false, true]
     assert.ok(Math.abs(actual[axis] - expected) < 1e-8, "camera clamp follows current rotated zone bounds");
   }
 }
-for (const pageBackdrop of [true, false]) for (const blurBackground of [true, false]) for (const mapBlend of [true, false]) {
-  const view = selectMinimap(live, 150, { blurBackground, mapBlend }, { pageBackdrop });
-  assert.deepEqual(plain(view.effects), { mapBlend, blurBackground: blurBackground && pageBackdrop, pageBackdrop });
+// The radar's blur is the world blur (src/platform/backdrop.ts): the preference alone decides whether it registers.
+for (const blurBackground of [true, false]) for (const mapBlend of [true, false]) {
+  const view = selectMinimap(live, 150, { blurBackground, mapBlend });
+  assert.deepEqual(plain(view.effects), { mapBlend, blurBackground });
   assert.equal(view.markers.length, 5);
 }
-assert.equal(selectMinimap(live, 150).effects.blurBackground, false, "external backdrop capability defaults unsupported");
+assert.equal(selectMinimap(live, 150).effects.blurBackground, true, "the radar blurs by default, as in CS2");
 
 const configure = (snapshot, preferences = snapshot.preferences, alternateZoomActive = snapshot.alternateZoomRequested, nowMs = snapshot.radarUpdatedAtMs) =>
   minimapReducer(snapshot, { type: "radar-options", preferences, controls: { alternateZoomActive }, nowMs });
@@ -743,4 +744,4 @@ for (const time of [200, 232, 267]) {
     "a frame later than the playout delay never extrapolates: the camera holds the newest capture until it arrives");
 }
 
-console.log("minimap model smoke: 4 static layouts, 29 SVGs/110 mappings and zone+shape fallback; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, capability fallback, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout and observation-right following passed");
+console.log("minimap model smoke: 4 static layouts, 29 SVGs/110 mappings and zone+shape fallback; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, blur preference, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout and observation-right following passed");

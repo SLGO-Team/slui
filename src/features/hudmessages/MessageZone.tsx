@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { HudMessageView, HudMessageZoneSlot, HudMessageZoneView } from "./model";
+import { useBackdropRef } from "../../platform/backdrop.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import type { Role } from "../../contracts/index.ts";
@@ -26,6 +27,8 @@ const exitMsFor = (slot: HudMessageZoneSlot) => slot === "alert" ? HUD_ALERT_EXI
 type MessageBoxProps = { view: HudMessageView; leaving: boolean; still: boolean };
 
 function MessageBox({ view, leaving, still }: MessageBoxProps) {
+  // CSGOHudAlerts and .hud-hint.low/high-priority have `world-blur: hudWorldBlur`.
+  const box = useBackdropRef();
   const flash = view.flash;
   // The closing flash ends when the message expires; its delay is fixed from the flash start, so the
   // 250 ms UI clock never re-times it.
@@ -41,7 +44,7 @@ function MessageBox({ view, leaving, still }: MessageBoxProps) {
       data-still={still ? "true" : undefined}
       style={style}
     >
-      <div className="hudmsg__box">
+      <div ref={box} className="hudmsg__box">
         <span className="hudmsg__fill" aria-hidden="true" />
         <span className="hudmsg__white" aria-hidden="true" />
         <span className="hudmsg__glitch" aria-hidden="true" />

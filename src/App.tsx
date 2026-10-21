@@ -556,8 +556,6 @@ function App() {
         onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
         controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
-        renderCapabilities={{ pageBackdrop: (previewBackground === "1" || previewBackground === "2")
-          && !("__TAURI_INTERNALS__" in window) }}
         playerColors={playerColors} role={viewerRole} />
       <ShopPanel
         shop={displayedShop}

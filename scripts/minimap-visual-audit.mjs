@@ -343,14 +343,14 @@ try {
     await until('document.querySelector(".minimap-radar").dataset.availability === "live" && document.querySelectorAll(".minimap-bombsite").length === 2');
     expectedBombsites = ["A", "B"];
     await evaluate(`${control}.disconnect()`);
-    await until('document.querySelector(".minimap-radar").dataset.availability === "disconnected"');
-    assert.equal((await capture("disconnected", { fullMap: "false" })).markers.length, 0);
+    // Disconnected, the radar draws nothing at all (user decision 2026-10-19).
+    await until('!document.querySelector(".minimap-radar")');
 
     // Exercise the public preview preset, then hold the map stationary so actual
     // raster differences cannot come from moving markers, titles or HUD clocks.
     await request("Page.navigate", { url: `${previewUrl}?hudDebug=0&shopDebug=0&background=1&minimapMotion=0&minimapPreset=cs2-reference` });
     await until('document.querySelector(".minimap-radar")?.dataset.availability === "live" && !!window.__SLUI_MINIMAP_DEBUG__');
-    const reference = await capture("cs2-reference", { shape: "circle", orientation: "heading-up", mapScale: "0.25", mapBlend: "true", blurBackground: "true", pageBackdrop: "true" });
+    const reference = await capture("cs2-reference", { shape: "circle", orientation: "heading-up", mapScale: "0.25", mapBlend: "true", blurBackground: "true" });
     assert.ok(reference.location.length > 0 && !["两区概览", "办公区", "重收容区"].includes(reference.location), "fixture named room appears in the dashboard");
     const referenceTransform = reference.mapTransforms;
     // Measure a known page background through the real, screen-blended radar.
@@ -430,17 +430,31 @@ try {
         `marker ${marker.id} retains its colored core while the background loses detail`);
     }
     backdropContrast.push({ viewport: [width, height], sharp, blurred, ratio: blurred.contrast / sharp.contrast });
+    // The radar crop once two consecutive shots agree. The first shot after a layer change (the world blur stand-in
+    // coming or going) can still hold the turned room art's previous rasterisation; a radar that never settles fails.
+    async function settledRadarHash(circle) {
+      let previous = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const shot = await request("Page.captureScreenshot", { format: "png", clip: { ...circle, scale: 1 } });
+        const hash = createHash("sha256").update(Buffer.from(shot.data, "base64")).digest("hex");
+        if (hash === previous) return hash;
+        previous = hash;
+      }
+      return null;
+    }
     async function comparePixels(name, off, on) {
       await configure(off);
       const before = await capture(`${name}-off`);
-      const stable = await request("Page.captureScreenshot", { format: "png", clip: { ...before.circle, scale: 1 } });
-      assert.equal(createHash("sha256").update(Buffer.from(stable.data, "base64")).digest("hex"), before.radarPixelHash, `${name}: stationary baseline pixels are repeatable`);
+      const beforeHash = await settledRadarHash(before.circle);
+      assert.ok(beforeHash, `${name}: stationary baseline pixels are repeatable`);
       await configure(on);
       const after = await capture(`${name}-on`);
+      const afterHash = await settledRadarHash(after.circle);
+      assert.ok(afterHash, `${name}: changed pixels are repeatable`);
       assert.deepEqual(before.mapTransforms, after.mapTransforms, `${name}: camera and artwork do not change`);
       assert.deepEqual(before.markers, after.markers, `${name}: authorized marker positions do not change`);
-      assert.notEqual(before.radarPixelHash, after.radarPixelHash, `${name}: setting changes rendered radar pixels`);
-      pixelComparisons.push({ viewport: [width, height], setting: name, before: before.radarPixelHash, after: after.radarPixelHash });
+      assert.notEqual(beforeHash, afterHash, `${name}: setting changes rendered radar pixels`);
+      pixelComparisons.push({ viewport: [width, height], setting: name, before: beforeHash, after: afterHash });
     }
     await comparePixels("background-alpha", { backgroundAlpha: 0 }, { backgroundAlpha: 1 });
     await configure({ backgroundAlpha: 0.63 });
@@ -493,8 +507,8 @@ try {
 
     await request("Page.navigate", { url: `${previewUrl}?hudDebug=0&shopDebug=0&background=0&minimapMotion=0&minimapPreset=cs2-reference` });
     await until('document.querySelector(".minimap-radar")?.dataset.availability === "live" && !!window.__SLUI_MINIMAP_DEBUG__');
-    const transparent = await capture("transparent-capability-fallback", { pageBackdrop: "false", blurBackground: "false" });
-    assert.equal(transparent.backdropFilter, "none", "no page backdrop deterministically disables effective blur");
+    const transparent = await capture("transparent-background", { blurBackground: "true" });
+    assert.equal(transparent.backdropFilter, "none", "the radar's blur is the world blur, never a page backdrop-filter");
   }
   assert.deepEqual([...bombsiteTiers].sort(), ["false", "true"], "both bombsite tiers (on-map and edge) were rendered");
   assert.deepEqual(runtimeErrors, [], "Browser runtime/resource errors");

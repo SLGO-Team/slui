@@ -60,6 +60,7 @@ const AVAILABILITY_LABELS: Readonly<Record<typeof HUD_DEBUG_AVAILABILITIES[numbe
 };
 
 const BACKGROUND_LABELS: Readonly<Record<typeof HUD_DEBUG_BACKGROUNDS[number], string>> = {
+  none: "无（游戏画面）",
   "1": "背景 1",
   "2": "背景 2",
 };

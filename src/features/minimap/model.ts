@@ -2,7 +2,7 @@ import { MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, type C
   type MinimapBombsite, type MinimapCommanderKeycard, type MinimapPosition, type MinimapPositions, type MinimapPositionsEvent, type SlgoEvent } from "../../contracts";
 import { assertSupportedMap, mapDescriptorKey, type MapGeometry } from "./resolver.ts";
 import { clampToRadar, createRadarCamera, positionMarker, radarShape, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
-import { normalizeRadarPreferences, type RadarPreferences, type RadarControls, type RadarRenderCapabilities } from "./preferences.ts";
+import { normalizeRadarPreferences, type RadarPreferences, type RadarControls } from "./preferences.ts";
 import { advanceDynamicZoom, dynamicZoomTarget, dynamicZoomTargets, type DynamicZoomState } from "./dynamicZoom.ts";
 
 type Source = { serverId: string; instanceId: string };
@@ -318,7 +318,7 @@ export type MinimapViewModel = {
   viewerAlive: boolean | null;
   zoneLabel: string;
   locationLabel: string;
-  effects: { mapBlend: boolean; blurBackground: boolean; pageBackdrop: boolean };
+  effects: { mapBlend: boolean; blurBackground: boolean };
   activeMapScale: number;
   alternateZoomActive: boolean;
   dynamicZoomActive: boolean;
@@ -388,8 +388,7 @@ function interpolatedRadarPoses(state: MinimapState, frame: Frame | null, nowMs:
   return { positions, fading, viewpoint };
 }
 
-export function selectMinimap(state: MinimapState, nowMs: number, preferences?: Partial<RadarPreferences>,
-  renderCapabilities: Partial<RadarRenderCapabilities> = {}): MinimapViewModel {
+export function selectMinimap(state: MinimapState, nowMs: number, preferences?: Partial<RadarPreferences>): MinimapViewModel {
   const stale = state.frame !== null && nowMs - state.frame.receivedAtMs > minimapStaleAfterMs(state.init);
   const frame = stale ? null : state.frame;
   const availability = stale ? "stale" : state.availability;
@@ -425,11 +424,10 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
   // Without a viewpoint the title stays empty (no overview caption, user decision 2026-10-19).
   const locationLabel = currentViewpoint
     ? locationRoom?.label ?? (currentViewpoint.zone === "Entrance" ? "办公区" : "重收容区") : "";
-  const pageBackdrop = renderCapabilities.pageBackdrop === true;
   return { availability, connected: CONNECTED_STATUSES.has(state.connectionStatus),
     statusLabel: STATUS_LABELS[availability], geometry: state.geometry, camera, markers, keycard, bombsites,
     shape, viewSize: shape === "square" ? 290 : 250, locationLabel,
-    effects: { mapBlend: normalized.mapBlend, blurBackground: normalized.blurBackground && pageBackdrop, pageBackdrop },
+    effects: { mapBlend: normalized.mapBlend, blurBackground: normalized.blurBackground },
     activeMapScale, alternateZoomActive, dynamicZoomActive,
     preferences: normalized, fullMap, viewerAlive: frame?.payload.viewer.is_alive ?? null,
     zoneLabel: !camera || camera.mode === "overview" ? "办公区 / 重收容区" : camera.zone === "Entrance" ? "办公区" : "重收容区" };

@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/10-21-backdrop-blur/design.md", "reason": "Shared design: module, contract, fills"}
+{"file": ".trellis/tasks/10-21-backdrop-blur/research/cs2-world-blur-sources.md", "reason": "Panel list from Panorama"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Fill rules, per-panel replication rules"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "World blur command contract"}
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Radar blur and render capability rules"}

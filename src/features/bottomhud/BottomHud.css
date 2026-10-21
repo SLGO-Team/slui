@@ -82,8 +82,9 @@
   background: linear-gradient(to left, transparent, var(--bhud-wash));
 }
 
-/* Centre circle 64 x 64 (hud-HA-center): dark fill (denser than the game's blur, which the overlay cannot
-   draw), washed ring and emblem. */
+/* Centre circle 64 x 64 (hud-HA-center): hud-blur-bg-color fill at the 0.5 it reads in game (the killfeed
+   capture of the same colour), washed ring and emblem; the same with SLUI's world blur under the disc
+   (src/platform/backdrop.ts) and without it. */
 .bhud__center {
   position: absolute;
   left: 368px;
@@ -322,7 +323,8 @@
   border-radius: 4.6px;
 }
 
-/* Denser than the circle: in game an upper card's blur hides the cards under it. */
+/* Denser than the circle: in game an upper card's blur hides the cards under it. Each card body has its own
+   world blur (src/platform/backdrop.ts), turned with the card. */
 .bhud-card__body {
   background-color: rgba(0, 0, 0, 0.62);
   background-image:

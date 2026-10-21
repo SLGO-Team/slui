@@ -27,8 +27,13 @@ const SIGMA_AT_1080: [f64; 3] = [20.0, 30.0, 40.0];
 #[cfg_attr(not(windows), allow(dead_code))]
 const IDLE_STOP_MS: u128 = 5_000;
 
-/// A panel rect in overlay CSS px, its corner radius (CSS px) and effective opacity.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Deserialize)]
+/// Most samples a vertical opacity profile keeps: the shader's `float4 fade[4]`.
+const MAX_FADE_STOPS: usize = 16;
+
+/// A panel box in overlay CSS px, its corner radius (CSS px) and effective opacity. `angle` turns
+/// the box about its centre (radians, clockwise on screen, as CSS `rotate`); `fade` is an opacity
+/// mask down the box (CSS `mask` with a vertical gradient).
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
 pub struct Region {
     pub x: f64,
     pub y: f64,
@@ -36,6 +41,19 @@ pub struct Region {
     pub h: f64,
     pub radius: f64,
     pub alpha: f64,
+    #[serde(default)]
+    pub angle: f64,
+    #[serde(default)]
+    pub fade: Option<Fade>,
+}
+
+/// Opacity samples evenly spaced from `offset` to `offset + length` (CSS px from the box's top edge,
+/// in the box's own frame), linear between samples, clamped beyond.
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+pub struct Fade {
+    pub offset: f64,
+    pub length: f64,
+    pub stops: Vec<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -55,12 +73,27 @@ impl Rect {
     }
 }
 
-/// A region ready to draw: in blur-window px, with radius in px and opacity 0-1.
+/// A region ready to draw, in blur-window px: `rect` is drawn (it holds the turned box), the box
+/// has its centre at `centre` (from `rect`'s origin), half size `half` and direction `rot`
+/// (cos, sin). Radius in px, opacity 0-1.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placed {
     pub rect: Rect,
+    pub centre: [f32; 2],
+    pub half: [f32; 2],
+    pub rot: [f32; 2],
     pub radius: f32,
     pub alpha: f32,
+    pub fade: Option<PlacedFade>,
+}
+
+/// `Fade` in blur-window px; `count` of `stops` are used.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlacedFade {
+    pub offset: f32,
+    pub length: f32,
+    pub stops: [f32; MAX_FADE_STOPS],
+    pub count: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -105,36 +138,88 @@ fn available(state: &Shared) -> bool {
     state.engine_ok && state.borderless == Some(true) && !state.capture_failed
 }
 
-/// Drops unusable regions (non-finite, empty, invisible), clamps radius and opacity, caps the count.
+/// Drops unusable regions (non-finite, empty, invisible) and fades, clamps radius and opacity, caps
+/// the count.
 fn sanitize(regions: Vec<Region>) -> Vec<Region> {
     regions
         .into_iter()
         .filter(|region| {
-            [region.x, region.y, region.w, region.h, region.radius, region.alpha].iter().all(|value| value.is_finite())
+            [region.x, region.y, region.w, region.h, region.radius, region.alpha, region.angle]
+                .iter()
+                .all(|value| value.is_finite())
                 && region.w >= 1.0
                 && region.h >= 1.0
                 && region.alpha > 0.0
         })
-        .map(|region| Region { radius: region.radius.max(0.0), alpha: region.alpha.min(1.0), ..region })
+        .map(|region| Region {
+            radius: region.radius.max(0.0),
+            alpha: region.alpha.min(1.0),
+            fade: region.fade.and_then(sanitize_fade),
+            ..region
+        })
         .take(MAX_REGIONS)
         .collect()
 }
 
-/// Overlay CSS px to blur-window px (the blur window has the overlay's rect). Edges are rounded
-/// separately so adjacent regions stay adjacent.
+/// A fade needs a finite span of at least a pixel and 2-16 finite samples, clamped to 0-1.
+fn sanitize_fade(fade: Fade) -> Option<Fade> {
+    let usable = fade.offset.is_finite()
+        && fade.length.is_finite()
+        && fade.length >= 1.0
+        && (2..=MAX_FADE_STOPS).contains(&fade.stops.len())
+        && fade.stops.iter().all(|stop| stop.is_finite());
+    usable.then(|| Fade { stops: fade.stops.iter().map(|stop| stop.clamp(0.0, 1.0)).collect(), ..fade })
+}
+
+/// Overlay CSS px to blur-window px (the blur window has the overlay's rect). An upright box keeps
+/// its edges, rounded separately so adjacent regions stay adjacent; a turned box is drawn in its
+/// bounds plus a pixel for the antialiased edge.
 pub fn place(region: &Region, scale: f64) -> Option<Placed> {
-    let left = (region.x * scale).round();
-    let top = (region.y * scale).round();
-    let right = ((region.x + region.w) * scale).round();
-    let bottom = ((region.y + region.h) * scale).round();
+    let (sin, cos) = region.angle.sin_cos();
+    let (rect, centre, half) = if region.angle == 0.0 {
+        let left = (region.x * scale).round();
+        let top = (region.y * scale).round();
+        let right = ((region.x + region.w) * scale).round();
+        let bottom = ((region.y + region.h) * scale).round();
+        let half = [(right - left) / 2.0, (bottom - top) / 2.0];
+        ([left, top, right, bottom], half, half)
+    } else {
+        let (w, h) = (region.w * scale, region.h * scale);
+        let cx = (region.x + region.w / 2.0) * scale;
+        let cy = (region.y + region.h / 2.0) * scale;
+        let reach_x = (cos.abs() * w + sin.abs() * h) / 2.0 + 1.0;
+        let reach_y = (sin.abs() * w + cos.abs() * h) / 2.0 + 1.0;
+        let (left, top) = ((cx - reach_x).floor(), (cy - reach_y).floor());
+        let (right, bottom) = ((cx + reach_x).ceil(), (cy + reach_y).ceil());
+        ([left, top, right, bottom], [cx - left, cy - top], [w / 2.0, h / 2.0])
+    };
+    let [left, top, right, bottom] = rect;
     let (w, h) = (right - left, bottom - top);
-    if !(w >= 1.0 && h >= 1.0) || [left, top, w, h].iter().any(|value| value.abs() > 1.0e6) {
+    if !(w >= 1.0 && h >= 1.0 && half[0] >= 0.5 && half[1] >= 0.5)
+        || [left, top, w, h].iter().any(|value| value.abs() > 1.0e6)
+    {
         return None;
     }
+    let fade = region.fade.as_ref().map(|fade| {
+        let mut stops = [0.0; MAX_FADE_STOPS];
+        for (slot, stop) in stops.iter_mut().zip(&fade.stops) {
+            *slot = *stop as f32;
+        }
+        PlacedFade {
+            offset: (fade.offset * scale) as f32,
+            length: (fade.length * scale) as f32,
+            stops,
+            count: fade.stops.len().min(MAX_FADE_STOPS) as u32,
+        }
+    });
     Some(Placed {
         rect: Rect { x: left as i32, y: top as i32, w: w as i32, h: h as i32 },
+        centre: centre.map(|value| value as f32),
+        half: half.map(|value| value as f32),
+        rot: [cos as f32, sin as f32],
         radius: (region.radius * scale) as f32,
         alpha: region.alpha as f32,
+        fade,
     })
 }
 
@@ -289,7 +374,10 @@ cbuffer Params : register(b0) {
     float4 uvRect;
     float2 clampMin; float2 clampMax;
     float2 size; float radius; float alpha;
-    float mask; float3 pad;
+    float2 centre; float2 halfBox;
+    float2 rot; float mask; float fadeCount;
+    float fadeOffset; float fadeLength; float2 pad;
+    float4 fade[4];
 };
 Texture2D src : register(t0);
 SamplerState samp : register(s0);
@@ -302,6 +390,11 @@ VSOut vs(uint id : SV_VertexID) {
     return o;
 }
 float3 tap(float2 uv) { return src.SampleLevel(samp, clamp(uv, clampMin, clampMax), lod).rgb; }
+float fadeAt(uint k) {
+    float4 v = fade[k >> 2];
+    uint c = k & 3;
+    return c == 0 ? v.x : c == 1 ? v.y : c == 2 ? v.z : v.w;
+}
 float4 ps(VSOut i) : SV_Target {
     float2 uv = uvRect.xy + i.uv * uvRect.zw;
     float3 color;
@@ -319,14 +412,21 @@ float4 ps(VSOut i) : SV_Target {
         color = sum / total;
     }
     if (mask < 0.5) return float4(color, 1);
+    // The pixel in the box's own frame: turned back about the box centre.
+    float2 p = i.uv * size - centre;
+    float2 local = float2(p.x * rot.x + p.y * rot.y, p.y * rot.x - p.x * rot.y);
     // Rounded-rect coverage with a one-pixel antialiased edge; a radius of half the short side
     // makes a circle.
-    float2 p = i.uv * size;
-    float2 halfSize = size * 0.5;
-    float r = min(radius, min(halfSize.x, halfSize.y));
-    float2 q = abs(p - halfSize) - (halfSize - r);
+    float r = min(radius, min(halfBox.x, halfBox.y));
+    float2 q = abs(local) - (halfBox - r);
     float d = length(max(q, 0)) + min(max(q.x, q.y), 0) - r;
     float a = saturate(0.5 - d) * alpha;
+    // Vertical opacity mask: samples evenly spaced down the box, linear between them.
+    if (fadeCount >= 2) {
+        float t = saturate((local.y + halfBox.y - fadeOffset) / fadeLength) * (fadeCount - 1);
+        uint k = min((uint)t, (uint)fadeCount - 2);
+        a *= lerp(fadeAt(k), fadeAt(k + 1), t - (float)k);
+    }
     return float4(color * a, a);
 }
 "#;
@@ -343,8 +443,15 @@ float4 ps(VSOut i) : SV_Target {
         size: [f32; 2],
         radius: f32,
         alpha: f32,
+        centre: [f32; 2],
+        half: [f32; 2],
+        rot: [f32; 2],
         mask: f32,
-        pad: [f32; 3],
+        fade_count: f32,
+        fade_offset: f32,
+        fade_length: f32,
+        pad: [f32; 2],
+        fade: [f32; super::MAX_FADE_STOPS],
     }
 
     struct Target {
@@ -786,8 +893,14 @@ float4 ps(VSOut i) : SV_Target {
                         ..Default::default()
                     },
                 );
-                // Upscale into the panel's rect, masked to its corners and faded with it.
+                // Upscale into the panel's rect, masked to its (turned) corners and faded with it.
                 let r = region.rect;
+                let fade = region.fade.unwrap_or(super::PlacedFade {
+                    offset: 0.0,
+                    length: 1.0,
+                    stops: [0.0; super::MAX_FADE_STOPS],
+                    count: 0,
+                });
                 self.pass(
                     &back,
                     (r.x as f32, r.y as f32, r.w as f32, r.h as f32),
@@ -805,7 +918,14 @@ float4 ps(VSOut i) : SV_Target {
                         size: [r.w as f32, r.h as f32],
                         radius: region.radius,
                         alpha: region.alpha,
+                        centre: region.centre,
+                        half: region.half,
+                        rot: region.rot,
                         mask: 1.0,
+                        fade_count: fade.count as f32,
+                        fade_offset: fade.offset,
+                        fade_length: fade.length,
+                        fade: fade.stops,
                         ..Default::default()
                     },
                 );
@@ -1013,6 +1133,19 @@ float4 ps(VSOut i) : SV_Target {
             publish_availability(app);
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn shaders_compile() {
+            assert!(compile(s!("vs"), s!("vs_5_0")).is_ok());
+            assert!(compile(s!("ps"), s!("ps_5_0")).is_ok());
+            // The constant buffer is whole 16-byte registers, as HLSL packs it.
+            assert_eq!(std::mem::size_of::<Params>() % 16, 0);
+        }
+    }
 }
 
 #[cfg(not(windows))]
@@ -1035,7 +1168,7 @@ mod tests {
     use super::*;
 
     fn region(x: f64, y: f64, w: f64, h: f64) -> Region {
-        Region { x, y, w, h, radius: 5.0, alpha: 1.0 }
+        Region { x, y, w, h, radius: 5.0, alpha: 1.0, angle: 0.0, fade: None }
     }
 
     #[test]
@@ -1043,6 +1176,30 @@ mod tests {
         let placed = place(&region(480.0, 278.0, 960.0, 584.0), 1.5).unwrap();
         assert_eq!(placed.rect, Rect { x: 720, y: 417, w: 1440, h: 876 });
         assert_eq!(placed.radius, 7.5);
+        // Upright: the box fills the drawn rect.
+        assert_eq!((placed.centre, placed.half, placed.rot), ([720.0, 438.0], [720.0, 438.0], [1.0, 0.0]));
+    }
+
+    #[test]
+    fn draws_a_turned_box_in_its_bounds() {
+        let turned = Region { angle: std::f64::consts::FRAC_PI_4, ..region(0.0, 0.0, 10.0, 10.0) };
+        let placed = place(&turned, 1.0).unwrap();
+        // A 10 px square turned 45° reaches 7.07 px from its centre (5, 5), plus the antialiased pixel.
+        assert_eq!(placed.rect, Rect { x: -4, y: -4, w: 18, h: 18 });
+        assert_eq!((placed.centre, placed.half), ([9.0, 9.0], [5.0, 5.0]));
+        assert!((placed.rot[0] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+        assert!((placed.rot[1] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn places_a_fade_in_blur_window_px() {
+        let faded = Region {
+            fade: Some(Fade { offset: -4.0, length: 204.0, stops: vec![1.0, 0.5, 0.0] }),
+            ..region(10.0, 10.0, 54.0, 200.0)
+        };
+        let fade = place(&faded, 1.5).unwrap().fade.unwrap();
+        assert_eq!((fade.offset, fade.length, fade.count), (-6.0, 306.0, 3));
+        assert_eq!(&fade.stops[..4], &[1.0, 0.5, 0.0, 0.0]);
     }
 
     #[test]
@@ -1093,5 +1250,19 @@ mod tests {
         assert_eq!((kept[0].alpha, kept[0].radius), (1.0, 0.0));
         regions.extend(std::iter::repeat_n(region(0.0, 0.0, 10.0, 10.0), MAX_REGIONS + 5));
         assert_eq!(sanitize(regions).len(), MAX_REGIONS);
+        let turned = Region { angle: f64::INFINITY, ..region(0.0, 0.0, 10.0, 10.0) };
+        assert!(sanitize(vec![turned]).is_empty());
+    }
+
+    #[test]
+    fn sanitize_keeps_usable_fades_only() {
+        let fade = |offset: f64, length: f64, stops: Vec<f64>| Some(Fade { offset, length, stops });
+        let with = |fade: Option<Fade>| sanitize(vec![Region { fade, ..region(0.0, 0.0, 10.0, 10.0) }]).remove(0).fade;
+        assert_eq!(with(fade(0.0, 100.0, vec![2.0, -1.0])), fade(0.0, 100.0, vec![1.0, 0.0]));
+        assert_eq!(with(fade(0.0, 100.0, vec![1.0])), None, "one sample is not a profile");
+        assert_eq!(with(fade(0.0, 100.0, vec![1.0; MAX_FADE_STOPS + 1])), None, "more than the shader holds");
+        assert_eq!(with(fade(0.0, 0.0, vec![1.0, 0.0])), None, "an empty span");
+        assert_eq!(with(fade(f64::NAN, 100.0, vec![1.0, 0.0])), None);
+        assert_eq!(with(fade(0.0, 100.0, vec![1.0, f64::NAN])), None);
     }
 }

@@ -13,6 +13,7 @@ import {
   checkerSquares,
   type CheckerSquare,
 } from "./checker.ts";
+import { useBackdropRef } from "../../platform/backdrop.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import "./WinPanel.css";
 
@@ -157,6 +158,8 @@ type WinPanelCardProps = { view: WinPanelView; leaving: boolean; still: boolean;
 function WinPanelCard({ view, leaving, still, scale }: WinPanelCardProps) {
   const titleRef = useShrinkToFit<HTMLDivElement>(view.title);
   const subtitleRef = useShrinkToFit<HTMLDivElement>(view.subtitle ?? "");
+  // .WinPanel__Result has `world-blur: hudWorldBlur`.
+  const result = useBackdropRef();
   const style = {
     "--winpanel-accent": view.colors.accent,
     "--winpanel-fill": view.colors.fill,
@@ -173,7 +176,7 @@ function WinPanelCard({ view, leaving, still, scale }: WinPanelCardProps) {
       data-still={still ? "true" : undefined}
       style={style}
     >
-      <div className="winpanel-result" data-winpanel="result">
+      <div ref={result} className="winpanel-result" data-winpanel="result">
         <span className="winpanel-result__arrows winpanel-result__arrows--left" aria-hidden="true" />
         <span className="winpanel-result__arrows winpanel-result__arrows--right" aria-hidden="true" />
         <div ref={titleRef} className="winpanel-result__title">{view.title}</div>

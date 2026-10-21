@@ -50,8 +50,9 @@ const nearScale = (design) => design * scale;
 // Captures: every box x 810-1109 (300 wide); alert y 750, high hint y 802, low hint y 868; one line
 // 40px, two lines 60px (lines 21px apart).
 const SLOT_Y = { alert: 750, hint_high: 802, hint_low: 868 };
-const GOLD = "rgb(236, 189, 87)";
-const BAR = { alert: "rgba(236, 189, 87, 0.5)", hint_high: "rgb(255, 24, 0)", hint_low: GOLD };
+// The alert and low-hint bars are the viewer's team wash (NTF for team-a), the alert's at half strength.
+const NTF = "rgb(150, 200, 250)";
+const BAR = { alert: "color(srgb 0.588235 0.784314 0.980392 / 0.5)", hint_high: "rgb(255, 24, 0)", hint_low: NTF };
 // Viewer team-a plays NTF in the mock roster; texts at hudSceneAt 2000 unless `at` says otherwise.
 const SCENES = [
   { scene: "match-point", slots: { alert: { text: "赛点", lines: 1, tone: "match_point" } } },

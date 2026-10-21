@@ -44,7 +44,9 @@ export const HUD_DEBUG_AVAILABILITIES = [
   "no-match",
 ] as const;
 
+/** "none": the page stays transparent, so the desktop build shows the game (and its world blur) behind the HUD. */
 export const HUD_DEBUG_BACKGROUNDS = [
+  "none",
   "1",
   "2",
 ] as const;
@@ -90,6 +92,11 @@ export const DEFAULT_HUD_DEBUG_OPTIONS: HudDebugOptions = {
   hudScene: "none",
   hudSceneAt: null,
 };
+
+/** The desktop overlay sits over the game, so it starts without a screenshot background; the browser preview with one. */
+function defaultBackground(): HudDebugBackground {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window ? "none" : DEFAULT_HUD_DEBUG_OPTIONS.background;
+}
 
 const ROUND_TIMING: Readonly<Record<RoundState, { remainingMs: number; paused: boolean }>> = {
   Idle: { remainingMs: 0, paused: true },
@@ -155,7 +162,7 @@ export function readHudDebugOptions(search: string = window.location.search): Hu
       : DEFAULT_HUD_DEBUG_OPTIONS.availability,
     background: includesValue(HUD_DEBUG_BACKGROUNDS, background)
       ? background
-      : DEFAULT_HUD_DEBUG_OPTIONS.background,
+      : defaultBackground(),
     hudScene: readHudScene(params.get("hudScene")),
     hudSceneAt: readHudSceneAt(params.get("hudSceneAt")),
   };

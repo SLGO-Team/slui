@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { useBackdropRef } from "../../platform/backdrop.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import type { KillfeedNoticeView } from "./model.ts";
 import { KILLFEED_HEADSHOT_ICON, KILLFEED_SUICIDE_ICON, type KillfeedPlayerView } from "./presentation.ts";
@@ -15,6 +16,8 @@ type NoticeProps = { view: KillfeedNoticeView; still: boolean };
 
 function Notice({ view, still }: NoticeProps) {
   const [mountedAtMs] = useState(Date.now);
+  // .DeathNoticeBG (plain, victim, killer) has `world-blur: hudWorldBlur`.
+  const notice = useBackdropRef();
   // The fade-out starts at the entry's own time, not on the next 250 ms UI tick; a negative delay starts it part-way.
   const style = { "--killfeed-fade-delay": `${view.fadeAtMs - mountedAtMs}ms` } as CSSProperties;
   const entering = !still && mountedAtMs - view.firstSeenAtMs < KILLFEED_ENTER_MS;
@@ -26,7 +29,7 @@ function Notice({ view, still }: NoticeProps) {
     entering ? "killfeed__notice--enter" : "",
   ].filter(Boolean).join(" ");
   return (
-    <div className={classes} data-killfeed-entry={view.id} data-viewer={view.viewer ?? undefined} style={style}>
+    <div ref={notice} className={classes} data-killfeed-entry={view.id} data-viewer={view.viewer ?? undefined} style={style}>
       <div className="killfeed__content">
         {view.killer ? <Name player={view.killer} /> : null}
         {view.assister ? (
