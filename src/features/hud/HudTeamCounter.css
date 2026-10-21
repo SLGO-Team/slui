@@ -425,10 +425,10 @@
   inset: 0;
 }
 
+/* .equipinfo__blurbg: the world blur is SLUI's own, under the whole panel (src/platform/backdrop.ts); this layer keeps
+   its dot texture. */
 .hud-player__equipment-blur {
   z-index: 0;
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
 }
 
 .hud-player__equipment-blur::after {

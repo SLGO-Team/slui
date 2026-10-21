@@ -23,6 +23,7 @@ import {
   type TopHudPlayerMeta,
   type TopHudPlayerMetaById,
 } from "./presentation";
+import { sampleFade, useBackdropRef } from "../../platform/backdrop.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import "./HudTeamCounter.css";
 
@@ -50,7 +51,14 @@ const ARMOR_ICON_BY_TYPE: Readonly<Record<TopHudArmor, string>> = {
   heavy: "/assets/slui-svg/ArmorHeavy.svg",
 };
 
+/** `/assets/hud/fade-mask.svg` (Panorama top-bottom-fade-4), the equipment panel's mask, for its world blur. */
+const EQUIPMENT_FADE = sampleFade([
+  [0, 1], [0.24, 0.94], [0.48, 0.725], [0.62, 0.6], [0.71, 0.5], [0.79, 0.39], [0.86, 0.2], [0.92, 0.035], [0.937, 0],
+]);
+
 function EquipmentSummary({ meta, armorEnabled }: { meta?: TopHudPlayerMeta; armorEnabled: boolean }) {
+  // .equipinfo__blurbg has `world-blur: hudWorldBlur` under the same mask; the blur follows the reveal clip too.
+  const background = useBackdropRef({ fade: EQUIPMENT_FADE });
   const money = meta?.money !== undefined && Number.isFinite(meta.money)
     ? `$${Math.max(0, Math.trunc(meta.money))}`
     : null;
@@ -63,7 +71,7 @@ function EquipmentSummary({ meta, armorEnabled }: { meta?: TopHudPlayerMeta; arm
 
   return (
     <div className="hud-player__equipment">
-      <div className="hud-player__equipment-background" aria-hidden="true">
+      <div ref={background} className="hud-player__equipment-background" aria-hidden="true">
         <span className="hud-player__equipment-blur" />
         <span className="hud-player__equipment-fill" />
       </div>

@@ -3,7 +3,8 @@ import { useOverlayScale } from "../../shared/overlay";
 import type { MinimapViewModel, RadarBombsite, RadarKeycard } from "./model";
 import type { MapGeometry } from "./resolver";
 import { cameraToRadar, roomArtworkToWorld, type RadarCamera, type RadarMarker } from "./camera";
-import { useMinimapView, type MinimapStore, type RadarControls, type RadarPreferences, type RadarRenderCapabilities } from "./useMinimapFeature";
+import { useMinimapView, type MinimapStore, type RadarControls, type RadarPreferences } from "./useMinimapFeature";
+import { useBackdropRef } from "../../platform/backdrop";
 import { PLAYER_COLORS } from "../hud/presentation";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import type { Role } from "../../contracts";
@@ -130,6 +131,8 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
   const id = useId().replace(/:/g, "");
   const { geometry, camera, viewSize } = radar;
   const showStatus = radar.availability !== "live" || radar.viewerAlive === false;
+  // #Radar__Round--Inner / #Radar__Square--Inner have `world-blur: hudWorldBlur`; the "模糊背景" preference turns it off.
+  const viewport = useBackdropRef({ enabled: radar.effects.blurBackground });
   // No radar area at all until a server instance is connected (user decision 2026-10-19).
   if (!radar.connected) return null;
   return <div className="minimap-overlay" aria-label="战术雷达">
@@ -137,14 +140,14 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
       <section className="minimap-radar" data-availability={radar.availability} data-camera={camera?.mode ?? "none"}
         data-orientation={radar.preferences.orientation} data-full-map={radar.fullMap} data-viewer-alive={radar.viewerAlive}
         data-shape={radar.shape} data-map-blend={radar.effects.mapBlend} data-blur-background={radar.effects.blurBackground}
-        data-page-backdrop={radar.effects.pageBackdrop} data-hud-scale={radar.preferences.hudScale}
+        data-hud-scale={radar.preferences.hudScale}
         data-map-scale={radar.activeMapScale} data-alternate-zoom={radar.alternateZoomActive} data-dynamic-zoom={radar.dynamicZoomActive}
         style={{ "--radar-hud-scale": radar.preferences.hudScale, "--radar-view-size": `${viewSize}px`,
           "--radar-background-alpha": radar.preferences.backgroundAlpha,
           // The frame and title wear the viewer's SLGO team colour like the bottom HUD; a team-less observer keeps the CSS default.
           ...(role ? { "--radar-accent": ROLE_COLORS[role] } : {}) } as CSSProperties}>
         <RadarFilters id={id} />
-        <div className="minimap-radar__viewport">
+        <div ref={viewport} className="minimap-radar__viewport">
           <div className="minimap-radar__background" />
           <svg className="minimap-radar__map" width={viewSize} height={viewSize} viewBox={`0 0 ${viewSize} ${viewSize}`} aria-hidden="true">
             <defs><clipPath id={`${id}-clip`}>
@@ -177,8 +180,8 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
 }
 
 /** The radar bound to the minimap store: its per-frame clock re-renders this subtree, not the overlay. */
-export function LiveMinimapRadar({ store, preferences, controls, renderCapabilities, playerColors, role }: { store: MinimapStore;
-  preferences?: Partial<RadarPreferences>; controls?: Partial<RadarControls>; renderCapabilities?: Partial<RadarRenderCapabilities>;
+export function LiveMinimapRadar({ store, preferences, controls, playerColors, role }: { store: MinimapStore;
+  preferences?: Partial<RadarPreferences>; controls?: Partial<RadarControls>;
   playerColors?: Readonly<Record<string, string>>; role?: Role | null }) {
-  return <MinimapRadar radar={useMinimapView(store, { preferences, controls, renderCapabilities })} playerColors={playerColors} role={role} />;
+  return <MinimapRadar radar={useMinimapView(store, { preferences, controls })} playerColors={playerColors} role={role} />;
 }

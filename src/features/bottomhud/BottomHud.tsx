@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { HudAmmo, HudKillKind, HudReserveIcon, Role } from "../../contracts/index.ts";
+import { useBackdropRef } from "../../platform/backdrop.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import type { BottomHudView } from "./model.ts";
@@ -73,10 +74,15 @@ const art = (url: string) => ({ "--bhud-art": `url("${url}")` }) as CSSPropertie
 
 const poseStyle = (pose: KillCardPose) => ({ "--bhud-card-x": `${pose.x}px`, "--bhud-card-y": `${pose.y}px`, "--bhud-card-deg": `${pose.deg}deg` }) as CSSProperties;
 
+/** .kill-flag-bg-blur has `world-blur: hudWorldBlur`: the blur turns with the card. */
+function CardBody() {
+  return <span ref={useBackdropRef()} className="bhud-card__body" aria-hidden="true" />;
+}
+
 function KillCard({ card, fresh, top }: { card: KillCardView; fresh: boolean; top: boolean }) {
   return (
     <div className={`bhud-card${fresh ? " bhud-card--fresh" : ""}`} style={poseStyle(card.pose)} data-kill={card.index} data-kind={card.kind}>
-      <span className="bhud-card__body" aria-hidden="true" />
+      <CardBody />
       <span className="bhud-card__art" style={art(`${ASSETS}/${card.ace ? "kill-card-ace" : "kill-card"}.svg`)} aria-hidden="true" />
       {/* Only the top card's number shows; the next card covers the others in game. */}
       {card.ace || !top ? null : <span className="bhud-card__number">{card.index}</span>}
@@ -90,7 +96,7 @@ function CounterCard({ count, kind, fresh, rising }: { count: number; kind: HudK
   return (
     <div className={`bhud-card bhud-card--counter${fresh ? " bhud-card--fresh" : ""}${rising ? " bhud-card--rising" : ""}`}
       style={poseStyle({ x: 0, y: 0, deg: 0 })} data-kill={count} data-kind={kind}>
-      <span className="bhud-card__body" aria-hidden="true" />
+      <CardBody />
       <span className="bhud-card__art" style={art(`${ASSETS}/kill-card.svg`)} aria-hidden="true" />
       <span className="bhud-card__number">{count}</span>
       <span className="bhud-card__art" style={art(PIP[kind])} aria-hidden="true" />
@@ -274,6 +280,8 @@ function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: bool
   }, [burst]);
 
   const cards = killCardsFor(view.kills);
+  // .hud-HA-center has `world-blur: hudWorldBlur`.
+  const disc = useBackdropRef();
   return (
     <div className="bhud" data-role={view.role} data-still={still ? "true" : undefined}
       style={{ "--bhud-wash": ROLE_COLORS[view.role] } as CSSProperties}>
@@ -283,7 +291,7 @@ function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: bool
         <span className="bhud__stroke bhud__stroke--right" aria-hidden="true" />
         <div className="bhud__balance"><Odometer balance={view.balance} /></div>
         <div className="bhud__center" aria-hidden="true">
-          <span className="bhud__disc" />
+          <span ref={disc} className="bhud__disc" />
           <span ref={discRef} className="bhud__disc-flash" />
           <span className="bhud__emblem" style={art(EMBLEM[view.role])} />
         </div>

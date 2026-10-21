@@ -47,8 +47,8 @@
 }
 .minimap-radar[data-shape="square"] .minimap-radar__viewport { border-radius: 0; }
 
-/* A transparent native WebView cannot sample the external game. The view model
-   gates blur; these ancestors must not create a filtered/opaque backdrop root. */
+/* The radar's blur is SLUI's world blur under the viewport (src/platform/backdrop.ts), never a page
+   backdrop-filter: the transparent WebView cannot sample the game. */
 .minimap-radar__background, .minimap-radar__map, .minimap-radar__markers, .minimap-radar__border {
   position: absolute;
   inset: 0;
@@ -57,10 +57,6 @@
   border-radius: inherit;
 }
 .minimap-radar__background { background: rgb(0 0 0 / var(--radar-background-alpha, 0.63)); }
-/* Blur at the viewport boundary: a sibling backdrop layer lets the screen-mixed
-   map resample the sharp page behind it. Backdrop filtering leaves our foreground
-   artwork and markers sharp. This radius is visually calibrated, not native units. */
-.minimap-radar[data-blur-background="true"] .minimap-radar__viewport { backdrop-filter: blur(64px); }
 .minimap-radar[data-map-blend="true"] .minimap-radar__map { mix-blend-mode: screen; }
 .minimap-map__room[data-active="false"] { opacity: 0.82; }
 .minimap-radar__markers { overflow: hidden; }

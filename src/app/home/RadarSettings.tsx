@@ -16,7 +16,7 @@ const ROWS: readonly Row[] = [
   { kind: "orientation", label: "雷达方向" },
   { kind: "boolean", key: "mapBlend", label: "雷达地图与背景融合" },
   { kind: "boolean", key: "blurBackground", label: "模糊背景",
-    note: "透明 UI 窗口无法读取背后的游戏画面，此项在游戏内暂不产生效果。" },
+    note: "模糊雷达后面的游戏画面；需同时开启系统设置里的「游戏背景模糊」。" },
   { kind: "number", key: "backgroundAlpha", label: "雷达背景透明度" },
   { kind: "number", key: "hudScale", label: "雷达 HUD 大小" },
   { kind: "number", key: "mapScale", label: "雷达地图缩放" },

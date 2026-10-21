@@ -13,7 +13,6 @@ export type RadarPreferences = {
 };
 
 export type RadarControls = { alternateZoomActive: boolean };
-export type RadarRenderCapabilities = { pageBackdrop: boolean };
 
 // SLUI defaults, not an assertion about the native CS2 defaults.
 export const DEFAULT_RADAR_PREFERENCES: Readonly<RadarPreferences> = {
