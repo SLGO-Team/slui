@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Role, ShopPurchaseCommand } from "../../contracts";
 import { DEFAULT_AUDIO_SETTINGS } from "../../platform/audioSettings";
+import { useBackdropRegion } from "../../platform/backdrop";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import { createPurchaseCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopViewModel } from "./model";
 import { formatShopMoney, groupShopItems, shopIconSource, shopMinMoneyColor, shopOwnerPipColors, shopPreviewSource, shopWashForRole } from "./presentation";
@@ -69,6 +70,13 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onHover, onPreview }: { 
           repeats and draws nothing; the label marks one that has outlived the timeout. */}
     </button>
   );
+}
+
+/** hud.xml's HudBlur blurs the world under the BuyMenu rect: a native blur under the whole mask. */
+function ShopMask() {
+  const mask = useRef<HTMLDivElement>(null);
+  useBackdropRegion(mask);
+  return <div ref={mask} className="shop-mask" aria-hidden="true" />;
 }
 
 export function ShopPanel({
@@ -175,7 +183,7 @@ export function ShopPanel({
   const failure = denial ? { text: denial.reason, key: `denial-${denial.seq}` } : shop.failureReason ? { text: shop.failureReason, key: `plugin-${shop.failureReason}` } : null;
   return (
     <>
-      <div className="shop-mask" aria-hidden="true" />
+      <ShopMask />
       <section className="shop-overlay" data-shop-availability={shop.availability} aria-label="商店">
         <div className="shop-design-canvas" style={{ "--shop-overlay-scale": scale, "--shop-wash": wash } as CSSProperties}>
         <div className="shop-content" data-shop-content>

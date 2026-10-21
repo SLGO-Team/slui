@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/10-21-backdrop-blur/design.md", "reason": "Contract to verify against"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Boundary rules"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Visual rules"}

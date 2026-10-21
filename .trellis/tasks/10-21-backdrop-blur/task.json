@@ -1,0 +1,30 @@
+{
+  "id": "backdrop-blur",
+  "name": "backdrop-blur",
+  "title": "Native world blur under CS2-style HUD panels",
+  "description": "DWM accent-blur backdrop windows under the overlay so every SLUI panel that sits on CS2's world blur blurs the game, with the dense fills as fallback",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "23q3",
+  "assignee": "23q3",
+  "createdAt": "2026-10-21",
+  "completedAt": null,
+  "branch": "feat/backdrop-blur",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-21-backdrop-core",
+    "10-21-backdrop-rect-panels",
+    "10-21-backdrop-shaped-panels"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

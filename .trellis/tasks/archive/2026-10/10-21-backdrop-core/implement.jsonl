@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/10-21-backdrop-blur/design.md", "reason": "Shared design: module, contract, fills"}
+{"file": ".trellis/tasks/10-21-backdrop-blur/research/dwm-backdrop-blur.md", "reason": "Spike measurements and API findings"}
+{"file": ".trellis/tasks/10-21-backdrop-blur/research/cs2-world-blur-sources.md", "reason": "Panel list from Panorama"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Overlay window, commands, events rules"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Fill rules, mock rules"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards"}

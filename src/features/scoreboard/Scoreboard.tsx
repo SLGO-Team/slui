@@ -1,4 +1,5 @@
 import { useRef, useState, type CSSProperties } from "react";
+import { useBackdropRegion } from "../../platform/backdrop";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import type { ScoreboardMode, ScoreboardStat } from "./model.ts";
@@ -177,9 +178,12 @@ export type ScoreboardProps = {
 export function Scoreboard({ view, mode, onSort, onCyclePage, onToggleSide }: ScoreboardProps) {
   const scale = useOverlayScale();
   const cursor = mode === "cursor";
+  const panel = useRef<HTMLElement>(null);
+  // CSGOScoreboard has `world-blur: hudWorldBlur`.
+  useBackdropRegion(panel);
   return <div className="scoreboard-overlay" data-mode={mode}>
     <div className="scoreboard-canvas" style={{ "--scoreboard-scale": scale } as CSSProperties}>
-      <section className="scoreboard" aria-label="计分板" data-page={view.page}>
+      <section ref={panel} className="scoreboard" aria-label="计分板" data-page={view.page}>
         <header className="sb-meta">
           <div className="sb-meta__row sb-meta__row--title">
             <img className="sb-meta__logo" src={view.logo} alt="" />
