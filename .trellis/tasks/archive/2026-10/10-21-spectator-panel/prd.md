@@ -57,16 +57,20 @@ disappears on death (user decision 2026-10-07, reversed by this task).
 
 ## Acceptance Criteria
 
-- [ ] AC1 (R1, R4) Dead in Competitive and watching a teammate: the panel shows that teammate's balance, name,
+- [x] AC1 (R1, R4) Dead in Competitive and watching a teammate: the panel shows that teammate's balance, name,
       ADR, avatar, item label, ammo and kill cards; switching target updates all of them without a burst.
-- [ ] AC2 (D2) Casual dead player or authorized observer watching an opponent: the panel shows the opponent in
+- [x] AC2 (D2) Casual dead player or authorized observer watching an opponent: the panel shows the opponent in
       the opponent's colour.
-- [ ] AC3 (D5) Item label: firearm and other items by shop name, SCP by role name, empty hands blank.
-- [ ] AC4 (R5) Alive: bottom HUD identical to before. Not watching anyone: nothing drawn.
-- [ ] AC5 (R2, R3) The example payload parses in slui (`npm test`), slgo-backend (`bun test`) and the plugin
+- [x] AC3 (D5) Item label: firearm and other items by shop name, SCP by role name, empty hands blank.
+- [x] AC4 (R5) Alive: bottom HUD identical to before. Not watching anyone: nothing drawn.
+- [x] AC5 (R2, R3) The example payload parses in slui (`npm test`), slgo-backend (`bun test`) and the plugin
       tests; a client without the feature never receives the event.
 - [ ] AC6 (R4, D1, D4) Visual: 1080p debug capture beside the user's CS2 reference, then approved by the
       user in game.
+
+Verified 2026-10-21 by tests and the debug build (`bottom-spectating`, `bottom-spectating-enemy`, `bottom-fire`,
+`bottom-dead` captured at 1080p): slui `npm test`, slgo-backend `bun test` (447), plugin `dotnet test` (1980).
+AC6's in-game check is still the user's.
 
 ## Out of Scope
 
