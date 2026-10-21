@@ -6,6 +6,7 @@ import type {
   HudKillfeedWeapon,
   HudKillKind,
   HudMessagesSnapshot,
+  HudSpectatingSnapshot,
   HudStatusSnapshot,
   HudProgressMessage,
   HudSlotMessage,
@@ -49,6 +50,8 @@ export const HUD_SCENES = [
   "bottom-fire",
   "bottom-balance",
   "bottom-dead",
+  "bottom-spectating",
+  "bottom-spectating-enemy",
   "killfeed",
   "scoreboard-competitive",
   "scoreboard-casual",
@@ -78,7 +81,9 @@ export const HUD_SCENE_LABELS: Readonly<Record<HudScene, string>> = {
   "bottom-kills": "底部 击杀卡片 1-14",
   "bottom-fire": "底部 开火与换弹",
   "bottom-balance": "底部 余额变化",
-  "bottom-dead": "底部 死亡（隐藏）",
+  "bottom-dead": "底部 死亡（无观察目标）",
+  "bottom-spectating": "底部 观战队友（含换人）",
+  "bottom-spectating-enemy": "底部 观战对手 SCP",
   killfeed: "右上击杀信息",
   "scoreboard-competitive": "计分板 竞技下半场",
   "scoreboard-casual": "计分板 休闲 10v10",
@@ -183,6 +188,8 @@ function sceneScript(scene: HudScene, viewerRole: Role): SceneScript {
     case "bottom-fire":
     case "bottom-balance":
     case "bottom-dead":
+    case "bottom-spectating":
+    case "bottom-spectating-enemy":
     // The killfeed scene is scripted separately (KILLFEED_KILLS); the scoreboard scenes in scoreboardScenes.ts.
     case "killfeed":
     case "scoreboard-competitive":
@@ -270,6 +277,7 @@ export type HudSceneFrame = {
   messages: HudMessagesSnapshot;
   result: RoundResultSnapshot;
   status: HudStatusSnapshot;
+  spectating: HudSpectatingSnapshot;
   killfeed: HudKillfeedSnapshot;
   scoreboard: ScoreboardSnapshot;
   self: HudSceneSelf;
@@ -299,6 +307,7 @@ const BOTTOM_LOOP_MS: Partial<Record<HudScene, number>> = {
   "bottom-kills": 23_000,
   "bottom-fire": 10_000,
   "bottom-balance": 15_000,
+  "bottom-spectating": 9_000,
 };
 
 function bottomStatusAt(scene: HudScene, viewerRole: Role, elapsedMs: number): HudStatusSnapshot {
@@ -317,6 +326,31 @@ function bottomStatusAt(scene: HudScene, viewerRole: Role, elapsedMs: number): H
     return { ammo: armed(mockAmmo(MOCK_CLIP_MAX - shots, MOCK_RESERVE - MOCK_CLIP_MAX)), round_kills: [] };
   }
   return { ammo: armed(mockAmmo(MOCK_CLIP_MAX, MOCK_RESERVE)), round_kills: [] };
+}
+
+/** `bottom-spectating`: Vanguard fires from 1 s and scores at 3 s; at 6 s the camera switches to Atlas (no burst). */
+const SPECTATE_FIRE_MS = 1_000;
+const SPECTATE_KILL_MS = 3_000;
+const SPECTATE_SWITCH_MS = 6_000;
+
+/** Whom the dead local player of a `bottom-spectating*` scene watches (team-a NTF teammates, a team-b SCP); nobody elsewhere. */
+function spectatingAt(scene: HudScene, elapsedMs: number): HudSpectatingSnapshot {
+  if (scene === "bottom-spectating-enemy") {
+    return { target: { player_id: "76561198000000007", money: 1_450, item_name: "SCP-939", ammo: null, round_kills: ["default"] } };
+  }
+  if (scene !== "bottom-spectating") return { target: null };
+  if (elapsedMs >= SPECTATE_SWITCH_MS) {
+    return { target: {
+      player_id: "76561198000000002", money: 4_800, item_name: "Logicer",
+      ammo: { clip: 100, clip_max: 100, reserve: 200, reserve_icon: "bullet" }, round_kills: ["default"],
+    } };
+  }
+  const shots = Math.max(0, Math.min(12, Math.floor((elapsedMs - SPECTATE_FIRE_MS) / FIRE_INTERVAL_MS) + 1));
+  return { target: {
+    player_id: "76561198000000004", money: 200, item_name: "CrossVec",
+    ammo: { clip: 50 - shots, clip_max: 50, reserve: 150, reserve_icon: "bullet" },
+    round_kills: elapsedMs >= SPECTATE_KILL_MS ? ["default", "grenade", "default"] : ["default", "grenade"],
+  } };
 }
 
 /** Plugin `KillFeedRules`: 5 s, 7.5 s when the viewer (the mock local player, Nova) is the killer or the victim. */
@@ -395,7 +429,7 @@ function killfeedAt(scene: HudScene, viewerRole: Role, elapsedMs: number, run: n
 }
 
 function bottomSelfAt(scene: HudScene, elapsedMs: number): HudSceneSelf {
-  if (scene === "bottom-dead") return { money: null, alive: false };
+  if (scene === "bottom-dead" || scene === "bottom-spectating" || scene === "bottom-spectating-enemy") return { money: null, alive: false };
   if (scene !== "bottom-balance") return { money: null, alive: true };
   const step = [...BALANCE_STEPS].reverse().find(([at]) => at <= elapsedMs);
   return { money: step ? step[1] : null, alive: true };
@@ -420,6 +454,7 @@ export function createHudSceneFrame(scene: HudScene, viewerRole: Role, elapsedMs
     },
     result: { panel: script.panel ? panelAt(scene, script.panel, viewerRole, elapsedMs, run) : null },
     status: bottomStatusAt(scene, viewerRole, elapsedMs),
+    spectating: spectatingAt(scene, elapsedMs),
     killfeed: killfeedAt(scene, viewerRole, elapsedMs, run),
     scoreboard: scoreboardSnapshotForScene(scene),
     self: bottomSelfAt(scene, elapsedMs),

@@ -3,7 +3,7 @@ import type { HudAmmo, HudKillKind, HudReserveIcon, Role } from "../../contracts
 import { useBackdropRef } from "../../platform/backdrop.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
-import type { BottomHudView } from "./model.ts";
+import type { BottomHudSpectator, BottomHudView } from "./model.ts";
 import {
   clipBarFraction,
   isLowClip,
@@ -248,6 +248,38 @@ function Weapon({ ammo, still }: { ammo: HudAmmo; still: boolean }) {
   );
 }
 
+/** The watched player's avatar in the circle (CS2 `HudSpecplayer__Avatar`, 57px over the emblem); the side's default if it fails. */
+function SpectatorAvatar({ spectator }: { spectator: BottomHudSpectator }) {
+  const [failed, setFailed] = useState(false);
+  return <img className="bhud__avatar" src={failed ? spectator.fallbackAvatarUrl : spectator.avatarUrl} alt="" draggable={false}
+    onError={() => setFailed(true)} />;
+}
+
+/**
+ * CS2 `HudSpecplayer__Bg`: the 460 x 72 panel between the balance and the ammo while the local player watches someone,
+ * with the name and 伤/局 on the left and the held item on the right. The clan line above the name stays empty (SLGO
+ * has no clan tags) and the key hints under the panel are not drawn (user decisions 2026-10-21).
+ */
+function SpectatorPanel({ spectator }: { spectator: BottomHudSpectator }) {
+  // .HudSpecplayer__Bg has `world-blur: hudWorldBlur`.
+  const blur = useBackdropRef();
+  return (
+    <div ref={blur} className="bhud-spec">
+      <span className="bhud-spec__bar bhud-spec__bar--left" aria-hidden="true" />
+      <span className="bhud-spec__bar bhud-spec__bar--right" aria-hidden="true" />
+      <div className="bhud-spec__player">
+        <span className="bhud-spec__clan" aria-hidden="true" />
+        <span className="bhud-spec__name">{spectator.name}</span>
+        <span className="bhud-spec__adr">
+          <span className="bhud-spec__adr-title">伤/局</span>
+          <span className="bhud-spec__adr-value">{spectator.adr}</span>
+        </span>
+      </div>
+      {spectator.itemName !== null ? <span className="bhud-spec__item">{spectator.itemName}</span> : null}
+    </div>
+  );
+}
+
 function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: boolean; scale: number }) {
   const litRef = useRef<HTMLDivElement>(null);
   const discRef = useRef<HTMLSpanElement>(null);
@@ -283,8 +315,9 @@ function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: bool
   // .hud-HA-center has `world-blur: hudWorldBlur`.
   const disc = useBackdropRef();
   return (
-    <div className="bhud" data-role={view.role} data-still={still ? "true" : undefined}
+    <div className="bhud" data-role={view.role} data-still={still ? "true" : undefined} data-spectating={view.spectator ? "true" : undefined}
       style={{ "--bhud-wash": ROLE_COLORS[view.role] } as CSSProperties}>
+      {view.spectator ? <SpectatorPanel spectator={view.spectator} /> : null}
       <KillCards cards={cards} burst={burst} />
       <div ref={litRef} className="bhud__lit">
         <span className="bhud__stroke bhud__stroke--left" aria-hidden="true" />
@@ -293,7 +326,9 @@ function BottomHudRow({ view, still, scale }: { view: BottomHudView; still: bool
         <div className="bhud__center" aria-hidden="true">
           <span ref={disc} className="bhud__disc" />
           <span ref={discRef} className="bhud__disc-flash" />
-          <span className="bhud__emblem" style={art(EMBLEM[view.role])} />
+          {view.spectator
+            ? <SpectatorAvatar key={view.spectator.avatarUrl} spectator={view.spectator} />
+            : <span className="bhud__emblem" style={art(EMBLEM[view.role])} />}
         </div>
         {view.ammo ? <Weapon ammo={view.ammo} still={still} /> : null}
       </div>
@@ -310,15 +345,16 @@ export type BottomHudProps = {
 
 /**
  * CS2's bottom-centre health/ammo HUD (`hudhealthammocenter`) for SLGO: balance in the health slot, the
- * emblem with the round's kill cards, and the clip with its reserve rounds. Drawn on the 1920x1080 overlay
- * canvas; hidden while the local player is dead.
+ * emblem with the round's kill cards, and the clip with its reserve rounds; while the local player is dead, the
+ * same for the player they watch, with CS2's spectator panel. Drawn on the 1920x1080 overlay canvas.
  */
 export function BottomHud({ view, still = false }: BottomHudProps) {
   const scale = useOverlayScale();
   return (
     <section className="bhud-overlay" aria-label="底部状态栏">
       <div className="bhud-canvas" style={{ "--bhud-scale": scale } as CSSProperties}>
-        {view ? <BottomHudRow view={view} still={still} scale={scale} /> : null}
+        {/* Keyed by subject: a spectating target switch shows the new player at once, without a kill burst or a balance roll. */}
+        {view ? <BottomHudRow key={view.subjectId} view={view} still={still} scale={scale} /> : null}
       </div>
     </section>
   );

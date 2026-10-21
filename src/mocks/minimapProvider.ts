@@ -25,8 +25,8 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private hudSceneStartedAtMs = 0;
   /** Debug captures: the scene stays at this moment (ms after its start) instead of playing. */
   private hudSceneAtMs: number | null = null;
-  private lastHudPayloads: Partial<Record<"hud.messages" | "round.result" | "hud.status" | "hud.killfeed" | "scoreboard.snapshot", string>> = {};
-  /** hud.status changes with every shot, so it is checked far more often than the 1 s scene re-sync. */
+  private lastHudPayloads: Partial<Record<"hud.messages" | "round.result" | "hud.status" | "hud.spectating" | "hud.killfeed" | "scoreboard.snapshot", string>> = {};
+  /** hud.status / hud.spectating change with every shot, so they are checked far more often than the 1 s scene re-sync. */
   private statusTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(events: SlgoEvent[], viewerTeam: "team-a" | "team-b") {
@@ -148,15 +148,17 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     return createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun).self;
   }
 
-  /** Like the plugin: hud.status goes out whenever it changed. */
+  /** Like the plugin: hud.status and hud.spectating go out whenever they changed. */
   private publishHudStatus() {
     if (!this.streamRoute) return;
     const elapsedMs = this.hudSceneAtMs ?? Date.now() - this.hudSceneStartedAtMs;
-    const { status } = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
-    const json = JSON.stringify(status);
-    if (this.lastHudPayloads["hud.status"] === json) return;
-    this.lastHudPayloads["hud.status"] = json;
-    this.emit("hud.status", status);
+    const { status, spectating } = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
+    for (const [type, payload] of [["hud.status", status], ["hud.spectating", spectating]] as const) {
+      const json = JSON.stringify(payload);
+      if (this.lastHudPayloads[type] === json) continue;
+      this.lastHudPayloads[type] = json;
+      this.emit(type, payload);
+    }
   }
 
   /** Publishes each snapshot whose content changed (the first publish of a run always goes out). */
@@ -164,7 +166,7 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     if (!this.streamRoute) return;
     const elapsedMs = this.hudSceneAtMs ?? Date.now() - this.hudSceneStartedAtMs;
     const frame = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
-    for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result], ["hud.status", frame.status], ["hud.killfeed", frame.killfeed],
+    for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result], ["hud.status", frame.status], ["hud.spectating", frame.spectating], ["hud.killfeed", frame.killfeed],
       ["scoreboard.snapshot", frame.scoreboard]] as const) {
       // Like the plugin, hud.killfeed goes out when its entries change, not as their times run down.
       const json = type === "hud.killfeed" ? frame.killfeed.entries.map((entry) => entry.entry_id).join(",") : JSON.stringify(payload);
