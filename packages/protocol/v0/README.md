@@ -49,6 +49,7 @@ Payload schemas:
 - [hud-messages.schema.json](./hud-messages.schema.json)
 - [round-result.schema.json](./round-result.schema.json)
 - [hud-status.schema.json](./hud-status.schema.json)
+- [hud-spectating.schema.json](./hud-spectating.schema.json)
 - [hud-killfeed.schema.json](./hud-killfeed.schema.json)
 - [scoreboard-snapshot.schema.json](./scoreboard-snapshot.schema.json)
 - [instance-ended.schema.json](./instance-ended.schema.json)
@@ -80,6 +81,7 @@ Payload schemas:
 | sidecar -> client | `hud.messages` | The viewer's bottom-centre message slots (progress, alert, high/low hint) |
 | sidecar -> client | `round.result` | The viewer's round / match result panel (win panel, MVP) |
 | sidecar -> client | `hud.status` | The viewer's bottom HUD: held firearm ammo and this round's kills |
+| sidecar -> client | `hud.spectating` | The player the viewer watches while dead: balance, held item, ammo, round kills |
 | sidecar -> client | `hud.killfeed` | The viewer's top-right killfeed (who killed whom, with what) |
 | sidecar -> client | `scoreboard.snapshot` | Scoreboard stats per side, ping, round history and loss bonus |
 | sidecar -> client | `instance.ended` | Why the instance ended; the last frame before the 4003 close |
@@ -207,6 +209,35 @@ magazines), `reserve_icon` one of `bullet`, `shotgun_shell`,
 kill this round in order (at most 64), reset when the buy phase starts like
 `match.snapshot` `kills`: `grenade` (explosion), `shock` (Micro-HID) or
 `default` (`HUD_KILL_KINDS`). Every object rejects unknown fields.
+
+## HUD spectating
+
+`hud.spectating` is the player the viewer watches in first person while they
+are not alive (CS2's spectator HUD on the bottom HUD). Snapshot, one recipient
+per publish, cached per recipient and replayed after the baseline, no time
+fields (`sent_at` optional, replay changes nothing). The plugin sends it only
+to players whose SLUI declares `hud-spectating`, on every change, like
+`hud.status`.
+
+`{ target }`, required. `target` is `null` while the viewer is alive or watches
+nobody: no target, a target outside the match teams, or one the plugin's
+observation rights (the rule behind nametags and first-person spectating) do
+not let this viewer see. Otherwise `{ player_id, money, item_name, ammo,
+round_kills }`, all required:
+
+- `player_id`: the target's `match.snapshot` player id (SteamID64), at most 64
+  characters (`MAX_HUD_SPECTATING_TEXT_LENGTH`). The client takes the name,
+  avatar and team from that entry; a target missing from the roster is not
+  drawn.
+- `money`: the target's balance, a non-negative safe integer. It may belong to
+  the other team when the mode lets this viewer watch opponents.
+- `item_name`: the plugin-resolved label of what the target holds (the shop's
+  name for it, an SCP's role name), non-blank and at most 64 characters, or
+  `null` with empty hands.
+- `ammo`, `round_kills`: the `hud.status` fields with the same rules, for the
+  target.
+
+Every object rejects unknown fields.
 
 ## HUD killfeed
 
@@ -513,6 +544,8 @@ Known features:
   `match.snapshot`).
 - `hud-status`: SLUI draws the bottom HUD, so the plugin sends `hud.status`
   to this player.
+- `hud-spectating`: SLUI draws the spectator panel, so the plugin sends
+  `hud.spectating` to this player.
 - `hud-killfeed`: SLUI draws the top-right killfeed, so the plugin hides its
   own killfeed hint and sends `hud.killfeed` to this player.
 - `scoreboard`: SLUI draws the scoreboard on its own key, so the plugin ignores

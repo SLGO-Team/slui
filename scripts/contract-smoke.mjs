@@ -4,6 +4,7 @@ import {
   CLIENT_FEATURE_HUD_KILLFEED,
   CLIENT_FEATURE_HUD_MESSAGES,
   CLIENT_FEATURE_HUD_MONEY,
+  CLIENT_FEATURE_HUD_SPECTATING,
   CLIENT_FEATURE_HUD_STATUS,
   CLIENT_FEATURE_SCOREBOARD,
   CLIENT_FEATURE_WIN_PANEL,
@@ -11,6 +12,7 @@ import {
   HUD_KILLFEED_WEAPONS,
   HUD_RESERVE_ICONS,
   MAX_HUD_KILLFEED_ENTRIES,
+  MAX_HUD_SPECTATING_TEXT_LENGTH,
   MAX_SCOREBOARD_PLAYERS,
   SCOREBOARD_ROUND_REASONS,
   EventSequenceGuard,
@@ -25,6 +27,7 @@ import {
   parseEnvelope,
   parseHudKillfeed,
   parseHudMessages,
+  parseHudSpectating,
   parseHudStatus,
   parseInstanceEnded,
   parseMatchSnapshot,
@@ -590,6 +593,42 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseHudStatus({ ...status, round_kills: ["headshot"] }).ok, false, "only the three SLGO kinds");
   assert.equal(parseHudStatus({ ...status, round_kills: Array(64).fill("shock") }).ok, true);
   assert.equal(parseHudStatus({ ...status, round_kills: Array(65).fill("default") }).ok, false, "at most 64 kills");
+}
+
+{
+  // hud.spectating (packages/protocol/v0/README.md "HUD spectating").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/hud-spectating.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, "the v0 hud.spectating example parses");
+  assert.equal(parsed.value.payload.target.player_id, "76561198000000002");
+  assert.equal(parseEvent({ ...example, sent_at: undefined }).ok, true, "hud.spectating has no time fields");
+  assert.equal(CLIENT_FEATURE_HUD_SPECTATING, "hud-spectating");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_HUD_SPECTATING] }).ok, true);
+  const target = example.payload.target;
+  const withTarget = (fields) => ({ target: { ...target, ...fields } });
+  assert.deepEqual(parseHudSpectating({ target: null }), { ok: true, value: { target: null } }, "watching nobody");
+  assert.equal(parseHudSpectating({}).ok, false, "target is required");
+  assert.equal(parseHudSpectating({ target: null, extra: 1 }).ok, false, "unknown field");
+  assert.equal(parseHudSpectating(withTarget({ extra: 1 })).ok, false, "unknown target field");
+  for (const key of Object.keys(target)) {
+    const { [key]: _, ...rest } = target;
+    assert.equal(parseHudSpectating({ target: rest }).ok, false, `${key} is required`);
+  }
+  assert.equal(parseHudSpectating(withTarget({ player_id: " " })).ok, false, "blank player id");
+  assert.equal(parseHudSpectating(withTarget({ player_id: "7".repeat(MAX_HUD_SPECTATING_TEXT_LENGTH + 1) })).ok, false, "long player id");
+  assert.equal(parseHudSpectating(withTarget({ money: 0 })).ok, true);
+  assert.equal(parseHudSpectating(withTarget({ money: -1 })).ok, false);
+  assert.equal(parseHudSpectating(withTarget({ money: 1.5 })).ok, false);
+  assert.equal(parseHudSpectating(withTarget({ money: "800" })).ok, false);
+  assert.equal(parseHudSpectating(withTarget({ item_name: null })).ok, true, "empty hands");
+  assert.equal(parseHudSpectating(withTarget({ item_name: "SCP-939" })).ok, true);
+  assert.equal(parseHudSpectating(withTarget({ item_name: "" })).ok, false, "blank item name");
+  assert.equal(parseHudSpectating(withTarget({ item_name: "x".repeat(MAX_HUD_SPECTATING_TEXT_LENGTH + 1) })).ok, false, "long item name");
+  assert.equal(parseHudSpectating(withTarget({ ammo: null })).ok, true, "no firearm");
+  assert.equal(parseHudSpectating(withTarget({ ammo: { ...target.ammo, clip_max: 0 } })).ok, false, "ammo follows hud.status");
+  assert.equal(parseHudSpectating(withTarget({ ammo: { ...target.ammo, extra: 1 } })).ok, false);
+  assert.equal(parseHudSpectating(withTarget({ round_kills: ["headshot"] })).ok, false, "kills follow hud.status");
+  assert.equal(parseHudSpectating(withTarget({ round_kills: Array(65).fill("default") })).ok, false);
 }
 
 {

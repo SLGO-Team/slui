@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/hud-spectating.schema.json",
+  "title": "SLGO spectator panel payload (hud.spectating)",
+  "description": "The player the viewer watches in first person while not alive: balance, held item, ammo and this round's kills. One recipient per publish; sent only to clients declaring hud-spectating. Name, avatar and team come from the target's match.snapshot entry.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target"],
+  "properties": {
+    "target": {
+      "description": "null while the viewer is alive or watches nobody the plugin's observation rights allow.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["player_id", "money", "item_name", "ammo", "round_kills"],
+          "properties": {
+            "player_id": { "description": "The target's match.snapshot player id.", "$ref": "#/$defs/text" },
+            "money": { "description": "The target's balance.", "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "item_name": {
+              "description": "Plugin-resolved label of the held item (its shop name; an SCP's role name); null with empty hands.",
+              "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/text" }]
+            },
+            "ammo": {
+              "description": "The target's held firearm, as hud.status ammo.",
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["clip", "clip_max", "reserve", "reserve_icon"],
+                  "properties": {
+                    "clip": { "$ref": "#/$defs/count" },
+                    "clip_max": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                    "reserve": { "$ref": "#/$defs/count" },
+                    "reserve_icon": { "enum": ["bullet", "shotgun_shell", "revolver_loader"] }
+                  }
+                }
+              ]
+            },
+            "round_kills": {
+              "description": "One kind per kill of the target this round, in order.",
+              "type": "array",
+              "maxItems": 64,
+              "items": { "enum": ["default", "grenade", "shock"] }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0, "maximum": 65535 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\S" }
+  }
+}
