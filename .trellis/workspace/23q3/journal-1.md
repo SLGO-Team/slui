@@ -774,3 +774,28 @@ Kept SCP on top. Merged SLGO feat/scoreboard (8eadbad) and released 20261020-071
 ### Status
 
 [OK] **Completed**
+
+
+## Session 33: World blur: DWM spike rejected, own WGC blur for scoreboard and shop
+<!-- trellis-session: v=2 fp=8edc3db3dc9b6bee -->
+
+**Date**: 2026-10-21
+**Task**: World blur: DWM spike rejected, own WGC blur for scoreboard and shop
+**Branch**: `feat/backdrop-blur`
+
+### Summary
+
+In-game tests showed DWM accent blur refreshes at ~30 Hz over the game (stutter, measured with a DXGI duplication tool). Replaced it with SLUI's own blur: Windows.Graphics.Capture of the game window, GPU Gaussian per region with CSS corner radius and opacity, click-through DirectComposition window under the overlay. Scoreboard (fill 0.6 over blur) and shop mask registered; setting with strength 1-3; dense fills as fallback (Windows 10, failures). In game: smooth (blur 66/s vs game 70/s), no measurable FPS cost, shop/Alt+Tab/strength OK. Specs updated; rect and shaped panel children remain.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fd16504` | feat(overlay): native world blur under the scoreboard |
+| `bae7e51` | feat(shop): native world blur under the buy-menu mask |
+| `87113a4` | feat(overlay): own world blur through Windows.Graphics.Capture |
+| `3512be4` | docs(spec): world blur contract, fills with and without it, in-game measurements |
+
+### Status
+
+[OK] **Completed**
