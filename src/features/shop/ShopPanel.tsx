@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { Role, ShopPurchaseCommand } from "../../contracts";
 import { DEFAULT_AUDIO_SETTINGS } from "../../platform/audioSettings";
-import { useBackdropRegion } from "../../platform/backdrop";
+import { useBackdropRef } from "../../platform/backdrop";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import { createPurchaseCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopViewModel } from "./model";
 import { formatShopMoney, groupShopItems, shopIconSource, shopMinMoneyColor, shopOwnerPipColors, shopPreviewSource, shopWashForRole } from "./presentation";
@@ -74,9 +74,7 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onHover, onPreview }: { 
 
 /** hud.xml's HudBlur blurs the world under the BuyMenu rect: a native blur under the whole mask. */
 function ShopMask() {
-  const mask = useRef<HTMLDivElement>(null);
-  useBackdropRegion(mask);
-  return <div ref={mask} className="shop-mask" aria-hidden="true" />;
+  return <div ref={useBackdropRef()} className="shop-mask" aria-hidden="true" />;
 }
 
 export function ShopPanel({
