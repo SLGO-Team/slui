@@ -53,14 +53,14 @@ for (const status of ["not-in-game", "connecting", "baseline-required", "stale",
 assert.equal(shouldAutoEnableOverlay(DEFAULT_OVERLAY_SETTINGS, "live", 3, null), true, "on by default");
 assert.equal(shouldAutoEnableOverlay({ autoEnableOnConnect: false }, "live", 3, null), false, "off keeps the manual switch only");
 
-// World blur: on with one layer by default; only a boolean and 1-3 layers are accepted.
+// World blur: on at strength 1 by default; only a boolean and 1-3 are accepted.
 assert.equal(DEFAULT_OVERLAY_SETTINGS.worldBlur, true);
-assert.equal(DEFAULT_OVERLAY_SETTINGS.worldBlurLayers, 1);
+assert.equal(DEFAULT_OVERLAY_SETTINGS.worldBlurStrength, 1);
 const overlayOf = (overlay) => parseSettings({ version: SETTINGS_VERSION, overlay }).overlay;
 assert.equal(overlayOf({ worldBlur: false }).worldBlur, false, "a player can turn it off");
 assert.equal(overlayOf({ worldBlur: "false" }).worldBlur, true, "recover a string");
-assert.equal(overlayOf({ worldBlurLayers: 3 }).worldBlurLayers, 3);
-for (const worldBlurLayers of [0, 4, 1.5, "2", null]) assert.equal(overlayOf({ worldBlurLayers }).worldBlurLayers, 1, `recover ${String(worldBlurLayers)}`);
+assert.equal(overlayOf({ worldBlurStrength: 3 }).worldBlurStrength, 3);
+for (const worldBlurStrength of [0, 4, 1.5, "2", null]) assert.equal(overlayOf({ worldBlurStrength }).worldBlurStrength, 1, `recover ${String(worldBlurStrength)}`);
 assert.equal(overlayOf({ autoEnableOnConnect: false }).worldBlur, true, "files written before the blur keep its default");
 
 // Shop volume: 0-1 of the CS2 volumes, 15% by default; out-of-range values clamp, anything else recovers.
@@ -107,7 +107,7 @@ assert.equal(hotkeyLabel("CapsLock"), "Caps Lock");
 
 // Round trip keeps all eleven preferences plus the overlay, hotkeys and audio blocks.
 const custom = {
-  overlay: { autoEnableOnConnect: false, worldBlur: false, worldBlurLayers: 2 },
+  overlay: { autoEnableOnConnect: false, worldBlur: false, worldBlurStrength: 2 },
   radar: { ...DEFAULT_RADAR_PREFERENCES, orientation: "heading-up", mapScale: 0.25, hudScale: 1.1, dynamicZoom: true },
   hotkeys: { shop: "F3", scoreboard: "KeyT" },
   audio: { shopVolume: 0.55 },

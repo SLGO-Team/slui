@@ -2,16 +2,20 @@
 
 ## Goal
 
-Every SLUI panel that sits on a world blur in CS2 blurs the game behind it in SLUI too, through
-native DWM backdrop windows under the overlay. When the blur is unavailable, the panels keep
-today's dense fills.
+Every SLUI panel that sits on a world blur in CS2 blurs the game behind it in SLUI too: SLUI
+captures the game window (Windows.Graphics.Capture), blurs it on the GPU and shows it in a
+click-through window under the overlay, at the game's frame rate. When the blur is unavailable,
+the panels keep today's dense fills.
 
 ## Background
 
 - The 2026-10-20 spike (`research/dwm-backdrop-blur.md`) showed that a click-through popup with
   `SetWindowCompositionAttribute` accent blur, placed under the overlay, blurs SCP:SL live.
 - In-game test 2026-10-21: the SLUI scoreboard (fill `rgba(0,0,0,0.46)`) over one backdrop layer
-  looked right to the user. **One layer is the chosen strength.**
+  looked right to the user. **One layer (σ ≈ 30 px at 1600p) is the chosen strength.**
+- The same day the DWM blur stuttered while the camera turned: DWM refreshes it at ~30 Hz over a
+  running game. An own blur through Windows.Graphics.Capture followed every game frame and was
+  smooth in game (`research/own-blur-wgc.md`); the design moved to it.
 - The user asked for every panel that CS2 blurs. The list comes from the Panorama sources
   (`research/cs2-world-blur-sources.md`): scoreboard, alerts, hints, progress card, killfeed rows,
   win panel result, bottom HUD centre circle and kill cards, radar viewport, team counter equipment.
@@ -21,10 +25,11 @@ today's dense fills.
 1. **Panels.** Each panel in the table in `research/cs2-world-blur-sources.md` gets a backdrop that
    matches its on-screen rect, corners, visibility and opacity, including while it animates.
    Panels that are not drawn get no backdrop.
-2. **Strength.** One backdrop layer by default (σ ≈ 30 px). A setting allows 1-3 layers.
+2. **Strength.** σ ≈ 30 px at 1600p by default (20 px at 1080p, scaled with height). A setting
+   offers 1-3 (σ 20 / 30 / 40 px at 1080p).
 3. **Switch.** A setting "游戏背景模糊" turns the backdrops off (default on).
-4. **Fallback.** With the switch off, or when Windows cannot blur (transparency effects off,
-   energy saver on, unsupported Windows build), no backdrop window shows and every panel draws its
+4. **Fallback.** With the switch off, or when SLUI cannot blur (no borderless capture before
+   Windows 11, capture or GPU failure), no blur window shows and every panel draws its
    current dense fill. The change applies while running, without a restart.
 5. **Fills.** With the blur on, each panel uses its CS2 fill as on the blurred world (Panorama
    value or capture fit), not the dense stand-in.
@@ -46,8 +51,8 @@ today's dense fills.
       blur matches the panel's rect and corners within one frame of its motion.
 - [ ] No backdrop is visible when the panel is hidden, the overlay is disabled, or another app is
       in front; Alt+Tab away and back works.
-- [ ] Turning off Windows transparency effects or the SLUI switch shows the dense fills, with no
-      blur window left on screen.
+- [ ] The blur follows the camera smoothly (measured: blur updates ≈ game frames).
+- [ ] Turning off the SLUI switch shows the dense fills, with no blur window left on screen.
 - [ ] The strength setting changes the blur live.
 - [ ] No measurable FPS drop in SCP:SL with all backdrops on, compared with the overlay alone.
 - [ ] The user approves the look of each panel group in game (visual PRs wait for review).

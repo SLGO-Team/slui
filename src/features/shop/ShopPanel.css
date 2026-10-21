@@ -39,8 +39,8 @@
    mask sits above all of them and below the menu itself (30). Only the team counter is moved above
    the menu (BuyMenuTeamCounterContainer, HudTeamCounter.css) and the chat stays on top. */
 /* The page's backdrop-filter only reaches SLUI's own HUD panels under the mask, never the game. With the
-   native world blur on (src/platform/backdrop.ts) a blur window under the whole mask blurs the game too,
-   so together they do what HudBlur does. The veil is unchanged for the first in-game review. */
+   world blur on (src/platform/backdrop.ts) SLUI blurs the game under the whole mask too, so together they
+   do what HudBlur does. The veil is unchanged for the first in-game review. */
 .shop-mask {
   position: fixed;
   z-index: 29;

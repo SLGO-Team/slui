@@ -155,7 +155,7 @@ function App() {
   const chatOpenRef = useRef(false);
   const shopVisibleRef = useRef(false);
   const overlayController = useMemo(() => createOverlayWindowController(), []);
-  useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurLayers);
+  useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurStrength);
 
   const handleEvent = useCallback((event: SlgoEvent) => {
     const receivedAtMs = Date.now();

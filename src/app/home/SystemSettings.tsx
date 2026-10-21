@@ -1,5 +1,6 @@
 import { useId } from "react";
-import type { OverlaySettings as Overlay, WorldBlurLayers } from "../../platform/overlaySettings";
+import type { WorldBlurStrength } from "../../platform/backdrop";
+import type { OverlaySettings as Overlay } from "../../platform/overlaySettings";
 import { RangeInput, SettingRow, SettingsGroup, Switch } from "./controls";
 
 export function SystemSettings({ id, value, onChange, onReset }: {
@@ -16,15 +17,15 @@ export function SystemSettings({ id, value, onChange, onReset }: {
         onChange={(autoEnableOnConnect) => onChange({ ...value, autoEnableOnConnect })} />
     </SettingRow>
     <SettingRow htmlFor={`${baseId}-blur`} label="游戏背景模糊"
-      note="像 CS2 一样模糊计分板等面板后面的游戏画面。Windows 关闭“透明效果”或开启节能模式时自动改用不透明底色。">
+      note="像 CS2 一样模糊计分板等面板后面的游戏画面。需要 Windows 11；无法模糊时自动改用不透明底色。">
       <Switch id={`${baseId}-blur`} checked={value.worldBlur}
         onChange={(worldBlur) => onChange({ ...value, worldBlur })} />
     </SettingRow>
-    {value.worldBlur ? <SettingRow htmlFor={`${baseId}-blur-layers`} label="模糊强度" note="1 为默认；每加一档模糊更强。">
+    {value.worldBlur ? <SettingRow htmlFor={`${baseId}-blur-strength`} label="模糊强度" note="1 为默认；每加一档模糊更强。">
       <div className="home-number">
-        <RangeInput id={`${baseId}-blur-layers`} min={1} max={3} step={1} value={value.worldBlurLayers}
-          onChange={(next) => onChange({ ...value, worldBlurLayers: next as WorldBlurLayers })} />
-        <output className="home-number__box" htmlFor={`${baseId}-blur-layers`}>{value.worldBlurLayers}</output>
+        <RangeInput id={`${baseId}-blur-strength`} min={1} max={3} step={1} value={value.worldBlurStrength}
+          onChange={(next) => onChange({ ...value, worldBlurStrength: next as WorldBlurStrength })} />
+        <output className="home-number__box" htmlFor={`${baseId}-blur-strength`}>{value.worldBlurStrength}</output>
       </div>
     </SettingRow> : null}
   </SettingsGroup>;

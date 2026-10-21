@@ -652,15 +652,14 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
 fn start_foreground_tracking(app: tauri::AppHandle) {
     use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
-    let mut tick: u32 = 0;
     thread::spawn(move || loop {
-        // Windows' transparency and energy-saver settings change rarely: check every 2 s.
-        if tick.is_multiple_of(20) {
-            backdrop::update_availability(&app);
-        }
-        tick = tick.wrapping_add(1);
         let foreground = unsafe { GetForegroundWindow() };
         let game_foreground = is_game_foreground(foreground);
+        // The world blur captures the window the overlay aligns to.
+        if game_foreground {
+            backdrop::set_game_window(&app, foreground as isize);
+        }
+        backdrop::tick();
         GAME_FOREGROUND_WINDOW.store(if game_foreground { foreground as isize } else { 0 }, Ordering::SeqCst);
         publish_game_foreground(&app, game_foreground);
 
@@ -993,7 +992,7 @@ pub fn run() {
             }
             thread::spawn(updater::remove_old_installers);
             build_tray(app)?;
-            backdrop::update_availability(app.handle());
+            backdrop::init(app.handle());
             start_foreground_tracking(app.handle().clone());
             start_keyboard_hook(app.handle().clone());
             start_game_process_tracking(app.handle().clone());

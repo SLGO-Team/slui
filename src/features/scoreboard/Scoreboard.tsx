@@ -179,8 +179,8 @@ export function Scoreboard({ view, mode, onSort, onCyclePage, onToggleSide }: Sc
   const scale = useOverlayScale();
   const cursor = mode === "cursor";
   const panel = useRef<HTMLElement>(null);
-  // CSGOScoreboard has `world-blur: hudWorldBlur`; its 5 px corners are nearest DWM's small rounding.
-  useBackdropRegion(panel, "small");
+  // CSGOScoreboard has `world-blur: hudWorldBlur`.
+  useBackdropRegion(panel);
   return <div className="scoreboard-overlay" data-mode={mode}>
     <div className="scoreboard-canvas" style={{ "--scoreboard-scale": scale } as CSSProperties}>
       <section ref={panel} className="scoreboard" aria-label="计分板" data-page={view.page}>

@@ -75,7 +75,7 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onHover, onPreview }: { 
 /** hud.xml's HudBlur blurs the world under the BuyMenu rect: a native blur under the whole mask. */
 function ShopMask() {
   const mask = useRef<HTMLDivElement>(null);
-  useBackdropRegion(mask, "square");
+  useBackdropRegion(mask);
   return <div ref={mask} className="shop-mask" aria-hidden="true" />;
 }
 

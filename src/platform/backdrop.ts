@@ -1,32 +1,35 @@
-// Native world blur under overlay panels (task 10-21-backdrop-blur, src-tauri/src/backdrop.rs).
+// World blur under overlay panels (task 10-21-backdrop-blur, src-tauri/src/backdrop.rs).
 //
 // CS2 blurs the world under many HUD panels (`world-blur: hudWorldBlur`). The overlay is a
 // transparent window and cannot blur the game itself, so each such panel registers its element
-// here; one animation-frame loop measures what the page actually renders (rect, opacity) and sends
-// the list to Rust, which places DWM blur windows under the overlay at those rects. The list is
-// sent only when it changes, so a still panel costs a layout read per frame and no IPC.
+// here; one animation-frame loop measures what the page actually renders (rect, corner radius,
+// opacity) and sends the list to Rust, which captures the game, blurs those regions on the GPU and
+// shows them under the overlay. The list is sent only when it changes, so a still panel costs a
+// layout read per frame and no IPC.
 //
 // `<html data-world-blur="on|off">` tells panel CSS which fill to draw: the CS2 fill over the blur,
-// or the dense stand-in when no blur is available (switched off, Windows transparency effects off,
-// energy saver).
+// or the dense stand-in when no blur is available (switched off, Windows 10, capture failure).
 
 import { useEffect, type RefObject } from "react";
 
-export type BackdropCorner = "square" | "small" | "round";
+/** Overlay CSS px; `radius` is the corner radius on screen, `alpha` the panel's effective opacity. */
+export type BackdropRegion = Readonly<{ x: number; y: number; w: number; h: number; radius: number; alpha: number }>;
 
-/** Overlay CSS px; `alpha` is the panel's effective opacity. */
-export type BackdropRegion = Readonly<{ x: number; y: number; w: number; h: number; corner: BackdropCorner; alpha: number }>;
+export type WorldBlurStrength = 1 | 2 | 3;
 
-export type BackdropOptions = Readonly<{ enabled: boolean; layers: number }>;
+export type BackdropOptions = Readonly<{ enabled: boolean; strength: WorldBlurStrength }>;
 
-/** Whole px and two-decimal opacity, so sub-pixel jitter never re-sends an unchanged list. */
+/** Gaussian σ at 1080p per strength; the native blur scales it with the window height. */
+export const WORLD_BLUR_SIGMA_AT_1080: Readonly<Record<WorldBlurStrength, number>> = { 1: 20, 2: 30, 3: 40 };
+
+/** Whole px, tenth-px radius and two-decimal opacity, so sub-pixel jitter never re-sends an unchanged list. */
 export function quantizeRegion(region: BackdropRegion): BackdropRegion {
   return {
     x: Math.round(region.x),
     y: Math.round(region.y),
     w: Math.round(region.w),
     h: Math.round(region.h),
-    corner: region.corner,
+    radius: Math.round(region.radius * 10) / 10,
     alpha: Math.round(region.alpha * 100) / 100,
   };
 }
@@ -35,12 +38,23 @@ export function sameRegions(a: readonly BackdropRegion[], b: readonly BackdropRe
   return a.length === b.length && a.every((region, index) => {
     const other = b[index];
     return region.x === other.x && region.y === other.y && region.w === other.w && region.h === other.h
-      && region.corner === other.corner && region.alpha === other.alpha;
+      && region.radius === other.radius && region.alpha === other.alpha;
   });
 }
 
-/** The element's on-screen rect and effective opacity, or null when it draws nothing. */
-function measure(element: Element, corner: BackdropCorner): BackdropRegion | null {
+/**
+ * A computed `border-top-left-radius` in layout px: "5px", "50%" (of the width) or the first value of
+ * an elliptical pair.
+ */
+export function cornerRadius(computed: string, layoutWidth: number): number {
+  const first = computed.trim().split(/\s+/)[0] ?? "";
+  const value = Number.parseFloat(first);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return first.endsWith("%") ? value / 100 * layoutWidth : value;
+}
+
+/** The element's on-screen rect, corner radius and effective opacity, or null when it draws nothing. */
+function measure(element: HTMLElement): BackdropRegion | null {
   let alpha = 1;
   for (let node: Element | null = element; node && alpha > 0; node = node.parentElement) {
     const style = getComputedStyle(node);
@@ -50,7 +64,10 @@ function measure(element: Element, corner: BackdropCorner): BackdropRegion | nul
   }
   const rect = element.getBoundingClientRect();
   if (alpha <= 0 || rect.width < 1 || rect.height < 1) return null;
-  return quantizeRegion({ x: rect.left, y: rect.top, w: rect.width, h: rect.height, corner, alpha });
+  // Transforms (the overlay's canvas scale) shrink or grow the radius with the box.
+  const scale = element.offsetWidth > 0 ? rect.width / element.offsetWidth : 1;
+  const radius = cornerRadius(getComputedStyle(element).borderTopLeftRadius, element.offsetWidth) * scale;
+  return quantizeRegion({ x: rect.left, y: rect.top, w: rect.width, h: rect.height, radius, alpha });
 }
 
 type Sink = (regions: readonly BackdropRegion[]) => void;
@@ -59,12 +76,10 @@ function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-// The browser mock preview has no native blur: a page layer under the panels stands in for it
+// The browser mock preview has no native blur: page boxes under the panels stand in for it
 // (`backdrop-filter` over the preview background), so reviews compare like with like.
 const MOCK_STANDIN = import.meta.env?.MODE === "mock";
-const STANDIN_BLUR_PX = 30;
-// The native top layer's 0x40 black tint (src-tauri/src/backdrop.rs).
-const STANDIN_TINT = "rgba(0, 0, 0, 0.25)";
+let strength: WorldBlurStrength = 1;
 
 function standinSink(): Sink {
   let layer: HTMLDivElement | null = null;
@@ -76,13 +91,12 @@ function standinSink(): Sink {
       Object.assign(layer.style, { position: "fixed", inset: "0", zIndex: "0", pointerEvents: "none" });
       document.body.append(layer);
     }
-    const radius: Record<BackdropCorner, string> = { square: "0", small: "4px", round: "8px" };
+    const sigma = WORLD_BLUR_SIGMA_AT_1080[strength] * window.innerHeight / 1080;
     layer.replaceChildren(...regions.map((region) => {
       const box = document.createElement("div");
       Object.assign(box.style, {
         position: "absolute", left: `${region.x}px`, top: `${region.y}px`, width: `${region.w}px`, height: `${region.h}px`,
-        borderRadius: radius[region.corner], opacity: String(region.alpha), backdropFilter: `blur(${STANDIN_BLUR_PX}px)`,
-        background: STANDIN_TINT,
+        borderRadius: `${region.radius}px`, opacity: String(region.alpha), backdropFilter: `blur(${sigma}px)`,
       });
       return box;
     }));
@@ -97,7 +111,7 @@ function tauriSink(): Sink {
   };
 }
 
-const registry = new Map<Element, BackdropCorner>();
+const registry = new Set<HTMLElement>();
 let sink: Sink | null = null;
 let sent: readonly BackdropRegion[] = [];
 let frame: number | null = null;
@@ -105,8 +119,8 @@ let frame: number | null = null;
 function tick() {
   frame = null;
   const regions: BackdropRegion[] = [];
-  for (const [element, corner] of registry) {
-    const region = measure(element, corner);
+  for (const element of registry) {
+    const region = measure(element);
     if (region) regions.push(region);
   }
   if (!sameRegions(regions, sent)) {
@@ -122,9 +136,9 @@ function backdropSink(): Sink | null {
 }
 
 /** Puts a world blur under `element` while it is in the document; returns the unregister. */
-export function registerBackdrop(element: Element, corner: BackdropCorner): () => void {
+export function registerBackdrop(element: HTMLElement): () => void {
   sink ??= backdropSink();
-  registry.set(element, corner);
+  registry.add(element);
   frame ??= requestAnimationFrame(tick);
   return () => {
     registry.delete(element);
@@ -141,14 +155,14 @@ export function registerBackdrop(element: Element, corner: BackdropCorner): () =
 }
 
 /** Registers the referenced element for a world blur while the component is mounted. */
-export function useBackdropRegion(ref: RefObject<Element | null>, corner: BackdropCorner) {
+export function useBackdropRegion(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const element = ref.current;
-    return element ? registerBackdrop(element, corner) : undefined;
-  }, [ref, corner]);
+    return element ? registerBackdrop(element) : undefined;
+  }, [ref]);
 }
 
-/** Whether a real or stand-in blur can show (Rust reports Windows' state; the mock always can). */
+/** Whether a real or stand-in blur can show (Rust reports what it can do; the mock always can). */
 export async function getBackdropAvailable(): Promise<boolean> {
   if (!isTauri()) return MOCK_STANDIN;
   const { invoke } = await import("@tauri-apps/api/core");
@@ -173,25 +187,27 @@ export function subscribeBackdropAvailable(listener: (available: boolean) => voi
 }
 
 export async function setBackdropOptions(options: BackdropOptions): Promise<void> {
+  strength = options.strength;
   if (!isTauri()) return;
   const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("set_backdrop_options", { enabled: options.enabled, layers: options.layers });
+  await invoke("set_backdrop_options", { enabled: options.enabled, strength: options.strength });
 }
 
 /**
  * Applies the blur setting and keeps `<html data-world-blur>` in step with whether a blur is
- * actually under the panels (the setting is on and Windows can blur).
+ * actually under the panels (the setting is on and SLUI can blur).
  */
-export function useWorldBlur(enabled: boolean, layers: number) {
+export function useWorldBlur(enabled: boolean, blurStrength: WorldBlurStrength) {
   useEffect(() => {
-    void setBackdropOptions({ enabled, layers }).catch((error: unknown) => console.error("Unable to set backdrop options", error));
-  }, [enabled, layers]);
+    void setBackdropOptions({ enabled, strength: blurStrength })
+      .catch((error: unknown) => console.error("Unable to set backdrop options", error));
+  }, [enabled, blurStrength]);
   useEffect(() => {
     let active = true;
     let available = false;
     const root = document.documentElement;
+    // The mock stand-in hides with it too (App.css).
     const apply = () => {
-      // The mock stand-in hides with it too (App.css).
       root.dataset.worldBlur = enabled && available ? "on" : "off";
     };
     apply();

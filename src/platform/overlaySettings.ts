@@ -1,23 +1,23 @@
 // Overlay behaviour settings. `autoEnableOnConnect` switches the in-game UI on
 // each time the session connects to a server (on by default); off keeps the manual switch only.
-// `worldBlur` puts Windows' blur under the panels CS2 draws on a world blur (on by default; the
-// panels fall back to dense fills without it); `worldBlurLayers` stacks 1-3 blur passes.
+// `worldBlur` blurs the game under the panels CS2 draws on a world blur (on by default; the panels
+// fall back to dense fills without it); `worldBlurStrength` 1-3 picks its strength.
 
-export type WorldBlurLayers = 1 | 2 | 3;
+import type { WorldBlurStrength } from "./backdrop.ts";
 
-export type OverlaySettings = Readonly<{ autoEnableOnConnect: boolean; worldBlur: boolean; worldBlurLayers: WorldBlurLayers }>;
+export type OverlaySettings = Readonly<{ autoEnableOnConnect: boolean; worldBlur: boolean; worldBlurStrength: WorldBlurStrength }>;
 
-// One layer is the strength the user chose in game (2026-10-21).
-export const DEFAULT_OVERLAY_SETTINGS: OverlaySettings = { autoEnableOnConnect: true, worldBlur: true, worldBlurLayers: 1 };
+// Strength 1 is what the user chose in game (2026-10-21).
+export const DEFAULT_OVERLAY_SETTINGS: OverlaySettings = { autoEnableOnConnect: true, worldBlur: true, worldBlurStrength: 1 };
 
 export function normalizeOverlaySettings(value: Partial<Record<keyof OverlaySettings, unknown>> | null | undefined): OverlaySettings {
   const autoEnableOnConnect = value?.autoEnableOnConnect;
   const worldBlur = value?.worldBlur;
-  const layers = value?.worldBlurLayers;
+  const strength = value?.worldBlurStrength;
   return {
     autoEnableOnConnect: typeof autoEnableOnConnect === "boolean" ? autoEnableOnConnect : DEFAULT_OVERLAY_SETTINGS.autoEnableOnConnect,
     worldBlur: typeof worldBlur === "boolean" ? worldBlur : DEFAULT_OVERLAY_SETTINGS.worldBlur,
-    worldBlurLayers: layers === 1 || layers === 2 || layers === 3 ? layers : DEFAULT_OVERLAY_SETTINGS.worldBlurLayers,
+    worldBlurStrength: strength === 1 || strength === 2 || strength === 3 ? strength : DEFAULT_OVERLAY_SETTINGS.worldBlurStrength,
   };
 }
 
