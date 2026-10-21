@@ -26,7 +26,7 @@ SLUI.
 
 ## Acceptance criteria
 
-- [ ] Each panel blurs the game in SCP:SL with the right shape and follows its animation.
-- [ ] Blur off / unavailable → today's look, unchanged.
-- [ ] No FPS drop with all regions shown at once (scoreboard closed, full HUD).
-- [ ] User approves the in-game look.
+- [x] Each panel blurs the game in SCP:SL with the right shape and follows its animation.
+- [x] Blur off / unavailable → today's look, unchanged.
+- [x] No FPS drop with all regions shown at once (scoreboard closed, full HUD).
+- [x] User approves the in-game look.

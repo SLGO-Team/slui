@@ -23,8 +23,8 @@ The rectangular HUD panels that CS2 draws on `hudWorldBlur` blur the game in SLU
 
 ## Acceptance criteria
 
-- [ ] Each panel blurs the game in SCP:SL and follows its animation without a visible lag or
+- [x] Each panel blurs the game in SCP:SL and follows its animation without a visible lag or
       leftover backdrop.
-- [ ] Blur off / unavailable → today's look, unchanged.
-- [ ] Mock captures with the stand-in reviewed against the CS2 recordings.
-- [ ] User approves the in-game look.
+- [x] Blur off / unavailable → today's look, unchanged.
+- [x] Mock captures with the stand-in reviewed against the CS2 recordings.
+- [x] User approves the in-game look.
