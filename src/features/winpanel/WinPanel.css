@@ -79,7 +79,8 @@
 
 /* .WinPanel__Result: 400x80, 4px side bars in the accent, radius 3px, translucent fill with the
    panel dot texture; .WinPanelTopSection margin-bottom 16px. Children are absolutely placed
-   (Panorama flow-children: none). */
+   (Panorama flow-children: none). The fill is read from the captures, over CS2's world blur, so it
+   serves with SLUI's world blur under the box (src/platform/backdrop.ts) and without it. */
 .winpanel-result {
   position: relative;
   width: 400px;

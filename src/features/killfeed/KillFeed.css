@@ -55,7 +55,8 @@
 
 /* .DeathNotice margin-top 3px, radius 3px. Backgrounds as measured on the capture: every Panorama alpha shows at
    about 0.79 of its value (plain hud-blur-bg-color #000000a0 reads 0.5, the viewer's kill #000000e7 0.72, the
-   viewer's death #630606d2 0.65); the overlay cannot blur the game behind it. The killer border keeps #e10000
+   viewer's death #630606d2 0.65). The same fills serve with SLUI's world blur under the notice
+   (src/platform/backdrop.ts) and without it: they were never made denser. The killer border keeps #e10000
    (the capture's border luminance matches it; JPEG chroma dulls the red) and is drawn inset so a notice keeps its
    size whatever the viewer's part in it. */
 .killfeed__notice {

@@ -76,9 +76,9 @@
 }
 
 /* .hud-progress-bar: 500x120, radius 10px, centred, top y 630 (recording x 710-1209, y 630-749). In
-   game the hud-blur-bg-color fill (black ~0.43 measured) sits on a world blur. The overlay window
-   cannot read, so cannot blur, the game behind it; a denser grey keeps the recorded mean darkness while
-   suppressing the scene detail the blur removes (user review 2026-10-06). */
+   game the hud-blur-bg-color fill (black ~0.43 measured) sits on a world blur: the fill over SLUI's
+   world blur (src/platform/backdrop.ts). Without a blur a denser grey keeps the recorded mean darkness
+   while suppressing the scene detail the blur removes (user review 2026-10-06). */
 .hudprogress {
   position: absolute;
   top: 630px;
@@ -97,6 +97,10 @@
   animation:
     hudprogress-p var(--hudprogress-duration) linear var(--hudprogress-delay) both,
     hudprogress-colors var(--hudprogress-duration) linear var(--hudprogress-delay) both;
+}
+
+[data-world-blur="on"] .hudprogress__body {
+  background: rgba(0, 0, 0, 0.43);
 }
 
 .hudprogress__body[data-still="true"],

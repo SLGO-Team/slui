@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { formatHudProgressCountdown, HUD_PROGRESS_RESYNC_MS, type HudProgressCardView } from "./model";
+import { useBackdropRef } from "../../platform/backdrop.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import "./ProgressCard.css";
@@ -23,6 +24,8 @@ type CardBodyProps = { card: HudProgressCardView; still: boolean };
 function ProgressCardBody({ card, still }: CardBodyProps) {
   const [mountedAtMs] = useState(Date.now);
   const countdownRef = useRef<HTMLSpanElement>(null);
+  // .hud-progress-bar has `world-blur: hudWorldBlur`.
+  const body = useBackdropRef();
   const remainingAtMount = still ? card.sentRemainingMs : Math.max(0, card.endsAtMs - mountedAtMs);
   const elapsedMs = Math.min(card.totalMs, card.totalMs - remainingAtMount);
   useEffect(() => {
@@ -48,7 +51,7 @@ function ProgressCardBody({ card, still }: CardBodyProps) {
     ...(card.iconRole ? { "--hudprogress-icon-color": ROLE_COLORS[card.iconRole] } : {}),
   } as CSSProperties;
   return (
-    <div className="hudprogress__body" data-still={still ? "true" : undefined} style={style}>
+    <div ref={body} className="hudprogress__body" data-still={still ? "true" : undefined} style={style}>
       <span className="hudprogress__glow hudprogress__glow--left" aria-hidden="true" />
       <span className="hudprogress__glow hudprogress__glow--right" aria-hidden="true" />
       <span className="hudprogress__side hudprogress__side--left" aria-hidden="true" />
