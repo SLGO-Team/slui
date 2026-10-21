@@ -825,3 +825,27 @@ Every remaining panel CS2 draws on hudWorldBlur now has SLUI's own world blur: m
 ### Status
 
 [OK] **Completed**
+
+
+## Session 35: CS2 spectator panel
+<!-- trellis-session: v=2 fp=6790c9570fb46eb6 -->
+
+**Date**: 2026-10-21
+**Task**: CS2 spectator panel
+**Branch**: `feat/spectator-panel`
+
+### Summary
+
+While dead, the bottom HUD shows the watched player (balance, ammo, kill cards) with CS2's HudSpecplayer panel: name, 伤/局, avatar in the circle, held-item label; no key hints, empty clan line. New hud.spectating event + hud-spectating feature (protocol, README, schema, fixtures); plugin SidecarHudSpectatingPublisher gated by MatchInformationPolicy.CanObservePlayer (SLGO 25910ae local main); sidecar relays it (slgo-backend d598538 local main). Debug scenes bottom-spectating / bottom-spectating-enemy. Deploy sidecar before plugin. In-game check pending.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c8557d0` | feat(protocol): hud.spectating event and hud-spectating client feature |
+| `ff93e6a` | feat(hud): CS2 spectator panel on the bottom HUD while watching a player |
+| `7d706c3` | docs(spec): spectator panel boundary and replication rules |
+
+### Status
+
+[OK] **Completed**
