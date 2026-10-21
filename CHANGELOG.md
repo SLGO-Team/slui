@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.8.0](https://github.com/SLGO-Team/slui/compare/v0.7.0...v0.8.0) (2026-10-21)
+
+
+### Features
+
+* **hud:** CS2 spectator panel while watching a player ([#48](https://github.com/SLGO-Team/slui/issues/48)) ([4015033](https://github.com/SLGO-Team/slui/commit/4015033b2d9f7d2b49dd91e6a3a4ebae3406d06c))
+* **overlay:** 16:10 and 4:3 layouts follow Panorama's height scaling ([#37](https://github.com/SLGO-Team/slui/issues/37)) ([7901ae5](https://github.com/SLGO-Team/slui/commit/7901ae526a3be042b4b730d7d629ba8c92201b73))
+* **overlay:** own world blur under the scoreboard and shop mask ([#46](https://github.com/SLGO-Team/slui/issues/46)) ([ce67cdc](https://github.com/SLGO-Team/slui/commit/ce67cdc0164445cb307d93d424e5ecdbaeb9b3bd))
+* **overlay:** world blur under the remaining HUD panels ([#47](https://github.com/SLGO-Team/slui/issues/47)) ([3841269](https://github.com/SLGO-Team/slui/commit/3841269d8a95a37d0d1efb1b8110891af32d79d1))
+* **protocol:** scoreboard.snapshot event and scoreboard client feature ([#42](https://github.com/SLGO-Team/slui/issues/42)) ([cbe895f](https://github.com/SLGO-Team/slui/commit/cbe895f0fad533ed81baab8612007a2617bae64f))
+* **scoreboard:** CS2 scoreboard on a held key with cursor mode, sorting and stat pages ([#44](https://github.com/SLGO-Team/slui/issues/44)) ([e24cc02](https://github.com/SLGO-Team/slui/commit/e24cc022e8868daa8de75cdabb7d3de8d96238a6))
+* **updater:** one-click auto-update ([#43](https://github.com/SLGO-Team/slui/issues/43)) ([603e41a](https://github.com/SLGO-Team/slui/commit/603e41a4bfd3412f8c1dc853c91e65348f071d34))
+
+
+### Bug Fixes
+
+* **minimap:** team-coloured radar frame, no overview caption, hidden offline ([#39](https://github.com/SLGO-Team/slui/issues/39)) ([0560fd7](https://github.com/SLGO-Team/slui/commit/0560fd7607a6d9b5a7e6e7f9ebf343945e32bb40))
+* **shop,hudmessages:** team-colour balance, navbar and hint bars; drop pause/pending labels ([#40](https://github.com/SLGO-Team/slui/issues/40)) ([54ea412](https://github.com/SLGO-Team/slui/commit/54ea412f469503390c31fa8ba84c933ed4321338))
+* **shop:** buy-menu mask covers the HUD panels, as in CS2's hud.xml ([#41](https://github.com/SLGO-Team/slui/issues/41)) ([beceeb5](https://github.com/SLGO-Team/slui/commit/beceeb5e6b2c015f5762aaf4a502586fd086b1eb))
+* **updater:** manage the updater state before the windows are built ([#45](https://github.com/SLGO-Team/slui/issues/45)) ([3f92954](https://github.com/SLGO-Team/slui/commit/3f92954b057942a33d49f3150380a334c91a0ff3))
+
 ## [0.7.0](https://github.com/SLGO-Team/slui/compare/v0.6.0...v0.7.0) (2026-10-18)
 
 
