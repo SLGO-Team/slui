@@ -1,3 +1,4 @@
+mod backdrop;
 mod settings;
 mod sidecar_socket;
 mod theme_pack;
@@ -281,6 +282,8 @@ fn apply_overlay_input_mode(window: &tauri::WebviewWindow, interactive: bool) {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | show,
         );
     }
+    // Re-asserting the overlay's topmost place lifts it away from the backdrops under it.
+    backdrop::refresh(window.app_handle());
     // WS_EX_TRANSPARENT above already makes the window click-through. Do not also call
     // set_ignore_cursor_events: tao never saw the SWP_SHOWWINDOW show, so its style
     // refresh would hide the overlay and overwrite these extended styles.
@@ -295,6 +298,7 @@ fn hide_overlay_window(window: &tauri::WebviewWindow) {
     if let Ok(hwnd) = window.hwnd() {
         unsafe { ShowWindow(hwnd.0 as _, SW_HIDE) };
     }
+    backdrop::refresh(window.app_handle());
 }
 
 fn overlay_snapshot(app: &AppHandle) -> OverlaySnapshot {
@@ -648,7 +652,13 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
 fn start_foreground_tracking(app: tauri::AppHandle) {
     use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
+    let mut tick: u32 = 0;
     thread::spawn(move || loop {
+        // Windows' transparency and energy-saver settings change rarely: check every 2 s.
+        if tick.is_multiple_of(20) {
+            backdrop::update_availability(&app);
+        }
+        tick = tick.wrapping_add(1);
         let foreground = unsafe { GetForegroundWindow() };
         let game_foreground = is_game_foreground(foreground);
         GAME_FOREGROUND_WINDOW.store(if game_foreground { foreground as isize } else { 0 }, Ordering::SeqCst);
@@ -662,7 +672,9 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
         // Align before showing, so the overlay never appears at a stale rect.
         if game_foreground && OVERLAY_ENABLED.load(Ordering::SeqCst) {
             if let Some(overlay_hwnd) = overlay_hwnd {
-                align_overlay_to(overlay_hwnd, foreground);
+                if align_overlay_to(overlay_hwnd, foreground) {
+                    backdrop::refresh(&app);
+                }
             }
         }
 
@@ -685,11 +697,12 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
     });
 }
 
+// Returns whether the overlay moved (its backdrops must follow).
 #[cfg(windows)]
 fn align_overlay_to(
     overlay: windows_sys::Win32::Foundation::HWND,
     game: windows_sys::Win32::Foundation::HWND,
-) {
+) -> bool {
     use windows_sys::Win32::{
         Foundation::RECT,
         UI::WindowsAndMessaging::{GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER},
@@ -697,12 +710,12 @@ fn align_overlay_to(
 
     let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
     if unsafe { GetWindowRect(game, &mut rect) } == 0 {
-        return;
+        return false;
     }
     let width = rect.right.saturating_sub(rect.left);
     let height = rect.bottom.saturating_sub(rect.top);
     if width <= 0 || height <= 0 {
-        return;
+        return false;
     }
     let mut overlay_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
     let already_aligned = unsafe {
@@ -726,6 +739,7 @@ fn align_overlay_to(
             );
         }
     }
+    !already_aligned
 }
 
 // Main thread only. Shows the overlay when it may be shown, hides it otherwise.
@@ -979,6 +993,7 @@ pub fn run() {
             }
             thread::spawn(updater::remove_old_installers);
             build_tray(app)?;
+            backdrop::update_availability(app.handle());
             start_foreground_tracking(app.handle().clone());
             start_keyboard_hook(app.handle().clone());
             start_game_process_tracking(app.handle().clone());
@@ -1006,6 +1021,9 @@ pub fn run() {
             get_game_running,
             get_current_steam_identity,
             get_game_foreground,
+            backdrop::set_backdrop_regions,
+            backdrop::set_backdrop_options,
+            backdrop::get_backdrop_available,
             theme_pack::list_theme_pack_files,
             sidecar_socket::sidecar_open,
             sidecar_socket::sidecar_send,

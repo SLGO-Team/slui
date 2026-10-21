@@ -53,6 +53,16 @@ for (const status of ["not-in-game", "connecting", "baseline-required", "stale",
 assert.equal(shouldAutoEnableOverlay(DEFAULT_OVERLAY_SETTINGS, "live", 3, null), true, "on by default");
 assert.equal(shouldAutoEnableOverlay({ autoEnableOnConnect: false }, "live", 3, null), false, "off keeps the manual switch only");
 
+// World blur: on with one layer by default; only a boolean and 1-3 layers are accepted.
+assert.equal(DEFAULT_OVERLAY_SETTINGS.worldBlur, true);
+assert.equal(DEFAULT_OVERLAY_SETTINGS.worldBlurLayers, 1);
+const overlayOf = (overlay) => parseSettings({ version: SETTINGS_VERSION, overlay }).overlay;
+assert.equal(overlayOf({ worldBlur: false }).worldBlur, false, "a player can turn it off");
+assert.equal(overlayOf({ worldBlur: "false" }).worldBlur, true, "recover a string");
+assert.equal(overlayOf({ worldBlurLayers: 3 }).worldBlurLayers, 3);
+for (const worldBlurLayers of [0, 4, 1.5, "2", null]) assert.equal(overlayOf({ worldBlurLayers }).worldBlurLayers, 1, `recover ${String(worldBlurLayers)}`);
+assert.equal(overlayOf({ autoEnableOnConnect: false }).worldBlur, true, "files written before the blur keep its default");
+
 // Shop volume: 0-1 of the CS2 volumes, 15% by default; out-of-range values clamp, anything else recovers.
 assert.equal(DEFAULT_AUDIO_SETTINGS.shopVolume, 0.15);
 const audioOf = (audio) => parseSettings({ version: SETTINGS_VERSION, audio }).audio.shopVolume;
@@ -97,7 +107,7 @@ assert.equal(hotkeyLabel("CapsLock"), "Caps Lock");
 
 // Round trip keeps all eleven preferences plus the overlay, hotkeys and audio blocks.
 const custom = {
-  overlay: { autoEnableOnConnect: false },
+  overlay: { autoEnableOnConnect: false, worldBlur: false, worldBlurLayers: 2 },
   radar: { ...DEFAULT_RADAR_PREFERENCES, orientation: "heading-up", mapScale: 0.25, hudScale: 1.1, dynamicZoom: true },
   hotkeys: { shop: "F3", scoreboard: "KeyT" },
   audio: { shopVolume: 0.55 },
@@ -107,4 +117,4 @@ assert.deepEqual(Object.keys(JSON.parse(text)), ["version", "overlay", "radar", 
 assert.deepEqual(parseSettingsText(text), custom);
 assert.equal(Object.keys(parseSettingsText(text).radar).length, 11);
 
-console.log("settings smoke: fallback, version, clamping, per-field recovery, hotkeys, audio, overlay auto-enable and round trip ok");
+console.log("settings smoke: fallback, version, clamping, per-field recovery, hotkeys, audio, overlay auto-enable, world blur and round trip ok");

@@ -66,9 +66,10 @@
 }
 
 /* .sb-main. Fill: inside the panel the captures read 0.33 of the (blurred) world behind it, a neutral tone (21,22,24 over
-   60,71,84; 49,40,37 over 152,123,112). The overlay cannot blur the game, so a black 0.67 would keep a third of the
-   scene's detail: a denser dark grey keeps about the same mean over dark and bright scenes (14,16,19 at 0.84 gives
-   21,25,29 and 36,33,34 there) while letting only 0.16 of the detail through. */
+   60,71,84; 49,40,37 over 152,123,112). With the native world blur under the panel (src/platform/backdrop.ts, acrylic
+   with a 0x40 black tint) black 0.46 gives about that (accepted in game 2026-10-21). Without a blur, a black 0.67
+   would keep a third of the scene's detail: a denser dark grey keeps about the same mean over dark and bright scenes
+   (14,16,19 at 0.84 gives 21,25,29 and 36,33,34 there) while letting only 0.16 of the detail through. */
 .scoreboard {
   isolation: isolate;
   position: absolute;
@@ -81,6 +82,10 @@
   background: rgba(14, 16, 19, 0.84);
   color: #cccccc;
   font-family: var(--sb-font);
+}
+
+[data-world-blur="on"] .scoreboard {
+  background: rgba(0, 0, 0, 0.46);
 }
 
 /* Panorama bluedots_large at backgroundDotsSize 360px: neutral dots every ~3.4px. Over a flat backdrop the capture's

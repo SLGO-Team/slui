@@ -51,6 +51,7 @@ import { createPreviewGameForegroundSource, subscribeGameForeground } from "./pl
 import { DEFAULT_AUDIO_SETTINGS } from "./platform/audioSettings";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "./platform/overlaySettings";
 import { createSettingsStore, type AppSettings } from "./platform/settings";
+import { useWorldBlur } from "./platform/backdrop";
 import type { RadarPreferences } from "./features/minimap/preferences";
 import { createOverlayStateSource, createSessionStatusPublisher, isTauri, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
 import { createUpdateSource } from "./platform/updater";
@@ -154,6 +155,7 @@ function App() {
   const chatOpenRef = useRef(false);
   const shopVisibleRef = useRef(false);
   const overlayController = useMemo(() => createOverlayWindowController(), []);
+  useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurLayers);
 
   const handleEvent = useCallback((event: SlgoEvent) => {
     const receivedAtMs = Date.now();
