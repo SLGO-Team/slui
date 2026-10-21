@@ -33,9 +33,12 @@ today's dense fills.
    never above other apps, never focusable, click-through.
 7. **Mock preview.** `npm run dev:mock` shows a stand-in for the native blur so reviews compare like
    with like.
-8. **Not in scope.** The shop mask keeps its CSS treatment (CS2 blurs the HUD there too, which a
-   backdrop under the overlay cannot do, and DWM's minimum blur is too strong). Panels SLUI does not
-   have (death panel, vote, spectator, round impact score) are out of scope.
+8. **Shop mask** (added 2026-10-21 at the user's request): `HudBlur` blurs the world and the HUD under
+   the buy menu. A full-window native blur under the mask blurs the world; the mask's existing page
+   `backdrop-filter` keeps blurring SLUI's own HUD panels under it. The earlier "too strong" reason
+   rested on an unmeasured 2-3 px estimate; Panorama's `mipmapgaussian(2, 2, 4)` is at least the HUD
+   blur. Strength and veil are tuned in game. Lands with the core child.
+9. **Not in scope.** Panels SLUI does not have (death panel, vote, spectator, round impact score).
 
 ## Acceptance criteria
 

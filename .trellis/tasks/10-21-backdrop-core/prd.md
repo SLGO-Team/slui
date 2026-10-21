@@ -20,6 +20,8 @@ proven end to end on the scoreboard.
 - Scoreboard registers its panel (`corner: "small"`, CS2 radius 5 px at 1080p) and uses
   `rgba(0,0,0,0.46)` with the blur on, `rgba(14,16,19,0.84)` with it off. Cursor mode and both
   pages keep working.
+- Shop mask registers a full-window region (`corner: "square"`); its page `backdrop-filter` stays for
+  the HUD panels under it. Veil tuned with the user in game.
 
 ## Acceptance criteria
 
