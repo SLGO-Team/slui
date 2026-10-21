@@ -62,6 +62,23 @@ When static source and observed output disagree, the in-game screenshot wins.
 - Individual HUD regions must not independently reflow or use viewport-driven
   font sizing.
 
+### World blur
+
+- CS2 blurs the world under every panel whose Panorama style has `world-blur:
+  hudWorldBlur` (scoreboard, alerts, hints, progress bar, killfeed rows, win panel
+  result, bottom HUD centre circle and kill cards, radar, team counter equipment) and
+  under the buy menu (`HudBlur` in `hud.xml`). `hud-blur-bg-color` is only a fill
+  colour, not the blur. List: task research `cs2-world-blur-sources.md`.
+- Such a panel registers its element for SLUI's own world blur
+  (`useBackdropRegion`, system-boundaries 3.1) and keeps two fills: the dense stand-in
+  as the default (no blur: setting off, Windows 10, capture failure) and the CS2 fill
+  under `[data-world-blur="on"]`. Corner radius and opacity come from the element's
+  CSS, so the blur follows the panel's shape and fades.
+- Page `backdrop-filter` never blurs the game. It is allowed only (a) where SLUI's own
+  panels must blur under another panel (the shop mask over the HUD) and (b) as the
+  mock preview's stand-in for the world blur (`src/platform/backdrop.ts`, mock mode
+  only), so reviews over the preview background compare like with like.
+
 ### Assets, fonts and avatars
 
 - **No text shadows on new UI.** Do not add `text-shadow` (or a `drop-shadow`
@@ -585,9 +602,9 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   (emblem 80 + two 25px labels); timeline 103 + 2/2 margins with rounds 20 wide (first at x 659, divider 10/2/10),
   ticks 18x2 at y 584; spectator gap 40; footer 48 with the hint 10px from the right. 5v5 competitive = 584 high (y
   278-861); casual 10v10 grows and stays centred.
-- Colours (capture, not Panorama): the capture reads 0.33 of the blurred world inside the panel, neutral in tone; the
-  overlay cannot blur, so the fill is a denser dark grey `rgba(14,16,19,0.84)` (same mean over dark and bright scenes,
-  0.16 of the scene detail instead of a third) with Panorama's dot texture (`hud/dot-grid.png` at 360px, opacity
+- Colours (capture, not Panorama): the capture reads 0.33 of the blurred world inside the panel, neutral in tone. Over
+  SLUI's world blur the fill is black 0.6 (the look the user accepted in game on 2026-10-21); without it, a denser dark
+  grey `rgba(14,16,19,0.84)` (same mean over dark and bright scenes, 0.16 of the scene detail instead of a third) with Panorama's dot texture (`hud/dot-grid.png` at 360px, opacity
   0.085: neutral dots every ~3.4px, high-pass amplitude 5.1-6.5 grey levels over a flat backdrop, as captured);
   存活 n/N the tint at 0.45 (Panorama 0.2); cell fills white 0.06, the sorted column 0.15; local row team tint at 0.2 (Panorama says 0.07; the capture
   reads 0.2); dead rows `brightness(0.6)` without fills; offline rows `#ccc`; footer hint white 0.4; timeline result

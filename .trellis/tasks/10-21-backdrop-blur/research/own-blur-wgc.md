@@ -58,3 +58,15 @@ inside its left padding (blurred game), 8 s while the user holds CapsLock and tu
 - Tone: no DWM tint or noise. Fills over the blur are retuned from the captures (the scoreboard
   look accepted earlier was 0.46 black over acrylic tinted 0x40 ≈ 0.6 black over a clean blur).
 - Strength: σ in px can follow CS2's fit (35-55 px at 1080p, scaled with height) or the setting.
+
+## Product build in game (2026-10-21, debug SLUI in mock mode, scoreboard held, same spot)
+
+| Run | Game outside | Blur inside | Blur lag (composed frames) |
+| --- | --- | --- | --- |
+| World blur on (strength 1) | 70.4/s | 65.9/s | 1 frame in 381 of 417 |
+| World blur off (dense fill, no capture started) | 63.9/s | (fill) | - |
+
+The user found the scoreboard background smooth and the look right. The run with the blur off was
+not faster, so the capture and blur cost no measurable frame rate here (the scene's own variation
+dominates). The capture stopped 5 s after the scoreboard closed, and never started with the setting
+off.

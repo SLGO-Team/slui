@@ -587,6 +587,47 @@ React components reach all of these only through `src/platform/desktop.ts`,
 `BroadcastChannel` and `localStorage` so a home tab and an overlay tab still drive
 each other.
 
+#### World blur (`src-tauri/src/backdrop.rs`, `src/platform/backdrop.ts`)
+
+CS2 blurs the world under many HUD panels. The overlay cannot read the game, and
+DWM's accent blur (`SetWindowCompositionAttribute`) refreshes at only ~30 Hz over a
+running game, which stutters while the camera turns: do not use it. SLUI blurs the
+game itself:
+
+- A third window, `SLUI world blur`: `WS_POPUP`, ex `NOREDIRECTIONBITMAP | TOPMOST |
+  TOOLWINDOW | NOACTIVATE | LAYERED | TRANSPARENT`, `WM_NCHITTEST → HTTRANSPARENT`
+  (click-through, never activated), content a DirectComposition swap chain
+  (premultiplied alpha). It has the overlay's rect and sits directly under the
+  overlay (`SetWindowPos(insert_after = overlay)`); `apply_overlay_input_mode`,
+  `hide_overlay_window`, `align_overlay_to` and `sync_overlay_visibility` refresh it.
+- Windows.Graphics.Capture of the game HWND (the window the overlay aligns to,
+  reported by the foreground thread), borderless (`SetIsBorderRequired(false)`, Windows
+  11), started on the first non-empty region list, stopped after 5 s without a
+  visible blurred panel. Each captured frame is blurred per region on the GPU (copy
+  with a 3σ margin, mips to 1/4, separable Gaussian, upscale with a rounded-rect mask
+  and the region's opacity) and presented. σ = 20 / 30 / 40 px at 1080p (strength
+  1-3), scaled with the height.
+- Shown only when the overlay may show and is visible, the setting is on, the blur is
+  available, a region exists and a frame with the current regions was presented.
+  Hiding is immediate. All window work runs on the main thread (`backdrop::refresh`);
+  the capture callback only draws and presents. Close a capture session outside the
+  engine lock (closing may wait for a frame callback that waits for the lock).
+- Available = device, shaders and window created, borderless capture allowed, and no
+  capture failure for the current game window. Windows 10 and failures fall back to
+  the panels' dense fills.
+
+| Command / event | Direction | Payload |
+| --- | --- | --- |
+| `set_backdrop_regions` | overlay → Rust | `{ regions: { x, y, w, h, radius, alpha }[] }` in overlay CSS px, sent only on change; ≤ 64 kept |
+| `set_backdrop_options` | overlay → Rust | `{ enabled: boolean, strength: 1 \| 2 \| 3 }` from `overlay.worldBlur` / `overlay.worldBlurStrength` |
+| `get_backdrop_available` | overlay → Rust | → `boolean` |
+| `slgo-backdrop-available` | Rust → all | `{ available: boolean }`, on change |
+
+Panels register with `useBackdropRegion(ref)`; one animation-frame loop reads each
+element's rect, CSS corner radius and effective opacity, so motion and fades are
+followed. `<html data-world-blur="on|off">` (setting × availability) picks each
+panel's fill.
+
 State a command reads with `state::<T>()` is registered on the `tauri::Builder`
 (`.manage`), never in `setup`: Tauri builds the `tauri.conf.json` windows before
 `setup` runs, and a release build's embedded page can invoke a command while the
