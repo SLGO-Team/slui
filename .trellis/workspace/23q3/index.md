@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 33
+- **Total Sessions**: 34
 - **Last Active**: 2026-10-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~801 | Active |
+| `journal-1.md` | ~827 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 34 | 2026-10-21 | World blur under the remaining HUD panels | `91901b5`, `aaa31ce`, `b4f76de`, `66dc0cc`, `8634bd1` | `feat/backdrop-panels` |
 | 33 | 2026-10-21 | World blur: DWM spike rejected, own WGC blur for scoreboard and shop | `fd16504`, `bae7e51`, `87113a4`, `3512be4` | `feat/backdrop-blur` |
 | 32 | 2026-10-20 | Scoreboard deploy, live test and launch-crash fix | `4f81954`, `4ee24e3`, `3f92954` | `feat/scoreboard` |
 | 31 | 2026-10-20 | One-click auto-update (PR #43) | `700b65a`, `9943583`, `08755d7`, `6ea6e43`, `8c5b2ac`, `23c43d4`, `79b463c`, `f22057a`, `625d2cf` | `claude/busy-blackwell-bc6894` |
