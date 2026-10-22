@@ -68,8 +68,7 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onRequest, onHover, onPr
           {pips.map((color, index) => <span key={index} className="shop-card__pip" style={{ backgroundColor: color }} />)}
         </span>
       ) : null}
-      {/* buymenu.xml's nux / promoted-label: a black ribbon across a card corner; here it marks the
-          viewer's own open teammate request. */}
+      {/* The viewer's own open teammate request, in the card's free bottom-left corner. */}
       {item.requested ? <span className="shop-card__requested" aria-hidden="true">已请求</span> : null}
       {/* The plugin answers in well under the timeout, so an in-flight purchase only blocks
           repeats and draws nothing; the label marks one that has outlived the timeout. */}

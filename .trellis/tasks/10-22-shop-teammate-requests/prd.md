@@ -12,7 +12,7 @@ the SLUI shop) can neither request nor fulfil. SLUI adapts the feature by bringi
 
 - CS2 reference: `../cs2ui/panorama/layout/buymenu.xml:39-48,88-97`, `styles/buymenu.css:966-1081`
   (area, title watermark, per-category listers, `ground-weapon-entry`), `:65-79` (`buymenu__for-teammate`
-  navbar label), `:120-130` (`.donate` banner), `:485-502` (`promoted-label` corner tag).
+  navbar label), `:120-130` (`.donate` banner), `:485-502` (`promoted-label`).
 - Live 1080p baseline from the 08-25 shop research (`research/buymenu-live-1920x1080.png`, kept out of this
   repo): the area is expanded with one dropped AK-47 under the rifles column. Measured: item plate y 226..777 (551 px), area y 787..1003 (216 px),
   10 px gap, area bottom 19 px above the navbar border (y 1022); the watermark "掉落的武器" sits under the
@@ -53,8 +53,8 @@ the SLUI shop) can neither request nor fulfil. SLUI adapts the feature by bringi
 - R5 SLUI: the request area under the item plate (shown only while requests exist), one lister per
   category column, entries in the CS2 ground-weapon style with the requester's name and price; click to
   fulfil; unavailable entries refuse with the reason in the failure banner.
-- R6 SLUI: R / right-click toggles a request on a requestable card; the requested card carries a corner
-  tag; the navbar shows the request hint in CS2's grey for-teammate style while requesting is possible.
+- R6 SLUI: R / right-click toggles a request on a requestable card; the requested card carries a quiet
+  已请求 label; the navbar shows the request hint in CS2's grey for-teammate style while requesting is possible.
 - R7 Mock / debug scenes for requester and payer views, and tests at every layer.
 
 ## Acceptance Criteria

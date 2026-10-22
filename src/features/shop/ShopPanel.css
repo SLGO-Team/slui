@@ -122,10 +122,9 @@
 /* buymenu.css:693 - the viewer's own holding draws a white outline; the pips below show every holder. */
 .shop-card--owned { border-color: #fff; }
 .shop-card--success { animation: shop-purchased .5s ease-in-out 1; }
-/* buymenu.css:628-646 (.nux) / :485-502 (#promo-item .promoted-label): a 10px white label on black,
-   rotated 35deg across a card corner. The viewer's own open request; the bottom-left corner is the one
-   no card content uses. */
-.shop-card__requested { position: absolute; bottom: 9px; left: -24px; width: 90px; padding: 2px 0; color: #fff; background: #000; font: 400 10px/12px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; letter-spacing: 1.2px; text-align: center; transform: rotate(35deg); pointer-events: none; }
+/* The viewer's own open request: a quiet label in the one corner no card content uses (key top-left,
+   name top-right, price bottom-right), in the key's 40% white on the price's baseline. */
+.shop-card__requested { position: absolute; bottom: 4px; left: 10px; color: rgb(255 255 255 / 40%); font: 400 14px/18px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; pointer-events: none; }
 /* buymenu.css:658 sets padding 4px 10px on the card, and the four children align
    to its corners. buymenu.xml:28-30 tags the name, icon and price - but not the
    keybind - with `hud-colorize-wash`, so all three take the team colour; the

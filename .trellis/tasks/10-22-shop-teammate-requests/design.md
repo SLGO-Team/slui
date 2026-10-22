@@ -103,8 +103,8 @@
 - Entry hover: select / unavailable sound, preview image, details card (`{requester} 请求购买 {item}` +
   description). Click: blocked -> deny (+ banner reason when unavailable); else purchase cue + fulfill.
 - Requester: R (keydown, no repeat, no modifiers) over a hovered card or right-click on a card sends
-  `command.shop.request` when `canRequest`; the requested card carries a CS2 `promoted-label`-style corner
-  tag "已请求"; the navbar shows the grey for-teammate label `按[R]或右键请求队友购买` left of `[ESCAPE]返回`.
+  `command.shop.request` when `canRequest`; the requested card shows "已请求" in its free bottom-left corner
+  (key's 40% white; a CS2 nux-style ribbon was rejected as too loud); the navbar shows the grey for-teammate label `按[R]或右键请求队友购买` left of `[ESCAPE]返回`.
 - App: `onPurchase` becomes `onCommand(ShopCommand)`; `beginCommand` replaces `beginPurchase`.
 
 ### 5.3 Mock

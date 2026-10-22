@@ -229,7 +229,9 @@ use Panorama translation or generated nodes.
   plate takes 551px only while the area is shown and the area keeps CS2's
   bottom edge (176px). If SLGO later adds dropped-weapon pickup and NTF
   requests, both want this one area: decide then, do not stack a second area.
-  The viewer's own request is a CS2 nux / promoted-label ribbon on the card;
+  The viewer's own request is a quiet 已请求 in the card's free bottom-left
+  corner (the key's 40% white, the price's baseline); a black CS2 nux-style
+  ribbon there was rejected as too loud (user, 2026-10-22);
   the navbar's request hint is CS2's BuyForTeammateLabel (wash x 0.63).
 
 ## 9. Chat-specific replication rules
