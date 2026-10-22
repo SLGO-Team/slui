@@ -413,6 +413,19 @@ request", "Sidecar session handshake", "Security boundary").
   flash), because the plugin answers well within `SHOP_COMMAND_TIMEOUT_MS`
   (5 s) and a flash of disabled styling looked broken; only a command past the
   timeout shows 等待确认 until its late result arrives.
+- Teammate purchase requests (task `10-22-shop-teammate-requests`, protocol v0
+  README "Shop teammate requests") stay plugin rules: SLUI never decides who
+  may request, see or fulfil a request. `canRequest` is only "some item is
+  `requestable`"; R (`event.code === "KeyR"`, over the hovered card) or a
+  right-click then sends `command.shop.request` for that card, and an item
+  outside the scope comes back `rejected` with the plugin's text in the
+  failure banner. A request-area click sends `command.shop.fulfill` only for
+  a `purchasable` entry (an unaffordable one denies locally with its
+  `unavailable_reason`, like a card). Every shop command goes through
+  `shopReducer`'s `command` action; its target (`purchase:` / `request:` /
+  `fulfill:` + id) blocks a repeat of the same target while in flight, and a
+  rejected or failed result of any kind fills the banner. Success notices
+  arrive as `hud.messages`, not in the shop.
 
 ### 3.1 Desktop windows, commands and events
 

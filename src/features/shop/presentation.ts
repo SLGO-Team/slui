@@ -1,4 +1,4 @@
-import type { Role, ShopCategory, ShopItem } from "../../contracts/index.ts";
+import type { Role, ShopCategory, ShopItem, ShopRequest } from "../../contracts/index.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 
 /** Design-canvas width of the buy-menu content column. Layout values that only
@@ -174,6 +174,23 @@ export function groupShopItems(items: ShopItem[], categories?: readonly ShopCate
   }
   const widths = allocateShopColumnWidths(sorted.length, role);
   return sorted.map((category, index) => ({ ...category, width: widths[index], items: buckets.get(category.id) ?? [] }));
+}
+
+export type ShopRequestLister<T extends ShopRequest = ShopRequest> = { id: string; width: number; requests: T[] };
+
+/**
+ * buymenu.xml's ground-weapon listers sit under the item columns with the same widths (ccequip ...
+ * ccgrenades). A request goes under its item's column; an unknown or missing column means the last one,
+ * as for unassigned items. Order within a column is the plugin's (team order).
+ */
+export function groupShopRequests<T extends ShopRequest>(requests: readonly T[], columns: readonly Pick<ShopColumn, "id" | "width">[]): ShopRequestLister<T>[] {
+  const listers = columns.map((column) => ({ id: column.id, width: column.width, requests: [] as T[] }));
+  if (listers.length === 0) return listers;
+  for (const request of requests) {
+    const lister = listers.find((candidate) => candidate.id === request.category_id) ?? listers[listers.length - 1];
+    lister.requests.push(request);
+  }
+  return listers;
 }
 
 export function formatShopMoney(value: number): string {

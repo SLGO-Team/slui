@@ -842,6 +842,40 @@ assert.equal(parseShopSnapshot({
   assert.equal(parseShopSnapshot({ balance: 100, window_open: true, items: [{ ...item, owner_player_ids: [""] }] }).ok, false, "owner ids must be non-empty");
   assert.equal(parseShopSnapshot({ balance: 100, window_open: true, items: [{ ...item, owner_player_ids: "7656119" }] }).ok, false, "owner ids must be a list");
 }
+{
+  // Teammate requests (packages/protocol/v0/README.md "Shop teammate requests").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/shop-snapshot-requests.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, JSON.stringify(parsed));
+  assert.deepEqual(parsed.value.payload.requests, example.payload.requests, "requests survive parsing");
+  assert.equal(parsed.value.payload.items[1].requested, true);
+  const base = example.payload;
+  const request = base.requests[0];
+  const withRequests = (requests) => parseShopSnapshot({ ...base, requests });
+  assert.equal(parseShopSnapshot({ ...base, requests: undefined }).value.requests, undefined, "requests stay optional");
+  assert.equal(withRequests([]).ok, true);
+  assert.equal(withRequests([{ ...request, extra: 1 }]).ok, false, "request entries refuse unknown keys");
+  assert.equal(withRequests([request, { ...request }]).ok, false, "request ids are unique");
+  assert.equal(withRequests([{ ...request, request_id: "x".repeat(33) }]).ok, false);
+  assert.equal(withRequests([{ ...request, requester_name: " " }]).ok, false);
+  assert.equal(withRequests([{ ...request, requester_name: "n".repeat(65) }]).ok, false);
+  assert.equal(withRequests([{ ...request, price: -1 }]).ok, false);
+  assert.equal(withRequests([{ ...request, purchasable: "yes" }]).ok, false);
+  assert.equal(withRequests([{ ...request, category_id: null, icon_url: null, unavailable_reason: null }]).ok, true);
+  assert.equal(withRequests(Array.from({ length: 65 }, (_, index) => ({ ...request, request_id: String(index) }))).ok, false);
+  assert.equal(withRequests({}).ok, false);
+  assert.equal(parseShopSnapshot({ ...base, items: [{ ...base.items[0], requestable: "true" }] }).ok, false);
+  assert.equal(parseShopSnapshot({ ...base, items: [{ ...base.items[0], requested: 1 }] }).ok, false);
+  for (const name of ["command-shop-request", "command-shop-fulfill"]) {
+    const command = JSON.parse(readFileSync(new URL(`../packages/protocol/v0/${name}.example.json`, import.meta.url), "utf8"));
+    assert.equal(parseCommand(command).ok, true, name);
+    const result = parseEvent({ protocol_version: 0, schema_version: 1, event_id: "evt-r", server_id: "s", instance_id: "i", sequence: 9, type: "command.result", payload: { command_id: command.command_id, command_kind: command.kind, status: "rejected", reason: "资金不足" } });
+    assert.equal(result.ok, true, `${name} result`);
+  }
+  assert.equal(parseCommand({ kind: "command.shop.request", command_id: "r-1", item_id: "" }).ok, false);
+  assert.equal(parseCommand({ kind: "command.shop.fulfill", command_id: "f-1" }).ok, false);
+  assert.equal(parseCommand({ kind: "command.shop.fulfill", command_id: "f-2", request_id: "1".repeat(33) }).ok, false);
+}
 assert.equal(parseShopSnapshot({
   balance: 100,
   window_open: true,

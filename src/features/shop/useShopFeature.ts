@@ -1,5 +1,5 @@
 import { useCallback, useReducer } from "react";
-import type { CommandResult, ConnectionStatus, ShopPurchaseCommand, SlgoEvent } from "../../contracts";
+import type { CommandResult, ConnectionStatus, ShopCommand, SlgoEvent } from "../../contracts";
 import { initialShopState, shopReducer } from "./model";
 
 /** React adapter for the pure shop reducer; App only composes these callbacks. */
@@ -14,8 +14,8 @@ export function useShopFeature() {
     dispatch({ type: "event", event, receivedAtMs });
   }, []);
 
-  const beginPurchase = useCallback((command: ShopPurchaseCommand, sentAtMs = Date.now()) => {
-    dispatch({ type: "purchase", command, sentAtMs });
+  const beginCommand = useCallback((command: ShopCommand, sentAtMs = Date.now()) => {
+    dispatch({ type: "command", command, sentAtMs });
   }, []);
 
   const resolveCommand = useCallback((result: CommandResult, receivedAtMs = Date.now()) => {
@@ -26,5 +26,5 @@ export function useShopFeature() {
     dispatch({ type: "tick", nowMs });
   }, []);
 
-  return { state, setConnectionStatus, receiveEvent, beginPurchase, resolveCommand, tick };
+  return { state, setConnectionStatus, receiveEvent, beginCommand, resolveCommand, tick };
 }

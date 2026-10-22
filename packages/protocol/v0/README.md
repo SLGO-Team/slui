@@ -73,6 +73,8 @@ Payload schemas:
 | sidecar -> client | `minimap.init` | Actual room layout and bombsites of a map generation |
 | sidecar -> client | `minimap.positions` | Player positions already filtered by in-game visibility |
 | client -> sidecar | `command.shop.purchase` | Plugin-defined purchase request |
+| client -> sidecar | `command.shop.request` | Ask teammates to buy an item (toggle) |
+| client -> sidecar | `command.shop.fulfill` | Buy a teammate's request for them |
 | client -> sidecar | `command.chat.send` | Plugin-defined chat request |
 | client -> sidecar | `client.features` | Features this client takes over from the plugin |
 | sidecar -> client | `command.result` | Authoritative success or rejection |
@@ -88,6 +90,33 @@ Payload schemas:
 
 The shop and chat payloads intentionally remain plugin-defined. SLUI must not
 reimplement their permissions or success rules.
+
+### Shop teammate requests
+
+A player may ask teammates to buy an item for them; a teammate pays, the
+requester receives (the plugin's mode decides which side and which items; the
+first version is SCP-only). All fields are optional, so older clients ignore
+them:
+
+- item `requestable` (boolean): the mode and its item scope let the viewer
+  request this item. The viewer's own state (already owned, outside the buy
+  zone) is not folded in; the plugin answers such a request with its reason.
+- item `requested` (boolean): the viewer's own open request is this item.
+- `requests`: teammates' open requests the viewer may fulfil, in team order,
+  never the viewer's own; at most 64, unique `request_id` (1-32 characters).
+  Each entry has exactly `request_id`, `requester_player_id`,
+  `requester_name` (1-64 characters), `item_id`, `name`, optional
+  `description` / `icon_url`, `category_id` (the item's column in the
+  viewer's own catalog; null or unknown means the last column), `price` (the
+  requester's effective price, paid by the viewer), `purchasable` (the viewer
+  can pay now) and `unavailable_reason`. Unknown keys are refused.
+
+`command.shop.request` (`item_id`) toggles the sender's request: the same item
+again cancels it, another item replaces it (with a new `request_id`).
+`command.shop.fulfill` (`request_id`) buys that request for its requester. A
+request is fulfilled at most once; a refusal comes back as `rejected` with the
+plugin's text in `reason`, and the requester learns of a purchase through its
+`hud.messages`.
 
 Chat history mirrors the plugin's in-game message area, with the same
 recipients. `chat.message` carries `command_id` when a client's

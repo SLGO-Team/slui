@@ -2,13 +2,15 @@ import assert from "node:assert/strict";
 import {
   SHOP_COMMAND_TIMEOUT_MS,
   SHOP_STALE_AFTER_MS,
+  createFulfillCommand,
   createPurchaseCommand,
+  createRequestCommand,
   initialShopState,
   isShopItemPurchaseBlocked,
   selectShop,
   shopReducer,
 } from "../src/features/shop/model.ts";
-import { SHOP_PIP_FALLBACK_COLOR, allocateShopColumnWidths, groupShopItems, shopOwnerPipColors, shopWashForRole } from "../src/features/shop/presentation.ts";
+import { SHOP_PIP_FALLBACK_COLOR, allocateShopColumnWidths, groupShopItems, groupShopRequests, shopOwnerPipColors, shopWashForRole } from "../src/features/shop/presentation.ts";
 import {
   DEFAULT_SHOP_DEBUG_OPTIONS,
   createShopDebugState,
@@ -25,8 +27,8 @@ let state = shopReducer(initialShopState, { type: "connection", status: "live" }
 state = shopReducer(state, { type: "event", event: baseline, receivedAtMs: 1_000 });
 state = shopReducer(state, { type: "event", event: snapshot, receivedAtMs: 1_000 });
 const command = createPurchaseCommand("armor");
-state = shopReducer(state, { type: "purchase", command, sentAtMs: 1_000 });
-state = shopReducer(state, { type: "purchase", command, sentAtMs: 1_001 });
+state = shopReducer(state, { type: "command", command, sentAtMs: 1_000 });
+state = shopReducer(state, { type: "command", command, sentAtMs: 1_001 });
 assert.equal(Object.keys(state.pending).length, 1, "same command id must create one pending record");
 {
   // An in-flight purchase blocks a repeat without making the item look unavailable.
@@ -145,6 +147,71 @@ for (const skewMs of [60_000, -60_000]) {
   assert.equal(fresh.availability, "live", `skew ${skewMs} ms keeps a fresh snapshot live`);
   assert.equal(fresh.items[0].disabled, false, `skew ${skewMs} ms keeps the item buyable`);
   assert.equal(selectShop(skewState, receivedAtMs + SHOP_STALE_AFTER_MS + 1).availability, "stale", "age still counts from local receipt");
+}
+// Teammate requests: R / right-click toggles a request, a request-area click fulfils one.
+{
+  const requestEvent = (sequence, payload) => ({ ...snapshot, event_id: `shop-req-${sequence}`, sequence, payload });
+  const request = (id, purchasable = true, category = "roles") => ({ request_id: id, requester_player_id: "7656119800000000" + id, requester_name: `P${id}`, item_id: "Scp173", name: "SCP-173", category_id: category, price: 1950, purchasable, unavailable_reason: purchasable ? null : "资金不足" });
+  let live = shopReducer(initialShopState, { type: "connection", status: "live" });
+  live = shopReducer(live, { type: "event", event: baseline, receivedAtMs: 1_000 });
+  live = shopReducer(live, { type: "event", event: requestEvent(2, { balance: 2000, window_open: true, items: [
+    { item_id: "Scp173", name: "SCP-173", price: 1950, quantity: 1, purchasable: true, requestable: true, requested: false },
+    { item_id: "HealthUpgrade1", name: "生命强化 I", price: 250, quantity: 1, purchasable: true, requestable: false },
+  ], requests: [request("1"), request("2", false)] }), receivedAtMs: 1_000 });
+  const view = selectShop(live, 1_000);
+  assert.equal(view.canRequest, true, "a requestable item opens requesting");
+  assert.equal(view.requests.length, 2);
+  assert.equal(view.requests[0].disabled, false);
+  assert.equal(view.requests[1].unavailable, true, "an unaffordable request is drawn unavailable");
+
+  // A request goes out for any card once requesting is open; the plugin refuses out-of-scope items itself.
+  const toggle = createRequestCommand("HealthUpgrade1");
+  let next = shopReducer(live, { type: "command", command: toggle, sentAtMs: 1_000 });
+  assert.equal(next.pending[toggle.command_id]?.target, "request:HealthUpgrade1");
+  assert.equal(selectShop(next, 1_000).items[1].requestPending, true);
+  assert.equal(selectShop(next, 1_000).items[1].disabled, false, "a pending request never blocks buying the item");
+  const again = createRequestCommand("HealthUpgrade1");
+  assert.equal(shopReducer(next, { type: "command", command: again, sentAtMs: 1_001 }).pending[again.command_id], undefined, "one toggle per item in flight");
+  next = shopReducer(next, { type: "command-result", result: { command_id: toggle.command_id, command_kind: toggle.kind, status: "rejected", reason: "生命强化 I 不支持请求队友购买" } });
+  assert.equal(selectShop(next, 1_000).failureReason, "生命强化 I 不支持请求队友购买", "a refused request fills the failure banner");
+  assert.equal(shopReducer(live, { type: "command", command: createRequestCommand("Missing"), sentAtMs: 1_000 }).pending, live.pending, "unknown items are not requested");
+
+  // Fulfilment: only a request the viewer can pay; in flight it blocks a repeat.
+  const fulfil = createFulfillCommand("1");
+  next = shopReducer(live, { type: "command", command: fulfil, sentAtMs: 1_000 });
+  assert.equal(selectShop(next, 1_000).requests[0].commandState, "pending");
+  assert.equal(selectShop(next, 1_000).requests[0].disabled, true);
+  assert.equal(selectShop(next, 1_000).requests[0].unavailable, false, "in flight is not unavailable");
+  next = shopReducer(next, { type: "command-result", result: { command_id: fulfil.command_id, command_kind: fulfil.kind, status: "rejected", reason: "该请求正在被其他队友处理" } });
+  assert.equal(selectShop(next, 1_000).failureReason, "该请求正在被其他队友处理");
+  assert.equal(selectShop(next, 1_000).requests[0].disabled, false, "a refused fulfilment can be retried");
+  const unaffordable = createFulfillCommand("2");
+  assert.equal(shopReducer(live, { type: "command", command: unaffordable, sentAtMs: 1_000 }).pending[unaffordable.command_id], undefined, "an unaffordable request is not sent");
+  assert.equal(shopReducer(live, { type: "command", command: createFulfillCommand("9"), sentAtMs: 1_000 }).pending, live.pending, "a vanished request is not sent");
+
+  // Without requestable items (NTF, mode off, older plugin) nothing is requested and no area is drawn.
+  let closed = shopReducer(initialShopState, { type: "connection", status: "live" });
+  closed = shopReducer(closed, { type: "event", event: baseline, receivedAtMs: 1_000 });
+  closed = shopReducer(closed, { type: "event", event: snapshot, receivedAtMs: 1_000 });
+  assert.equal(selectShop(closed, 1_000).canRequest, false);
+  assert.deepEqual(selectShop(closed, 1_000).requests, []);
+  const refused = createRequestCommand("armor");
+  assert.equal(shopReducer(closed, { type: "command", command: refused, sentAtMs: 1_000 }).pending[refused.command_id], undefined);
+
+  // Listers follow the item columns; an unknown column means the last one.
+  const listers = groupShopRequests([request("1", true, "scp-mid"), request("2", true, "elsewhere"), request("3", true, null)], [{ id: "scp-low", width: 209 }, { id: "scp-mid", width: 228 }, { id: "scp-health", width: 171 }]);
+  assert.deepEqual(listers.map((lister) => lister.requests.map((entry) => entry.request_id)), [[], ["1"], ["2", "3"]]);
+  assert.deepEqual(listers.map((lister) => lister.width), [209, 228, 171]);
+
+  // Debug scenes reachable by URL.
+  assert.equal(readShopDebugOptions("?shopRequests=payer").requests, "payer");
+  assert.equal(readShopDebugOptions("?shopRequests=bogus").requests, "none");
+  const payer = selectShop(createShopDebugState({ ...DEFAULT_SHOP_DEBUG_OPTIONS, requests: "payer" }, 1_000), 1_000);
+  assert.equal(payer.requests.length, 3);
+  assert.equal(payer.requests.some((entry) => entry.unavailable), true, "the payer scene has an unaffordable request");
+  const requester = selectShop(createShopDebugState({ ...DEFAULT_SHOP_DEBUG_OPTIONS, requests: "requester" }, 1_000), 1_000);
+  assert.equal(requester.items.find((item) => item.item_id === "Scp939")?.requested, true);
+  assert.equal(requester.canRequest, true);
 }
 console.log("shop model smoke: ok");
 

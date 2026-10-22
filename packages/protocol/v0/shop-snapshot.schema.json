@@ -39,6 +39,31 @@
           "owner_player_ids": { "description": "Player ids (SteamID64) of the viewer's team, the viewer included, who hold the item; drives the teammate-inventory pips.", "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
           "category_id": { "type": ["string", "null"] },
           "purchasable": { "description": "Final plugin-authoritative eligibility, including balance and inventory rules.", "type": "boolean" },
+          "unavailable_reason": { "type": ["string", "null"] },
+          "requestable": { "description": "The mode and its item scope let the viewer ask teammates to buy this item (command.shop.request).", "type": "boolean" },
+          "requested": { "description": "The viewer's own open teammate request is this item.", "type": "boolean" }
+        }
+      }
+    },
+    "requests": {
+      "description": "Teammates' open purchase requests the viewer may fulfil (command.shop.fulfill), in team order; never the viewer's own.",
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["request_id", "requester_player_id", "requester_name", "item_id", "name", "price", "purchasable"],
+        "properties": {
+          "request_id": { "description": "Unique within the snapshot.", "type": "string", "minLength": 1, "maxLength": 32 },
+          "requester_player_id": { "description": "SteamID64, as in match.snapshot.", "type": "string", "minLength": 1 },
+          "requester_name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "item_id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "icon_url": { "type": ["string", "null"] },
+          "category_id": { "description": "The item's column in the viewer's own catalog; null or unknown means the last column.", "type": ["string", "null"] },
+          "price": { "description": "The requester's effective price, paid by the viewer.", "type": "integer", "minimum": 0 },
+          "purchasable": { "description": "The viewer can pay it now (shop access, balance).", "type": "boolean" },
           "unavailable_reason": { "type": ["string", "null"] }
         }
       }
