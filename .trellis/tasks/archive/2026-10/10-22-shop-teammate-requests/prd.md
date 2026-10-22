@@ -71,7 +71,8 @@ the SLUI shop) can neither request nor fulfil. SLUI adapts the feature by bringi
 - [x] AC6 (D3) 1080p capture: area 176 px, bottom at y 1003, plate 551 px while shown; without requests the
       shop is unchanged.
 - [x] AC7 (R3, R4) Example payloads parse in slui (`npm test`), slgo-backend (`bun test`) and plugin tests.
-- [ ] AC8 Visual: mock captures beside the CS2 baseline, then the user's approval (and in game).
+- [x] AC8 Visual: mock captures beside the CS2 baseline, then the user's approval (mock approved 2026-10-22
+      after the 已请求 ribbon became a quiet corner label; in-game check with the live test).
 
 Verified 2026-10-22: slui `npm run lint`, `npm test`, `npm run build:local`; slgo-backend `bun test` (465);
 plugin `dotnet test` (2061). 1080p mock captures (`shopRequests=payer|requester|crowded|none`): plate

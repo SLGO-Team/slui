@@ -17,7 +17,7 @@ Branches: slui `feat/shop-teammate-requests` (PR, visual: no auto-merge); plugin
 6. [x] Mock: debug option + panel select; capture `payer` / `requester` / `none` at 1080p beside the
        baseline crop.
 7. [x] Checks: slui `npm run lint`, `npm test`, `npm run build`; backend `bun test`; plugin `dotnet test`.
-8. [ ] Spec updates (slui `system-boundaries.md` shop bullets, `cs2-visual-replication.md` §8), commit,
+8. [x] Spec updates (slui `system-boundaries.md` shop bullets, `cs2-visual-replication.md` §8), commit,
        PR (no auto-merge), hand the user the preview URLs.
 
 ## Validation commands
