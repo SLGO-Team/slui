@@ -35,5 +35,6 @@ squash-merged PR whose required checks (`build-and-test`, `pr-title`) passed.
   if CI fails, fix it on the branch. After the merge: `git switch main && git pull --ff-only`.
 - Exception: release-please's release PR (`chore(main): release X.Y.Z`) batches changes. Leave it
   open (release-please keeps updating it as PRs merge) and merge it only when the user asks for a
-  release; publishing the draft GitHub Release stays with the user.
+  release. Merging it is the release: the release workflow builds and signs the installer and
+  publishes the GitHub Release on its own, and published releases reach players as updates.
 - Never edit version numbers by hand; release-please owns them.
