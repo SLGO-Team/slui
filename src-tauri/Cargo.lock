@@ -3658,7 +3658,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slui"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "base64 0.22.1",
  "futures-util",
@@ -3682,7 +3682,7 @@ dependencies = [
 
 [[package]]
 name = "slui-setup"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "semver",
  "serde",
