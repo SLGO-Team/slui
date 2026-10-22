@@ -1,0 +1,5 @@
+{
+  "kind": "command.shop.fulfill",
+  "command_id": "fulfill-mk2-abc123",
+  "request_id": "17"
+}

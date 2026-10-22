@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Shop contract rules: purchasable-only eligibility, banner, stale snapshots, commands"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Visual authority order and shop replication rules (section 8)"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards and forbidden patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plugin -> sidecar -> SLUI contract crosses three repos"}

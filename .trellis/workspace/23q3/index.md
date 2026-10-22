@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 35
-- **Last Active**: 2026-10-21
+- **Total Sessions**: 36
+- **Last Active**: 2026-10-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~851 | Active |
+| `journal-1.md` | ~874 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 36 | 2026-10-22 | SCP teammate purchase requests in the SLUI shop | `ed3dedf`, `e96de8c` | `feat/shop-teammate-requests` |
 | 35 | 2026-10-21 | CS2 spectator panel | `c8557d0`, `ff93e6a`, `7d706c3` | `feat/spectator-panel` |
 | 34 | 2026-10-21 | World blur under the remaining HUD panels | `91901b5`, `aaa31ce`, `b4f76de`, `66dc0cc`, `8634bd1` | `feat/backdrop-panels` |
 | 33 | 2026-10-21 | World blur: DWM spike rejected, own WGC blur for scoreboard and shop | `fd16504`, `bae7e51`, `87113a4`, `3512be4` | `feat/backdrop-blur` |

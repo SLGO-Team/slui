@@ -93,8 +93,11 @@
 .shop-time > span:first-child { padding: 6px 0; color: rgb(255 255 255 / 58%); font: 400 22px/1 "Stratum2 Shop", sans-serif; }
 .shop-time b { display: block; box-sizing: border-box; width: 102px; margin-left: 10px; padding: 6px 0; color: #fff; font: 700 22px/1 "Stratum2 Shop Monodigit", "Stratum2 Shop", sans-serif; text-align: left; }
 .shop-min-money { position: absolute; top: 50%; right: 10px; margin-left: 10px; padding: 6px 0; color: rgb(128 128 128); font: 400 14px/normal "Stratum2 Shop Regular Monodigit", "Stratum2 Shop", sans-serif; white-space: nowrap; transform: translateY(-50%); }
-.shop-body { position: relative; width: 950px; min-height: 590px; overflow: hidden; background: rgb(0 0 0 / 62%); }
-.shop-body::after { position: absolute; z-index: 0; inset: 0; content: ""; background: url("/assets/hud/dot-grid.png") 100% 100% / 360px 360px; opacity: .04; pointer-events: none; }
+.shop-body { position: relative; width: 950px; height: 590px; overflow: hidden; background: rgb(0 0 0 / 62%); transition: height .2s ease; }
+/* While the teammate-request area is shown the plate takes CS2's measured height (baseline y 226..777;
+   the five-card columns need 553 of it, so no card moves) and the area below ends at CS2's y 1003. */
+.shop-body--requests { height: 551px; }
+.shop-body::after, .shop-requests::after { position: absolute; z-index: 0; inset: 0; content: ""; background: url("/assets/hud/dot-grid.png") 100% 100% / 360px 360px; opacity: .04; pointer-events: none; }
 .shop-categories { position: relative; z-index: 1; display: flex; align-items: flex-start; width: 950px; }
 .shop-column { box-sizing: border-box; flex: 0 0 auto; padding: 0 15px; filter: brightness(1); transition: filter .1s ease-in-out; }
 .shop-categories--selected .shop-column { filter: brightness(.3); }
@@ -119,6 +122,9 @@
 /* buymenu.css:693 - the viewer's own holding draws a white outline; the pips below show every holder. */
 .shop-card--owned { border-color: #fff; }
 .shop-card--success { animation: shop-purchased .5s ease-in-out 1; }
+/* The viewer's own open request: a quiet label in the one corner no card content uses (key top-left,
+   name top-right, price bottom-right), in the key's 40% white on the price's baseline. */
+.shop-card__requested { position: absolute; bottom: 4px; left: 10px; color: rgb(255 255 255 / 40%); font: 400 14px/18px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; pointer-events: none; }
 /* buymenu.css:658 sets padding 4px 10px on the card, and the four children align
    to its corners. buymenu.xml:28-30 tags the name, icon and price - but not the
    keybind - with `hud-colorize-wash`, so all three take the team colour; the
@@ -143,6 +149,32 @@
    (casual draws them all white). */
 .shop-card__owners { position: absolute; right: 0; bottom: 0; left: 0; display: flex; flex-direction: row-reverse; align-items: center; justify-content: center; height: 15px; pointer-events: none; }
 .shop-card__pip { flex: 0 0 auto; width: 5px; height: 5px; margin: 0 2px; border-radius: 50%; }
+/* buymenu.css:966-1081 - buymenu__ground-weapons, here the SCP side's teammate requests. Height 0 and
+   transparent until requests exist, then grown with CS2's 0.2s height/opacity transition. Measured on the
+   baseline: 10px under the plate, entries from 7px down, the area's bottom at y 1003, 19px above the
+   navbar. CS2's 216px would cross the navbar under SLUI's 40px shift, so the area keeps CS2's bottom edge:
+   1003 - 827 = 176px (five rows). Same plate fill and dot grid as the body. */
+.shop-requests { position: relative; width: 950px; height: 0; margin-top: 10px; overflow: hidden; background: rgb(0 0 0 / 62%); opacity: 0; transition: height .2s ease, opacity .2s ease; }
+.shop-requests--shown { height: 176px; opacity: 1; }
+/* The 90px watermark title under the listers (buymenu.css:988-1000). Panorama declares #ffffff04; the
+   baseline's ink sits about 21 levels over a 22 plate (9% white), so the capture wins (cs2-visual-replication.md). */
+.shop-requests__title { position: absolute; z-index: 0; inset: 0; display: flex; align-items: center; justify-content: center; margin-left: 10px; color: rgb(255 255 255 / 9%); font: 700 90px/1 "Stratum2 Shop Condensed", "Noto Sans SC Shop", sans-serif; letter-spacing: 10px; white-space: nowrap; pointer-events: none; }
+.shop-requests__list { position: relative; z-index: 1; display: flex; align-items: flex-start; height: 100%; }
+/* One lister per item column, the same border-box widths and 0 15px padding as the columns above. */
+.shop-requests__lister { box-sizing: border-box; flex: 0 0 auto; height: calc(100% - 7px); margin-top: 7px; padding: 0 15px; overflow-x: hidden; overflow-y: auto; scrollbar-color: rgb(216 216 216 / 25%) transparent; scrollbar-width: thin; }
+/* buymenu.css:1020-1064 - a 30px entry, #30303080, radius 5, 4px 6px padding and 4px apart; icon 20px
+   tall on the left, labels right-aligned 14px Stratum2 medium, all in the team wash. Hover brightens 2.2x. */
+.shop-request { display: flex; align-items: center; box-sizing: border-box; width: 100%; height: 30px; margin: 0 0 4px; padding: 4px 6px; color: var(--shop-wash); background: rgb(48 48 48 / 50%); border: 0; border-radius: 5px; filter: brightness(1); cursor: pointer; transition: filter 0s ease-in-out; }
+.shop-request:hover:not(.shop-request--disabled), .shop-request:focus-visible:not(.shop-request--disabled) { filter: brightness(2.2); outline: none; transition-duration: .2s; }
+.shop-request__icon { flex: 0 0 auto; height: 20px; margin-right: 5px; background: var(--shop-wash); mask-position: left center; mask-repeat: no-repeat; mask-size: contain; -webkit-mask-position: left center; -webkit-mask-repeat: no-repeat; -webkit-mask-size: contain; }
+.shop-request__icon img { display: block; width: auto; height: 20px; visibility: hidden; }
+.shop-request__label { display: flex; flex: 1 1 auto; justify-content: flex-end; min-width: 0; gap: 5px; font: 500 14px/16px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; white-space: nowrap; }
+.shop-request__name { overflow: hidden; text-overflow: ellipsis; }
+.shop-request__price { flex: 0 0 auto; font-family: "Stratum2 Shop Mono", "Stratum2 Shop", monospace; font-weight: 700; }
+/* Cannot pay it now: the card's cant-buy greys (buymenu.css:672-686). */
+.shop-request--disabled { cursor: not-allowed; }
+.shop-request--disabled .shop-request__icon { background: rgb(64 64 64); }
+.shop-request--disabled .shop-request__label { color: rgb(128 128 128); }
 /* 350px card + 32px inset = the 382px this column contributes; see the geometry
    note on .shop-content. The column spans the rest of the canvas; its preview,
    failure banner and details card are placed from its top. */
@@ -171,6 +203,10 @@
 .shop-navbar button { padding: 0; color: inherit; background: transparent; border: 0; font: inherit; text-transform: inherit; cursor: pointer; }
 /* The baseline leaves 4px of ink gap between "]" and "返"; with these faces the glyphs alone leave 1.5px. */
 .shop-navbar__key { margin-right: 2.5px; }
+/* buymenu.css:65-79 - BuyForTeammateLabel is rgb(161,161,161) under the navbar's wash: the baseline's
+   "按住[左 CTRL 键]购买并投掷" reads (148,120,51) = the T wash x 0.63. */
+.shop-navbar__for-teammate { color: color-mix(in srgb, var(--shop-wash) 63%, #000); }
+.shop-navbar__for-teammate .shop-navbar__key { margin: 0 2.5px 0 1.5px; }
 @keyframes shop-purchased { from { filter: brightness(2); } to { filter: brightness(1); } }
 @keyframes shop-failure-fadein { from { opacity: 0; } to { opacity: 1; } }
 @keyframes shop-failure-pulse { 0%, 100% { filter: saturate(1); } 50% { filter: saturate(0); } }

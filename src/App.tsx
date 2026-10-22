@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type ShopCommand, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
 import {
@@ -8,7 +8,7 @@ import {
 } from "./mocks/provider";
 import { HudDebugPanel } from "./mocks/HudDebugPanel";
 import { ShopPanel } from "./features/shop/ShopPanel";
-import { createPurchaseCommand, selectShop } from "./features/shop/model";
+import { selectShop } from "./features/shop/model";
 import { useShopFeature } from "./features/shop/useShopFeature";
 import { ChatInput } from "./features/chat/ChatInput";
 import { createChatCommand, validateChatBody, type ChatCloseReason } from "./features/chat/model";
@@ -527,13 +527,13 @@ function App() {
   const chatSelf = useMemo(() => resolveChatSelf(
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
   ), [hud, localSteamId]);
-  const handlePurchase = useCallback((command: ReturnType<typeof createPurchaseCommand>) => {
-    shopFeature.beginPurchase(command);
+  const handleShopCommand = useCallback((command: ShopCommand) => {
+    shopFeature.beginCommand(command);
     void connection.send(command).catch((error: unknown) => {
-      console.error("Unable to send shop purchase", error);
+      console.error("Unable to send shop command", error);
       shopFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed", reason: error instanceof Error ? error.message : "Send failed" });
     });
-  }, [connection, shopFeature.beginPurchase, shopFeature.resolveCommand]);
+  }, [connection, shopFeature.beginCommand, shopFeature.resolveCommand]);
   const chatScope = chatFeature.state.scope;
   const handleChatSubmit = useCallback((body: string) => {
     // Empty or over-long input keeps the entry open; the counter shows why.
@@ -570,7 +570,7 @@ function App() {
         open={shopOpen}
         volume={shopVolume}
         countdownSeconds={hud.hasSnapshot ? hud.phaseClockSeconds : null}
-        onPurchase={handlePurchase}
+        onCommand={handleShopCommand}
         onClose={closeShop}
       />
       <ChatInput

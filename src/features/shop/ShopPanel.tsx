@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import type { Role, ShopPurchaseCommand } from "../../contracts";
+import type { Role, ShopCommand } from "../../contracts";
 import { DEFAULT_AUDIO_SETTINGS } from "../../platform/audioSettings";
 import { useBackdropRef } from "../../platform/backdrop";
 import { useOverlayScale } from "../../shared/overlay.ts";
-import { createPurchaseCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopViewModel } from "./model";
-import { formatShopMoney, groupShopItems, shopIconSource, shopMinMoneyColor, shopOwnerPipColors, shopPreviewSource, shopWashForRole } from "./presentation";
+import { createFulfillCommand, createPurchaseCommand, createRequestCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopRequestView, type ShopViewModel } from "./model";
+import { formatShopMoney, groupShopItems, groupShopRequests, shopIconSource, shopMinMoneyColor, shopOwnerPipColors, shopPreviewSource, shopWashForRole, type ShopColumn } from "./presentation";
 import { useShopAudio } from "./useShopAudio";
 import "./ShopPanel.css";
 
@@ -21,7 +21,8 @@ export type ShopPanelProps = {
   volume?: number;
   /** Interpolated from MatchSnapshot.phase_remaining_ms by the HUD selector. */
   countdownSeconds?: number | null;
-  onPurchase(command: ShopPurchaseCommand): void;
+  /** Purchases, teammate-request toggles and fulfilments; the model tracks each until its result. */
+  onCommand(command: ShopCommand): void;
   onClose(): void;
 };
 
@@ -33,7 +34,7 @@ function formatShopCountdown(seconds: number | null | undefined): string {
 
 const NO_PLAYER_COLORS: Readonly<Record<string, string>> = {};
 
-function ShopCard({ item, slot, wash, pips, onPurchase, onHover, onPreview }: { item: ShopItemView; slot: number; wash: string; pips: readonly string[]; onPurchase(item: ShopItemView): void; onHover(item: ShopItemView | null): void; onPreview(itemId: string): void }) {
+function ShopCard({ item, slot, wash, pips, onPurchase, onRequest, onHover, onPreview }: { item: ShopItemView; slot: number; wash: string; pips: readonly string[]; onPurchase(item: ShopItemView): void; onRequest(item: ShopItemView): void; onHover(item: ShopItemView | null): void; onPreview(itemId: string): void }) {
   const owned = item.owned_quantity !== undefined && item.owned_quantity !== null && item.owned_quantity > 0;
   const cardStyle = { "--shop-wash": wash } as CSSProperties;
   const handleClick = () => {
@@ -55,7 +56,8 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onHover, onPreview }: { 
       onBlur={() => onHover(null)}
       onKeyDown={(event) => { if (event.repeat && (event.key === "Enter" || event.key === " ")) event.preventDefault(); }}
       onClick={handleClick}
-      aria-label={`${item.name} ${formatShopMoney(item.price)}${item.unavailable ? `: ${item.unavailable_reason ?? "不可购买"}` : ""}`}
+      onContextMenu={(event) => { event.preventDefault(); onRequest(item); }}
+      aria-label={`${item.name} ${formatShopMoney(item.price)}${item.unavailable ? `: ${item.unavailable_reason ?? "不可购买"}` : ""}${item.requested ? "，已请求队友购买" : ""}`}
     >
       <span className="shop-card__key" aria-hidden="true">{slot}</span>
       <span className="shop-card__name">{item.name}</span>
@@ -66,9 +68,61 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onHover, onPreview }: { 
           {pips.map((color, index) => <span key={index} className="shop-card__pip" style={{ backgroundColor: color }} />)}
         </span>
       ) : null}
+      {/* The viewer's own open teammate request, in the card's free bottom-left corner. */}
+      {item.requested ? <span className="shop-card__requested" aria-hidden="true">已请求</span> : null}
       {/* The plugin answers in well under the timeout, so an in-flight purchase only blocks
           repeats and draws nothing; the label marks one that has outlived the timeout. */}
     </button>
+  );
+}
+
+/** buymenu.xml snippet-ground-weapon-entry: icon on the left, requester and price on the right. */
+function ShopRequestEntry({ request, onFulfil, onHover }: { request: ShopRequestView; onFulfil(request: ShopRequestView): void; onHover(request: ShopRequestView | null): void }) {
+  const icon = shopIconSource(request);
+  return (
+    <button
+      type="button"
+      className={`shop-request${request.unavailable ? " shop-request--disabled" : ""}`}
+      data-shop-request={request.request_id}
+      data-shop-state={request.commandState}
+      aria-disabled={request.disabled}
+      onPointerEnter={(event) => { if (event.pointerType !== "touch") onHover(request); }}
+      onPointerLeave={() => onHover(null)}
+      onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) onHover(request); }}
+      onBlur={() => onHover(null)}
+      onKeyDown={(event) => { if (event.repeat && (event.key === "Enter" || event.key === " ")) event.preventDefault(); }}
+      onClick={() => onFulfil(request)}
+      aria-label={`为 ${request.requester_name} 购买 ${request.name} ${formatShopMoney(request.price)}${request.unavailable ? `: ${request.unavailable_reason ?? "不可购买"}` : ""}`}
+    >
+      {/* The hidden image gives the box the icon's own width at 20px; the mask paints it in the wash. */}
+      <span className="shop-request__icon" style={{ maskImage: `url("${icon}")`, WebkitMaskImage: `url("${icon}")` }} aria-hidden="true">
+        <img src={icon} alt="" />
+      </span>
+      <span className="shop-request__label" aria-hidden="true">
+        <span className="shop-request__name">{request.requester_name}</span>
+        <span className="shop-request__price">{formatShopMoney(request.price)}</span>
+      </span>
+    </button>
+  );
+}
+
+/**
+ * buymenu.xml `buymenu__ground-weapons`, which SLGO has no dropped weapons for: the SCP side's teammate
+ * requests, one lister per item column. It grows from 0 while requests exist, as `.show-ground-weapons` does.
+ */
+function ShopRequestArea({ columns, requests, onFulfil, onHover }: { columns: readonly ShopColumn[]; requests: readonly ShopRequestView[]; onFulfil(request: ShopRequestView): void; onHover(request: ShopRequestView | null): void }) {
+  const listers = groupShopRequests(requests, columns);
+  return (
+    <div className={`shop-requests${requests.length > 0 ? " shop-requests--shown" : ""}`} data-shop-requests aria-label="队友请求" aria-hidden={requests.length === 0}>
+      <span className="shop-requests__title" aria-hidden="true">队友请求</span>
+      <div className="shop-requests__list">
+        {listers.map((lister) => (
+          <div key={lister.id} className="shop-requests__lister" style={{ width: `${lister.width}px` }} data-shop-request-column={lister.id}>
+            {lister.requests.map((request) => <ShopRequestEntry key={request.request_id} request={request} onFulfil={onFulfil} onHover={onHover} />)}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -85,12 +139,13 @@ export function ShopPanel({
   open,
   volume = DEFAULT_AUDIO_SETTINGS.shopVolume,
   countdownSeconds,
-  onPurchase,
+  onCommand,
   onClose,
 }: ShopPanelProps) {
   const scale = useOverlayScale();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [hoveredRequestId, setHoveredRequestId] = useState<string | null>(null);
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   // A refused attempt on an unavailable card shows the plugin's reason in the failure banner, as
   // CS2 does; `seq` restarts the banner animation when the same reason repeats.
@@ -99,7 +154,7 @@ export function ShopPanel({
   const visible = open && shop.hasSnapshot && shop.windowOpen;
   const audio = useShopAudio(visible, shop.items, volume);
   useEffect(() => { if (!visible) setDenial(null); }, [visible]);
-  const deny = useCallback((item: ShopItemView) => {
+  const deny = useCallback((item: ShopItemView | ShopRequestView) => {
     audio.play("deny");
     // A purchase still in flight blocks a repeat silently; only an unavailable card has a reason.
     if (item.unavailable) setDenial((current) => ({ reason: item.unavailable_reason ?? "不可购买", seq: (current?.seq ?? 0) + 1 }));
@@ -116,8 +171,32 @@ export function ShopPanel({
     // This cue acknowledges submission; only the authoritative result confirms purchase.
     audio.play("purchase");
     setDenial(null);
-    onPurchase(createPurchaseCommand(item.item_id));
-  }, [audio, deny, onPurchase]);
+    onCommand(createPurchaseCommand(item.item_id));
+  }, [audio, deny, onCommand]);
+  // R or a right-click on a card: the plugin creates, cancels (same item) or replaces the request and
+  // answers anything it refuses in the failure banner. Nothing to do while requesting is closed.
+  const canRequest = shop.canRequest;
+  const handleItemRequest = useCallback((item: ShopItemView) => {
+    if (!canRequest || item.requestPending) return;
+    audio.play("select");
+    setDenial(null);
+    onCommand(createRequestCommand(item.item_id));
+  }, [audio, canRequest, onCommand]);
+  const handleRequestHover = useCallback((request: ShopRequestView | null) => {
+    setHoveredRequestId(request?.request_id ?? null);
+    if (!request) return;
+    setPreviewItemId(request.item_id);
+    audio.play(request.unavailable ? "unavailable" : "select");
+  }, [audio]);
+  const handleFulfil = useCallback((request: ShopRequestView) => {
+    if (isShopItemPurchaseBlocked(request)) {
+      deny(request);
+      return;
+    }
+    audio.play("purchase");
+    setDenial(null);
+    onCommand(createFulfillCommand(request.request_id));
+  }, [audio, deny, onCommand]);
   // The open shop holds the foreground. Losing it (Alt+Tab, a click in another window)
   // gives the game back its locked cursor, so the shop closes, as chat does. Blurs
   // before the window first has focus belong to the foreground switch itself.
@@ -148,6 +227,13 @@ export function ShopPanel({
         }
         return;
       }
+      if (event.code === "KeyR") {
+        const hovered = hoveredItemId === null ? undefined : shop.items.find((item) => item.item_id === hoveredItemId);
+        if (!hovered || !canRequest) return;
+        event.preventDefault();
+        handleItemRequest(hovered);
+        return;
+      }
       if (!/^[1-9]$/.test(event.key)) return;
       const slot = Number(event.key) - 1;
       event.preventDefault();
@@ -172,12 +258,16 @@ export function ShopPanel({
     };
     window.addEventListener("keydown", handleWindowKeyDown);
     return () => window.removeEventListener("keydown", handleWindowKeyDown);
-  }, [audio, columns, deny, handleItemPurchase, onClose, selectedCategory, visible]);
+  }, [audio, canRequest, columns, deny, handleItemPurchase, handleItemRequest, hoveredItemId, onClose, selectedCategory, shop.items, visible]);
   if (!visible) return null;
   const wash = shopWashForRole(role);
   const selected = selectedCategory;
   const hoveredItem = shop.items.find((item) => item.item_id === hoveredItemId);
-  const previewItem = shop.items.find((item) => item.item_id === previewItemId) ?? shop.items[0];
+  const hoveredRequest = shop.requests.find((request) => request.request_id === hoveredRequestId);
+  // A request may be for an item outside the viewer's own catalog (an SCP-079 viewer, all-items scope).
+  const previewKnown = previewItemId !== null && (shop.items.some((item) => item.item_id === previewItemId) || shop.requests.some((request) => request.item_id === previewItemId));
+  const previewId = previewKnown ? previewItemId : shop.items[0]?.item_id ?? null;
+  const showRequests = shop.requests.length > 0;
   const failure = denial ? { text: denial.reason, key: `denial-${denial.seq}` } : shop.failureReason ? { text: shop.failureReason, key: `plugin-${shop.failureReason}` } : null;
   return (
     <>
@@ -194,7 +284,7 @@ export function ShopPanel({
               </span>
               {shop.nextRoundMinMoney !== null ? <span className="shop-min-money" style={{ color: shopMinMoneyColor(shop.nextRoundMinMoney) }}>下回合最低金额: {formatShopMoney(shop.nextRoundMinMoney)}</span> : null}
             </div>
-            <div className="shop-body" data-shop-body>
+            <div className={`shop-body${showRequests ? " shop-body--requests" : ""}`} data-shop-body>
               <div className={`shop-categories${selectedCategory ? " shop-categories--selected" : ""}`} data-shop-columns style={{ "--shop-column-count": columns.length } as CSSProperties}>
                 {columns.map((column, columnIndex) => (
                   <div key={column.id} className={`shop-column${selected === column.id ? " shop-column--selected" : ""}`} style={{ width: `${column.width}px` }} data-shop-column={column.id}>
@@ -203,25 +293,31 @@ export function ShopPanel({
                       <span>{column.label}</span>
                     </div>
                     <div className="shop-column__items">
-                      {column.items.map((item, itemIndex) => <ShopCard key={item.item_id} item={item as ShopItemView} slot={itemIndex + 1} wash={wash} pips={shopOwnerPipColors(item, playerColors, localPlayerId)} onPurchase={handleItemPurchase} onHover={handleItemHover} onPreview={setPreviewItemId} />)}
+                      {column.items.map((item, itemIndex) => <ShopCard key={item.item_id} item={item as ShopItemView} slot={itemIndex + 1} wash={wash} pips={shopOwnerPipColors(item, playerColors, localPlayerId)} onPurchase={handleItemPurchase} onRequest={handleItemRequest} onHover={handleItemHover} onPreview={setPreviewItemId} />)}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+            <ShopRequestArea columns={columns} requests={shop.requests} onFulfil={handleFulfil} onHover={handleRequestHover} />
           </div>
           <aside className="shop-right" data-shop-details>
-            {previewItem ? <img key={previewItem.item_id} className="shop-item-preview" src={shopPreviewSource(previewItem)} alt="" aria-hidden="true" /> : null}
+            {previewId !== null ? <img key={previewId} className="shop-item-preview" src={shopPreviewSource({ item_id: previewId })} alt="" aria-hidden="true" /> : null}
             <div className="shop-failure-container" role="status" aria-live="polite">
               {failure ? <span key={failure.key} className="shop-failure">{failure.text}</span> : null}
             </div>
-            {hoveredItem ? <div className="shop-details-card">
+            {hoveredRequest ? <div className="shop-details-card">
+              <strong>为 {hoveredRequest.requester_name} 购买 {hoveredRequest.name}</strong>
+              <span>{hoveredRequest.description ?? "你付款，队友收货。"}</span>
+            </div> : hoveredItem ? <div className="shop-details-card">
               <strong>{hoveredItem.name}</strong>
               <span>{hoveredItem.description ?? "插件确认购买后，余额与库存将更新。"}</span>
             </div> : null}
           </aside>
         </div>
         <nav className="shop-navbar" aria-label="商店操作">
+          {/* buymenu.xml BuyForTeammateLabel: CS2's own buy-for-teammate hint, washed and dimmed. */}
+          {canRequest ? <span className="shop-navbar__for-teammate">按<span className="shop-navbar__key">[R]</span>或右键请求队友购买</span> : null}
           <button type="button" onClick={onClose}><span className="shop-navbar__key">[ESCAPE]</span>返回</button>
         </nav>
         </div>

@@ -220,6 +220,19 @@ use Panorama translation or generated nodes.
   `npm run shop-visual-audit` against a CDP-enabled preview before accepting a
   visual change; the layout audit must report zero generated nodes and raw
   Panorama binding text.
+- The teammate-request area is CS2's `buymenu__ground-weapons` (SLGO has no
+  dropped weapons; user decision 2026-10-22): one lister per item column with
+  the column widths, CS2 ground-weapon entries (requester name and price on the
+  right), the 90px watermark title, CS2's 0.2s height/opacity growth while
+  requests exist. The live baseline puts the area 10px under the plate with its
+  bottom at y 1003 and the plate at 551px; under SLUI's 40px content shift the
+  plate takes 551px only while the area is shown and the area keeps CS2's
+  bottom edge (176px). If SLGO later adds dropped-weapon pickup and NTF
+  requests, both want this one area: decide then, do not stack a second area.
+  The viewer's own request is a quiet 已请求 in the card's free bottom-left
+  corner (the key's 40% white, the price's baseline); a black CS2 nux-style
+  ribbon there was rejected as too loud (user, 2026-10-22);
+  the navbar's request hint is CS2's BuyForTeammateLabel (wash x 0.63).
 
 ## 9. Chat-specific replication rules
 

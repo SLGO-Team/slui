@@ -849,3 +849,26 @@ While dead, the bottom HUD shows the watched player (balance, ammo, kill cards) 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 36: SCP teammate purchase requests in the SLUI shop
+<!-- trellis-session: v=2 fp=9cb3fc1eaa72b21c -->
+
+**Date**: 2026-10-22
+**Task**: SCP teammate purchase requests in the SLUI shop
+**Branch**: `feat/shop-teammate-requests`
+
+### Summary
+
+SLUI adapts the plugin's SCP 请求代购: CS2 dropped-weapons area reused as the teammate-request area (geometry from the 08-25 baseline: plate 551px while shown, area 176px ending at y 1003), R / right-click toggles a request, quiet 已请求 corner label, navbar hint in CS2 BuyForTeammateLabel style. @slgo/protocol: optional shop.snapshot requestable/requested/requests, command.shop.request / command.shop.fulfill. Plugin (3209597) and slgo-backend (5908a4a) on feat/shop-teammate-requests. PR SLGO-Team/slui#50; live test pending.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ed3dedf` | feat(shop): SCP teammate purchase requests in the CS2 dropped-weapons area |
+| `e96de8c` | fix(shop): quiet 已请求 label in the card corner instead of the black ribbon |
+
+### Status
+
+[OK] **Completed**

@@ -2,9 +2,13 @@ import {
   createCommandId,
   type CommandResult,
   type ConnectionStatus,
+  type ShopCommand,
+  type ShopFulfillCommand,
   type ShopItem,
-  type ShopSnapshot,
   type ShopPurchaseCommand,
+  type ShopRequest,
+  type ShopRequestCommand,
+  type ShopSnapshot,
   type SlgoEvent,
 } from "../../contracts/index.ts";
 
@@ -13,9 +17,23 @@ export const SHOP_STALE_AFTER_MS = 5_000;
 
 export type ShopCommandState = "idle" | "pending" | "success" | "failed" | "timedOut" | "rejected" | "abandoned";
 
+/**
+ * What a command acts on: `purchase:<item>` (buy for oneself), `request:<item>` (toggle one's teammate
+ * request), `fulfill:<request id>` (buy a teammate's request). A command blocks repeats of its own target.
+ */
+export type ShopCommandTarget = string;
+
+export function shopCommandTarget(command: ShopCommand): ShopCommandTarget {
+  switch (command.kind) {
+    case "command.shop.purchase": return `purchase:${command.item_id}`;
+    case "command.shop.request": return `request:${command.item_id}`;
+    case "command.shop.fulfill": return `fulfill:${command.request_id}`;
+  }
+}
+
 export type ShopPendingCommand = {
-  command: ShopPurchaseCommand;
-  itemId: string;
+  command: ShopCommand;
+  target: ShopCommandTarget;
   sentAtMs: number;
   state: Extract<ShopCommandState, "pending" | "timedOut">;
   reason?: string;
@@ -23,7 +41,7 @@ export type ShopPendingCommand = {
 
 export type ShopCommandRecord = {
   state: ShopCommandState;
-  itemId: string;
+  target: ShopCommandTarget;
   sentAtMs?: number;
   reason?: string;
 };
@@ -71,7 +89,7 @@ export const initialShopState: ShopState = {
 export type ShopAction =
   | { type: "connection"; status: ConnectionStatus }
   | { type: "event"; event: SlgoEvent; receivedAtMs: number }
-  | { type: "purchase"; command: ShopPurchaseCommand; sentAtMs: number }
+  | { type: "command"; command: ShopCommand; sentAtMs: number }
   | { type: "command-result"; result: CommandResult; receivedAtMs?: number }
   | { type: "tick"; nowMs: number };
 
@@ -79,7 +97,7 @@ function abandonPending(state: ShopState): ShopState {
   const pending = { ...state.pending };
   const commands = { ...state.commands };
   for (const [id, command] of Object.entries(pending)) {
-    commands[id] = { state: "abandoned", itemId: command.itemId, sentAtMs: command.sentAtMs, reason: "Connection lost" };
+    commands[id] = { state: "abandoned", target: command.target, sentAtMs: command.sentAtMs, reason: "Connection lost" };
     delete pending[id];
   }
   return { ...state, pending, commands };
@@ -89,9 +107,35 @@ export function createPurchaseCommand(itemId: string, quantity = 1): ShopPurchas
   return { kind: "command.shop.purchase", command_id: createCommandId("purchase"), item_id: itemId, quantity };
 }
 
+export function createRequestCommand(itemId: string): ShopRequestCommand {
+  return { kind: "command.shop.request", command_id: createCommandId("request"), item_id: itemId };
+}
+
+export function createFulfillCommand(requestId: string): ShopFulfillCommand {
+  return { kind: "command.shop.fulfill", command_id: createCommandId("fulfill"), request_id: requestId };
+}
+
 export function canPurchase(snapshot: ShopSnapshot, itemId: string): boolean {
   const item = snapshot.items.find((candidate) => candidate.item_id === itemId);
   return Boolean(snapshot.window_open && item?.purchasable);
+}
+
+/** The snapshot lets the viewer ask teammates for items at all (some item is requestable). */
+export function canRequestAny(snapshot: ShopSnapshot): boolean {
+  return snapshot.items.some((item) => item.requestable === true);
+}
+
+/**
+ * Whether the snapshot allows sending this command. A request is sent for any card once requesting is
+ * possible: the plugin answers an item outside the scope with its own reason.
+ */
+export function canSendShopCommand(snapshot: ShopSnapshot, command: ShopCommand): boolean {
+  if (!snapshot.window_open) return false;
+  switch (command.kind) {
+    case "command.shop.purchase": return canPurchase(snapshot, command.item_id);
+    case "command.shop.request": return canRequestAny(snapshot) && snapshot.items.some((item) => item.item_id === command.item_id);
+    case "command.shop.fulfill": return Boolean(snapshot.requests?.find((request) => request.request_id === command.request_id)?.purchasable);
+  }
 }
 
 function sourceChanged(state: ShopState, serverId: string, instanceId: string): boolean {
@@ -113,23 +157,25 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
     for (const [id, command] of Object.entries(pending)) {
       if (command.state === "pending" && action.nowMs - command.sentAtMs > SHOP_COMMAND_TIMEOUT_MS) {
         pending[id] = { ...command, state: "timedOut" };
-        commands[id] = { state: "timedOut", itemId: command.itemId, sentAtMs: command.sentAtMs };
+        commands[id] = { state: "timedOut", target: command.target, sentAtMs: command.sentAtMs };
         changed = true;
       }
     }
     return changed ? { ...state, pending, commands } : state;
   }
 
-  if (action.type === "purchase") {
-    if (!state.frame || state.connectionStatus !== "live" || !canPurchase(state.frame.snapshot, action.command.item_id)) return state;
+  if (action.type === "command") {
+    if (!state.frame || state.connectionStatus !== "live" || !canSendShopCommand(state.frame.snapshot, action.command)) return state;
     if (state.pending[action.command.command_id]) return state;
     const existing = state.commands[action.command.command_id];
     if (existing && existing.state !== "idle") return state;
-    const pending: ShopPendingCommand = { command: action.command, itemId: action.command.item_id, sentAtMs: action.sentAtMs, state: "pending" };
+    const target = shopCommandTarget(action.command);
+    if (Object.values(state.pending).some((candidate) => candidate.target === target)) return state;
+    const pending: ShopPendingCommand = { command: action.command, target, sentAtMs: action.sentAtMs, state: "pending" };
     return {
       ...state,
       pending: { ...state.pending, [action.command.command_id]: pending },
-      commands: { ...state.commands, [action.command.command_id]: { state: "pending", itemId: action.command.item_id, sentAtMs: action.sentAtMs } },
+      commands: { ...state.commands, [action.command.command_id]: { state: "pending", target, sentAtMs: action.sentAtMs } },
       failureReason: null,
     };
   }
@@ -149,7 +195,7 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
       ...state.commands,
       [action.result.command_id]: {
         state: status,
-        itemId: command.itemId,
+        target: command.target,
         sentAtMs: command.sentAtMs,
         ...(action.result.reason ? { reason: action.result.reason } : {}),
       },
@@ -238,6 +284,18 @@ export type ShopItemView = ShopItem & {
   unavailable: boolean;
   /** Blocks a purchase: `unavailable`, or a command for it is still in flight. */
   disabled: boolean;
+  /** A request toggle for this item is in flight; a repeat waits for its result. */
+  requestPending: boolean;
+};
+
+/** A teammate's request as the request area draws it; the same purchase rules as a card. */
+export type ShopRequestView = ShopRequest & {
+  commandState: ShopCommandState;
+  commandReason?: string;
+  /** The viewer cannot pay it now, or the shop is not live with the buy window open. */
+  unavailable: boolean;
+  /** Blocks a click: `unavailable`, or a fulfilment of it is still in flight. */
+  disabled: boolean;
 };
 
 /**
@@ -245,7 +303,7 @@ export type ShopItemView = ShopItem & {
  * `purchasable`, the buy window and pending commands) blocks a purchase. Owning
  * the item already is display-only, e.g. a second flashbang stays buyable.
  */
-export function isShopItemPurchaseBlocked(item: Pick<ShopItemView, "disabled">): boolean {
+export function isShopItemPurchaseBlocked(item: Pick<ShopItemView | ShopRequestView, "disabled">): boolean {
   return item.disabled;
 }
 
@@ -259,15 +317,27 @@ export type ShopViewModel = {
   nextRoundMinMoney: number | null;
   categories: ShopSnapshot["categories"];
   items: ShopItemView[];
+  /** Teammates' requests the viewer may fulfil (the request area); empty without any. */
+  requests: ShopRequestView[];
+  /** Some item is requestable: R / right-click on a card sends a request and the navbar shows the hint. */
+  canRequest: boolean;
   failureReason: string | null;
   pendingCount: number;
   frame: ShopSnapshotFrame | null;
 };
 
+function commandFor(state: ShopState, target: ShopCommandTarget): { pending: ShopPendingCommand | undefined; record: ShopCommandRecord | undefined } {
+  const pending = Object.values(state.pending).find((candidate) => candidate.target === target);
+  const record = pending
+    ? state.commands[pending.command.command_id]
+    : Object.values(state.commands).find((candidate) => candidate.target === target && candidate.state !== "idle");
+  return { pending, record };
+}
+
 export function selectShop(state: ShopState, nowMs: number): ShopViewModel {
   const availability = availabilityForState(state, nowMs);
   const status = { availability, connectionStatus: state.connectionStatus, statusLabel: statusLabel(availability, state.connectionStatus) };
-  if (!state.frame) return { ...status, hasSnapshot: false, windowOpen: false, balance: 0, nextRoundMinMoney: null, categories: undefined, items: [], failureReason: state.failureReason, pendingCount: Object.keys(state.pending).length, frame: null };
+  if (!state.frame) return { ...status, hasSnapshot: false, windowOpen: false, balance: 0, nextRoundMinMoney: null, categories: undefined, items: [], requests: [], canRequest: false, failureReason: state.failureReason, pendingCount: Object.keys(state.pending).length, frame: null };
   const snapshot = state.frame.snapshot;
   const enabled = availability === "live" && snapshot.window_open;
   return {
@@ -278,13 +348,17 @@ export function selectShop(state: ShopState, nowMs: number): ShopViewModel {
     nextRoundMinMoney: snapshot.next_round_min_money ?? null,
     categories: snapshot.categories,
     items: snapshot.items.map((item) => {
-      const command = Object.values(state.pending).find((candidate) => candidate.itemId === item.item_id);
-      const record = command
-        ? state.commands[command.command.command_id]
-        : Object.values(state.commands).find((candidate) => candidate.itemId === item.item_id && candidate.state !== "idle");
+      const { pending: command, record } = commandFor(state, `purchase:${item.item_id}`);
       const unavailable = !enabled || !item.purchasable;
-      return { ...item, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command) };
+      const requestPending = Boolean(commandFor(state, `request:${item.item_id}`).pending);
+      return { ...item, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command), requestPending };
     }),
+    requests: (snapshot.requests ?? []).map((request) => {
+      const { pending: command, record } = commandFor(state, `fulfill:${request.request_id}`);
+      const unavailable = !enabled || !request.purchasable;
+      return { ...request, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command) };
+    }),
+    canRequest: enabled && canRequestAny(snapshot),
     failureReason: state.failureReason,
     pendingCount: Object.keys(state.pending).length,
     frame: state.frame,

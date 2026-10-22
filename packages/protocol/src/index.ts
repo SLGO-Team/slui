@@ -247,9 +247,41 @@ export type ShopItem = {
   owner_player_ids?: string[] | null;
   purchasable: boolean;
   unavailable_reason?: string | null;
+  /**
+   * The viewer may ask teammates to buy this item (`command.shop.request`): the game mode and its item scope
+   * allow it. The viewer's own state (already owned, outside the buy zone) is not folded in; the plugin
+   * answers such a request with its reason. Absent from older plugins.
+   */
+  requestable?: boolean;
+  /** The viewer's own open teammate request is this item. */
+  requested?: boolean;
 };
 
 export type ShopCategory = { id: string; label: string; order: number };
+
+export const MAX_SHOP_REQUESTS = 64;
+export const MAX_SHOP_REQUEST_ID_LENGTH = 32;
+export const MAX_SHOP_REQUESTER_NAME_LENGTH = 64;
+
+/** A teammate's open purchase request the viewer may fulfil (`command.shop.fulfill`): the viewer pays, the requester receives. */
+export type ShopRequest = {
+  /** The plugin's id of this request; a replaced request gets a new one. */
+  request_id: string;
+  /** SteamID64, as in match.snapshot. */
+  requester_player_id: string;
+  requester_name: string;
+  item_id: string;
+  name: string;
+  description?: string;
+  icon_url?: string | null;
+  /** The item's column in the viewer's own catalog; null or unknown means the last column. */
+  category_id?: string | null;
+  /** The requester's effective price, which the viewer pays. */
+  price: number;
+  /** The viewer can pay it now (shop access, balance); the request stays listed either way. */
+  purchasable: boolean;
+  unavailable_reason?: string | null;
+};
 
 export type ShopSnapshot = {
   balance: number;
@@ -258,6 +290,8 @@ export type ShopSnapshot = {
   items: ShopItem[];
   window_open: boolean;
   categories?: ShopCategory[];
+  /** Teammates' requests the viewer may fulfil, in team order; never the viewer's own. Absent from older plugins. */
+  requests?: ShopRequest[];
 };
 
 export type ChatScope = "global" | "team" | "spectator";
@@ -559,13 +593,27 @@ export type ShopPurchaseCommand = {
   item_id: string;
   quantity: number;
 };
+/** Ask teammates to buy `item_id`: the same item again cancels the request, another item replaces it. */
+export type ShopRequestCommand = {
+  kind: "command.shop.request";
+  command_id: string;
+  item_id: string;
+};
+/** Buy a teammate's request (`ShopSnapshot.requests`) for them: the sender pays, the requester receives. */
+export type ShopFulfillCommand = {
+  kind: "command.shop.fulfill";
+  command_id: string;
+  request_id: string;
+};
 export type ChatSendCommand = {
   kind: "command.chat.send";
   command_id: string;
   scope: ChatScope;
   body: string;
 };
-export type SlgoCommand = ShopPurchaseCommand | ChatSendCommand;
+export type ShopCommand = ShopPurchaseCommand | ShopRequestCommand | ShopFulfillCommand;
+export type SlgoCommand = ShopCommand | ChatSendCommand;
+export const COMMAND_KINDS = ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send"] as const satisfies readonly SlgoCommand["kind"][];
 
 export type CommandResult = {
   command_id: string;
@@ -1069,10 +1117,33 @@ export function parseShopSnapshot(payload: unknown): ParseResult<ShopSnapshot> {
     if (item.category_id !== undefined && item.category_id !== null && !isNonEmptyString(item.category_id)) return null;
     if (item.owned_quantity !== undefined && item.owned_quantity !== null && (!Number.isInteger(item.owned_quantity) || Number(item.owned_quantity) < 0)) return null;
     if (item.owner_player_ids !== undefined && item.owner_player_ids !== null && (!Array.isArray(item.owner_player_ids) || !item.owner_player_ids.every(isNonEmptyString))) return null;
+    if ((item.requestable !== undefined && typeof item.requestable !== "boolean") || (item.requested !== undefined && typeof item.requested !== "boolean")) return null;
     return item as unknown as ShopItem;
   });
   if (!items.every(Boolean)) return error("invalid-payload", "Shop snapshot contains an invalid item");
-  return { ok: true, value: { balance: payload.balance as number, next_round_min_money: payload.next_round_min_money as number | null | undefined, window_open: payload.window_open, items: items as ShopItem[], ...(categories ? { categories: categories as ShopCategory[] } : {}) } };
+  const requests = payload.requests === undefined ? undefined : parseShopRequests(payload.requests);
+  if (requests === null) return error("invalid-payload", "Shop requests are invalid");
+  return { ok: true, value: { balance: payload.balance as number, next_round_min_money: payload.next_round_min_money as number | null | undefined, window_open: payload.window_open, items: items as ShopItem[], ...(categories ? { categories: categories as ShopCategory[] } : {}), ...(requests ? { requests } : {}) } };
+}
+
+const SHOP_REQUEST_KEYS = new Set(["request_id", "requester_player_id", "requester_name", "item_id", "name", "description", "icon_url", "category_id", "price", "purchasable", "unavailable_reason"]);
+
+/** A new structure, so unknown keys are refused; request ids are unique. Null when anything is invalid. */
+function parseShopRequests(value: unknown): ShopRequest[] | null {
+  if (!Array.isArray(value) || value.length > MAX_SHOP_REQUESTS) return null;
+  const ids = new Set<string>();
+  for (const request of value) {
+    if (!isRecord(request) || !hasOnlyKeys(request, SHOP_REQUEST_KEYS)) return null;
+    if (!isNonEmptyString(request.request_id) || request.request_id.length > MAX_SHOP_REQUEST_ID_LENGTH || ids.has(request.request_id)) return null;
+    if (!isNonEmptyString(request.requester_player_id) || !isNonEmptyString(request.requester_name) || request.requester_name.length > MAX_SHOP_REQUESTER_NAME_LENGTH) return null;
+    if (!isNonEmptyString(request.item_id) || !isNonEmptyString(request.name) || !Number.isSafeInteger(request.price) || Number(request.price) < 0 || typeof request.purchasable !== "boolean") return null;
+    if (request.description !== undefined && typeof request.description !== "string") return null;
+    if (request.icon_url !== undefined && request.icon_url !== null && typeof request.icon_url !== "string") return null;
+    if (request.category_id !== undefined && request.category_id !== null && !isNonEmptyString(request.category_id)) return null;
+    if (request.unavailable_reason !== undefined && request.unavailable_reason !== null && typeof request.unavailable_reason !== "string") return null;
+    ids.add(request.request_id);
+  }
+  return value as ShopRequest[];
 }
 
 export function parseChatMessage(payload: unknown): ParseResult<ChatMessage> {
@@ -1307,7 +1378,7 @@ export function parseInstanceEnded(payload: unknown): ParseResult<InstanceEnded>
 }
 
 export function parseCommandResult(payload: unknown): ParseResult<CommandResult> {
-  if (!isRecord(payload) || !isNonEmptyString(payload.command_id) || !["command.shop.purchase", "command.chat.send"].includes(String(payload.command_kind)) || !["accepted", "rejected", "duplicate", "failed"].includes(String(payload.status))) return error("invalid-payload", "Command result is invalid");
+  if (!isRecord(payload) || !isNonEmptyString(payload.command_id) || !(COMMAND_KINDS as readonly string[]).includes(String(payload.command_kind)) || !["accepted", "rejected", "duplicate", "failed"].includes(String(payload.status))) return error("invalid-payload", "Command result is invalid");
   if (payload.reason !== undefined && typeof payload.reason !== "string") return error("invalid-payload", "Command result reason is invalid");
   return { ok: true, value: payload as unknown as CommandResult };
 }
@@ -1317,6 +1388,14 @@ export function parseCommand(command: unknown): ParseResult<SlgoCommand> {
   if (command.kind === "command.shop.purchase") {
     if (!isNonEmptyString(command.item_id) || !Number.isInteger(command.quantity) || Number(command.quantity) < 1) return error("invalid-payload", "Purchase command is invalid");
     return { ok: true, value: command as ShopPurchaseCommand };
+  }
+  if (command.kind === "command.shop.request") {
+    if (!isNonEmptyString(command.item_id)) return error("invalid-payload", "Request command is invalid");
+    return { ok: true, value: command as ShopRequestCommand };
+  }
+  if (command.kind === "command.shop.fulfill") {
+    if (!isNonEmptyString(command.request_id) || command.request_id.length > MAX_SHOP_REQUEST_ID_LENGTH) return error("invalid-payload", "Fulfil command is invalid");
+    return { ok: true, value: command as ShopFulfillCommand };
   }
   if (command.kind === "command.chat.send") {
     if (!["global", "team", "spectator"].includes(String(command.scope)) || !isNonEmptyString(command.body)) return error("invalid-payload", "Chat command is invalid");
