@@ -1,7 +1,8 @@
 # release-please keeps a release PR open on main (versions + CHANGELOG.md). Merging it
 # creates a draft GitHub Release with its vX.Y.Z tag; the installer job then builds
-# SLUI-Setup-X.Y.Z.exe, signs it for the updater and attaches both files to the draft,
-# which a maintainer publishes.
+# SLUI-Setup-X.Y.Z.exe, signs it for the updater, attaches both files to the draft and
+# publishes it. The release stays a draft until both files are there, so a published
+# release always carries a signed installer (update servers fetch the latest published one).
 name: release
 
 on:
@@ -97,3 +98,10 @@ jobs:
           gh release upload "$TAG" --clobber \
             "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe" \
             "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe.sig"
+      # Last step: publishing marks the release as the latest one. A failed build or upload
+      # above leaves the draft unpublished; re-running the job finishes it.
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$TAG" --draft=false --latest
