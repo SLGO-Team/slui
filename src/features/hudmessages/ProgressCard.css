@@ -17,7 +17,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  src: url("/assets/fonts/notosanssc-bold.woff2") format("woff2");
   /* Recording: the bold CJK title is 14.4px per glyph (230px for 16 glyphs), smaller than the 0.9 used
      for lighter cuts. */
   size-adjust: 84%;

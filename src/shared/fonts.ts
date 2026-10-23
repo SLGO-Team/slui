@@ -52,7 +52,7 @@ function fallback(file: string, capHeight: number, line: LineMetrics, tabular = 
   const scale = STRATUM2_CAP_HEIGHT / capHeight;
   return {
     file: `/assets/fonts/fallback/${file}`,
-    format: "truetype",
+    format: "woff2",
     metrics: {
       sizeAdjust: percent(scale),
       ascentOverride: percent(line.ascent / scale),
@@ -66,9 +66,9 @@ function fallback(file: string, capHeight: number, line: LineMetrics, tabular = 
 const BARLOW_CAP_HEIGHT = 0.7;
 const SAIRA_CAP_HEIGHT = 0.688;
 const barlow = (weight: "Light" | "Regular" | "Medium" | "Bold", line: LineMetrics, tabular = false) =>
-  fallback(`barlow/Barlow-${weight}.ttf`, BARLOW_CAP_HEIGHT, line, tabular);
+  fallback(`barlow/Barlow-${weight}.woff2`, BARLOW_CAP_HEIGHT, line, tabular);
 const sairaCondensed = (weight: "light" | "medium" | "bold", line: LineMetrics) =>
-  fallback(`saira/saira-condensed-${weight}.ttf`, SAIRA_CAP_HEIGHT, line);
+  fallback(`saira/saira-condensed-${weight}.woff2`, SAIRA_CAP_HEIGHT, line);
 
 export const FONT_FACES: readonly FontFaceSpec[] = [
   // Top HUD (HudTeamCounter.css)
