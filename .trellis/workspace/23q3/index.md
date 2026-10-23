@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 36
-- **Last Active**: 2026-10-22
+- **Total Sessions**: 37
+- **Last Active**: 2026-10-23
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~874 | Active |
+| `journal-1.md` | ~896 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 37 | 2026-10-23 | 交互模式下移动的方案评估（结论：不做） | `e469cd2` | `feat/overlay-move-while-interactive` |
 | 36 | 2026-10-22 | SCP teammate purchase requests in the SLUI shop | `ed3dedf`, `e96de8c` | `feat/shop-teammate-requests` |
 | 35 | 2026-10-21 | CS2 spectator panel | `c8557d0`, `ff93e6a`, `7d706c3` | `feat/spectator-panel` |
 | 34 | 2026-10-21 | World blur under the remaining HUD panels | `91901b5`, `aaa31ce`, `b4f76de`, `66dc0cc`, `8634bd1` | `feat/backdrop-panels` |
