@@ -20,12 +20,19 @@ void Promise.all([currentWindowLabel(), loadThemePack()]).then(async ([label, th
   // Theme-pack fonts and sounds must be resolved before any feature mounts.
   setThemePack(themePack);
   registerFontFaces(themePack);
-  const Root = label === "home"
-    ? (await import("./app/home/HomeApp")).HomeApp
-    : (await import("./App")).default;
+  let root: React.ReactNode;
+  if (label === "home") {
+    const { HomeApp } = await import("./app/home/HomeApp");
+    root = <HomeApp />;
+  } else {
+    // The mocks load only in the `mock` mode; Vite replaces MODE at build time, so packages never include them.
+    const harness = import.meta.env.MODE === "mock" ? await import("./mocks/harness") : null;
+    const { default: App } = await import("./App");
+    root = <App harness={harness} />;
+  }
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
-      <Root />
+      {root}
     </React.StrictMode>,
   );
 });

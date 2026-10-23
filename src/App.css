@@ -9,14 +9,6 @@ body,
   background: transparent;
 }
 
-#SlgoOverlayRoot[data-preview-background="1"] {
-  background: #101214 url("/assets/preview/background-1.jpg") center / cover no-repeat;
-}
-
-#SlgoOverlayRoot[data-preview-background="2"] {
-  background: #101214 url("/assets/preview/background-2.jpg") center / cover no-repeat;
-}
-
 /* Mock preview stand-in for the native world blur (src/platform/backdrop.ts); off with the setting. */
 html:not([data-world-blur="on"]) .slui-backdrop-standin {
   display: none;

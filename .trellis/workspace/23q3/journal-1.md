@@ -940,3 +940,26 @@ All fonts SLUI ships (Noto Sans SC, Barlow, Chakra Petch, Barlow/Saira fallbacks
 ### Status
 
 [OK] **Completed**
+
+
+## Session 40: Release builds without mock code
+<!-- trellis-session: v=2 fp=1c598b08cc51d106 -->
+
+**Date**: 2026-10-23
+**Task**: Release builds without mock code
+**Branch**: `perf/release-without-mocks`
+
+### Summary
+
+A production build shipped mock chat history, HUD scenes, debug-panel CSS and 0.9 MB preview backgrounds: App imported src/mocks statically and decided MOCK_BACKEND at runtime. MOCK_BACKEND is now import.meta.env.MODE === 'mock' (never built); main.tsx dynamically imports src/mocks/harness.ts only in that mode and passes it to App as the harness prop; preview art moved to src/mocks/preview. mock-boundary-check in npm test rejects other value imports from src/mocks. Production App JS 268 -> 183 KB, dist 24.29 -> 23.28 MB. Mock mode verified (debug panels, background, radar); audits unchanged vs main.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3517aec` | perf(overlay): packages carry no mock code, debug panels or preview art |
+| `1d6c626` | docs(spec): packages carry no mock code |
+
+### Status
+
+[OK] **Completed**

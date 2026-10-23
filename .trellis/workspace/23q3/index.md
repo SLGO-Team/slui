@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 39
+- **Total Sessions**: 40
 - **Last Active**: 2026-10-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~942 | Active |
+| `journal-1.md` | ~965 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 40 | 2026-10-23 | Release builds without mock code | `3517aec`, `1d6c626` | `perf/release-without-mocks` |
 | 39 | 2026-10-23 | Bundled fonts as WOFF2; branch cleanup | `1783dde`, `8e26f34` | `perf/woff2-fonts` |
 | 38 | 2026-10-23 | Overlay clock out of the App root | `f7caa0c`, `aa4e0b0` | `perf/overlay-clock` |
 | 37 | 2026-10-23 | 交互模式下移动的方案评估（结论：不做） | `e469cd2` | `feat/overlay-move-while-interactive` |
