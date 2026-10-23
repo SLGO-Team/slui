@@ -963,3 +963,26 @@ A production build shipped mock chat history, HUD scenes, debug-panel CSS and 0.
 ### Status
 
 [OK] **Completed**
+
+
+## Session 41: Size-optimised Rust release profile
+<!-- trellis-session: v=2 fp=6be52cdc9118da79 -->
+
+**Date**: 2026-10-23
+**Task**: Size-optimised Rust release profile
+**Branch**: `perf/rust-release-profile`
+
+### Summary
+
+src-tauri/Cargo.toml (workspace root) gets [profile.release]: opt-level s, fat LTO, codegen-units 1, strip symbols. Local, one commit: slui.exe 31.4 -> 26.6 MB, slui-setup.exe 10.0 -> 6.8, installer 33.2 -> 28.8 (LTO+strip alone only -1.6 MB; most from opt-level s). CI cold installer build via a temporary bench workflow (reverted before merge): 404 -> 566 s, installer 33.10 -> 28.58 MB. panic stays unwind (tokio JoinHandles in sidecar_socket). cargo test --workspace --release: 74 passed. Tuned exe not launched (installed SLUI running, single-instance): in-game test before release.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f98927c` | perf(build): size-optimised release profile for slui.exe, the shell and the installer |
+| `cac013f` | docs(build): note the release profile's build-time cost |
+
+### Status
+
+[OK] **Completed**

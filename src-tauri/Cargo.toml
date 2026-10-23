@@ -16,6 +16,18 @@ license = "GPL-3.0-or-later"
 members = [".", "../installer/src-tauri", "workspace-hack"]
 resolver = "2"
 
+# Release builds (the installer, slui.exe and slui-setup.exe) trade build time for size: measured on one
+# commit, slui.exe 31.4 -> 26.6 MB, slui-setup.exe 10.0 -> 6.8 MB, the installer 33.2 -> 28.8 MB, for a
+# cold CI installer build of 566 s instead of 404 s (only releases build it). Most of the gain is
+# opt-level "s"; the Rust side does little CPU work (hooks, Win32 / D3D calls, rustls with
+# ring's assembly). panic stays "unwind": the sidecar socket awaits tokio JoinHandles, which turn a task
+# panic into an error only when it unwinds. PR CI builds the dev profile and is unaffected.
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
