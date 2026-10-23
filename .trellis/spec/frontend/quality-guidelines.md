@@ -44,10 +44,26 @@ values.
   the UI on screen (the shop, chat) and returns to passive when that
   UI closes. A UI may only open on an explicit player action (its hotkey),
   never because plugin data such as `window_open` arrived.
-- A presentation clock (`setInterval` that dispatches or sets state) runs only
-  while something on screen actually depends on time. Feature hooks live in
-  `App`, so every tick re-renders the whole overlay. The minimap is the
-  exception: its state is an external store (`useMinimapFeature` in `App` only
+- `App` holds no clock. Time-derived values come from the shared overlay clock
+  (`src/shared/clock.ts`: one 250 ms interval while anyone subscribes) through
+  `useClockSelector(select, isEqual)`, which re-renders its reader only when the
+  selected value changes:
+  - A value one panel draws is selected in that panel from a `(nowMs) => T` prop
+    that `App` memoises on its state (`clockAt`, `panelAt`, `zoneAt`,
+    `noticesAt`, `elapsedAt`, `countdownAt`); a tick re-renders that panel alone.
+  - A value `App` reads itself (live `hud`, `shop`) is selected in `App` with an
+    exact equality exported next to its selector (`sameRoundHudTime`,
+    `sameShopTime`, ...). It must compare every field the selector derives from
+    `nowMs`; keep per-second fields out of such views (`selectRoundHudClock`
+    holds the HUD timers, `scoreboardElapsedText` the match time).
+  - Reducer ticks (command timeouts) subscribe only while a command is pending.
+  - Debug frames are built once per option change and read at their build time.
+- A `useReducer` dispatch re-runs `App` even when the reducer returns the same
+  state (no eager bailout). `handleEvent` dispatches an event only to the
+  reducers whose `*_EVENT_TYPES` list it; a reducer reading a new event type
+  must add it there (`event-routing-smoke` checks every reducer ignores every
+  other type). Minimap positions arrive at 15 Hz.
+- The minimap's state is an external store (`useMinimapFeature` in `App` only
   dispatches) and `LiveMinimapRadar` subscribes with `useSyncExternalStore`, so
   its `requestAnimationFrame` clock re-renders only the radar, and only while a
   position frame (`frame` / `pendingFrame`) exists.

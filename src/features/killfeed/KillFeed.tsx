@@ -1,7 +1,8 @@
-import { useState, type CSSProperties } from "react";
+import { memo, useState, type CSSProperties } from "react";
 import { useBackdropRef } from "../../platform/backdrop.ts";
+import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
-import type { KillfeedNoticeView } from "./model.ts";
+import { sameKillfeedTime, type KillfeedNoticeView } from "./model.ts";
 import { KILLFEED_HEADSHOT_ICON, KILLFEED_SUICIDE_ICON, type KillfeedPlayerView } from "./presentation.ts";
 import "./KillFeed.css";
 
@@ -48,7 +49,8 @@ function Notice({ view, still }: NoticeProps) {
 }
 
 export type KillFeedProps = {
-  notices: readonly KillfeedNoticeView[];
+  /** The notices at a time (selectKillfeed), selected here on the overlay clock. */
+  noticesAt: (nowMs: number) => readonly KillfeedNoticeView[];
   /** Debug captures: no enter or fade animation, so a still frame is deterministic. */
   still?: boolean;
 };
@@ -57,7 +59,8 @@ export type KillFeedProps = {
  * CS2 `CSGOHudDeathNotice` (huddeathnotice.xml / huddeathnotice.css) on the 1920x1080 overlay canvas: notices stack
  * down from the top-right corner, oldest on top.
  */
-export function KillFeed({ notices, still = false }: KillFeedProps) {
+export const KillFeed = memo(function KillFeed({ noticesAt, still = false }: KillFeedProps) {
+  const notices = useClockSelector(noticesAt, sameKillfeedTime);
   const scale = useOverlayScale();
   if (notices.length === 0) return null;
   return (
@@ -69,4 +72,4 @@ export function KillFeed({ notices, still = false }: KillFeedProps) {
       </div>
     </section>
   );
-}
+});

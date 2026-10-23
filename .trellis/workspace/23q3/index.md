@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 37
+- **Total Sessions**: 38
 - **Last Active**: 2026-10-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~896 | Active |
+| `journal-1.md` | ~919 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 38 | 2026-10-23 | Overlay clock out of the App root | `f7caa0c`, `aa4e0b0` | `perf/overlay-clock` |
 | 37 | 2026-10-23 | 交互模式下移动的方案评估（结论：不做） | `e469cd2` | `feat/overlay-move-while-interactive` |
 | 36 | 2026-10-22 | SCP teammate purchase requests in the SLUI shop | `ed3dedf`, `e96de8c` | `feat/shop-teammate-requests` |
 | 35 | 2026-10-21 | CS2 spectator panel | `c8557d0`, `ff93e6a`, `7d706c3` | `feat/spectator-panel` |

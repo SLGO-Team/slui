@@ -23,6 +23,9 @@ export type ScoreboardAction =
 const sameSource = (source: ScoreboardSource | null, serverId: string, instanceId: string) =>
   source !== null && source.serverId === serverId && source.instanceId === instanceId;
 
+/** The events scoreboardReducer reads; App dispatches no others to it (each dispatch re-renders App). */
+export const SCOREBOARD_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "scoreboard.snapshot"]);
+
 /**
  * Keeps the latest `scoreboard.snapshot` of the baseline's instance. A baseline of another server or instance clears
  * it (an old plugin then never sends one, so the panel stays off); a reconnect to the same instance keeps it, and the

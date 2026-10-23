@@ -41,6 +41,9 @@ export function winPanelRemainingMs(frame: WinPanelFrame, nowMs: number): number
   return Math.max(0, frame.panel.visible_remaining_ms - Math.max(0, nowMs - frame.receivedAtMs));
 }
 
+/** The events winPanelReducer reads; App dispatches no others to it (each dispatch re-renders App). */
+export const WIN_PANEL_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "round.result"]);
+
 export function winPanelReducer(state: WinPanelState, action: WinPanelAction): WinPanelState {
   // Only an ended instance clears the panel; other drops keep it for a reconnect to the same instance.
   if (action.type === "connection") return action.status === "ended" && state !== initialWinPanelState ? initialWinPanelState : state;
@@ -98,6 +101,11 @@ export type WinPanelView = {
   /** Local time the hold runs out. */
   exitAtMs: number;
 };
+
+/** Two selectWinPanel results of one state differ in time only by running out (null). */
+export function sameWinPanelTime(a: WinPanelView | null, b: WinPanelView | null): boolean {
+  return a === null || b === null ? a === b : a.resultId === b.resultId;
+}
 
 /** The panel to draw at `nowMs`, or null once it ended or ran out locally. */
 export function selectWinPanel(state: WinPanelState, nowMs: number, roster: WinPanelRoster): WinPanelView | null {

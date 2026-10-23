@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type ShopCommand, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
-import { initialRoundHudState, roundHudReducer, selectRoundHud } from "./features/hud/model";
+import { HUD_EVENT_TYPES, initialRoundHudState, roundHudReducer, sameRoundHudTime, selectRoundHud, selectRoundHudClock } from "./features/hud/model";
 import {
   createMockProvider,
   mockShopSnapshotFor,
 } from "./mocks/provider";
 import { HudDebugPanel } from "./mocks/HudDebugPanel";
 import { ShopPanel } from "./features/shop/ShopPanel";
-import { selectShop } from "./features/shop/model";
+import { sameShopTime, selectShop } from "./features/shop/model";
 import { useShopFeature } from "./features/shop/useShopFeature";
 import { ChatInput } from "./features/chat/ChatInput";
 import { createChatCommand, validateChatBody, type ChatCloseReason } from "./features/chat/model";
@@ -16,18 +16,18 @@ import { resolveChatSelf } from "./features/chat/presentation";
 import { hudVariantFor, playerSlotColors, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
 import { useChatFeature } from "./features/chat/useChatFeature";
 import { MessageZone } from "./features/hudmessages/MessageZone";
-import { hudMessagesReducer, initialHudMessagesState, selectMessageZone, selectProgressCard } from "./features/hudmessages/model";
+import { HUD_MESSAGES_EVENT_TYPES, hudMessagesReducer, initialHudMessagesState, selectMessageZone, selectProgressCard } from "./features/hudmessages/model";
 import { progressViewerFromHud } from "./features/hudmessages/presentation";
 import { ProgressCard } from "./features/hudmessages/ProgressCard";
 import { WinPanel } from "./features/winpanel/WinPanel";
 import { BottomHud } from "./features/bottomhud/BottomHud";
-import { hudStatusReducer, initialHudStatusState, selectBottomHud, selectWatchedHud } from "./features/bottomhud/model";
-import { initialWinPanelState, selectWinPanel, winPanelReducer } from "./features/winpanel/model";
+import { HUD_STATUS_EVENT_TYPES, hudStatusReducer, initialHudStatusState, selectBottomHud, selectWatchedHud } from "./features/bottomhud/model";
+import { initialWinPanelState, selectWinPanel, WIN_PANEL_EVENT_TYPES, winPanelReducer } from "./features/winpanel/model";
 import { KillFeed } from "./features/killfeed/KillFeed";
-import { initialKillfeedState, killfeedReducer, selectKillfeed } from "./features/killfeed/model";
+import { initialKillfeedState, KILLFEED_EVENT_TYPES, killfeedReducer, selectKillfeed } from "./features/killfeed/model";
 import { Scoreboard } from "./features/scoreboard/Scoreboard";
-import { initialScoreboardState, initialScoreboardViewState, scoreboardReducer, type ScoreboardMode, type ScoreboardStat } from "./features/scoreboard/model";
-import { selectScoreboard } from "./features/scoreboard/presentation";
+import { initialScoreboardState, initialScoreboardViewState, SCOREBOARD_EVENT_TYPES, scoreboardReducer, type ScoreboardMode, type ScoreboardStat } from "./features/scoreboard/model";
+import { scoreboardElapsedText, selectScoreboard } from "./features/scoreboard/presentation";
 import { readScoreboardDebugPins } from "./mocks/scoreboardScenes";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
@@ -52,6 +52,8 @@ import { DEFAULT_AUDIO_SETTINGS } from "./platform/audioSettings";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "./platform/overlaySettings";
 import { createSettingsStore, type AppSettings } from "./platform/settings";
 import { useWorldBlur } from "./platform/backdrop";
+import { useClockSelector } from "./shared/clock";
+import type { HudSceneSelf } from "./mocks/hudScenes";
 import type { RadarPreferences } from "./features/minimap/preferences";
 import { createOverlayStateSource, createSessionStatusPublisher, isTauri, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
 import { createUpdateSource } from "./platform/updater";
@@ -94,6 +96,10 @@ declare global {
       reconnect(): void;
     };
   }
+}
+
+function sameSceneSelf(a: HudSceneSelf | null, b: HudSceneSelf | null): boolean {
+  return a === null || b === null ? a === b : a.alive === b.alive && a.money === b.money;
 }
 
 function App() {
@@ -145,7 +151,6 @@ function App() {
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
   const previewFocus = useMemo(() => createPreviewGameForegroundSource(true), []);
-  const [nowMs, setNowMs] = useState(Date.now);
   // The player opens the shop with its hotkey; window_open alone never opens it.
   // Only the debug build honours ?shopOpen=1.
   const [shopOpen, setShopOpen] = useState(() => SHOP_DEBUG_ENABLED && readShopDebugOptions().open);
@@ -160,12 +165,15 @@ function App() {
 
   const handleEvent = useCallback((event: SlgoEvent) => {
     const receivedAtMs = Date.now();
-    dispatchHud({ type: "event", event, receivedAtMs });
-    dispatchWinPanel({ type: "event", event, receivedAtMs });
-    dispatchHudMessages({ type: "event", event, receivedAtMs });
-    dispatchHudStatus({ type: "event", event });
-    dispatchKillfeed({ type: "event", event, receivedAtMs });
-    dispatchScoreboard({ type: "event", event, receivedAtMs });
+    // Each reducer gets only the events it reads: useReducer has no eager bailout, so any dispatch
+    // re-runs App, and minimap positions (the radar's own store) arrive at 15 Hz.
+    const type = event.type;
+    if (HUD_EVENT_TYPES.has(type)) dispatchHud({ type: "event", event, receivedAtMs });
+    if (WIN_PANEL_EVENT_TYPES.has(type)) dispatchWinPanel({ type: "event", event, receivedAtMs });
+    if (HUD_MESSAGES_EVENT_TYPES.has(type)) dispatchHudMessages({ type: "event", event, receivedAtMs });
+    if (HUD_STATUS_EVENT_TYPES.has(type)) dispatchHudStatus({ type: "event", event });
+    if (KILLFEED_EVENT_TYPES.has(type)) dispatchKillfeed({ type: "event", event, receivedAtMs });
+    if (SCOREBOARD_EVENT_TYPES.has(type)) dispatchScoreboard({ type: "event", event, receivedAtMs });
     shopFeature.receiveEvent(event);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
@@ -331,16 +339,6 @@ function App() {
     };
   }, [mockConnection, previewFocus, session.retry]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      const nextNow = Date.now();
-      setNowMs(nextNow);
-      shopFeature.tick(nextNow);
-      chatFeature.tick(nextNow);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [shopFeature.tick, chatFeature.tick]);
-
   // The shop hotkey always closes the shop, but only opens it over the focused game during
   // the buy window, so typing elsewhere never takes the mouse. Y/U open chat over the
   // focused game while the session is live, and close the shop. While chat has the
@@ -392,16 +390,30 @@ function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [shopDebugOptions, shopOpen]);
 
-  const liveHud = useMemo(() => selectRoundHud(hudState, nowMs, session.endReason), [hudState, nowMs, session.endReason]);
-  const shop = useMemo(() => selectShop(shopFeature.state, nowMs), [shopFeature.state, nowMs]);
-  const debugShopSnapshot = mockShopSnapshotFor(debugShopViewerTeam, previewShopRole);
-  const debugShop = useMemo(() => selectShop(createShopDebugState(shopDebugOptions, nowMs, debugShopSnapshot), nowMs), [debugShopSnapshot, nowMs, shopDebugOptions]);
-  const debugHudState = useMemo(
-    () => createHudDebugState(debugOptions, nowMs),
-    [debugOptions, nowMs],
-  );
-  const debugHud = useMemo(() => selectRoundHud(debugHudState, nowMs), [debugHudState, nowMs]);
-  const displayedShop = SHOP_DEBUG_ENABLED ? debugShop : shop;
+  // The overlay clock never re-renders App on its own: these views are re-selected on it and kept while
+  // their time-dependent part (availability) is unchanged. Panels select their own clocks and expiry.
+  const selectLiveHud = useCallback((nowMs: number) => selectRoundHud(hudState, nowMs, session.endReason), [hudState, session.endReason]);
+  const liveHud = useClockSelector(selectLiveHud, sameRoundHudTime);
+  const selectLiveShop = useCallback((nowMs: number) => selectShop(shopFeature.state, nowMs), [shopFeature.state]);
+  const shop = useClockSelector(selectLiveShop, sameShopTime);
+  // Debug frames are built once per option change and read at that moment, so they stay live with still
+  // clocks without a clock in App.
+  const debugShop = useMemo(() => {
+    if (!SHOP_DEBUG_ENABLED) return null;
+    const builtAtMs = Date.now();
+    return selectShop(createShopDebugState(shopDebugOptions, builtAtMs, mockShopSnapshotFor(debugShopViewerTeam, previewShopRole)), builtAtMs);
+  }, [debugShopViewerTeam, previewShopRole, shopDebugOptions]);
+  const debugHudFrame = useMemo(() => {
+    if (!HUD_DEBUG_ENABLED) return null;
+    const builtAtMs = Date.now();
+    return { state: createHudDebugState(debugOptions, builtAtMs), builtAtMs };
+  }, [debugOptions]);
+  const debugHud = useMemo(() => debugHudFrame && selectRoundHud(debugHudFrame.state, debugHudFrame.builtAtMs), [debugHudFrame]);
+  const hudClockAt = useCallback((nowMs: number) => debugHudFrame
+    ? selectRoundHudClock(debugHudFrame.state, debugHudFrame.builtAtMs)
+    : selectRoundHudClock(hudState, nowMs), [debugHudFrame, hudState]);
+  const shopCountdownAt = useCallback((nowMs: number) => hudClockAt(nowMs)?.phaseClockSeconds ?? null, [hudClockAt]);
+  const displayedShop = debugShop ?? shop;
   const shopAvailable = displayedShop.hasSnapshot && displayedShop.windowOpen;
   shopAvailableRef.current = shopAvailable;
   const chatOpen = chatFeature.state.open;
@@ -412,10 +424,12 @@ function App() {
   // cursor locked to the centre and turns the camera with the mouse, so the mouse
   // alone is not enough even for the shop.
   const localSteamIdForScoreboard = session.identity?.steamId ?? null;
-  const scoreboardHud = HUD_DEBUG_ENABLED ? debugHud : liveHud;
+  const scoreboardHud = debugHud ?? liveHud;
   const scoreboard = useMemo(() => selectScoreboard({
-    hud: scoreboardHud, frame: scoreboardState.frame, view: scoreboardViewState, localPlayerId: localSteamIdForScoreboard, nowMs,
-  }), [localSteamIdForScoreboard, nowMs, scoreboardHud, scoreboardState.frame, scoreboardViewState]);
+    hud: scoreboardHud, frame: scoreboardState.frame, view: scoreboardViewState, localPlayerId: localSteamIdForScoreboard,
+  }), [localSteamIdForScoreboard, scoreboardHud, scoreboardState.frame, scoreboardViewState]);
+  const scoreboardFrame = scoreboardState.frame;
+  const scoreboardElapsedAt = useCallback((nowMs: number) => scoreboardFrame ? scoreboardElapsedText(scoreboardFrame, nowMs) : "", [scoreboardFrame]);
   // Shown while its key is held over the game, never under the shop or chat, never without data (an old plugin
   // keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up.
   const scoreboardMode: ScoreboardMode = !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen
@@ -487,7 +501,7 @@ function App() {
     overlayController.log(`chat closed: ${reason}`);
     chatFeature.close(reason);
   }, [chatFeature.close, overlayController]);
-  const hud = HUD_DEBUG_ENABLED ? debugHud : liveHud;
+  const hud = debugHud ?? liveHud;
   // Equipment comes from the snapshot loadout (viewer team only), for the mock stream too.
   const playerMeta = useMemo(() => topHudPlayerMetaForHud(hud), [hud]);
   const shopRole = HUD_DEBUG_ENABLED && previewShopRole === "scp079"
@@ -499,10 +513,10 @@ function App() {
   const hudVariant = pinnedHudVariant ?? hudVariantFor(hud, localSteamId);
   // The MVP avatar comes from the displayed roster (the debug HUD's in the mock build).
   const winPanelRoster = useMemo(() => winPanelRosterFromHud(hud), [hud]);
-  const winPanel = useMemo(() => selectWinPanel(winPanelState, nowMs, winPanelRoster), [nowMs, winPanelRoster, winPanelState]);
+  const winPanelAt = useCallback((nowMs: number) => selectWinPanel(winPanelState, nowMs, winPanelRoster), [winPanelRoster, winPanelState]);
   const hudSceneStill = HUD_DEBUG_ENABLED && debugOptions.hudSceneAt !== null;
-  const messageZone = useMemo(() => selectMessageZone(hudMessagesState, nowMs), [hudMessagesState, nowMs]);
-  const killfeed = useMemo(() => selectKillfeed(killfeedState, nowMs), [killfeedState, nowMs]);
+  const messageZoneAt = useCallback((nowMs: number) => selectMessageZone(hudMessagesState, nowMs), [hudMessagesState]);
+  const killfeedAt = useCallback((nowMs: number) => selectKillfeed(killfeedState, nowMs), [killfeedState]);
   // The mock identity is a team-a player; the debug build reads team-b's loadout from its first player.
   const progressPlayerId = HUD_DEBUG_ENABLED && hud.hasSnapshot
     && !hud.teams.some((team) => team.relation === "viewer" && team.players.some((player) => player.player_id === localSteamId))
@@ -516,10 +530,13 @@ function App() {
   const bottomHudBase = useMemo(() => selectBottomHud({
     hud, status: hudStatusState.status, spectating: hudStatusState.spectating, scoreboard: scoreboardSnapshot, localPlayerId: progressPlayerId,
   }), [hud, hudStatusState.spectating, hudStatusState.status, progressPlayerId, scoreboardSnapshot]);
-  const sceneSelf = HUD_DEBUG_ENABLED ? mockConnection?.hudSceneSelf() ?? null : null;
-  const bottomHud = bottomHudBase === null || bottomHudBase.spectator !== null || sceneSelf === null ? bottomHudBase
+  // The playing debug scene's own balance and life, read on the overlay clock (null outside the debug build).
+  const selectSceneSelf = useCallback(() => HUD_DEBUG_ENABLED ? mockConnection?.hudSceneSelf() ?? null : null, [mockConnection]);
+  const sceneSelf = useClockSelector(selectSceneSelf, sameSceneSelf);
+  const bottomHud = useMemo(() => bottomHudBase === null || bottomHudBase.spectator !== null || sceneSelf === null ? bottomHudBase
     : !sceneSelf.alive ? selectWatchedHud(hud, hudStatusState.spectating, scoreboardSnapshot)
-      : sceneSelf.money === null || sceneSelf.money === bottomHudBase.balance ? bottomHudBase : { ...bottomHudBase, balance: sceneSelf.money };
+      : sceneSelf.money === null || sceneSelf.money === bottomHudBase.balance ? bottomHudBase : { ...bottomHudBase, balance: sceneSelf.money },
+  [bottomHudBase, hud, hudStatusState.spectating, sceneSelf, scoreboardSnapshot]);
   // One slot colour per player across the HUD: radar markers and the shop's teammate-inventory pips.
   const playerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
   // The viewer's team colour for the radar frame, as the bottom HUD uses; null for a team-less observer.
@@ -545,22 +562,24 @@ function App() {
       chatFeature.failCommand(command, error instanceof Error ? error.message : "send-failed");
     });
   }, [chatFeature.failCommand, chatFeature.submit, chatScope, connection]);
+  const minimapControls = useMemo(() => ({ alternateZoomActive: minimapOptions.alternateZoomActive }), [minimapOptions.alternateZoomActive]);
   return (
     <main id="SlgoOverlayRoot" data-preview-background={previewBackground}>
       <HudTeamCounter
         hud={hud}
+        clockAt={hudClockAt}
         playerMeta={playerMeta}
         variant={hudVariant}
       />
-      <WinPanel panel={winPanel} still={hudSceneStill} />
+      <WinPanel panelAt={winPanelAt} still={hudSceneStill} />
       <BottomHud view={bottomHud} still={hudSceneStill} />
       <ProgressCard card={progressCard} still={hudSceneStill} />
-      <MessageZone zone={messageZone} still={hudSceneStill} role={viewerRole} />
-      <KillFeed notices={killfeed} still={hudSceneStill} />
-      {scoreboard !== null && scoreboardMode !== "hidden" ? <Scoreboard view={scoreboard} mode={scoreboardMode}
+      <MessageZone zoneAt={messageZoneAt} still={hudSceneStill} role={viewerRole} />
+      <KillFeed noticesAt={killfeedAt} still={hudSceneStill} />
+      {scoreboard !== null && scoreboardMode !== "hidden" ? <Scoreboard view={scoreboard} elapsedAt={scoreboardElapsedAt} mode={scoreboardMode}
         onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
       <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
-        controls={{ alternateZoomActive: minimapOptions.alternateZoomActive }}
+        controls={minimapControls}
         playerColors={playerColors} role={viewerRole} />
       <ShopPanel
         shop={displayedShop}
@@ -569,13 +588,12 @@ function App() {
         localPlayerId={progressPlayerId}
         open={shopOpen}
         volume={shopVolume}
-        countdownSeconds={hud.hasSnapshot ? hud.phaseClockSeconds : null}
+        countdownAt={shopCountdownAt}
         onCommand={handleShopCommand}
         onClose={closeShop}
       />
       <ChatInput
         chat={chatFeature.state}
-        nowMs={nowMs}
         self={chatSelf}
         onDraft={chatFeature.setDraft}
         onToggleScope={chatFeature.toggleScope}

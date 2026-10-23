@@ -30,6 +30,9 @@ export type HudStatusAction = { type: "event"; event: SlgoEvent } | { type: "con
 const sameSource = (source: HudStatusSource | null, serverId: string, instanceId: string) =>
   source !== null && source.serverId === serverId && source.instanceId === instanceId;
 
+/** The events hudStatusReducer reads; App dispatches no others to it (each dispatch re-renders App). */
+export const HUD_STATUS_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "hud.status", "hud.spectating"]);
+
 /**
  * Keeps the latest `hud.status` and `hud.spectating` of the baseline's instance; a reconnect to the same instance
  * keeps them until the replay.

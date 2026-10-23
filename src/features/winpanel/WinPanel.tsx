@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import type { WinPanelMvpView, WinPanelView } from "./model";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { sameWinPanelTime, type WinPanelMvpView, type WinPanelView } from "./model";
 import {
   CHECKER_HEIGHT,
   CHECKER_RUN_MS,
@@ -14,6 +14,7 @@ import {
   type CheckerSquare,
 } from "./checker.ts";
 import { useBackdropRef } from "../../platform/backdrop.ts";
+import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import "./WinPanel.css";
 
@@ -24,7 +25,8 @@ import "./WinPanel.css";
 export const WIN_PANEL_EXIT_MS = 240;
 
 export type WinPanelProps = {
-  panel: WinPanelView | null;
+  /** The panel at a time (selectWinPanel), selected here on the overlay clock. */
+  panelAt: (nowMs: number) => WinPanelView | null;
   /** Debug captures: no enter, exit or checker animation, so a still frame is deterministic. */
   still?: boolean;
 };
@@ -194,7 +196,8 @@ function WinPanelCard({ view, leaving, still, scale }: WinPanelCardProps) {
  * per result: replays of the same result keep the element and never re-run the enter animation; when the
  * panel ends, the last view plays the exit transition before it unmounts.
  */
-export function WinPanel({ panel, still = false }: WinPanelProps) {
+export const WinPanel = memo(function WinPanel({ panelAt, still = false }: WinPanelProps) {
+  const panel = useClockSelector(panelAt, sameWinPanelTime);
   const scale = useOverlayScale();
   const [previous, setPrevious] = useState<WinPanelView | null>(panel);
   const [exiting, setExiting] = useState<WinPanelView | null>(null);
@@ -218,4 +221,4 @@ export function WinPanel({ panel, still = false }: WinPanelProps) {
       </div>
     </section>
   );
-}
+});

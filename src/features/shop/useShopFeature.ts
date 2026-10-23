@@ -1,6 +1,7 @@
-import { useCallback, useReducer } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 import type { CommandResult, ConnectionStatus, ShopCommand, SlgoEvent } from "../../contracts";
-import { initialShopState, shopReducer } from "./model";
+import { overlayClock } from "../../shared/clock";
+import { hasTimedShopCommand, initialShopState, SHOP_EVENT_TYPES, shopReducer } from "./model";
 
 /** React adapter for the pure shop reducer; App only composes these callbacks. */
 export function useShopFeature() {
@@ -11,7 +12,7 @@ export function useShopFeature() {
   }, []);
 
   const receiveEvent = useCallback((event: SlgoEvent, receivedAtMs = Date.now()) => {
-    dispatch({ type: "event", event, receivedAtMs });
+    if (SHOP_EVENT_TYPES.has(event.type)) dispatch({ type: "event", event, receivedAtMs });
   }, []);
 
   const beginCommand = useCallback((command: ShopCommand, sentAtMs = Date.now()) => {
@@ -22,9 +23,9 @@ export function useShopFeature() {
     dispatch({ type: "command-result", result, receivedAtMs });
   }, []);
 
-  const tick = useCallback((nowMs = Date.now()) => {
-    dispatch({ type: "tick", nowMs });
-  }, []);
+  // Command timeouts: the clock ticks the reducer only while a command can still time out.
+  const timed = hasTimedShopCommand(state);
+  useEffect(() => timed ? overlayClock.subscribe((nowMs) => dispatch({ type: "tick", nowMs })) : undefined, [timed]);
 
-  return { state, setConnectionStatus, receiveEvent, beginCommand, resolveCommand, tick };
+  return { state, setConnectionStatus, receiveEvent, beginCommand, resolveCommand };
 }

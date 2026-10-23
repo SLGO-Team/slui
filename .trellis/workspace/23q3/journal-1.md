@@ -894,3 +894,26 @@ SLUI adapts the plugin's SCP 请求代购: CS2 dropped-weapons area reused as th
 ### Status
 
 [OK] **Completed**
+
+
+## Session 38: Overlay clock out of the App root
+<!-- trellis-session: v=2 fp=1855a170478d4c7c -->
+
+**Date**: 2026-10-23
+**Task**: Overlay clock out of the App root
+**Branch**: `perf/overlay-clock`
+
+### Summary
+
+App no longer ticks every 250 ms: shared overlay clock (src/shared/clock.ts, one interval while subscribed) with useClockSelector; round clock, shop countdown, scoreboard match time, win panel, message zone, killfeed and chat select their own time; App keeps live hud/shop while availability is unchanged (HUD timers moved to selectRoundHudClock). Shop/chat reducers tick only while a command is pending; debug frames built once per option change. Measuring found App still re-ran ~20/s from 15 Hz minimap.positions dispatched into every useReducer (no eager bailout): each model now exports *_EVENT_TYPES and handleEvent routes by type; event-routing-smoke parses the SlgoEvent union. Panels memoised. Mock 5 s: App renders 192 -> 12. hud and winpanel layout audits fail identically on main (pre-existing).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f7caa0c` | perf(overlay): panels select their own time from a shared clock, App re-renders only on its own data |
+| `aa4e0b0` | docs(spec): overlay clock and event routing rules |
+
+### Status
+
+[OK] **Completed**

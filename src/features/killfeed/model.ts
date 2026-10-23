@@ -32,6 +32,9 @@ const sameSource = (a: KillfeedSource | null, serverId: string, instanceId: stri
 
 const fadingAt = (item: KillfeedItem, nowMs: number) => item.fadeAtMs <= nowMs && nowMs < item.fadeAtMs + KILLFEED_FADE_MS;
 
+/** The events killfeedReducer reads; App dispatches no others to it (each dispatch re-renders App). */
+export const KILLFEED_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "hud.killfeed"]);
+
 /**
  * Each `hud.killfeed` is the recipient's whole feed. Entries keep their first-seen time across copies; an entry the
  * new copy leaves out disappears at once (a new round clears the feed), unless it is already fading out, which it
@@ -76,6 +79,11 @@ export type KillfeedNoticeView = {
 };
 
 const player = (value: HudKillfeedEntry["victim"]): KillfeedPlayerView => ({ name: value.display_name, color: killfeedNameColor(value.team) });
+
+/** Two selectKillfeed results of one state differ in time only by which notices are still drawn. */
+export function sameKillfeedTime(a: readonly KillfeedNoticeView[], b: readonly KillfeedNoticeView[]): boolean {
+  return a.length === b.length && a.every((notice, index) => notice.id === b[index].id);
+}
 
 /** The notices to draw at `nowMs`, oldest first: everything until its fade-out has finished. */
 export function selectKillfeed(state: KillfeedState, nowMs: number): KillfeedNoticeView[] {

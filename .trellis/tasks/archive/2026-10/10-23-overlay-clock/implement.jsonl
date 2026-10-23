@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Presentation clock rule and the minimap external-store pattern this task generalizes"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where shared/ helpers and feature models live"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Layout audits must stay pixel-identical"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "One clock store and one selection hook for every panel"}

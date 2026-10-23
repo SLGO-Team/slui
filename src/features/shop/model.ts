@@ -142,6 +142,9 @@ function sourceChanged(state: ShopState, serverId: string, instanceId: string): 
   return state.serverId !== null && (state.serverId !== serverId || state.instanceId !== instanceId);
 }
 
+/** The events shopReducer reads; App dispatches no others to it (each dispatch re-renders App). */
+export const SHOP_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "shop.snapshot", "command.result"]);
+
 export function shopReducer(state: ShopState, action: ShopAction): ShopState {
   if (action.type === "connection") {
     if (action.status === "ended") return { ...initialShopState, connectionStatus: "ended" };
@@ -334,6 +337,17 @@ function commandFor(state: ShopState, target: ShopCommandTarget): { pending: Sho
   return { pending, record };
 }
 
+/** A command the tick can still time out; while none is, nothing in the shop state waits on the clock. */
+export function hasTimedShopCommand(state: ShopState): boolean {
+  return Object.values(state.pending).some((command) => command.state === "pending");
+}
+
+/** Two selectShop results of one state differ in time only through availability (it also gates the cards). */
+export function sameShopTime(a: ShopViewModel, b: ShopViewModel): boolean {
+  return a.availability === b.availability;
+}
+
+/** `nowMs` only decides availability; App keeps the previous view while sameShopTime holds. */
 export function selectShop(state: ShopState, nowMs: number): ShopViewModel {
   const availability = availabilityForState(state, nowMs);
   const status = { availability, connectionStatus: state.connectionStatus, statusLabel: statusLabel(availability, state.connectionStatus) };

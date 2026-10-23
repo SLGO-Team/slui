@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { formatHudProgressCountdown, HUD_PROGRESS_RESYNC_MS, type HudProgressCardView } from "./model";
 import { useBackdropRef } from "../../platform/backdrop.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
@@ -87,7 +87,7 @@ export type ProgressCardProps = {
  * defuse card, used for starting and shutting down a generator. It appears at once; when the plugin clears
  * it, a card whose countdown already reached zero plays CS2's success zoom, any other fades out.
  */
-export function ProgressCard({ card, still = false }: ProgressCardProps) {
+export const ProgressCard = memo(function ProgressCard({ card, still = false }: ProgressCardProps) {
   const scale = useOverlayScale();
   const [previous, setPrevious] = useState<HudProgressCardView | null>(card);
   const [exit, setExit] = useState<Exit | null>(null);
@@ -124,4 +124,4 @@ export function ProgressCard({ card, still = false }: ProgressCardProps) {
       </div>
     </section>
   );
-}
+});

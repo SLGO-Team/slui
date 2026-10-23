@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { HUD_KILLFEED_WEAPONS, parseHudKillfeed } from "../packages/protocol/src/index.ts";
 import { createHudSceneFrame, hudSceneLoopMs } from "../src/mocks/hudScenes.ts";
 import { ROLE_COLORS } from "../src/shared/roleColors.ts";
-import { initialKillfeedState, KILLFEED_FADE_MS, killfeedReducer, selectKillfeed } from "../src/features/killfeed/model.ts";
+import { initialKillfeedState, KILLFEED_FADE_MS, killfeedReducer, sameKillfeedTime, selectKillfeed } from "../src/features/killfeed/model.ts";
 import {
   KILLFEED_FALLBACK_WEAPONS,
   KILLFEED_HEADSHOT_ICON,
@@ -66,6 +66,9 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
   // Shown until its fade-out has finished.
   assert.equal(selectKillfeed(state, 6_999).length, 2);
   assert.deepEqual(selectKillfeed(state, 6_000 + KILLFEED_FADE_MS).map((view) => view.id), ["kill-2"]);
+  // The overlay clock keeps the drawn list while the same notices stay (KillFeed re-renders only when one leaves).
+  assert.equal(sameKillfeedTime(selectKillfeed(state, 4_000), selectKillfeed(state, 6_999)), true);
+  assert.equal(sameKillfeedTime(selectKillfeed(state, 4_000), selectKillfeed(state, 6_000 + KILLFEED_FADE_MS)), false);
 
   // An entry the next copy leaves out while it is fading finishes its fade; one still on screen goes at once.
   const fading = killfeedReducer(state, event(feed(kill("kill-2", { victim: LIMA, visible_remaining_ms: 1_500 })), 6_500));
