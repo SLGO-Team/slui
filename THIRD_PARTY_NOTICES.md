@@ -10,7 +10,7 @@ license; the rest of the repository is covered by the project license
 - `public/assets/slui-svg/*.svg`
 - `public/assets/hud/avatar-terrorist.png` (Nine-Tailed Fox emblem)
 - `public/assets/hud/avatar-ct.svg` (SCP Foundation emblem)
-- `public/assets/preview/background-2.jpg` (in-game screenshot)
+- `src/mocks/preview/background-2.jpg` (in-game screenshot)
 - `public/assets/minimap/rooms/*.svg` (room illustrations drawn after the SCP-079 map)
 
 Derived from SCP: Secret Laboratory by Northwood Studios and from works of the
@@ -39,6 +39,6 @@ from the TTF releases (same glyphs and metrics).
 
 ## Preview screenshot
 
-- `public/assets/preview/background-1.jpg` — in-game screenshot of
+- `src/mocks/preview/background-1.jpg` — in-game screenshot of
   Counter-Strike 2 (© Valve Corporation), used only as a development preview
-  background.
+  background; not shipped in packages.

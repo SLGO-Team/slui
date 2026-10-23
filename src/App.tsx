@@ -2,11 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type ShopCommand, type SlgoEvent } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { HUD_EVENT_TYPES, initialRoundHudState, roundHudReducer, sameRoundHudTime, selectRoundHud, selectRoundHudClock } from "./features/hud/model";
-import {
-  createMockProvider,
-  mockShopSnapshotFor,
-} from "./mocks/provider";
-import { HudDebugPanel } from "./mocks/HudDebugPanel";
 import { ShopPanel } from "./features/shop/ShopPanel";
 import { sameShopTime, selectShop } from "./features/shop/model";
 import { useShopFeature } from "./features/shop/useShopFeature";
@@ -28,16 +23,11 @@ import { initialKillfeedState, KILLFEED_EVENT_TYPES, killfeedReducer, selectKill
 import { Scoreboard } from "./features/scoreboard/Scoreboard";
 import { initialScoreboardState, initialScoreboardViewState, SCOREBOARD_EVENT_TYPES, scoreboardReducer, type ScoreboardMode, type ScoreboardStat } from "./features/scoreboard/model";
 import { scoreboardElapsedText, selectScoreboard } from "./features/scoreboard/presentation";
-import { readScoreboardDebugPins } from "./mocks/scoreboardScenes";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
-import { ShopDebugPanel } from "./mocks/ShopDebugPanel";
-import { createShopDebugState, readShopDebugOptions, replaceShopDebugUrl } from "./mocks/shopDebug";
-import {
-  createHudDebugState,
-  readHudDebugOptions,
-  replaceHudDebugUrl,
-} from "./mocks/hudDebug";
+import type * as DebugHarnessModule from "./mocks/harness";
+import type { HudDebugOptions } from "./mocks/hudDebug";
+import type { ShopDebugOptions } from "./mocks/shopDebug";
 import { HttpControlPlane, MockControlPlane } from "./platform/route";
 import { WebSocketSidecarConnection } from "./platform/connection";
 import { createTauriSidecarSocket } from "./platform/sidecarSocket";
@@ -46,7 +36,7 @@ import { createIdentityProofProvider, LocalSteamIdentity } from "./platform/iden
 import { useClientSession } from "./app/useClientSession";
 import { LiveMinimapRadar } from "./features/minimap/MinimapRadar";
 import { useMinimapFeature } from "./features/minimap/useMinimapFeature";
-import { defaultMinimapPreviewOptions, readMinimapPreviewOptions, type MinimapPreviewOptions } from "./mocks/minimapFixtures";
+import type { MinimapPreviewOptions } from "./mocks/minimapFixtures";
 import { createPreviewGameForegroundSource, subscribeGameForeground } from "./platform/gameForeground";
 import { DEFAULT_AUDIO_SETTINGS } from "./platform/audioSettings";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "./platform/overlaySettings";
@@ -54,7 +44,7 @@ import { createSettingsStore, type AppSettings } from "./platform/settings";
 import { useWorldBlur } from "./platform/backdrop";
 import { useClockSelector } from "./shared/clock";
 import type { HudSceneSelf } from "./mocks/hudScenes";
-import type { RadarPreferences } from "./features/minimap/preferences";
+import { DEFAULT_RADAR_PREFERENCES, type RadarPreferences } from "./features/minimap/preferences";
 import { createOverlayStateSource, createSessionStatusPublisher, isTauri, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
 import { createUpdateSource } from "./platform/updater";
 import { requiredUpdate } from "./app/updateModel";
@@ -74,9 +64,11 @@ const OVERLAY_CLIENT_FEATURES = [
   CLIENT_FEATURE_SCOREBOARD,
 ] as const;
 
-// Mocks only in the explicit `mock` mode (npm run dev:mock).
+// Mocks only in the explicit `mock` mode (npm run dev:mock), which vite.config.ts never builds; their code
+// arrives as the `harness` prop (src/mocks/harness.ts, imported by main.tsx in that mode only), so a
+// package carries none of it. readBackendConfig returns `mock` exactly in this mode.
 const BACKEND = readBackendConfig(import.meta.env);
-const MOCK_BACKEND = BACKEND.kind === "mock";
+const MOCK_BACKEND = import.meta.env.MODE === "mock";
 // Debug surfaces drive the mock stream; they never overlay real backend data.
 const HUD_DEBUG_ENABLED = import.meta.env.DEV && MOCK_BACKEND
   && import.meta.env.VITE_ENABLE_MOCK_VERIFIED_PROOF === "true";
@@ -102,28 +94,40 @@ function sameSceneSelf(a: HudSceneSelf | null, b: HudSceneSelf | null): boolean 
   return a === null || b === null ? a === b : a.alive === b.alive && a.money === b.money;
 }
 
-function App() {
-  const [debugOptions, setDebugOptions] = useState(readHudDebugOptions);
-  const [shopDebugOptions, setShopDebugOptions] = useState(readShopDebugOptions);
-  const [minimapOptions, setMinimapOptions] = useState(() => HUD_DEBUG_ENABLED ? readMinimapPreviewOptions() : defaultMinimapPreviewOptions);
+/** Radar preferences and the held alternate zoom; the debug build keeps its full preview options here. */
+type OverlayMinimapOptions = RadarPreferences & { alternateZoomActive: boolean };
+const DEFAULT_MINIMAP_OPTIONS: OverlayMinimapOptions = { ...DEFAULT_RADAR_PREFERENCES, alternateZoomActive: false };
+
+type DebugHarness = typeof DebugHarnessModule;
+
+export type AppProps = {
+  /** The mocks in the `mock` mode, else null (see MOCK_BACKEND). */
+  harness: DebugHarness | null;
+};
+
+function App({ harness }: AppProps) {
+  const debug = HUD_DEBUG_ENABLED ? harness : null;
+  const [debugOptions, setDebugOptions] = useState<HudDebugOptions | null>(() => debug?.readHudDebugOptions() ?? null);
+  const [shopDebugOptions, setShopDebugOptions] = useState<ShopDebugOptions | null>(() => SHOP_DEBUG_ENABLED ? debug?.readShopDebugOptions() ?? null : null);
+  const [minimapOptions, setMinimapOptions] = useState<OverlayMinimapOptions>(() => debug?.readMinimapPreviewOptions() ?? DEFAULT_MINIMAP_OPTIONS);
   const previewParams = new URLSearchParams(window.location.search);
   const showPreviewBackground = HUD_DEBUG_ENABLED && previewParams.get("background") !== "0";
   const showHudDebugPanel = HUD_DEBUG_ENABLED && previewParams.get("hudDebug") !== "0";
   // Both debug panels are suppressible from the URL so the shop can be captured
   // as it will ship when comparing against the baseline screenshot.
   const showShopDebugPanel = SHOP_DEBUG_ENABLED && previewParams.get("shopDebug") !== "0";
-  const previewBackground = showPreviewBackground ? debugOptions.background : undefined;
-  const previewViewerTeam = HUD_DEBUG_ENABLED && debugOptions.viewerTeam === "team-b" ? "team-b" : "team-a";
-  const previewShopRole = HUD_DEBUG_ENABLED && shopDebugOptions.role === "scp079" ? "scp079" : "scp";
+  const previewBackground = showPreviewBackground ? debugOptions?.background : undefined;
+  const previewViewerTeam = debugOptions?.viewerTeam === "team-b" ? "team-b" : "team-a";
+  const previewShopRole = shopDebugOptions?.role === "scp079" ? "scp079" : "scp";
   // A 079 debug scenario always needs the SCP-side fixture, even when the HUD
   // preview is still showing Team A or spectator data.
   const debugShopViewerTeam = previewShopRole === "scp079" ? "team-b" : previewViewerTeam;
   // The debug harness and a dev `hudVariant` URL parameter pin the variant for visual audits.
   const urlHudVariant = import.meta.env.DEV ? previewParams.get("hudVariant") : null;
-  const pinnedHudVariant: HudPresentationVariant | null = HUD_DEBUG_ENABLED
+  const pinnedHudVariant: HudPresentationVariant | null = debugOptions
     ? debugOptions.variant
     : urlHudVariant === "compact" || urlHudVariant === "detailed" ? urlHudVariant : null;
-  const mockConnection = useMemo(() => MOCK_BACKEND ? createMockProvider(previewViewerTeam, previewShopRole) : null, [previewShopRole, previewViewerTeam]);
+  const mockConnection = useMemo(() => MOCK_BACKEND && harness ? harness.createMockProvider(previewViewerTeam, previewShopRole) : null, [harness, previewShopRole, previewViewerTeam]);
   const connection = useMemo<SlgoConnection>(() => mockConnection ?? new WebSocketSidecarConnection({
     // Tauri connects from Rust so the TLS handshake carries no SNI; browser previews keep WebSocket.
     createSocket: isTauri() ? createTauriSidecarSocket : undefined,
@@ -141,7 +145,7 @@ function App() {
   const [scoreboardState, dispatchScoreboard] = useReducer(scoreboardReducer, initialScoreboardState);
   // Page, side and sort persist for the session; held and cursor follow the scoreboard key.
   // The debug build pins held / cursor / page / side from the URL (?scoreboard=passive|cursor) for captures.
-  const [scoreboardPins] = useState(() => HUD_DEBUG_ENABLED ? readScoreboardDebugPins() : null);
+  const [scoreboardPins] = useState(() => debug?.readScoreboardDebugPins() ?? null);
   const [scoreboardViewState, setScoreboardViewState] = useState(() => scoreboardPins
     ? { ...initialScoreboardViewState, page: scoreboardPins.page, side: scoreboardPins.side } : initialScoreboardViewState);
   const [scoreboardHeld, setScoreboardHeld] = useState(() => scoreboardPins?.mode != null);
@@ -150,10 +154,10 @@ function App() {
   const shopFeature = useShopFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
-  const previewFocus = useMemo(() => createPreviewGameForegroundSource(true), []);
+  const previewFocus = useMemo(() => HUD_DEBUG_ENABLED ? createPreviewGameForegroundSource(true) : null, []);
   // The player opens the shop with its hotkey; window_open alone never opens it.
   // Only the debug build honours ?shopOpen=1.
-  const [shopOpen, setShopOpen] = useState(() => SHOP_DEBUG_ENABLED && readShopDebugOptions().open);
+  const [shopOpen, setShopOpen] = useState(() => shopDebugOptions?.open ?? false);
   const [shopVolume, setShopVolume] = useState(DEFAULT_AUDIO_SETTINGS.shopVolume);
   const [overlaySettings, setOverlaySettings] = useState(DEFAULT_OVERLAY_SETTINGS);
   const shopAvailableRef = useRef(false);
@@ -308,7 +312,7 @@ function App() {
   }, [session.retry, sessionPublisher]);
 
   useEffect(() => {
-    const subscribe = HUD_DEBUG_ENABLED && !("__TAURI_INTERNALS__" in window)
+    const subscribe = previewFocus && !("__TAURI_INTERNALS__" in window)
       ? previewFocus.subscribeGameForeground : subscribeGameForeground;
     return subscribe((state) => {
       minimapFeature.setGameForeground(state);
@@ -316,15 +320,16 @@ function App() {
   }, [previewFocus, minimapFeature.setGameForeground]);
 
   useEffect(() => {
-    if (HUD_DEBUG_ENABLED) mockConnection?.configureMinimap(minimapOptions);
+    // The debug build seeds the state with its full preview options (readMinimapPreviewOptions).
+    if (HUD_DEBUG_ENABLED) mockConnection?.configureMinimap(minimapOptions as MinimapPreviewOptions);
   }, [mockConnection, minimapOptions]);
 
   useEffect(() => {
-    if (HUD_DEBUG_ENABLED) mockConnection?.configureHudScene(debugOptions.hudScene, debugOptions.hudSceneAt);
-  }, [mockConnection, debugOptions.hudScene, debugOptions.hudSceneAt]);
+    if (debugOptions) mockConnection?.configureHudScene(debugOptions.hudScene, debugOptions.hudSceneAt);
+  }, [mockConnection, debugOptions?.hudScene, debugOptions?.hudSceneAt]);
 
   useEffect(() => {
-    if (!HUD_DEBUG_ENABLED || !mockConnection) return;
+    if (!HUD_DEBUG_ENABLED || !mockConnection || !previewFocus) return;
     const control: NonNullable<Window["__SLUI_MINIMAP_DEBUG__"]> = {
       configure: (options) => setMinimapOptions((current) => ({ ...current, ...options })),
       setFocused: previewFocus.setFocused,
@@ -375,20 +380,20 @@ function App() {
   }), [overlayController, chatFeature.close, chatFeature.open]);
 
   useEffect(() => {
-    if (!HUD_DEBUG_ENABLED) return undefined;
-    replaceHudDebugUrl(debugOptions);
-    const handlePopState = () => setDebugOptions(readHudDebugOptions());
+    if (!debug || !debugOptions) return undefined;
+    debug.replaceHudDebugUrl(debugOptions);
+    const handlePopState = () => setDebugOptions(debug.readHudDebugOptions());
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [debugOptions]);
+  }, [debug, debugOptions]);
 
   useEffect(() => {
-    if (!SHOP_DEBUG_ENABLED) return undefined;
-    replaceShopDebugUrl({ ...shopDebugOptions, open: shopOpen });
-    const handlePopState = () => setShopDebugOptions(readShopDebugOptions());
+    if (!debug || !shopDebugOptions) return undefined;
+    debug.replaceShopDebugUrl({ ...shopDebugOptions, open: shopOpen });
+    const handlePopState = () => setShopDebugOptions(debug.readShopDebugOptions());
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [shopDebugOptions, shopOpen]);
+  }, [debug, shopDebugOptions, shopOpen]);
 
   // The overlay clock never re-renders App on its own: these views are re-selected on it and kept while
   // their time-dependent part (availability) is unchanged. Panels select their own clocks and expiry.
@@ -399,15 +404,15 @@ function App() {
   // Debug frames are built once per option change and read at that moment, so they stay live with still
   // clocks without a clock in App.
   const debugShop = useMemo(() => {
-    if (!SHOP_DEBUG_ENABLED) return null;
+    if (!debug || !shopDebugOptions) return null;
     const builtAtMs = Date.now();
-    return selectShop(createShopDebugState(shopDebugOptions, builtAtMs, mockShopSnapshotFor(debugShopViewerTeam, previewShopRole)), builtAtMs);
-  }, [debugShopViewerTeam, previewShopRole, shopDebugOptions]);
+    return selectShop(debug.createShopDebugState(shopDebugOptions, builtAtMs, debug.mockShopSnapshotFor(debugShopViewerTeam, previewShopRole)), builtAtMs);
+  }, [debug, debugShopViewerTeam, previewShopRole, shopDebugOptions]);
   const debugHudFrame = useMemo(() => {
-    if (!HUD_DEBUG_ENABLED) return null;
+    if (!debug || !debugOptions) return null;
     const builtAtMs = Date.now();
-    return { state: createHudDebugState(debugOptions, builtAtMs), builtAtMs };
-  }, [debugOptions]);
+    return { state: debug.createHudDebugState(debugOptions, builtAtMs), builtAtMs };
+  }, [debug, debugOptions]);
   const debugHud = useMemo(() => debugHudFrame && selectRoundHud(debugHudFrame.state, debugHudFrame.builtAtMs), [debugHudFrame]);
   const hudClockAt = useCallback((nowMs: number) => debugHudFrame
     ? selectRoundHudClock(debugHudFrame.state, debugHudFrame.builtAtMs)
@@ -514,7 +519,7 @@ function App() {
   // The MVP avatar comes from the displayed roster (the debug HUD's in the mock build).
   const winPanelRoster = useMemo(() => winPanelRosterFromHud(hud), [hud]);
   const winPanelAt = useCallback((nowMs: number) => selectWinPanel(winPanelState, nowMs, winPanelRoster), [winPanelRoster, winPanelState]);
-  const hudSceneStill = HUD_DEBUG_ENABLED && debugOptions.hudSceneAt !== null;
+  const hudSceneStill = debugOptions !== null && debugOptions.hudSceneAt !== null;
   const messageZoneAt = useCallback((nowMs: number) => selectMessageZone(hudMessagesState, nowMs), [hudMessagesState]);
   const killfeedAt = useCallback((nowMs: number) => selectKillfeed(killfeedState, nowMs), [killfeedState]);
   // The mock identity is a team-a player; the debug build reads team-b's loadout from its first player.
@@ -601,9 +606,9 @@ function App() {
         onClose={handleChatClose}
         onDiagnostic={overlayController.log}
       />
-      {showShopDebugPanel ? <ShopDebugPanel options={shopDebugOptions} shopVisible={shopOpen} onChange={setShopDebugOptions} onToggleShop={toggleShop} /> : null}
-      {showHudDebugPanel ? (
-        <HudDebugPanel options={debugOptions} onChange={setDebugOptions} />
+      {showShopDebugPanel && debug && shopDebugOptions ? <debug.ShopDebugPanel options={shopDebugOptions} shopVisible={shopOpen} onChange={setShopDebugOptions} onToggleShop={toggleShop} /> : null}
+      {showHudDebugPanel && debug && debugOptions ? (
+        <debug.HudDebugPanel options={debugOptions} onChange={setDebugOptions} />
       ) : null}
     </main>
   );

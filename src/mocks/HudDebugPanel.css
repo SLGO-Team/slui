@@ -1,3 +1,12 @@
+/* Mock preview backgrounds (?background=1|2); this stylesheet only loads in the mock build. */
+#SlgoOverlayRoot[data-preview-background="1"] {
+  background: #101214 url("./preview/background-1.jpg") center / cover no-repeat;
+}
+
+#SlgoOverlayRoot[data-preview-background="2"] {
+  background: #101214 url("./preview/background-2.jpg") center / cover no-repeat;
+}
+
 .hud-debug-panel {
   /* Right edge, mid height: the bottom edge belongs to the bottom HUD and the message zone. */
   position: fixed;
