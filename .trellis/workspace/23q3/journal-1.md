@@ -986,3 +986,25 @@ src-tauri/Cargo.toml (workspace root) gets [profile.release]: opt-level s, fat L
 ### Status
 
 [OK] **Completed**
+
+
+## Session 42: Drop unused library crate types
+<!-- trellis-session: v=2 fp=7d54ab92a2c0fecc -->
+
+**Date**: 2026-10-23
+**Task**: Drop unused library crate types
+**Branch**: `perf/drop-unused-crate-types`
+
+### Summary
+
+slui_lib built as rlib only (the template's staticlib/cdylib are mobile targets, unused on desktop). With the fat-LTO release profile each extra artifact ran its own LTO pass: release rebuild of slui (deps built) 291 -> 234 s; slui.exe practically identical (-1.5 KB). cargo test --workspace passes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `96449a5` | perf(build): build slui_lib as the rlib slui.exe links only |
+
+### Status
+
+[OK] **Completed**
