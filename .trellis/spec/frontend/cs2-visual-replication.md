@@ -259,8 +259,9 @@ The chat panel is a hand-built React feature under `src/features/chat`
   bundled Noto Sans SC for CJK and scales it by 0.9. The chat declares
   `Noto Sans SC Chat` (light for the Stratum2 Light entry, bold for rows and the
   button) with `size-adjust: 90%` and a CJK `unicode-range`. The files in
-  `public/assets/fonts/notosanssc-*.ttf` are CS2's own copies (SIL OFL). Do not
-  fall back to Windows fonts such as Microsoft YaHei.
+  `public/assets/fonts/notosanssc-*.woff2` are CS2's own copies (SIL OFL),
+  re-encoded losslessly as WOFF2 with every glyph kept. Do
+  not fall back to Windows fonts such as Microsoft YaHei.
 - Rows: `[ALL] ● Name:  body` / `[TEAM] ● Name: body`; the body and notices
   are white; 18px bold, 22.8px apart (19px at 1600x900). Rows start at the top
   of the open history. SLGO shows its role tag (`[NTF]`, `[SCP]`) where CS2
