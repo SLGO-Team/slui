@@ -917,3 +917,26 @@ App no longer ticks every 250 ms: shared overlay clock (src/shared/clock.ts, one
 ### Status
 
 [OK] **Completed**
+
+
+## Session 39: Bundled fonts as WOFF2; branch cleanup
+<!-- trellis-session: v=2 fp=4f146bdac7c82d03 -->
+
+**Date**: 2026-10-23
+**Task**: Bundled fonts as WOFF2; branch cleanup
+**Branch**: `perf/woff2-fonts`
+
+### Summary
+
+All fonts SLUI ships (Noto Sans SC, Barlow, Chakra Petch, Barlow/Saira fallbacks) re-encoded losslessly as WOFF2, glyph order, cmap and metrics checked: files 17.87 -> 12.74 MB. Tauri already brotli-compresses embedded assets (q9), so slui.exe only shrinks ~1.3 MB; a GB2312 subset (1.55 MB/weight) would cut ~9.5 MB more but needs a YaHei fallback, which the spec rules out. build-fallback-fonts.py writes WOFF2. Deleted 19 local branches whose PRs merged; kept legacy-main, spike/backdrop-blur (unmerged commits) and an old clean worktree.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1783dde` | perf(fonts): ship the bundled fonts as lossless WOFF2 |
+| `8e26f34` | docs(spec): bundled Noto Sans SC is WOFF2 with every glyph |
+
+### Status
+
+[OK] **Completed**
