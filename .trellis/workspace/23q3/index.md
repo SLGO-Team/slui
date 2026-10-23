@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 41
+- **Total Sessions**: 43
 - **Last Active**: 2026-10-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~988 | Active |
+| `journal-1.md` | ~1010 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 43 | 2026-10-23 | Cache the game-process check per window | `4f2d778` | `perf/foreground-process-cache` |
 | 41 | 2026-10-23 | Size-optimised Rust release profile | `f98927c`, `cac013f` | `perf/rust-release-profile` |
 | 40 | 2026-10-23 | Release builds without mock code | `3517aec`, `1d6c626` | `perf/release-without-mocks` |
 | 39 | 2026-10-23 | Bundled fonts as WOFF2; branch cleanup | `1783dde`, `8e26f34` | `perf/woff2-fonts` |
