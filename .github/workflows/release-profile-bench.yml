@@ -1,0 +1,42 @@
+# TEMPORARY (perf/rust-release-profile): cold installer builds with Cargo's default release profile
+# and with the tuned one, on the same commit, to measure the release job's build time. Not merged.
+name: release-profile-bench
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [cargo-default, tuned]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # No Rust cache: both legs build cold, so the times compare.
+      - name: Build installer (${{ matrix.profile }})
+        shell: bash
+        env:
+          VITE_CONTROL_PLANE_URL: https://control-plane.invalid
+        run: |
+          if [ "${{ matrix.profile }}" = cargo-default ]; then
+            export CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+              CARGO_PROFILE_RELEASE_STRIP=none CARGO_PROFILE_RELEASE_OPT_LEVEL=3
+          fi
+          start=$(date +%s)
+          npm run installer:build
+          echo "build seconds: $(( $(date +%s) - start ))"
+      - name: Sizes
+        shell: bash
+        run: |
+          cd src-tauri/target/release
+          stat -c '%n %s' slui.exe slui-setup.exe bundle/nsis/*.exe bundle/setup/*.exe
