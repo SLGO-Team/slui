@@ -9,6 +9,8 @@ import {
   isShopItemPurchaseBlocked,
   selectShop,
   shopReducer,
+  hasTimedShopCommand,
+  sameShopTime,
 } from "../src/features/shop/model.ts";
 import { SHOP_PIP_FALLBACK_COLOR, allocateShopColumnWidths, groupShopItems, groupShopRequests, shopOwnerPipColors, shopWashForRole } from "../src/features/shop/presentation.ts";
 import {
@@ -36,9 +38,13 @@ assert.equal(Object.keys(state.pending).length, 1, "same command id must create 
   assert.equal(inFlight.commandState, "pending");
   assert.equal(inFlight.disabled, true, "in-flight command blocks a repeat purchase");
   assert.equal(inFlight.unavailable, false, "in-flight command is not drawn as unavailable");
+  assert.equal(hasTimedShopCommand(state), true, "the clock ticks the reducer while a command can time out");
+  assert.equal(sameShopTime(selectShop(state, 1_000), selectShop(state, 4_000)), true, "still live: App keeps the view");
+  assert.equal(sameShopTime(selectShop(state, 1_000), selectShop(state, 1_000 + SHOP_STALE_AFTER_MS + 1)), false, "stale");
 }
 state = shopReducer(state, { type: "tick", nowMs: 1_000 + SHOP_COMMAND_TIMEOUT_MS + 1 });
 assert.equal(state.pending[command.command_id]?.state, "timedOut", "timeout keeps pending for late result");
+assert.equal(hasTimedShopCommand(state), false, "a timed-out command no longer needs the clock");
 state = shopReducer(state, { type: "command-result", result: { command_id: command.command_id, command_kind: command.kind, status: "duplicate" } });
 assert.equal(state.pending[command.command_id], undefined, "late result retires pending record");
 assert.equal(state.commands[command.command_id]?.state, "success", "duplicate is accepted");

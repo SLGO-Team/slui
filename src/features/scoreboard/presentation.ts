@@ -109,7 +109,6 @@ export type ScoreboardTimelineView = Readonly<{
 export type ScoreboardView = Readonly<{
   modeName: string;
   logo: string;
-  elapsed: string;
   page: 1 | 2;
   /** The side switch exists only in the second half of a halftime mode. */
   sideSwitchAvailable: boolean;
@@ -189,18 +188,22 @@ type SelectInput = {
   frame: ScoreboardFrame | null;
   view: ScoreboardViewState;
   localPlayerId: string | null;
-  nowMs: number;
 };
 
 function moneyOf(player: HudPlayerView | HudViewerPlayerView): number | null {
   return "loadout" in player ? player.loadout?.money ?? null : null;
 }
 
+/** The match time CS2 shows in the scoreboard header at `nowMs` (the Scoreboard selects it on the overlay clock). */
+export function scoreboardElapsedText(frame: ScoreboardFrame, nowMs: number): string {
+  return formatScoreboardElapsed(scoreboardElapsedMs(frame, nowMs));
+}
+
 /**
  * The scoreboard to draw, or null when it has nothing to show: no match snapshot, no `scoreboard.snapshot` from this
  * instance (an old plugin keeps its own hint board), or a waiting state.
  */
-export function selectScoreboard({ hud, frame, view, localPlayerId, nowMs }: SelectInput): ScoreboardView | null {
+export function selectScoreboard({ hud, frame, view, localPlayerId }: SelectInput): ScoreboardView | null {
   if (!hud.hasSnapshot || frame === null || SCOREBOARD_HIDDEN_STATES.has(hud.state)) return null;
   const board = frame.snapshot;
   const halftime = board.halftime_after_round;
@@ -257,7 +260,6 @@ export function selectScoreboard({ hud, frame, view, localPlayerId, nowMs }: Sel
   return {
     modeName: board.mode_name,
     logo: SCOREBOARD_LOGO,
-    elapsed: formatScoreboardElapsed(scoreboardElapsedMs(frame, nowMs)),
     page: view.page,
     sideSwitchAvailable,
     showingOtherSide,

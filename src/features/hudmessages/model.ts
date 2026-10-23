@@ -145,6 +145,9 @@ function nextSlot<M extends HudSlotMessage>(
   return { entry: { message, receivedAtMs, appearedAtMs: receivedAtMs, appearance, keySinceMs: receivedAtMs }, ended: lastEnded };
 }
 
+/** The events hudMessagesReducer reads; App dispatches no others to it (each dispatch re-renders App). */
+export const HUD_MESSAGES_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "hud.messages"]);
+
 export function hudMessagesReducer(state: HudMessagesState, action: HudMessagesAction): HudMessagesState {
   // Only an ended instance clears the board; other drops keep it for a reconnect to the same instance.
   if (action.type === "connection") {
@@ -234,6 +237,15 @@ function messageView(slot: HudMessageZoneSlot, entry: HudSlotEntry | null, nowMs
     shownAtMs: entry.appearedAtMs,
     expiresAtMs: hudSlotExpiresAtMs(entry),
   };
+}
+
+function sameMessageTime(a: HudMessageView | null, b: HudMessageView | null): boolean {
+  return a === null || b === null ? a === b : a.id === b.id && a.text === b.text;
+}
+
+/** Two selectMessageZone results of one state differ in time only by expiry and countdown text. */
+export function sameMessageZoneTime(a: HudMessageZoneView, b: HudMessageZoneView): boolean {
+  return sameMessageTime(a.alert, b.alert) && sameMessageTime(a.hintHigh, b.hintHigh) && sameMessageTime(a.hintLow, b.hintLow);
 }
 
 /** The alert and hint slots to draw at `nowMs`; expired messages are gone even before the clearing frame. */

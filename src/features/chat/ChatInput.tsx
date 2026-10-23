@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { sameItems, useClockSelector } from "../../shared/clock";
 import { useOverlayScale } from "../../shared/overlay";
 import { CHAT_LINE_FADE_MS, chatLineFadeDelayMs, visibleChatLines, type ChatCloseReason, type ChatInputState, type ChatLine } from "./model";
 import {
@@ -14,7 +15,6 @@ import "./ChatInput.css";
 
 type ChatInputProps = {
   chat: ChatInputState;
-  nowMs: number;
   /** How the local player's echoed rows are labelled and coloured. */
   self: ChatRowStyle;
   onDraft(text: string): void;
@@ -58,13 +58,14 @@ function ChatRow({ line, self, lingering }: { line: ChatLine; self: ChatRowStyle
 
 // A manual React recreation of CS2 layout/hud/hudchat.xml; class names follow the
 // Panorama ids (ChatContainer, ChatMain, ChatFG, ChatHistory, ChatTextEntry, ...).
-export function ChatInput({ chat, nowMs, self, onDraft, onToggleScope, onSubmit, onClose, onDiagnostic }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggleScope, onSubmit, onClose, onDiagnostic }: ChatInputProps) {
   const scale = useOverlayScale();
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const openingKeyHeldRef = useRef(false);
-  const lines = visibleChatLines(chat, nowMs);
+  // Closed, rows leave as their fade ends: selected on the overlay clock, so only the chat re-renders.
+  const lines = useClockSelector(useCallback((nowMs: number) => visibleChatLines(chat, nowMs), [chat]), sameItems);
   const newestLineId = chat.lines[chat.lines.length - 1]?.id;
 
   useEffect(() => {
@@ -185,4 +186,4 @@ export function ChatInput({ chat, nowMs, self, onDraft, onToggleScope, onSubmit,
       )}
     </section>
   );
-}
+});

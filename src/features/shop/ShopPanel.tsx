@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { Role, ShopCommand } from "../../contracts";
 import { DEFAULT_AUDIO_SETTINGS } from "../../platform/audioSettings";
 import { useBackdropRef } from "../../platform/backdrop";
+import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import { createFulfillCommand, createPurchaseCommand, createRequestCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopRequestView, type ShopViewModel } from "./model";
 import { formatShopMoney, groupShopItems, groupShopRequests, shopIconSource, shopMinMoneyColor, shopOwnerPipColors, shopPreviewSource, shopWashForRole, type ShopColumn } from "./presentation";
@@ -19,8 +20,8 @@ export type ShopPanelProps = {
   open: boolean;
   /** Settings `audio.shopVolume`: 1 plays the CS2 volumes; defaults to 15% of them. */
   volume?: number;
-  /** Interpolated from MatchSnapshot.phase_remaining_ms by the HUD selector. */
-  countdownSeconds?: number | null;
+  /** The buy time left at a time, from MatchSnapshot.phase_remaining_ms (the HUD clock's phaseClockSeconds). */
+  countdownAt?: (nowMs: number) => number | null;
   /** Purchases, teammate-request toggles and fulfilments; the model tracks each until its result. */
   onCommand(command: ShopCommand): void;
   onClose(): void;
@@ -33,6 +34,12 @@ function formatShopCountdown(seconds: number | null | undefined): string {
 }
 
 const NO_PLAYER_COLORS: Readonly<Record<string, string>> = {};
+const NO_COUNTDOWN = () => null;
+
+/** Selected on the overlay clock, so only the countdown re-renders each second. */
+function ShopCountdown({ countdownAt }: { countdownAt: (nowMs: number) => number | null }) {
+  return <b>{formatShopCountdown(useClockSelector(countdownAt))}</b>;
+}
 
 function ShopCard({ item, slot, wash, pips, onPurchase, onRequest, onHover, onPreview }: { item: ShopItemView; slot: number; wash: string; pips: readonly string[]; onPurchase(item: ShopItemView): void; onRequest(item: ShopItemView): void; onHover(item: ShopItemView | null): void; onPreview(itemId: string): void }) {
   const owned = item.owned_quantity !== undefined && item.owned_quantity !== null && item.owned_quantity > 0;
@@ -131,14 +138,14 @@ function ShopMask() {
   return <div ref={useBackdropRef()} className="shop-mask" aria-hidden="true" />;
 }
 
-export function ShopPanel({
+export const ShopPanel = memo(function ShopPanel({
   shop,
   role = "scp",
   playerColors = NO_PLAYER_COLORS,
   localPlayerId = null,
   open,
   volume = DEFAULT_AUDIO_SETTINGS.shopVolume,
-  countdownSeconds,
+  countdownAt = NO_COUNTDOWN,
   onCommand,
   onClose,
 }: ShopPanelProps) {
@@ -280,7 +287,7 @@ export function ShopPanel({
               <strong className="shop-balance">{formatShopMoney(shop.balance)}</strong>
               <span className="shop-time">
                 <span>剩余购买时间</span>
-                <b>{formatShopCountdown(countdownSeconds)}</b>
+                <ShopCountdown countdownAt={countdownAt} />
               </span>
               {shop.nextRoundMinMoney !== null ? <span className="shop-min-money" style={{ color: shopMinMoneyColor(shop.nextRoundMinMoney) }}>下回合最低金额: {formatShopMoney(shop.nextRoundMinMoney)}</span> : null}
             </div>
@@ -324,4 +331,4 @@ export function ShopPanel({
       </section>
     </>
   );
-}
+});

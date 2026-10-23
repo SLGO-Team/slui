@@ -89,15 +89,20 @@ export type RoundHudViewModel = RoundHudStatus & ({
   round: number;
   maxRounds: number;
   clockMode: HudClockMode;
+  paused: boolean;
+  teams: [HudTeamView, HudTeamView];
+});
+
+/** The ticking part of the HUD, selected by the panels that draw it (selectRoundHudClock). */
+export type RoundHudClockView = {
+  clockMode: HudClockMode;
   /** Seconds left on the timer that clockMode selects (0 when hidden or paused; the generator mode draws no digits). */
   clockSeconds: number;
   /** Keycard blink tier while clockMode is "generator", else null. */
   generatorPulse: HudGeneratorPulse | null;
   /** Phase clock (phase_remaining_ms), independent of clockMode; the shop countdown uses it. */
   phaseClockSeconds: number;
-  paused: boolean;
-  teams: [HudTeamView, HudTeamView];
-});
+};
 
 export type HudSnapshotFrame = {
   serverId: string;
@@ -134,6 +139,9 @@ export const initialRoundHudState: RoundHudState = {
 export type RoundHudAction =
   | { type: "connection"; status: ConnectionStatus }
   | { type: "event"; event: SlgoEvent; receivedAtMs: number };
+
+/** The events roundHudReducer reads; App dispatches no others to it (each dispatch re-renders App). */
+export const HUD_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "match.snapshot"]);
 
 export function roundHudReducer(state: RoundHudState, action: RoundHudAction): RoundHudState {
   if (action.type === "connection") {
@@ -318,7 +326,11 @@ function publicPlayer(player: MatchPlayer): HudPlayerView {
   };
 }
 
-/** `endReason`: the session's, for the label of an ended instance. */
+/**
+ * `endReason`: the session's, for the label of an ended instance. `nowMs` only decides `availability`
+ * (and so `statusLabel`); the clocks are in selectRoundHudClock. Keep it that way: App re-selects the
+ * HUD on the overlay clock and keeps the previous view while sameRoundHudTime holds.
+ */
 export function selectRoundHud(state: RoundHudState, nowMs: number, endReason: InstanceEndReason | null = null): RoundHudViewModel {
   const availability = availabilityForState(state, nowMs);
   const status = {
@@ -329,8 +341,6 @@ export function selectRoundHud(state: RoundHudState, nowMs: number, endReason: I
   if (!state.frame) return { ...status, hasSnapshot: false };
 
   const { snapshot } = state.frame;
-  const clockMode = hudClockMode(snapshot);
-  const clockMs = clockRemainingMilliseconds(state.frame, clockMode, nowMs);
   const teams = [...snapshot.teams]
     .sort((a, b) => a.team_id.localeCompare(b.team_id))
     .map((team): HudTeamView => {
@@ -369,11 +379,32 @@ export function selectRoundHud(state: RoundHudState, nowMs: number, endReason: I
     phaseLabel: phaseLabel(snapshot.state),
     round: snapshot.round,
     maxRounds: snapshot.max_rounds,
+    clockMode: hudClockMode(snapshot),
+    paused: snapshot.phase_paused,
+    teams,
+  };
+}
+
+/** Two selectRoundHud results of one state differ in time only through availability. */
+export function sameRoundHudTime(a: RoundHudViewModel, b: RoundHudViewModel): boolean {
+  return a.availability === b.availability;
+}
+
+/** The timers at `nowMs`, or null without a snapshot. */
+export function selectRoundHudClock(state: RoundHudState, nowMs: number): RoundHudClockView | null {
+  if (!state.frame) return null;
+  const clockMode = hudClockMode(state.frame.snapshot);
+  const clockMs = clockRemainingMilliseconds(state.frame, clockMode, nowMs);
+  return {
     clockMode,
     clockSeconds: Math.ceil(clockMs / 1_000),
     generatorPulse: clockMode === "generator" ? generatorPulseTier(clockMs) : null,
     phaseClockSeconds: secondsRemaining(state.frame, nowMs),
-    paused: snapshot.phase_paused,
-    teams,
   };
+}
+
+export function sameRoundHudClock(a: RoundHudClockView | null, b: RoundHudClockView | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.clockMode === b.clockMode && a.clockSeconds === b.clockSeconds
+    && a.generatorPulse === b.generatorPulse && a.phaseClockSeconds === b.phaseClockSeconds;
 }

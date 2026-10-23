@@ -72,6 +72,7 @@ import {
   remainingMilliseconds,
   roundHudReducer,
   selectRoundHud,
+  selectRoundHudClock,
   toHudPhase,
 } from "../src/features/hud/model.ts";
 
@@ -320,7 +321,7 @@ hudState = roundHudReducer(hudState, { type: "event", event: makeMatchEvent(), r
 const liveHud = selectRoundHud(hudState, hudNow);
 assert.equal(liveHud.hasSnapshot, true);
 assert.equal(liveHud.availability, "live");
-assert.equal(liveHud.clockSeconds, 10, "sent_at is on the server clock; no transit time is deducted");
+assert.equal(selectRoundHudClock(hudState, hudNow).clockSeconds, 10, "sent_at is on the server clock; no transit time is deducted");
 assert.equal(liveHud.teams[0].teamId, "team-a", "team-a owns the stable left column");
 assert.equal(liveHud.teams[0].score, 4);
 assert.equal(liveHud.teams[0].relation, "viewer");

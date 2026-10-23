@@ -9,6 +9,7 @@ import {
   selectWinPanel,
   winPanelReducer,
   winPanelRemainingMs,
+  sameWinPanelTime,
 } from "../src/features/winpanel/model.ts";
 import {
   CHECKER_HEIGHT,
@@ -101,6 +102,8 @@ assert.equal(view.exitAtMs, 17_000);
 // Local expiry: hidden once the interpolated hold time runs out, without a clearing frame.
 assert.ok(selectWinPanel(state, 16_999, roster));
 assert.equal(selectWinPanel(state, 17_000, roster), null);
+assert.equal(sameWinPanelTime(selectWinPanel(state, 13_000, roster), selectWinPanel(state, 16_999, roster)), true, "held: no re-render");
+assert.equal(sameWinPanelTime(selectWinPanel(state, 16_999, roster), selectWinPanel(state, 17_000, roster)), false, "ran out");
 // A replay arriving after the local expiry does not bring the panel back.
 const expired = reduce(state, result(panel({ visible_remaining_ms: 500 })), 17_200);
 assert.equal(selectWinPanel(expired, 17_200, roster), null);

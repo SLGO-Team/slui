@@ -1,9 +1,11 @@
-import { type CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import {
   formatRoundClock,
+  sameRoundHudClock,
   type HudPlayerView,
   type HudTeamView,
   type HudViewerPlayerView,
+  type RoundHudClockView,
   type RoundHudViewModel,
 } from "./model";
 import {
@@ -24,11 +26,14 @@ import {
   type TopHudPlayerMetaById,
 } from "./presentation";
 import { sampleFade, useBackdropRef } from "../../platform/backdrop.ts";
+import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import "./HudTeamCounter.css";
 
 export type HudTeamCounterProps = {
   hud: RoundHudViewModel;
+  /** The timers at a time (selectRoundHudClock of the same state); only the timer re-renders as it ticks. */
+  clockAt: (nowMs: number) => RoundHudClockView | null;
   playerMeta?: TopHudPlayerMetaById;
   variant?: HudPresentationVariant;
 };
@@ -259,12 +264,13 @@ function TeamPlayers({
   );
 }
 
-type HudClockProps = Pick<
-  Extract<RoundHudViewModel, { hasSnapshot: true }>,
-  "clockMode" | "clockSeconds" | "generatorPulse" | "paused"
->;
+type HudClockProps = { clockAt: HudTeamCounterProps["clockAt"]; paused: boolean };
 
-function RoundClock({ clockMode, clockSeconds, generatorPulse, paused }: HudClockProps) {
+function RoundClock({ clockAt, paused }: HudClockProps) {
+  const clock = useClockSelector(clockAt, sameRoundHudClock);
+  const clockMode = clock?.clockMode ?? "hidden";
+  const clockSeconds = clock?.clockSeconds ?? 0;
+  const generatorPulse = clock?.generatorPulse ?? null;
   // The timer box keeps its size in every mode so the scores and counts never move.
   // CS2 reds the timer (teamcounter_red_timer) in its last 10 s and while the match is paused.
   const warning = (clockMode === "round" && clockSeconds <= 10 && !paused) || clockMode === "pause";
@@ -310,7 +316,7 @@ function PlayerCount({ side, alive }: { side: HudSide; alive: number }) {
   );
 }
 
-export function HudTeamCounter({ hud, playerMeta, variant = "compact" }: HudTeamCounterProps) {
+export const HudTeamCounter = memo(function HudTeamCounter({ hud, clockAt, playerMeta, variant = "compact" }: HudTeamCounterProps) {
   const scale = useOverlayScale();
 
   if (!hud.hasSnapshot) {
@@ -338,12 +344,7 @@ export function HudTeamCounter({ hud, playerMeta, variant = "compact" }: HudTeam
             variant={variant}
           />
           <div className="hud-scoreboard">
-            <RoundClock
-              clockMode={hud.clockMode}
-              clockSeconds={hud.clockSeconds}
-              generatorPulse={hud.generatorPulse}
-              paused={hud.paused}
-            />
+            <RoundClock clockAt={clockAt} paused={hud.paused} />
             <div className="hud-scoreboard__scores">
               <span className={`hud-score hud-score--${leftSide}`}>{teams.left.score}</span>
               <span className={`hud-score hud-score--${rightSide}`}>{teams.right.score}</span>
@@ -363,4 +364,4 @@ export function HudTeamCounter({ hud, playerMeta, variant = "compact" }: HudTeam
       </div>
     </section>
   );
-}
+});

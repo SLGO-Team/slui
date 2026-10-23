@@ -1,5 +1,6 @@
-import { useCallback, useReducer } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 import type { ChatSendCommand, ConnectionStatus, SlgoEvent } from "../../contracts";
+import { overlayClock } from "../../shared/clock";
 import { chatInputReducer, initialChatInputState, type ChatCloseReason, type ChatInputScope } from "./model";
 
 /** React adapter for the pure chat input reducer; App only composes these callbacks. */
@@ -45,9 +46,9 @@ export function useChatFeature() {
     dispatch({ type: "connection", status, nowMs });
   }, []);
 
-  const tick = useCallback((nowMs = Date.now()) => {
-    dispatch({ type: "tick", nowMs });
-  }, []);
+  // Send timeout: the clock ticks the reducer only while a message waits for its result.
+  const timed = state.pending !== null;
+  useEffect(() => timed ? overlayClock.subscribe((nowMs) => dispatch({ type: "tick", nowMs })) : undefined, [timed]);
 
-  return { state, open, setDraft, toggleScope, submit, close, receiveEvent, failCommand, setConnectionStatus, tick };
+  return { state, open, setDraft, toggleScope, submit, close, receiveEvent, failCommand, setConnectionStatus };
 }

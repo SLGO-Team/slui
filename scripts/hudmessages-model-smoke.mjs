@@ -11,6 +11,7 @@ import {
   initialHudMessagesState,
   selectMessageZone,
   selectProgressCard,
+  sameMessageZoneTime,
 } from "../src/features/hudmessages/model.ts";
 
 // Message zone (`hud.messages` alert and hint slots): appearance, replacement, expiry, countdown,
@@ -157,8 +158,11 @@ assert.equal(selectMessageZone(state, 120_000).hintHigh.text, "离过载还剩 0
   let sceneState = reduce(reduce(initialHudMessagesState, baseline(), 0), board(at(5_900)), 5_900);
   const startedId = selectMessageZone(sceneState, 5_900).hintHigh.id;
   assert.equal(selectMessageZone(sceneState, 6_000).hintHigh, null, "the started hint expires locally at 6 s");
+  assert.equal(sameMessageZoneTime(selectMessageZone(sceneState, 5_900), selectMessageZone(sceneState, 5_950)), true, "unchanged: no re-render");
+  assert.equal(sameMessageZoneTime(selectMessageZone(sceneState, 5_900), selectMessageZone(sceneState, 6_000)), false, "expired");
   sceneState = reduce(sceneState, board(at(6_000)), 6_050);
   const countdownView = selectMessageZone(sceneState, 6_050).hintHigh;
+  assert.equal(sameMessageZoneTime(selectMessageZone(sceneState, 6_050), selectMessageZone(sceneState, 8_050)), false, "the countdown text ticks");
   assert.notEqual(countdownView.id, startedId);
   assert.equal(countdownView.text, "离过载还剩 34 秒");
 }

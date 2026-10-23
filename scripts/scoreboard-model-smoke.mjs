@@ -8,7 +8,7 @@ import {
   initialScoreboardViewState,
   scoreboardReducer,
 } from "../src/features/scoreboard/model.ts";
-import { SCOREBOARD_REASON_ICONS, SCOREBOARD_TOP_ROLE, selectScoreboard } from "../src/features/scoreboard/presentation.ts";
+import { SCOREBOARD_REASON_ICONS, SCOREBOARD_TOP_ROLE, scoreboardElapsedText, selectScoreboard } from "../src/features/scoreboard/presentation.ts";
 
 // Scoreboard (`scoreboard.snapshot` joined with `match.snapshot`): source rules, derived stats, blank cells, money
 // visibility, the CS2 sort chain, the side switch and the timeline.
@@ -83,8 +83,8 @@ const frameFor = (event, receivedAtMs = 1_000) => {
   state = scoreboardReducer(state, { type: "event", event, receivedAtMs });
   return state;
 };
-const select = ({ hud = hudFor(match()), frame = frameFor(board()).frame, view = initialScoreboardViewState, nowMs = 1_000 } = {}) =>
-  selectScoreboard({ hud, frame, view, localPlayerId: NOVA, nowMs });
+const select = ({ hud = hudFor(match()), frame = frameFor(board()).frame, view = initialScoreboardViewState } = {}) =>
+  selectScoreboard({ hud, frame, view, localPlayerId: NOVA });
 const cell = (row, stat) => row.cells.find((entry) => entry.stat === stat)?.text;
 const ids = (team) => team.rows.map((row) => row.playerId);
 
@@ -112,10 +112,10 @@ const ids = (team) => team.rows.map((row) => row.playerId);
 
 {
   // Header, blocks and page 1: SCP (CS2's CT side) on top; sorted by damage with online players first.
-  const view = select({ nowMs: 1_000 + 10_500 });
+  const view = select();
   assert.equal(SCOREBOARD_TOP_ROLE, "scp");
   assert.equal(view.modeName, "竞技模式");
-  assert.equal(view.elapsed, "10:01", "elapsed counts on from the receive time");
+  assert.equal(scoreboardElapsedText(frameFor(board()).frame, 1_000 + 10_500), "10:01", "elapsed counts on from the receive time");
   assert.equal(formatScoreboardElapsed(3_725_000), "62:05");
   assert.equal(view.top.role, "scp");
   assert.equal(view.top.side, "ct");

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { HudAmmo, HudKillKind, HudReserveIcon, Role } from "../../contracts/index.ts";
 import { useBackdropRef } from "../../platform/backdrop.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
@@ -348,7 +348,7 @@ export type BottomHudProps = {
  * emblem with the round's kill cards, and the clip with its reserve rounds; while the local player is dead, the
  * same for the player they watch, with CS2's spectator panel. Drawn on the 1920x1080 overlay canvas.
  */
-export function BottomHud({ view, still = false }: BottomHudProps) {
+export const BottomHud = memo(function BottomHud({ view, still = false }: BottomHudProps) {
   const scale = useOverlayScale();
   return (
     <section className="bhud-overlay" aria-label="底部状态栏">
@@ -358,4 +358,4 @@ export function BottomHud({ view, still = false }: BottomHudProps) {
       </div>
     </section>
   );
-}
+});

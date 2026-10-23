@@ -9,6 +9,10 @@ import {
   interpolateRemainingMs,
   roundHudReducer,
   selectRoundHud,
+  selectRoundHudClock,
+  sameRoundHudClock,
+  sameRoundHudTime,
+  HUD_STALE_AFTER_MS,
 } from "../src/features/hud/model.ts";
 import {
   HUD_GENERATOR_PULSE_SECONDS,
@@ -93,7 +97,7 @@ function hudFor(snapshotOverrides, nowMs = receivedAt) {
     },
     receivedAtMs: receivedAt,
   });
-  return { state, hud: selectRoundHud(state, nowMs) };
+  return { state, hud: selectRoundHud(state, nowMs), clock: selectRoundHudClock(state, nowMs) };
 }
 
 {
@@ -137,11 +141,11 @@ assert.equal(hudClockMode(legacySnapshot), "round", "older plugins without the f
 
 {
   // Generator: no digits; the interpolated generator_remaining_ms only drives the keycard blink tier.
-  const { hud } = hudFor({ generator_remaining_ms: 31_000, phase_remaining_ms: 70_000 }, receivedAt + 2_000);
+  const { hud, clock } = hudFor({ generator_remaining_ms: 31_000, phase_remaining_ms: 70_000 }, receivedAt + 2_000);
   assert.equal(hud.clockMode, "generator");
-  assert.equal(hud.clockSeconds, 29, "31 s - 2 s local");
-  assert.equal(hud.generatorPulse, "slow");
-  assert.equal(hud.phaseClockSeconds, 68, "the shop countdown keeps phase semantics");
+  assert.equal(clock.clockSeconds, 29, "31 s - 2 s local");
+  assert.equal(clock.generatorPulse, "slow");
+  assert.equal(clock.phaseClockSeconds, 68, "the shop countdown keeps phase semantics");
 }
 
 // Blink tiers (CS2 BombPlantedPulse): > 20 s slow, 10-20 s medium, <= 10 s fast; both bounds inclusive downward.
@@ -156,44 +160,60 @@ assert.equal(generatorPulseTier(0), "fast");
 assert.deepEqual(HUD_GENERATOR_PULSE_SECONDS, { slow: 0.8, medium: 0.5, fast: 0.3 });
 {
   // The tier follows the interpolated time, not the received value: 22 s - 2 s local = 20 s.
-  const { hud } = hudFor({ generator_remaining_ms: 22_000 }, receivedAt + 2_000);
-  assert.equal(hud.generatorPulse, "medium");
+  const { hud, clock } = hudFor({ generator_remaining_ms: 22_000 }, receivedAt + 2_000);
+  assert.equal(clock.generatorPulse, "medium");
 }
 {
   // Last second: the plugin reports 0 while the generator is still running.
-  const { hud } = hudFor({ generator_remaining_ms: 0 });
+  const { hud, clock } = hudFor({ generator_remaining_ms: 0 });
   assert.equal(hud.clockMode, "generator");
-  assert.equal(hud.generatorPulse, "fast");
+  assert.equal(clock.generatorPulse, "fast");
 }
 {
   // The generator outranks a pause in the view model too.
-  const { hud } = hudFor({ generator_remaining_ms: 15_000, pause_remaining_ms: 45_000, phase_paused: true, phase_remaining_ms: 0 }, receivedAt);
+  const { hud, clock } = hudFor({ generator_remaining_ms: 15_000, pause_remaining_ms: 45_000, phase_paused: true, phase_remaining_ms: 0 }, receivedAt);
   assert.equal(hud.clockMode, "generator");
-  assert.equal(hud.generatorPulse, "medium");
+  assert.equal(clock.generatorPulse, "medium");
 }
 
 {
   // Pause: the timer shows the pause glyph, not the pause countdown (that one is in the alert slot).
-  const { hud } = hudFor({ pause_remaining_ms: 45_000, phase_paused: true, phase_remaining_ms: 0 }, receivedAt + 4_000);
+  const { hud, clock } = hudFor({ pause_remaining_ms: 45_000, phase_paused: true, phase_remaining_ms: 0 }, receivedAt + 4_000);
   assert.equal(hud.clockMode, "pause");
-  assert.equal(hud.clockSeconds, 0);
-  assert.equal(hud.generatorPulse, null, "no blink tier outside the generator mode");
+  assert.equal(clock.clockSeconds, 0);
+  assert.equal(clock.generatorPulse, null, "no blink tier outside the generator mode");
   assert.equal(hud.paused, true);
-  assert.equal(hud.phaseClockSeconds, 0, "the paused phase clock stays frozen");
+  assert.equal(clock.phaseClockSeconds, 0, "the paused phase clock stays frozen");
 }
 
 {
-  const { hud } = hudFor({ state: "RoundEnd", phase_remaining_ms: 7_000 }, receivedAt + 1_000);
+  const { hud, clock } = hudFor({ state: "RoundEnd", phase_remaining_ms: 7_000 }, receivedAt + 1_000);
   assert.equal(hud.clockMode, "hidden");
-  assert.equal(hud.clockSeconds, 0);
-  assert.equal(hud.phaseClockSeconds, 6);
+  assert.equal(clock.clockSeconds, 0);
+  assert.equal(clock.phaseClockSeconds, 6);
 }
 
 {
-  const { hud } = hudFor({}, receivedAt + 1_000);
+  const { hud, clock } = hudFor({}, receivedAt + 1_000);
   assert.equal(hud.clockMode, "round");
-  assert.equal(hud.clockSeconds, 59);
-  assert.equal(hud.clockSeconds, hud.phaseClockSeconds);
+  assert.equal(clock.clockSeconds, 59);
+  assert.equal(clock.clockSeconds, clock.phaseClockSeconds);
+}
+
+{
+  // App keeps the previous HUD view across ticks while sameRoundHudTime holds: nowMs may change availability only.
+  const { state } = hudFor({});
+  const early = selectRoundHud(state, receivedAt + 100);
+  const later = selectRoundHud(state, receivedAt + 4_000);
+  assert.equal(sameRoundHudTime(early, later), true);
+  assert.deepEqual(later, early, "nothing else in the view depends on the time");
+  const stale = selectRoundHud(state, receivedAt + HUD_STALE_AFTER_MS + 1);
+  assert.equal(stale.availability, "stale");
+  assert.equal(sameRoundHudTime(early, stale), false);
+  const clockAt = (nowMs) => selectRoundHudClock(state, nowMs);
+  assert.equal(sameRoundHudClock(clockAt(receivedAt + 100), clockAt(receivedAt + 900)), true, "same second");
+  assert.equal(sameRoundHudClock(clockAt(receivedAt + 100), clockAt(receivedAt + 1_100)), false, "the next second");
+  assert.equal(selectRoundHudClock(initialRoundHudState, receivedAt), null);
 }
 
 // Loadouts reach the viewer team only.

@@ -1,6 +1,7 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import type { HudMessageView, HudMessageZoneSlot, HudMessageZoneView } from "./model";
+import { memo, useEffect, useState, type CSSProperties } from "react";
+import { sameMessageZoneTime, type HudMessageView, type HudMessageZoneSlot, type HudMessageZoneView } from "./model";
 import { useBackdropRef } from "../../platform/backdrop.ts";
+import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import type { Role } from "../../contracts/index.ts";
@@ -94,7 +95,8 @@ function MessageSlot({ slot, view, still }: MessageSlotProps) {
 }
 
 export type MessageZoneProps = {
-  zone: HudMessageZoneView;
+  /** The slots at a time (selectMessageZone), selected here on the overlay clock. */
+  zoneAt: (nowMs: number) => HudMessageZoneView;
   /** Debug captures: no enter, exit or flash animation, so a still frame is deterministic. */
   still?: boolean;
   /** The viewer's team: the alert and low-hint bars are `hud-colorize-wash`; null (team-less) keeps the CSS default. */
@@ -105,7 +107,8 @@ export type MessageZoneProps = {
  * CS2 `HudBottomCenter--float` (hud.xml): `CSGOHudAlerts` and the two `CSGOHudHintText` panels
  * (hudalerts.css / hudhinttext.css) on the 1920x1080 overlay canvas. Slots are fixed, not stacked.
  */
-export function MessageZone({ zone, still = false, role = null }: MessageZoneProps) {
+export const MessageZone = memo(function MessageZone({ zoneAt, still = false, role = null }: MessageZoneProps) {
+  const zone = useClockSelector(zoneAt, sameMessageZoneTime);
   const scale = useOverlayScale();
   return (
     <section className="hudmsg-overlay" aria-label="提示信息">
@@ -117,4 +120,4 @@ export function MessageZone({ zone, still = false, role = null }: MessageZonePro
       </div>
     </section>
   );
-}
+});

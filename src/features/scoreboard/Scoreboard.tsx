@@ -1,6 +1,7 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { memo, useRef, useState, type CSSProperties } from "react";
 import { useBackdropRef } from "../../platform/backdrop";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
+import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import type { ScoreboardMode, ScoreboardStat } from "./model.ts";
 import {
@@ -162,8 +163,14 @@ function Timeline({ timeline, top, bottom }: { timeline: ScoreboardTimelineView;
   </div>;
 }
 
+function MatchTime({ elapsedAt }: { elapsedAt: ScoreboardProps["elapsedAt"] }) {
+  return <span className="sb-meta__time">{useClockSelector(elapsedAt)}</span>;
+}
+
 export type ScoreboardProps = {
   view: ScoreboardView;
+  /** The header's match time at a time (scoreboardElapsedText); only the time re-renders as it ticks. */
+  elapsedAt: (nowMs: number) => string;
   mode: Exclude<ScoreboardMode, "hidden">;
   onSort(stat: ScoreboardStat): void;
   onCyclePage(): void;
@@ -175,7 +182,7 @@ export type ScoreboardProps = {
  * research `cs2-scoreboard-layout.md`) on the 1920x1080 overlay canvas: shown while the scoreboard key is held; in
  * cursor mode (`.mouse-active`) the headers sort and the buttons switch the stats page and the side shown.
  */
-export function Scoreboard({ view, mode, onSort, onCyclePage, onToggleSide }: ScoreboardProps) {
+export const Scoreboard = memo(function Scoreboard({ view, elapsedAt, mode, onSort, onCyclePage, onToggleSide }: ScoreboardProps) {
   const scale = useOverlayScale();
   const cursor = mode === "cursor";
   // CSGOScoreboard has `world-blur: hudWorldBlur`.
@@ -187,7 +194,7 @@ export function Scoreboard({ view, mode, onSort, onCyclePage, onToggleSide }: Sc
           <div className="sb-meta__row sb-meta__row--title">
             <img className="sb-meta__logo" src={view.logo} alt="" />
             <span className="sb-meta__mode">{view.modeName}</span>
-            <span className="sb-meta__time">{view.elapsed}</span>
+            <MatchTime elapsedAt={elapsedAt} />
           </div>
           <div className="sb-meta__row sb-meta__row--buttons">
             {view.showingOtherSide ? <span className="sb-meta__other-side">上半场</span> : null}
@@ -211,4 +218,4 @@ export function Scoreboard({ view, mode, onSort, onCyclePage, onToggleSide }: Sc
       </section>
     </div>
   </div>;
-}
+});
