@@ -139,6 +139,46 @@ fn is_game_executable(path: &str) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("SCPSL.exe"))
 }
 
+/// The verdict for the last foreground window, keyed by its handle and process id: a window never
+/// changes process, and a reused handle belongs to a new process id. The foreground poll (every
+/// 100 ms) and the keyboard events (every key) then query the executable path only when the
+/// foreground window changes. A failed query is not remembered, so it is retried.
+#[cfg_attr(not(windows), allow(dead_code))]
+#[derive(Default)]
+struct ForegroundProcessCache {
+    last: Option<((isize, u32), bool)>,
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+impl ForegroundProcessCache {
+    const fn new() -> Self {
+        Self { last: None }
+    }
+
+    /// `query` reads whether the window's process is the game; None when it could not be read.
+    fn check(&mut self, window: isize, process_id: u32, query: impl FnOnce() -> Option<bool>) -> bool {
+        let key = (window, process_id);
+        if let Some((cached, verdict)) = self.last {
+            if cached == key {
+                return verdict;
+            }
+        }
+        match query() {
+            Some(verdict) => {
+                self.last = Some((key, verdict));
+                verdict
+            }
+            None => {
+                self.last = None;
+                false
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+static FOREGROUND_PROCESS: Mutex<ForegroundProcessCache> = Mutex::new(ForegroundProcessCache::new());
+
 #[cfg(windows)]
 fn is_game_foreground(foreground: windows_sys::Win32::Foundation::HWND) -> bool {
     use windows_sys::Win32::{
@@ -157,17 +197,26 @@ fn is_game_foreground(foreground: windows_sys::Win32::Foundation::HWND) -> bool 
     if process_id == 0 {
         return false;
     }
-    // Only query the executable path; no process memory or game input is accessed.
-    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
-    if process.is_null() {
-        return false;
+    let query = || {
+        // Only query the executable path; no process memory or game input is accessed.
+        let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
+        if process.is_null() {
+            return None;
+        }
+        let mut path = vec![0_u16; 32_768];
+        let mut length = path.len() as u32;
+        let queried = unsafe { QueryFullProcessImageNameW(process, 0, path.as_mut_ptr(), &mut length) };
+        unsafe { CloseHandle(process) };
+        if queried == 0 {
+            return None;
+        }
+        Some(String::from_utf16(&path[..length as usize]).is_ok_and(|path| is_game_executable(&path)))
+    };
+    match FOREGROUND_PROCESS.lock() {
+        Ok(mut cache) => cache.check(foreground as isize, process_id, query),
+        // A poisoned lock only loses the cache; the answer is still read.
+        Err(_) => query().unwrap_or(false),
     }
-    let mut path = [0_u16; 32_768];
-    let mut length = path.len() as u32;
-    let queried = unsafe { QueryFullProcessImageNameW(process, 0, path.as_mut_ptr(), &mut length) };
-    unsafe { CloseHandle(process) };
-    queried != 0
-        && String::from_utf16(&path[..length as usize]).is_ok_and(|path| is_game_executable(&path))
 }
 
 #[cfg(windows)]
@@ -1037,6 +1086,39 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(context)
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod foreground_process_cache_tests {
+    use super::ForegroundProcessCache;
+    use std::cell::Cell;
+
+    #[test]
+    fn queries_the_process_only_when_the_foreground_window_changes() {
+        let mut cache = ForegroundProcessCache::default();
+        let queries = Cell::new(0);
+        let query = |verdict: Option<bool>| {
+            let queries = &queries;
+            move || {
+                queries.set(queries.get() + 1);
+                verdict
+            }
+        };
+        assert!(cache.check(10, 100, query(Some(true))));
+        assert!(cache.check(10, 100, query(Some(false))), "the same window keeps its verdict");
+        assert_eq!(queries.get(), 1);
+        assert!(!cache.check(20, 200, query(Some(false))), "another window is queried");
+        assert!(cache.check(10, 101, query(Some(true))), "a reused handle with a new process is queried");
+        assert_eq!(queries.get(), 3);
+    }
+
+    #[test]
+    fn a_failed_query_is_retried() {
+        let mut cache = ForegroundProcessCache::default();
+        assert!(!cache.check(10, 100, || None));
+        assert!(cache.check(10, 100, || Some(true)), "the failure was not remembered");
+        assert!(cache.check(10, 100, || panic!("cached")));
+    }
 }
 
 #[cfg(test)]

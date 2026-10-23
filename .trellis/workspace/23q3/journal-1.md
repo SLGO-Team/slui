@@ -1008,3 +1008,25 @@ slui_lib built as rlib only (the template's staticlib/cdylib are mobile targets,
 ### Status
 
 [OK] **Completed**
+
+
+## Session 43: Cache the game-process check per window
+<!-- trellis-session: v=2 fp=26dac7c202279af1 -->
+
+**Date**: 2026-10-23
+**Task**: Cache the game-process check per window
+**Branch**: `perf/foreground-process-cache`
+
+### Summary
+
+is_game_foreground opened the foreground process and read its executable path on every call (foreground thread every 100 ms, keyboard events every key). ForegroundProcessCache keeps the verdict for the last window keyed by (HWND, process id); failed queries are retried, not cached. Unit tests for the cache; cargo test/check clean. Live check pending (installed SLUI running, single-instance).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f2d778` | perf(overlay): query the foreground window's process only when the window changes |
+
+### Status
+
+[OK] **Completed**
