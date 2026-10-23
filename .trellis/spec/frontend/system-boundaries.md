@@ -502,13 +502,25 @@ by window label (`?window=home` in a browser preview).
   (task `10-02-shop-input-passthrough`, below). Cursor mode then takes the mouse and keyboard like the shop until the
   key goes up; the shop or chat opening over the scoreboard hides it and ends cursor mode. A debug build started with
   `SLUI_SCOREBOARD_SPIKE=1` captures while the key is held even without the panel (in-game check of the capture).
-- The shop cannot let the game keep the keyboard (walking while it is open).
+- The shop and scoreboard cursor mode cannot let the player keep walking; this
+  is an accepted limitation, not a bug to retry.
   Verified in game (task `10-02-shop-input-passthrough`): a `WH_MOUSE_LL` hook
   blocks clicks and the wheel but not mouse movement, which Unity reads through
   Raw Input, so the camera keeps turning while the game is foreground; and keys
   posted to the background game window with `PostMessage` do not move the
-  player. Short of injecting into the game process, the open shop must hold the
-  foreground.
+  player. The game takes keyboard and mouse only while it is the foreground
+  process, so no state gives it the keys without the mouse. The open shop must
+  hold the foreground. Also rejected (task `10-23-overlay-move-while-interactive`):
+  - Keeping the game foreground and cancelling every raw mouse delta with an
+    opposite `SendInput` move. Never inject input into the game: Windows marks
+    injected input (`LLMHF_INJECTED`, raw input `hDevice` 0), injecting mouse
+    movement next to a capture of the game window is how external aim tools
+    work, and Northwood's anti-cheat looks for behaviour patterns rather than
+    known programs; a detection is a publisher ban for every SLUI user.
+  - The plugin walking the player with `ServerOverridePosition` every tick from
+    keys the overlay reads: a round trip of input latency, positions the client
+    snaps to without interpolation, and a fight with the server's own pull
+    toward the client-reported position. Judged too inelegant for the gain.
 - Interactive mode only changes hit testing; it is never enough on its own.
   A foreground game (SCP:SL is Unity) keeps its cursor locked to the centre and
   turns the camera with mouse movement, so every interactive UI, the shop as

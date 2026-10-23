@@ -872,3 +872,25 @@ SLUI adapts the plugin's SCP 请求代购: CS2 dropped-weapons area reused as th
 ### Status
 
 [OK] **Completed**
+
+
+## Session 37: 交互模式下移动的方案评估（结论：不做）
+<!-- trellis-session: v=2 fp=24c4e2a456e1a001 -->
+
+**Date**: 2026-10-23
+**Task**: 交互模式下移动的方案评估（结论：不做）
+**Branch**: `feat/overlay-move-while-interactive`
+
+### Summary
+
+用户希望商店/计分板交互模式下仍可走路。查明游戏只在前台时才收键盘和鼠标（无用户态状态能只给键盘）；反向 SendInput 抵消鼠标位移的 spike 写完后未进游戏即撤回（注入输入有反作弊封禁风险，规则：永不向游戏注入输入）；插件每 tick ServerOverridePosition 驱动行走可行但延迟、跳变、回拉冲突，用户判定不优雅。接受交互面板打开时不能移动，结论记入 system-boundaries spec。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e469cd2` | docs(overlay): record why interactive panels cannot keep the player walking |
+
+### Status
+
+[OK] **Completed**
