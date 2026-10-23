@@ -7,7 +7,7 @@
   font-style: normal;
   font-weight: 300;
   font-display: swap;
-  src: url("/assets/fonts/notosanssc-light.ttf") format("truetype");
+  src: url("/assets/fonts/notosanssc-light.woff2") format("woff2");
   size-adjust: 90%;
   unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
 }
@@ -17,7 +17,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  src: url("/assets/fonts/notosanssc-bold.woff2") format("woff2");
   size-adjust: 90%;
   unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
 }

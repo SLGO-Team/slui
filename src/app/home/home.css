@@ -8,25 +8,25 @@
   font-family: "SLUI Display";
   font-weight: 700;
   font-display: swap;
-  src: url("/assets/fonts/ChakraPetch-Bold.ttf") format("truetype");
+  src: url("/assets/fonts/ChakraPetch-Bold.woff2") format("woff2");
 }
 @font-face {
   font-family: "SLUI Latin";
   font-weight: 600;
   font-display: swap;
-  src: url("/assets/fonts/barlow-semibold.ttf") format("truetype");
+  src: url("/assets/fonts/barlow-semibold.woff2") format("woff2");
 }
 @font-face {
   font-family: "SLUI Latin";
   font-weight: 700;
   font-display: swap;
-  src: url("/assets/fonts/barlow-bold.ttf") format("truetype");
+  src: url("/assets/fonts/barlow-bold.woff2") format("woff2");
 }
 @font-face {
   font-family: "SLUI CJK";
   font-weight: 700;
   font-display: swap;
-  src: url("/assets/fonts/notosanssc-bold.ttf") format("truetype");
+  src: url("/assets/fonts/notosanssc-bold.woff2") format("woff2");
   unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
 }
 

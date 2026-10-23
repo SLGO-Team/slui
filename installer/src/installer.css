@@ -10,19 +10,19 @@
   font-family: "SLUI Display";
   font-weight: 700;
   font-display: swap;
-  src: url("../../public/assets/fonts/ChakraPetch-Bold.ttf") format("truetype");
+  src: url("../../public/assets/fonts/ChakraPetch-Bold.woff2") format("woff2");
 }
 @font-face {
   font-family: "SLUI Latin";
   font-weight: 600;
   font-display: swap;
-  src: url("../../public/assets/fonts/barlow-semibold.ttf") format("truetype");
+  src: url("../../public/assets/fonts/barlow-semibold.woff2") format("woff2");
 }
 @font-face {
   font-family: "SLUI Latin";
   font-weight: 700;
   font-display: swap;
-  src: url("../../public/assets/fonts/barlow-bold.ttf") format("truetype");
+  src: url("../../public/assets/fonts/barlow-bold.woff2") format("woff2");
 }
 
 :root {
