@@ -21,6 +21,16 @@ values.
   leaf components. Use a platform adapter or feature hook.
 - Do not treat fixture data as production state. Mock providers must be
   replaceable without changing feature rendering code.
+- Packages carry no mock code. Outside `src/mocks`, code imports mock values
+  only through `src/mocks/harness.ts`, which `main.tsx` loads with a dynamic
+  `import()` behind `import.meta.env.MODE === "mock"` and passes to `App` as
+  `harness`; Vite replaces `MODE` at build time and vite.config.ts never builds
+  that mode, so a release drops the mocks, debug panels, their CSS and the
+  preview art (`src/mocks/preview`, not `public/`). A static import would ship
+  them: a CSS import and module side effects survive tree-shaking even when the
+  JS is unused. Type-only imports are fine. `mock-boundary-check` (in `npm test`)
+  enforces it; HomeApp's `import.meta.env.DEV` update previews are the one
+  allowed exception.
 - Do not silently swallow connection or command errors with an empty catch.
   Expose a recoverable status to the UI and log enough context to diagnose it.
 - Do not use game-process injection or memory reads as an implicit data source.
