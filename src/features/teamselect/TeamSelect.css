@@ -3,8 +3,9 @@
    task research `cs2-team-select.md`) say otherwise.
    - The 3D team scene is replaced by SLUI's world blur over the game (task decision D1); `brightness .7` of Panorama's
      fallback blur becomes a black 0.3 fill over it. Without a blur a denser fill keeps the menu readable.
-   - Halves: 50% of the window, 90% tall, the side's dark gradient over the top 30% (40% hovered). The SLGO team colour
-     replaces CS2's side colour (NTF blue, SCP red; cs2-visual-replication.md).
+   - Halves: 50% of the window, 90% tall, the side's dark gradient over the top 30% (40% hovered) with the captures'
+     opacity curve (see .ts-half). The SLGO team colour replaces CS2's side colour (NTF blue, SCP red;
+     cs2-visual-replication.md).
    - Columns 800 wide hug the seam; their content is centred 400 px from it (icon, 407 wide labels, the roster).
    - No text shadow (cs2-visual-replication.md), although Panorama declares one on every label.
    Fonts: Stratum2 TeamSelect / Condensed (src/shared/fonts.ts); CJK falls back to Noto Sans SC at 0.9 (CS2 fonts.conf). */
@@ -84,7 +85,19 @@ html[data-world-blur="on"] .ts-backdrop {
   border: 0;
   outline: none;
   cursor: default;
-  background: linear-gradient(to bottom, var(--ts-gradient) 0%, transparent 30%);
+  /* Panorama declares a linear fade over the top 30% (40% hovered), but the captures read a sharp head and a long thin
+     tail: at the seam, where the wall runs across both halves, the gradient's opacity is 0.93 at the top, 0.57 at
+     y 32, 0.27 at y 110, 0.2 at y 160, 0.1 at y 210 and 0.05 at y 270 (stops in % of the 972 px half). Hovering
+     stretches the same curve to 40%. */
+  --ts-reach: 1;
+  background: linear-gradient(to bottom,
+    rgb(var(--ts-gradient) / 0.93) 0%,
+    rgb(var(--ts-gradient) / 0.57) calc(3.3% * var(--ts-reach)),
+    rgb(var(--ts-gradient) / 0.27) calc(11.3% * var(--ts-reach)),
+    rgb(var(--ts-gradient) / 0.2) calc(16.5% * var(--ts-reach)),
+    rgb(var(--ts-gradient) / 0.1) calc(21.6% * var(--ts-reach)),
+    rgb(var(--ts-gradient) / 0.05) calc(27.8% * var(--ts-reach)),
+    rgb(var(--ts-gradient) / 0) calc(30% * var(--ts-reach)));
 }
 
 .ts-half--ntf {
@@ -96,7 +109,7 @@ html[data-world-blur="on"] .ts-backdrop {
 }
 
 .ts-half[data-hover] {
-  background: linear-gradient(to bottom, var(--ts-gradient) 0%, transparent 40%);
+  --ts-reach: 1.3333;
 }
 
 .ts-canvas {

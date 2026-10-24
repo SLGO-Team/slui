@@ -9,12 +9,13 @@ import { createTeamCloseCommand, createTeamSelectCommand, visibleTeamMenu, type 
 export const TEAM_SELECT_ORDER: readonly Role[] = ["ntf", "scp"];
 
 /**
- * Top gradient of each half (`#BtnSelectTeam-*.team-select-button`): CS2 darkens the side colour to it. NTF wears
- * CS2's CT colour (`ct-color`), so it takes CT's gradient; SCP's is the T gradient's darkening applied to SCP red.
+ * Top gradient colour of each half (`#BtnSelectTeam-*.team-select-button`) as CSS `rgb()` channels: CS2 darkens the
+ * side colour to it. NTF wears CS2's CT colour (`ct-color`), so it takes CT's gradient; SCP's is the T gradient's
+ * darkening applied to SCP red. TeamSelect.css draws it with the opacity curve measured on the captures.
  */
 export const TEAM_SELECT_GRADIENTS: Readonly<Record<Role, string>> = {
-  ntf: "rgb(37 75 105)",
-  scp: "rgb(85 27 32)",
+  ntf: "37 75 105",
+  scp: "85 27 32",
 };
 
 export type TeamSelectRow = Readonly<{

@@ -678,9 +678,12 @@ captures of 2026-10-24 (hover T, hover CT, first join; kept locally); numbers ar
 - Background (task decision D1): SLUI's world blur over the live game instead of CS2's 3D team scene and its model
   glow; the full-window backdrop registers `useBackdropRef`; blur on = black 0.3 over it (Panorama's fallback
   `brightness .7`), blur off = `rgba(10,11,13,0.62)`. The bottom band is `.mainmenu-content`'s 50% black from 91.5%.
-- Halves: 50% of the window and 90% tall each; the side's dark gradient over the top 30%, 40% while hovered. Side
-  colours are SLGO's (`ROLE_COLORS`), NTF left / SCP right (NTF plays T): NTF takes CS2's CT gradient
-  `rgb(37 75 105)` (its colour is CS2's `ct-color`), SCP the T gradient's darkening of `#d94652`, `rgb(85 27 32)`.
+- Halves: 50% of the window and 90% tall each; the side's dark gradient over the top 30%, 40% while hovered. Not
+  Panorama's linear fade: the captures (seam where one wall crosses both halves) read opacity 0.93 at the top, 0.57
+  at y 32, 0.27 at y 110, 0.2 at y 160, 0.1 at y 210, 0.05 at y 270; a linear fade was about twice as heavy and the
+  user called it too strong. Side colours are SLGO's (`ROLE_COLORS`), NTF left / SCP right (NTF plays T): NTF takes
+  CS2's CT gradient `rgb(37 75 105)` (its colour is CS2's `ct-color`), SCP the T gradient's darkening of `#d94652`,
+  `rgb(85 27 32)`.
 - Columns 800 wide hug the seam on the 1080 canvas; content centred 400 from it. Disc 78 px from y 42 (capture; the
   labels still start at y 140), side colour 78% with a 45% rim and the emblem cut-out at 22%, `brightness(0.6)`,
   1 while hovered (the captures' 102 -> 170). Title 50px `Stratum2 TeamSelect Condensed` bold (cap top y 152),
