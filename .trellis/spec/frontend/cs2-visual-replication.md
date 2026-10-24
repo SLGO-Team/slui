@@ -97,7 +97,8 @@ When static source and observed output disagree, the in-game screenshot wins.
   short in-game recording and step through it frame by frame before building
   or accepting the motion.
 - Player slots render typed Steam `avatar_url` values.
-- Missing or failed avatars reveal a stable side-specific fallback.
+- Missing or failed avatars reveal a stable side-specific fallback (`hud/avatar-terrorist.png` for NTF, `hud/avatar-ct.svg`
+  for SCP). Each fallback image is opaque on its own side colour, so no panel needs a background behind it.
 - Mock fixtures must not use CS2 tournament-player photographs.
 - The repository and official releases contain no files extracted from CS2
   (images, fonts, sounds, or their direct derivatives); Panorama sources and
@@ -661,3 +662,44 @@ The scoreboard is a hand-built React feature under `src/features/scoreboard` (`m
   unpinned preview CapsLock and right-click drive it. Run `npm run scoreboard-layout-audit` (CDP on port 9223, preview
   at `SCOREBOARD_PREVIEW_URL`, viewport from `SCOREBOARD_VIEWPORT_WIDTH/HEIGHT`) at 1920x1080, 1728x1080 and 1440x1080
   before accepting a visual change.
+
+## 16. Team-select-specific replication rules
+
+The team select menu is a hand-built React feature under `src/features/teamselect` (`model.ts`, `presentation.ts`,
+`TeamSelect.tsx` / `TeamSelect.css`, `useTeamSelectFeature.ts`), recreating CS2's team menu (`teamselectmenu.xml` /
+`.js` / `.css`, the action bar from `mainmenu.css` and `csgostyles.css` `.PopupButton`). Measured against the user's
+captures of 2026-10-24 (hover T, hover CT, first join; kept locally); numbers are in the task research
+`cs2-team-select.md` (task `10-24-team-select`).
+
+- Session (system-boundaries 3): drawn only while the plugin's `team.menu` session is open, the stream is live, a
+  roster is known and the game (or the overlay) holds the foreground. It is modal: the other panels are not rendered
+  (CS2 hides its HUD), the shop, chat and scoreboard stay shut and their keys are ignored, and the overlay is
+  interactive. A close or an accepted choice hides it at once; a refusal keeps it with the error banner.
+- Background (task decision D1): SLUI's world blur over the live game instead of CS2's 3D team scene and its model
+  glow; the full-window backdrop registers `useBackdropRef`; blur on = black 0.3 over it (Panorama's fallback
+  `brightness .7`), blur off = `rgba(10,11,13,0.62)`. The bottom band is `.mainmenu-content`'s 50% black from 91.5%.
+- Halves: 50% of the window and 90% tall each; the side's dark gradient over the top 30%, 40% while hovered. Not
+  Panorama's linear fade: the captures (seam where one wall crosses both halves) read opacity 0.93 at the top, 0.57
+  at y 32, 0.27 at y 110, 0.2 at y 160, 0.1 at y 210, 0.05 at y 270; a linear fade was about twice as heavy and the
+  user called it too strong. Side colours are SLGO's (`ROLE_COLORS`), NTF left / SCP right (NTF plays T): NTF takes
+  CS2's CT gradient `rgb(37 75 105)` (its colour is CS2's `ct-color`), SCP the T gradient's darkening of `#d94652`,
+  `rgb(85 27 32)`.
+- Columns 800 wide hug the seam on the 1080 canvas; content centred 400 from it. Disc 78 px from y 42 (capture; the
+  labels still start at y 140), side colour 78% with a 45% rim and the emblem cut-out at 22%, `brightness(0.6)`,
+  1 while hovered (the captures' 102 -> 170). Title 50px `Stratum2 TeamSelect Condensed` bold (cap top y 152),
+  subtitle "{n} 玩家" 20px bold (SLGO has no bots, so CS2's bot count is dropped).
+- Rows: 200 x 41 on a 47.5 px pitch from y 238 (capture; Panorama's 40 + margin 4); avatar 41 then a 4 px black status
+  bar and the name 8 px after it, 17px bold with 0.35px tracking (CJK names in the regular cut, as captured). Online
+  players get CS2's human row (side colour, black name), offline seats CS2's bot row (`#303030`, white name). Opacity
+  0.8, 1 for human rows of the hovered side; bot rows stay 0.8 (CS2's `#Teammate.bot` outranks the hover).
+- Action bar: 96 tall, padding 0 64px, right-aligned 取消 (hidden in a forced session) / 观察 / 自动选择; SLUI-drawn
+  28px icons (`public/assets/teamselect`), 24px condensed medium labels with margins 10 12 8, hover white 0.05.
+- Error banner: centred, `rgba(0,0,0,0.5)`, padding 16, radius 2, warning icon and 20px bold label in `#b1af2d`,
+  5 s, 0.25 s fades. Opening fade: black, after 0.5 s a 0.5 s fade out (`_ShowPanel`).
+- Input: click a half or 1 / 2 to join NTF / SCP; clicking or pressing the side the player is on only closes (CS2
+  `_SelectTeam`); Escape / M / 取消 close unless forced; one command at a time.
+- No text shadow. No timer: the auto-join countdown is out (task decision D3).
+- Mock preview: `teamSelect=ntf|scp|forced` (the captures' rosters; `forced` = empty teams without Cancel),
+  `teamSelectHover=ntf|scp` (starts with that side highlighted for captures; the mouse still moves it),
+  `teamSelectReject=ntf|scp` (the mock plugin refuses that side with CS2's "...队伍人数已满。"),
+  `teamSelectFade=1` keeps the opening fade. The mock reopens the menu 1.5 s after a choice.

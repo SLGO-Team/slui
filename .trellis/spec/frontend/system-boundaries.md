@@ -299,6 +299,18 @@ Required boundary rules:
   plugin) the panel stays off and the plugin keeps its hint board. Declaring `scoreboard` makes the plugin ignore its
   own scoreboard key for that player. The plugin's `minimap.positions.scoreboard_visible` then stays false, so the
   overlay tells the minimap store itself (`local-scoreboard`) while SLUI's scoreboard is on screen.
+- `team.menu` (`{ menu }`, `parseTeamMenu`; wire rules in `packages/protocol/v0/README.md` "Team menu") is the
+  viewer's team select session owned by the plugin: `{ session_id, forced }` or `null`. One recipient, no time
+  fields, sent only to clients declaring `team-select` (`CLIENT_FEATURE_TEAM_SELECT`), with the current state as soon
+  as the feature is declared and on every change. The plugin alone opens a session (its SSS keybind, M by default, or
+  a join without a team while selection is allowed, `forced`) and closes it (a successful choice, its keybind, the
+  phase gate); SLUI never opens one and has no team hotkey. SLUI sends `command.team.select` (`ntf` / `scp` /
+  `spectator` / `auto`, the same rule path as `.team`) and `command.team.close` (the session id; a forced session
+  refuses); a refusal's `reason` is the plugin's text, drawn in the menu's error banner, while success notices stay
+  `hud.messages`. Rosters, names and avatars come from `match.snapshot` (an unassigned viewer gets both teams).
+  `teamSelectReducer` keeps the latest session of the baseline's instance (another instance or `ended` clears it, a
+  reconnect keeps it) and hides a session the player closed or left with an accepted choice before the plugin's
+  `menu: null` arrives. An older plugin never sends it and keeps its Hint roster.
 - Minimap payloads contain the plugin's actual map layout (the Entrance /
   HeavyContainment rooms of the current map generation) and player positions
   already filtered for the authenticated player's in-game visibility. The

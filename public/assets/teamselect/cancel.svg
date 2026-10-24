@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+  <!-- SLUI-drawn cancel icon (CS2 action-bar style): a filled disc with an X cut out. -->
+  <path fill="#fff" fill-rule="evenodd" d="M14 3a11 11 0 1 0 0 22a11 11 0 1 0 0-22Z
+    M9.8 7.9L14 12.1L18.2 7.9L20.1 9.8L15.9 14L20.1 18.2L18.2 20.1L14 15.9L9.8 20.1L7.9 18.2L12.1 14L7.9 9.8Z"/>
+</svg>

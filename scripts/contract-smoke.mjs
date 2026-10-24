@@ -7,12 +7,15 @@ import {
   CLIENT_FEATURE_HUD_SPECTATING,
   CLIENT_FEATURE_HUD_STATUS,
   CLIENT_FEATURE_SCOREBOARD,
+  CLIENT_FEATURE_TEAM_SELECT,
   CLIENT_FEATURE_WIN_PANEL,
   HUD_KILL_KINDS,
   HUD_KILLFEED_WEAPONS,
   HUD_RESERVE_ICONS,
   MAX_HUD_KILLFEED_ENTRIES,
   MAX_HUD_SPECTATING_TEXT_LENGTH,
+  MAX_TEAM_MENU_SESSION_ID_LENGTH,
+  TEAM_SELECT_CHOICES,
   MAX_SCOREBOARD_PLAYERS,
   SCOREBOARD_ROUND_REASONS,
   EventSequenceGuard,
@@ -29,6 +32,7 @@ import {
   parseHudMessages,
   parseHudSpectating,
   parseHudStatus,
+  parseTeamMenu,
   parseInstanceEnded,
   parseMatchSnapshot,
   parseMinimapPositions,
@@ -630,6 +634,43 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseHudSpectating(withTarget({ ammo: { ...target.ammo, extra: 1 } })).ok, false);
   assert.equal(parseHudSpectating(withTarget({ round_kills: ["headshot"] })).ok, false, "kills follow hud.status");
   assert.equal(parseHudSpectating(withTarget({ round_kills: Array(65).fill("default") })).ok, false);
+}
+
+{
+  // team.menu and the team commands (packages/protocol/v0/README.md "Team menu").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/team-menu.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, "the v0 team.menu example parses");
+  assert.deepEqual(parsed.value.payload, { menu: { session_id: "7", forced: false } });
+  assert.equal(parseEvent({ ...example, sent_at: undefined }).ok, true, "team.menu has no time fields");
+  assert.equal(CLIENT_FEATURE_TEAM_SELECT, "team-select");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_TEAM_SELECT] }).ok, true);
+  assert.deepEqual(parseTeamMenu({ menu: null }), { ok: true, value: { menu: null } }, "closed");
+  assert.equal(parseTeamMenu({ menu: { session_id: "12", forced: true } }).ok, true, "forced");
+  assert.equal(parseTeamMenu({}).ok, false, "menu is required");
+  assert.equal(parseTeamMenu({ menu: null, extra: 1 }).ok, false, "unknown field");
+  assert.equal(parseTeamMenu({ menu: { session_id: "7", forced: false, extra: 1 } }).ok, false, "unknown session field");
+  assert.equal(parseTeamMenu({ menu: { session_id: "7" } }).ok, false, "forced is required");
+  assert.equal(parseTeamMenu({ menu: { forced: false } }).ok, false, "session id is required");
+  assert.equal(parseTeamMenu({ menu: { session_id: 7, forced: false } }).ok, false, "session id is a string");
+  assert.equal(parseTeamMenu({ menu: { session_id: "", forced: false } }).ok, false, "blank session id");
+  assert.equal(parseTeamMenu({ menu: { session_id: "7a", forced: false } }).ok, false, "decimal digits only");
+  assert.equal(parseTeamMenu({ menu: { session_id: "9".repeat(MAX_TEAM_MENU_SESSION_ID_LENGTH), forced: false } }).ok, true);
+  assert.equal(parseTeamMenu({ menu: { session_id: "9".repeat(MAX_TEAM_MENU_SESSION_ID_LENGTH + 1), forced: false } }).ok, false, "long session id");
+  assert.equal(parseTeamMenu({ menu: { session_id: "7", forced: "no" } }).ok, false, "forced is a boolean");
+  assert.deepEqual(TEAM_SELECT_CHOICES, ["ntf", "scp", "spectator", "auto"]);
+  for (const name of ["command-team-select", "command-team-close"]) {
+    const command = JSON.parse(readFileSync(new URL(`../packages/protocol/v0/${name}.example.json`, import.meta.url), "utf8"));
+    assert.equal(parseCommand(command).ok, true, name);
+    const result = parseEvent({ protocol_version: 0, schema_version: 1, event_id: "evt-t", server_id: "s", instance_id: "i", sequence: 9, type: "command.result", payload: { command_id: command.command_id, command_kind: command.kind, status: "rejected", reason: "SCP队伍人数已满。" } });
+    assert.equal(result.ok, true, `${name} result`);
+  }
+  for (const team of TEAM_SELECT_CHOICES) assert.equal(parseCommand({ kind: "command.team.select", command_id: `t-${team}`, team }).ok, true, team);
+  assert.equal(parseCommand({ kind: "command.team.select", command_id: "t-1", team: "ct" }).ok, false, "unknown team");
+  assert.equal(parseCommand({ kind: "command.team.select", command_id: "t-2" }).ok, false, "team is required");
+  assert.equal(parseCommand({ kind: "command.team.close", command_id: "c-1" }).ok, false, "session id is required");
+  assert.equal(parseCommand({ kind: "command.team.close", command_id: "c-2", session_id: "x" }).ok, false, "decimal session id");
+  assert.equal(parseCommand({ kind: "command.team.close", command_id: "c-3", session_id: "1".repeat(33) }).ok, false, "long session id");
 }
 
 {
