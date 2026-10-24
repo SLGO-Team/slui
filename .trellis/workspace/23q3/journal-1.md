@@ -1052,3 +1052,25 @@ Health check (lint, 27 smokes, builds, cargo test, clippy, hakari, npm audit, Gi
 ### Status
 
 [OK] **Completed**
+
+
+## Session 46: Move windows-sys to 0.61
+<!-- trellis-session: v=2 fp=5b242af0251cae6b -->
+
+**Date**: 2026-10-24
+**Task**: Move windows-sys to 0.61
+**Branch**: `build/windows-sys-0.61`
+
+### Summary
+
+Moved SLUI's and the installer's direct windows-sys from 0.59 to 0.61 (Tauri 2.12's version) with no source change; workspace-hack regenerated. clippy -D warnings on 1.99, cargo test 39+37, hakari and a tauri:mock run pass. windows-sys 0.60 remains via rfd (installer's dialog plugin).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ad9eca3` | build(deps): move windows-sys to 0.61 |
+
+### Status
+
+[OK] **Completed**

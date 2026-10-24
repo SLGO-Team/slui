@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 44
+- **Total Sessions**: 46
 - **Last Active**: 2026-10-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1054 | Active |
+| `journal-1.md` | ~1076 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 46 | 2026-10-24 | Move windows-sys to 0.61 | `ad9eca3` | `build/windows-sys-0.61` |
 | 44 | 2026-10-24 | SLUI health check and dependency refresh | `c131768` | `chore/deps-refresh` |
 | 43 | 2026-10-23 | Cache the game-process check per window | `4f2d778` | `perf/foreground-process-cache` |
 | 42 | 2026-10-23 | Drop unused library crate types | `96449a5` | `perf/drop-unused-crate-types` |
