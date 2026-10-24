@@ -210,9 +210,8 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
   if (event.type === "command.result") {
     return shopReducer(state, { type: "command-result", result: event.payload, receivedAtMs });
   }
+  // Each connection's baseline restarts the sequence, as in roundHudReducer (a restarted sidecar counts from 0 again).
   if (event.type === "sidecar.baseline") {
-    const sameSource = event.server_id === state.serverId && event.instance_id === state.instanceId;
-    if (sameSource && event.sequence <= state.sequence) return state;
     const changedSource = sourceChanged(state, event.server_id, event.instance_id);
     const next = {
       ...state,

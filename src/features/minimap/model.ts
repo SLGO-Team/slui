@@ -184,8 +184,8 @@ function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { ty
   }
 
   const { event, receivedAtMs } = action;
+  // Each connection's baseline restarts the sequence, as in roundHudReducer (a restarted sidecar counts from 0 again).
   if (event.type === "sidecar.baseline") {
-    if (state.baselineAccepted && matchesSource(state, event.server_id, event.instance_id) && event.sequence <= state.sequence) return state;
     return { ...clearInit(state, "syncing"), source: { serverId: event.server_id, instanceId: event.instance_id },
       baselineAccepted: true, sequence: event.sequence, ...NO_MAP };
   }

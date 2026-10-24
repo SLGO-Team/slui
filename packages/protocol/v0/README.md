@@ -25,6 +25,9 @@ minimap events stay on the sidecar connection.
   layout, so a game update does not change this protocol.
 - `schema_version` is an integer and must be rejected when unknown.
 - `sequence` is monotonic within one `server_id` + `instance_id` stream.
+  Clients compare sequences only within one connection: its `sidecar.baseline`
+  starts the comparison over, so an instance stays in sync when a restarted
+  sidecar counts its sequence from 0 again.
 - A new `instance_id` requires a fresh baseline before incremental events are
   applied.
 - Clients skip event types they do not know (`unsupported-event-type`): the
