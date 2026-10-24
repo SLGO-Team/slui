@@ -618,7 +618,7 @@ function App({ harness }: AppProps) {
   return (
     <main id="SlgoOverlayRoot" data-preview-background={previewBackground}>
       {teamSelectShown && teamSelect !== null ? (
-        <TeamSelect view={teamSelect} onCommand={handleTeamCommand} pinnedHover={teamSelectHover}
+        <TeamSelect view={teamSelect} onCommand={handleTeamCommand} initialHover={teamSelectHover}
           still={teamSelectDebug !== null && !teamSelectDebug.fade} />
       ) : <>
         <HudTeamCounter

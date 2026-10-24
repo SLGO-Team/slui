@@ -5,9 +5,10 @@ import type { MockTeamMenuOptions } from "./minimapProvider.ts";
 
 /**
  * Debug team select scenes, by URL (`?teamSelect=ntf|scp|forced`), matching the user's three captures: in a match
- * with the side hovered (`ntf` / `scp`: the local player plus four offline seats on NTF, five on SCP), and the first
- * join (`forced`: both teams empty, no Cancel). `teamSelectReject=ntf|scp` makes the mock plugin refuse that side
- * (CS2's "...队伍人数已满。"), `teamSelectFade=1` keeps the opening fade the captures skip.
+ * (`ntf` / `scp`: the local player plus four offline seats on NTF, five on SCP) and the first join (`forced`: both
+ * teams empty, no Cancel). `teamSelectHover=ntf|scp` starts with that side highlighted for captures (the mouse still
+ * moves it), `teamSelectReject=ntf|scp` makes the mock plugin refuse that side (CS2's "...队伍人数已满。"),
+ * `teamSelectFade=1` keeps the opening fade the captures skip.
  */
 export const TEAM_SELECT_DEBUG_SCENES = ["ntf", "scp", "forced"] as const;
 export type TeamSelectDebugScene = (typeof TEAM_SELECT_DEBUG_SCENES)[number];
@@ -15,6 +16,7 @@ export type TeamSelectDebugScene = (typeof TEAM_SELECT_DEBUG_SCENES)[number];
 export type TeamSelectDebugOptions = Readonly<{
   scene: TeamSelectDebugScene;
   reject: Role | null;
+  hover: Role | null;
   fade: boolean;
 }>;
 
@@ -26,16 +28,17 @@ export function readTeamSelectDebugOptions(search = window.location.search): Tea
   const scene = params.get("teamSelect");
   if (!isScene(scene)) return null;
   const reject = params.get("teamSelectReject");
-  return { scene, reject: isRole(reject) ? reject : null, fade: params.get("teamSelectFade") === "1" };
+  const hover = params.get("teamSelectHover");
+  return { scene, reject: isRole(reject) ? reject : null, hover: isRole(hover) ? hover : null, fade: params.get("teamSelectFade") === "1" };
 }
 
 export function teamMenuOptionsFor(options: TeamSelectDebugOptions): MockTeamMenuOptions {
   return { forced: options.scene === "forced", reject: options.reject };
 }
 
-/** The side the capture hovers (CS2 highlights the half under the mouse); the first-join capture hovers none. */
+/** The side a capture starts hovered (CS2 highlights the half under the mouse). */
 export function teamSelectDebugHover(options: TeamSelectDebugOptions): Role | null {
-  return options.scene === "forced" ? null : options.scene;
+  return options.hover;
 }
 
 const player = (id: number, name: string, online: boolean): HudPlayerView => ({

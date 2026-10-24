@@ -97,7 +97,8 @@ When static source and observed output disagree, the in-game screenshot wins.
   short in-game recording and step through it frame by frame before building
   or accepting the motion.
 - Player slots render typed Steam `avatar_url` values.
-- Missing or failed avatars reveal a stable side-specific fallback.
+- Missing or failed avatars reveal a stable side-specific fallback (`hud/avatar-terrorist.png` for NTF, `hud/avatar-ct.svg`
+  for SCP). Each fallback image is opaque on its own side colour, so no panel needs a background behind it.
 - Mock fixtures must not use CS2 tournament-player photographs.
 - The repository and official releases contain no files extracted from CS2
   (images, fonts, sounds, or their direct derivatives); Panorama sources and
@@ -695,6 +696,7 @@ captures of 2026-10-24 (hover T, hover CT, first join; kept locally); numbers ar
 - Input: click a half or 1 / 2 to join NTF / SCP; clicking or pressing the side the player is on only closes (CS2
   `_SelectTeam`); Escape / M / 取消 close unless forced; one command at a time.
 - No text shadow. No timer: the auto-join countdown is out (task decision D3).
-- Mock preview: `teamSelect=ntf|scp|forced` (the captures' rosters, hover pinned; `forced` = empty teams without
-  Cancel), `teamSelectReject=ntf|scp` (the mock plugin refuses that side with CS2's "...队伍人数已满。"),
+- Mock preview: `teamSelect=ntf|scp|forced` (the captures' rosters; `forced` = empty teams without Cancel),
+  `teamSelectHover=ntf|scp` (starts with that side highlighted for captures; the mouse still moves it),
+  `teamSelectReject=ntf|scp` (the mock plugin refuses that side with CS2's "...队伍人数已满。"),
   `teamSelectFade=1` keeps the opening fade. The mock reopens the menu 1.5 s after a choice.

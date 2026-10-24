@@ -15,8 +15,8 @@ const SIDE_KEYS: Readonly<Record<string, Role>> = { Digit1: "ntf", Numpad1: "ntf
 export type TeamSelectProps = {
   view: TeamSelectView;
   onCommand(command: TeamCommand): void;
-  /** Debug captures pin the hovered side (CS2's highlight follows the mouse). */
-  pinnedHover?: Role | null;
+  /** Debug captures start with this side hovered; the mouse still moves the highlight (CS2's follows the mouse). */
+  initialHover?: Role | null;
   /** Debug captures skip the opening fade. */
   still?: boolean;
 };
@@ -73,11 +73,10 @@ function ErrorBanner({ error }: { error: TeamSelectView["error"] }) {
  * per side with its top gradient, round team icon, title, player count and roster, the action bar and the join error.
  * The plugin owns the session; every choice goes out as a command and the plugin's rules decide.
  */
-export const TeamSelect = memo(function TeamSelect({ view, onCommand, pinnedHover = null, still = false }: TeamSelectProps) {
+export const TeamSelect = memo(function TeamSelect({ view, onCommand, initialHover = null, still = false }: TeamSelectProps) {
   const scale = useOverlayScale();
   const backdrop = useBackdropRef();
-  const [hover, setHover] = useState<Role | null>(null);
-  const hovered = pinnedHover ?? hover;
+  const [hovered, setHover] = useState<Role | null>(initialHover);
 
   const send = useCallback((command: TeamCommand | null) => {
     if (command !== null && !view.pending) onCommand(command);
