@@ -113,3 +113,11 @@ Defaults taken in planning (change at review if wanted):
 - Mock interactions: a refused join shows the banner and keeps the menu, Escape / own side close it (the HUD comes
   back), 1 / 2 join, a forced menu ignores Escape / M and closes on Spectate.
 - Open: the user's visual review (AC1) and the in-game check (AC2-AC4).
+
+## Review status (2026-10-24, paused)
+
+- Fixed after the first review: mouse hover in the debug scenes, an opaque red SCP fallback avatar (used by every
+  panel), top gradients on the captures' opacity curve (the user: "现在还好").
+- Next: the lower half reads empty; the user will supply illustrations to place there (ask for the files first).
+  Then the visual approval (AC1), the in-game check (AC2-AC4), merging the plugin / backend `feat/team-select`
+  branches, finish-work.
