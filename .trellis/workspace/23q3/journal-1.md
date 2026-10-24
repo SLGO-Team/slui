@@ -1030,3 +1030,25 @@ is_game_foreground opened the foreground process and read its executable path on
 ### Status
 
 [OK] **Completed**
+
+
+## Session 44: SLUI health check and dependency refresh
+<!-- trellis-session: v=2 fp=b0af07518bdc3027 -->
+
+**Date**: 2026-10-24
+**Task**: SLUI health check and dependency refresh
+**Branch**: `chore/deps-refresh`
+
+### Summary
+
+Health check (lint, 27 smokes, builds, cargo test, clippy, hakari, npm audit, GitHub state) found two high npm advisories, Tauri one minor behind and GitHub scanning off. Updated npm and Cargo deps within ranges (vite 7.3.7, source-map-js 1.2.2, Tauri 2.12, React 19.3), moved the windows crate to 0.62 with tao (IAsyncOperation::get -> join), verified with the full suite and a tauri:mock run. Enabled secret scanning, push protection and the dependency graph (via PUT vulnerability-alerts) on SLGO-Team/slui. Also fast-forwarded local main past #58 and deleted the merged perf/foreground-process-cache branch.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c131768` | fix(deps): update Tauri 2.12, React 19.3 and vite 7.3.7 |
+
+### Status
+
+[OK] **Completed**

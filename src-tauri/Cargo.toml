@@ -60,9 +60,9 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["h
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 
 # World blur (src/backdrop.rs): Windows.Graphics.Capture, Direct3D 11 and DirectComposition need the
-# WinRT projections, which windows-sys lacks. 0.61 is the version tao already builds.
+# WinRT projections, which windows-sys lacks. 0.62 is the version tao already builds.
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Foundation",
     "Graphics",
     "Graphics_Capture",
