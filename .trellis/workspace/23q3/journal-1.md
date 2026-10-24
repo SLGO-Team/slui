@@ -1052,3 +1052,25 @@ Health check (lint, 27 smokes, builds, cargo test, clippy, hakari, npm audit, Gi
 ### Status
 
 [OK] **Completed**
+
+
+## Session 45: CI gates: clippy, npm audit, pinned Rust, Dependabot npm
+<!-- trellis-session: v=2 fp=b707953ce985af2a -->
+
+**Date**: 2026-10-24
+**Task**: CI gates: clippy, npm audit, pinned Rust, Dependabot npm
+**Branch**: `ci/health-gates`
+
+### Summary
+
+Pinned Rust 1.99 in rust-toolchain.toml (minimal + clippy) for local, CI and release; CI installs it before rust-cache, denies clippy warnings and runs npm audit --audit-level=high. Code was already clippy-clean on 1.99. Dependabot now groups npm minor/patch monthly, ignoring @tauri-apps/* and majors. Enabled Dependabot security updates on SLGO-Team/slui. cargo clean --profile dev freed 37.8 GiB.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a390b3c` | ci: gate clippy and npm audit, pin Rust 1.99, Dependabot for npm |
+
+### Status
+
+[OK] **Completed**
