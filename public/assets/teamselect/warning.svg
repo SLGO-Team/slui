@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+  <!-- SLUI-drawn warning icon: a triangle with an exclamation mark cut out. -->
+  <path fill="#fff" fill-rule="evenodd" d="M14 2.5L26.5 25H1.5Z
+    M12.6 10H15.4L15 18.2H13Z M12.6 20H15.4V22.6H12.6Z"/>
+</svg>

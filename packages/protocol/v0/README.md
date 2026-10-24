@@ -53,6 +53,7 @@ Payload schemas:
 - [round-result.schema.json](./round-result.schema.json)
 - [hud-status.schema.json](./hud-status.schema.json)
 - [hud-spectating.schema.json](./hud-spectating.schema.json)
+- [team-menu.schema.json](./team-menu.schema.json)
 - [hud-killfeed.schema.json](./hud-killfeed.schema.json)
 - [scoreboard-snapshot.schema.json](./scoreboard-snapshot.schema.json)
 - [instance-ended.schema.json](./instance-ended.schema.json)
@@ -79,6 +80,8 @@ Payload schemas:
 | client -> sidecar | `command.shop.request` | Ask teammates to buy an item (toggle) |
 | client -> sidecar | `command.shop.fulfill` | Buy a teammate's request for them |
 | client -> sidecar | `command.chat.send` | Plugin-defined chat request |
+| client -> sidecar | `command.team.select` | Join a side, spectate or auto-select (plugin rules) |
+| client -> sidecar | `command.team.close` | Close the viewer's team menu session |
 | client -> sidecar | `client.features` | Features this client takes over from the plugin |
 | sidecar -> client | `command.result` | Authoritative success or rejection |
 | sidecar -> client | `chat.message` | Plugin-defined chat message |
@@ -87,6 +90,7 @@ Payload schemas:
 | sidecar -> client | `round.result` | The viewer's round / match result panel (win panel, MVP) |
 | sidecar -> client | `hud.status` | The viewer's bottom HUD: held firearm ammo and this round's kills |
 | sidecar -> client | `hud.spectating` | The player the viewer watches while dead: balance, held item, ammo, round kills |
+| sidecar -> client | `team.menu` | The viewer's team select menu session (open, forced, or closed) |
 | sidecar -> client | `hud.killfeed` | The viewer's top-right killfeed (who killed whom, with what) |
 | sidecar -> client | `scoreboard.snapshot` | Scoreboard stats per side, ping, round history and loss bonus |
 | sidecar -> client | `instance.ended` | Why the instance ended; the last frame before the 4003 close |
@@ -270,6 +274,45 @@ round_kills }`, all required:
   target.
 
 Every object rejects unknown fields.
+
+## Team menu
+
+`team.menu` is the viewer's team select session (CS2's team menu). The plugin
+alone owns it: the player opens it with the plugin's keybind (M by default,
+through SCP:SL's server-specific settings), and the plugin opens it by itself
+for a player who joins without a team while team selection is allowed. It
+closes on a successful choice, a close command, the Hint menu's own key, or
+when the phase stops allowing selection. Snapshot, one recipient per publish,
+cached per recipient and replayed after the baseline, no time fields
+(`sent_at` optional). Sent only to players whose SLUI declares `team-select`;
+the plugin then draws no Hint roster for them.
+
+`{ menu }`, required. `menu` is `null` while no session is open (a player
+gets the current state as soon as their SLUI declares `team-select`, so the
+first frame is usually `null`), else `{ session_id, forced }`, both required:
+
+- `session_id`: the plugin's session id, 1 to 32 decimal digits
+  (`MAX_TEAM_MENU_SESSION_ID_LENGTH`); every new session has a new id.
+- `forced`: the session was opened because the player joined without a team.
+  The client shows no Cancel and ignores Escape / M; Spectate is the way out.
+
+The rosters, names, avatars and the viewer's side come from `match.snapshot`
+(an unassigned viewer gets the `viewer_team_id: null` variant with both
+teams). Every object rejects unknown fields.
+
+Commands (each answered by one `command.result`):
+
+- `command.team.select` `{ team }`: `ntf`, `scp`, `spectator` or `auto`
+  (`TEAM_SELECT_CHOICES`). Runs the plugin's selection rules exactly like the
+  in-game `.team <team>` command, with or without an open session. `accepted`
+  covers joined, switched, now spectating and already there; a success closes
+  the open session (its `team.menu` goes out before the result) and its notice
+  appears in `hud.messages`. `rejected` carries the plugin's refusal text in
+  `reason` (for example "SCP队伍人数已满。"), which the client shows in the
+  menu's error banner; the session stays open.
+- `command.team.close` `{ session_id }`: closes that session. A stale or
+  missing session is `accepted` (nothing to close); a forced session is
+  `rejected`.
 
 ## HUD killfeed
 
@@ -582,6 +625,9 @@ Known features:
   own killfeed hint and sends `hud.killfeed` to this player.
 - `scoreboard`: SLUI draws the scoreboard on its own key, so the plugin ignores
   its scoreboard keybind for this player and sends `scoreboard.snapshot`.
+- `team-select`: SLUI draws the team select menu, so the plugin sends its menu
+  session as `team.menu` instead of drawing its Hint roster for this player
+  (the keybind, music and phase rules stay the plugin's).
 
 A sidecar that predates the frame logs and drops it like an invalid command;
 the session stays open. The sidecar answers `failed` itself if the plugin is

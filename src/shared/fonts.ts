@@ -164,6 +164,21 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
   { family: "Stratum2 Spectator", weight: 500, pack: stratum("stratum2-medium.otf", CAP_CENTERED), fallback: barlow("Medium", CAP_CENTERED) },
   { family: "Stratum2 Spectator", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
   { family: "Stratum2 Spectator Mono", weight: 700, pack: stratum("stratum2mono-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED, true) },
+  // Team select (TeamSelect.css): bold-condensed titles, bold counts and names, condensed medium button labels.
+  // Panorama's labels are top-aligned there, so the faces keep Stratum2's own metrics.
+  { family: "Stratum2 TeamSelect", weight: 700, pack: stratum("stratum2-bold.otf", null), fallback: barlow("Bold", NATURAL) },
+  {
+    family: "Stratum2 TeamSelect Condensed",
+    weight: 500,
+    pack: stratum("stratum2condensed-medium.otf", null),
+    fallback: sairaCondensed("medium", NATURAL),
+  },
+  {
+    family: "Stratum2 TeamSelect Condensed",
+    weight: 700,
+    pack: stratum("stratum2condensed-bold.otf", null),
+    fallback: sairaCondensed("bold", NATURAL),
+  },
 ];
 
 export type ResolvedFontFace = {

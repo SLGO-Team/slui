@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type ShopCommand, type SlgoEvent } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TEAM_SELECT, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type ShopCommand, type SlgoEvent, type TeamCommand } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { HUD_EVENT_TYPES, initialRoundHudState, roundHudReducer, sameRoundHudTime, selectRoundHud, selectRoundHudClock } from "./features/hud/model";
 import { ShopPanel } from "./features/shop/ShopPanel";
@@ -24,10 +24,14 @@ import { Scoreboard } from "./features/scoreboard/Scoreboard";
 import { initialScoreboardState, initialScoreboardViewState, SCOREBOARD_EVENT_TYPES, scoreboardReducer, type ScoreboardMode, type ScoreboardStat } from "./features/scoreboard/model";
 import { scoreboardElapsedText, selectScoreboard } from "./features/scoreboard/presentation";
 import { winPanelRosterFromHud } from "./features/winpanel/presentation";
+import { TeamSelect } from "./features/teamselect/TeamSelect";
+import { selectTeamSelect } from "./features/teamselect/presentation";
+import { useTeamSelectFeature } from "./features/teamselect/useTeamSelectFeature";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
 import type * as DebugHarnessModule from "./mocks/harness";
 import type { HudDebugOptions } from "./mocks/hudDebug";
 import type { ShopDebugOptions } from "./mocks/shopDebug";
+import type { TeamSelectDebugOptions } from "./mocks/teamSelectDebug";
 import { HttpControlPlane, MockControlPlane } from "./platform/route";
 import { WebSocketSidecarConnection } from "./platform/connection";
 import { createTauriSidecarSocket } from "./platform/sidecarSocket";
@@ -62,6 +66,7 @@ const OVERLAY_CLIENT_FEATURES = [
   CLIENT_FEATURE_HUD_SPECTATING,
   CLIENT_FEATURE_HUD_KILLFEED,
   CLIENT_FEATURE_SCOREBOARD,
+  CLIENT_FEATURE_TEAM_SELECT,
 ] as const;
 
 // Mocks only in the explicit `mock` mode (npm run dev:mock), which vite.config.ts never builds; their code
@@ -110,6 +115,8 @@ function App({ harness }: AppProps) {
   const [debugOptions, setDebugOptions] = useState<HudDebugOptions | null>(() => debug?.readHudDebugOptions() ?? null);
   const [shopDebugOptions, setShopDebugOptions] = useState<ShopDebugOptions | null>(() => SHOP_DEBUG_ENABLED ? debug?.readShopDebugOptions() ?? null : null);
   const [minimapOptions, setMinimapOptions] = useState<OverlayMinimapOptions>(() => debug?.readMinimapPreviewOptions() ?? DEFAULT_MINIMAP_OPTIONS);
+  // ?teamSelect=ntf|scp|forced: the mock plugin opens a menu and the panel lists the captures' rosters.
+  const [teamSelectDebug] = useState<TeamSelectDebugOptions | null>(() => debug?.readTeamSelectDebugOptions() ?? null);
   const previewParams = new URLSearchParams(window.location.search);
   const showPreviewBackground = HUD_DEBUG_ENABLED && previewParams.get("background") !== "0";
   const showHudDebugPanel = HUD_DEBUG_ENABLED && previewParams.get("hudDebug") !== "0";
@@ -152,6 +159,7 @@ function App({ harness }: AppProps) {
   const [scoreboardCursor, setScoreboardCursor] = useState(() => scoreboardPins?.mode === "cursor");
   const scoreboardModeRef = useRef<ScoreboardMode>("hidden");
   const shopFeature = useShopFeature();
+  const teamSelectFeature = useTeamSelectFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
   const previewFocus = useMemo(() => HUD_DEBUG_ENABLED ? createPreviewGameForegroundSource(true) : null, []);
@@ -164,6 +172,10 @@ function App({ harness }: AppProps) {
   const connectionLiveRef = useRef(false);
   const chatOpenRef = useRef(false);
   const shopVisibleRef = useRef(false);
+  const teamSelectShownRef = useRef(false);
+  // Whether the game (or the overlay itself) holds the foreground: a menu the plugin opened never takes the
+  // foreground from another application, it waits until the game is back.
+  const [gameFocused, setGameFocused] = useState(false);
   const overlayController = useMemo(() => createOverlayWindowController(), []);
   useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurStrength);
 
@@ -179,9 +191,10 @@ function App({ harness }: AppProps) {
     if (KILLFEED_EVENT_TYPES.has(type)) dispatchKillfeed({ type: "event", event, receivedAtMs });
     if (SCOREBOARD_EVENT_TYPES.has(type)) dispatchScoreboard({ type: "event", event, receivedAtMs });
     shopFeature.receiveEvent(event);
+    teamSelectFeature.receiveEvent(event, receivedAtMs);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
-  }, [shopFeature.receiveEvent, chatFeature.receiveEvent, minimapFeature.receiveEvent]);
+  }, [shopFeature.receiveEvent, teamSelectFeature.receiveEvent, chatFeature.receiveEvent, minimapFeature.receiveEvent]);
   const handleDiagnostic = useCallback((diagnostic: MinimapDiagnostic) => {
     minimapFeature.receiveDiagnostic(diagnostic);
   }, [minimapFeature.receiveDiagnostic]);
@@ -194,10 +207,11 @@ function App({ harness }: AppProps) {
     dispatchKillfeed({ type: "connection", status });
     dispatchScoreboard({ type: "connection", status });
     shopFeature.setConnectionStatus(status);
+    teamSelectFeature.setConnectionStatus(status);
     connectionLiveRef.current = status === "live";
     chatFeature.setConnectionStatus(status);
     minimapFeature.setConnectionStatus(status);
-  }, [overlayController, shopFeature.setConnectionStatus, chatFeature.setConnectionStatus, minimapFeature.setConnectionStatus]);
+  }, [overlayController, shopFeature.setConnectionStatus, teamSelectFeature.setConnectionStatus, chatFeature.setConnectionStatus, minimapFeature.setConnectionStatus]);
   const dependencies = useMemo(() => ({ identity, proof, controlPlane, connection }), [connection, controlPlane, identity, proof]);
   // A required update (manifest `min_version` above this version) keeps the session from connecting.
   // Unknown until a check succeeds, so a failing update server never blocks play. No update UI here.
@@ -316,6 +330,7 @@ function App({ harness }: AppProps) {
       ? previewFocus.subscribeGameForeground : subscribeGameForeground;
     return subscribe((state) => {
       minimapFeature.setGameForeground(state);
+      setGameFocused(state.focused);
     });
   }, [previewFocus, minimapFeature.setGameForeground]);
 
@@ -327,6 +342,10 @@ function App({ harness }: AppProps) {
   useEffect(() => {
     if (debugOptions) mockConnection?.configureHudScene(debugOptions.hudScene, debugOptions.hudSceneAt);
   }, [mockConnection, debugOptions?.hudScene, debugOptions?.hudSceneAt]);
+
+  useEffect(() => {
+    if (debug && teamSelectDebug) mockConnection?.configureTeamMenu(debug.teamMenuOptionsFor(teamSelectDebug));
+  }, [debug, mockConnection, teamSelectDebug]);
 
   useEffect(() => {
     if (!HUD_DEBUG_ENABLED || !mockConnection || !previewFocus) return;
@@ -355,6 +374,11 @@ function App({ harness }: AppProps) {
   // the hook, so both paths must be idempotent: the shop key only opens the shop when
   // the game itself had the foreground, and a second close or chat open is a no-op.
   useEffect(() => overlayController.subscribeShortcut((shortcut, gameForeground) => {
+    // The team select menu is modal, as in CS2: the shop and chat keys wait until it closes.
+    if (teamSelectShownRef.current) {
+      overlayController.log(`${shortcut} ignored: team select open`);
+      return;
+    }
     if (chatOpenRef.current) {
       overlayController.log(`${shortcut} key while chat open (page focused: ${document.hasFocus()})`);
       // With the keyboard in the overlay these are keys typed into chat. A hook key
@@ -435,12 +459,19 @@ function App({ harness }: AppProps) {
   }), [localSteamIdForScoreboard, scoreboardHud, scoreboardState.frame, scoreboardViewState]);
   const scoreboardFrame = scoreboardState.frame;
   const scoreboardElapsedAt = useCallback((nowMs: number) => scoreboardFrame ? scoreboardElapsedText(scoreboardFrame, nowMs) : "", [scoreboardFrame]);
-  // Shown while its key is held over the game, never under the shop or chat, never without data (an old plugin
-  // keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up.
-  const scoreboardMode: ScoreboardMode = !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen
+  // The plugin's team menu session over the match rosters (the debug scene lists the captures' rosters instead). It is
+  // modal, as in CS2: while it is on screen the other panels are not drawn and the shop, chat and scoreboard stay shut.
+  const teamSelectTeams = useMemo(() => debug && teamSelectDebug ? debug.teamSelectDebugTeams(teamSelectDebug)
+    : scoreboardHud.hasSnapshot ? scoreboardHud.teams : null, [debug, scoreboardHud, teamSelectDebug]);
+  const teamSelect = useMemo(() => selectTeamSelect(teamSelectFeature.state, teamSelectTeams), [teamSelectFeature.state, teamSelectTeams]);
+  const teamSelectShown = teamSelect !== null && gameFocused;
+  teamSelectShownRef.current = teamSelectShown;
+  // Shown while its key is held over the game, never under the shop, chat or team menu, never without data (an old
+  // plugin keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up.
+  const scoreboardMode: ScoreboardMode = !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen || teamSelectShown
     ? "hidden" : scoreboardCursor ? "cursor" : "passive";
   scoreboardModeRef.current = scoreboardMode;
-  const overlayInteractive = (shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor";
+  const overlayInteractive = (shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || teamSelectShown;
   const wasChatOpenRef = useRef(false);
   // Diagnostics: every close, including a send and a session change.
   useEffect(() => {
@@ -463,7 +494,7 @@ function App({ harness }: AppProps) {
   }), [overlayController]);
   // The shop or chat opening over the scoreboard drops cursor mode, so it never comes back holding the mouse. A
   // scoreboard that only lost its data (a waiting state) keeps it while the key stays down.
-  const scoreboardCovered = (shopOpen && shopAvailable) || chatOpen;
+  const scoreboardCovered = (shopOpen && shopAvailable) || chatOpen || teamSelectShown;
   useEffect(() => {
     if (scoreboardCovered && scoreboardCursor) setScoreboardCursor(false);
   }, [scoreboardCovered, scoreboardCursor]);
@@ -480,6 +511,14 @@ function App({ harness }: AppProps) {
   useEffect(() => {
     if (shopOpen && !shopAvailable) setShopOpen(false);
   }, [shopAvailable, shopOpen]);
+
+  // The team menu opening (the plugin's M key, or a join without a team) closes the shop and chat, like the
+  // plugin's own menu does for the in-game shop and chat area.
+  useEffect(() => {
+    if (!teamSelectShown) return;
+    setShopOpen(false);
+    if (chatOpenRef.current) chatFeature.close("unavailable");
+  }, [chatFeature.close, teamSelectShown]);
 
   // The keyboard is taken after the mouse and handed back before it; the queue keeps
   // quick open/close sequences in order.
@@ -556,6 +595,14 @@ function App({ harness }: AppProps) {
       shopFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed", reason: error instanceof Error ? error.message : "Send failed" });
     });
   }, [connection, shopFeature.beginCommand, shopFeature.resolveCommand]);
+  const handleTeamCommand = useCallback((command: TeamCommand) => {
+    teamSelectFeature.beginCommand(command);
+    void connection.send(command).catch((error: unknown) => {
+      console.error("Unable to send team command", error);
+      teamSelectFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed" });
+    });
+  }, [connection, teamSelectFeature.beginCommand, teamSelectFeature.resolveCommand]);
+  const teamSelectHover = debug && teamSelectDebug ? debug.teamSelectDebugHover(teamSelectDebug) : null;
   const chatScope = chatFeature.state.scope;
   const handleChatSubmit = useCallback((body: string) => {
     // Empty or over-long input keeps the entry open; the counter shows why.
@@ -570,42 +617,47 @@ function App({ harness }: AppProps) {
   const minimapControls = useMemo(() => ({ alternateZoomActive: minimapOptions.alternateZoomActive }), [minimapOptions.alternateZoomActive]);
   return (
     <main id="SlgoOverlayRoot" data-preview-background={previewBackground}>
-      <HudTeamCounter
-        hud={hud}
-        clockAt={hudClockAt}
-        playerMeta={playerMeta}
-        variant={hudVariant}
-      />
-      <WinPanel panelAt={winPanelAt} still={hudSceneStill} />
-      <BottomHud view={bottomHud} still={hudSceneStill} />
-      <ProgressCard card={progressCard} still={hudSceneStill} />
-      <MessageZone zoneAt={messageZoneAt} still={hudSceneStill} role={viewerRole} />
-      <KillFeed noticesAt={killfeedAt} still={hudSceneStill} />
-      {scoreboard !== null && scoreboardMode !== "hidden" ? <Scoreboard view={scoreboard} elapsedAt={scoreboardElapsedAt} mode={scoreboardMode}
-        onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
-      <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
-        controls={minimapControls}
-        playerColors={playerColors} role={viewerRole} />
-      <ShopPanel
-        shop={displayedShop}
-        role={shopRole}
-        playerColors={playerColors}
-        localPlayerId={progressPlayerId}
-        open={shopOpen}
-        volume={shopVolume}
-        countdownAt={shopCountdownAt}
-        onCommand={handleShopCommand}
-        onClose={closeShop}
-      />
-      <ChatInput
-        chat={chatFeature.state}
-        self={chatSelf}
-        onDraft={chatFeature.setDraft}
-        onToggleScope={chatFeature.toggleScope}
-        onSubmit={handleChatSubmit}
-        onClose={handleChatClose}
-        onDiagnostic={overlayController.log}
-      />
+      {teamSelectShown && teamSelect !== null ? (
+        <TeamSelect view={teamSelect} onCommand={handleTeamCommand} pinnedHover={teamSelectHover}
+          still={teamSelectDebug !== null && !teamSelectDebug.fade} />
+      ) : <>
+        <HudTeamCounter
+          hud={hud}
+          clockAt={hudClockAt}
+          playerMeta={playerMeta}
+          variant={hudVariant}
+        />
+        <WinPanel panelAt={winPanelAt} still={hudSceneStill} />
+        <BottomHud view={bottomHud} still={hudSceneStill} />
+        <ProgressCard card={progressCard} still={hudSceneStill} />
+        <MessageZone zoneAt={messageZoneAt} still={hudSceneStill} role={viewerRole} />
+        <KillFeed noticesAt={killfeedAt} still={hudSceneStill} />
+        {scoreboard !== null && scoreboardMode !== "hidden" ? <Scoreboard view={scoreboard} elapsedAt={scoreboardElapsedAt} mode={scoreboardMode}
+          onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
+        <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
+          controls={minimapControls}
+          playerColors={playerColors} role={viewerRole} />
+        <ShopPanel
+          shop={displayedShop}
+          role={shopRole}
+          playerColors={playerColors}
+          localPlayerId={progressPlayerId}
+          open={shopOpen}
+          volume={shopVolume}
+          countdownAt={shopCountdownAt}
+          onCommand={handleShopCommand}
+          onClose={closeShop}
+        />
+        <ChatInput
+          chat={chatFeature.state}
+          self={chatSelf}
+          onDraft={chatFeature.setDraft}
+          onToggleScope={chatFeature.toggleScope}
+          onSubmit={handleChatSubmit}
+          onClose={handleChatClose}
+          onDiagnostic={overlayController.log}
+        />
+      </>}
       {showShopDebugPanel && debug && shopDebugOptions ? <debug.ShopDebugPanel options={shopDebugOptions} shopVisible={shopOpen} onChange={setShopDebugOptions} onToggleShop={toggleShop} /> : null}
       {showHudDebugPanel && debug && debugOptions ? (
         <debug.HudDebugPanel options={debugOptions} onChange={setDebugOptions} />

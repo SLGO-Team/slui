@@ -1,0 +1,5 @@
+{
+  "kind": "command.team.select",
+  "command_id": "team-ntf-abc123",
+  "team": "ntf"
+}
