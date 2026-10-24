@@ -1,0 +1,7 @@
+# One Rust for local, CI and release builds. CI denies clippy warnings, and a floating
+# stable would fail unrelated pull requests whenever a new release adds lints; moving to a
+# newer Rust is a pull request of its own that fixes what its clippy reports.
+[toolchain]
+channel = "1.99"
+profile = "minimal"
+components = ["clippy"]
