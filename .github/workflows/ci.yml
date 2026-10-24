@@ -29,6 +29,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The local npm registry mirror has no audit endpoint, so this is where advisories surface.
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
       # Production-mode build, the same as a release except for the address:
@@ -38,6 +40,8 @@ jobs:
           VITE_CONTROL_PLANE_URL: https://control-plane.invalid
       # The installer shell's frontend; installer/src-tauri embeds it at compile time.
       - run: npm run installer:vite:build
+      # The Rust that rust-toolchain.toml pins, installed before rust-cache keys on its version.
+      - run: rustup toolchain install
       # One Cargo workspace rooted at src-tauri: SLUI, the installer shell and workspace-hack.
       - uses: Swatinem/rust-cache@v2
         with:
@@ -54,3 +58,4 @@ jobs:
         working-directory: src-tauri
       # Both crates in one build, so their shared dependencies compile once.
       - run: cargo test --workspace --manifest-path src-tauri/Cargo.toml
+      - run: cargo clippy --workspace --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings

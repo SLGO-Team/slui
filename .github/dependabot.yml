@@ -1,5 +1,9 @@
-# Keeps the workflow actions current. The `ci` prefix gives Conventional Commits PR titles
-# ("ci: bump ..."), which the pr-title check requires.
+# Keeps the workflow actions and the npm packages current. Titles follow Conventional Commits,
+# which the pr-title check requires: "ci: bump ..." for actions, "fix(deps): ..." for
+# runtime packages (they ship, so they reach the changelog) and "build(deps-dev): ..." for
+# build tooling.
+# Cargo stays manual: its updates also need workspace-hack regenerated (cargo hakari), which
+# Dependabot cannot do. Dependabot alerts still cover Cargo.lock.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -8,3 +12,21 @@ updates:
       interval: monthly
     commit-message:
       prefix: ci
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: fix
+      prefix-development: build
+      include: scope
+    groups:
+      npm:
+        update-types: [minor, patch]
+    ignore:
+      # Must stay on the Tauri crates' minor version; updated together with Cargo.lock.
+      - dependency-name: "@tauri-apps/*"
+      # Major upgrades (vite, TypeScript, @vitejs/plugin-react) are tasks of their own.
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
