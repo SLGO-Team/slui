@@ -152,10 +152,10 @@ export function roundHudReducer(state: RoundHudState, action: RoundHudAction): R
   }
 
   const { event, receivedAtMs } = action;
+  // A baseline opens each sidecar connection and restarts the sequence even for the same instance: a restarted
+  // sidecar counts from 0 again. Within one connection the intake already drops old and repeated sequences.
   if (event.type === "sidecar.baseline") {
-    const sameSource = event.server_id === state.serverId && event.instance_id === state.instanceId;
-    if (sameSource && event.sequence <= state.sequence) return state;
-    const sourceChanged = state.serverId !== null && !sameSource;
+    const sourceChanged = state.serverId !== null && (event.server_id !== state.serverId || event.instance_id !== state.instanceId);
     return {
       ...state,
       serverId: event.server_id,
