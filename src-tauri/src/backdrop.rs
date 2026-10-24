@@ -756,7 +756,7 @@ float4 ps(VSOut i) : SV_Target {
     pub fn request_borderless() -> bool {
         let supported = GraphicsCaptureSession::IsSupported().unwrap_or(false);
         let status =
-            GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless).and_then(|operation| operation.get());
+            GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless).and_then(|operation| operation.join());
         match status {
             Ok(status) => supported && status == AppCapabilityAccessStatus::Allowed,
             Err(error) => {
