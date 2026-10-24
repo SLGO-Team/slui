@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.0](https://github.com/SLGO-Team/slui/compare/v0.8.0...v0.9.0) (2026-10-24)
+
+
+### Features
+
+* **shop:** SCP teammate purchase requests in the CS2 dropped-weapons area ([#50](https://github.com/SLGO-Team/slui/issues/50)) ([e5d6dfe](https://github.com/SLGO-Team/slui/commit/e5d6dfeeabc186e85c710e7c60bd7664904e0292))
+
+
+### Bug Fixes
+
+* **deps:** update Tauri 2.12, React 19.3 and vite 7.3.7 ([#59](https://github.com/SLGO-Team/slui/issues/59)) ([6a4e95c](https://github.com/SLGO-Team/slui/commit/6a4e95c6c7d294fd6a0d1d39e40414aeab784347))
+* **sync:** restart sequence tracking at each connection's baseline ([#63](https://github.com/SLGO-Team/slui/issues/63)) ([ca76770](https://github.com/SLGO-Team/slui/commit/ca76770a45d298af4d11550e32e3c02051147c5c))
+
+
+### Performance Improvements
+
+* **build:** build slui_lib as the rlib slui.exe links only ([#57](https://github.com/SLGO-Team/slui/issues/57)) ([ab65b63](https://github.com/SLGO-Team/slui/commit/ab65b63168d00dece113f07b42d995797997d293))
+* **build:** size-optimised release profile ([#56](https://github.com/SLGO-Team/slui/issues/56)) ([a69addd](https://github.com/SLGO-Team/slui/commit/a69adddb8e11ac084f0a43c58cc011e5a4a25a90))
+* **fonts:** ship the bundled fonts as lossless WOFF2 ([#54](https://github.com/SLGO-Team/slui/issues/54)) ([cb5e351](https://github.com/SLGO-Team/slui/commit/cb5e351ec0e89b0cd68c1120ce46ad7b60c35170))
+* **overlay:** packages carry no mock code, debug panels or preview art ([#55](https://github.com/SLGO-Team/slui/issues/55)) ([0e118b0](https://github.com/SLGO-Team/slui/commit/0e118b0b379f0f48af1c81af7fcdec23c81812e1))
+* **overlay:** panels select their own time from a shared clock ([#53](https://github.com/SLGO-Team/slui/issues/53)) ([f54d601](https://github.com/SLGO-Team/slui/commit/f54d601f1f33658c8366c60f9bc8ce038e9a5d3b))
+* **overlay:** query the foreground window's process only when the window changes ([#58](https://github.com/SLGO-Team/slui/issues/58)) ([ed1b88b](https://github.com/SLGO-Team/slui/commit/ed1b88b630cfa77c4c359109f7f60ed85df8685d))
+
 ## [0.8.0](https://github.com/SLGO-Team/slui/compare/v0.7.0...v0.8.0) (2026-10-21)
 
 
