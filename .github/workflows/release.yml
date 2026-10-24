@@ -58,6 +58,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The Rust that rust-toolchain.toml pins, installed before rust-cache keys on its version.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
