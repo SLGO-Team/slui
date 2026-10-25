@@ -743,14 +743,14 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
             }
         }
 
-        if !foreground.is_null() {
-            if OVERLAY_OVER_GAME.swap(over_game, Ordering::SeqCst) != over_game {
-                // Visibility changes run on the main thread, where the enable and
-                // interactive commands and the tray also run, so they cannot race.
-                let handle = app.clone();
-                if let Err(error) = app.run_on_main_thread(move || sync_overlay_visibility(&handle)) {
-                    eprintln!("SLGO: failed to schedule overlay visibility: {error}");
-                }
+        if !foreground.is_null()
+            && OVERLAY_OVER_GAME.swap(over_game, Ordering::SeqCst) != over_game
+        {
+            // Visibility changes run on the main thread, where the enable and
+            // interactive commands and the tray also run, so they cannot race.
+            let handle = app.clone();
+            if let Err(error) = app.run_on_main_thread(move || sync_overlay_visibility(&handle)) {
+                eprintln!("SLGO: failed to schedule overlay visibility: {error}");
             }
         }
 
