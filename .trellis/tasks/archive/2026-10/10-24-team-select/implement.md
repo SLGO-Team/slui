@@ -37,10 +37,16 @@
 8. [x] Spec: `system-boundaries.md` (event, commands, feature, authority rule), `cs2-visual-replication.md` new
        section "Team-select-specific replication rules".
 9. [x] Quality check (`trellis-check`) across the three repos; `npm run build:local`.
-10. [ ] Commit, open the slui PR (visual: no auto-merge), hand the user the mock URLs and captures for review.
-11. [ ] In-game check by the user on the local server (sidecar + plugin + SLUI): M open / close with music, join
-       both sides, refusal banner, spectate mid-round, auto, forced on join (SLUI and a non-SLUI client), presence
-       arriving late. Then merge plugin / backend into their local `main`. Deploy and release stay with the user.
+10. [x] Commit, open the slui PR (visual: no auto-merge), hand the user the mock URLs and captures for review.
+       Review added the side illustrations (2026-10-25); the user approved the visuals.
+11. [x] In-game check by the user on the local server (competitive profile; sidecar + plugin + SLUI), 2026-10-25.
+       Passed: forced menu on join (SLUI), join NTF, M open / close with music, Cancel / Escape / M, own-side click
+       closes, refusal banner (SCP full via dummies), auto, M mid-round refused with the not-now notice
+       (competitive allows no mid-match change). Found and fixed on the branch: the menu taking the foreground hid
+       itself (foreground loop, black flicker) and a menu left open while the overlay was disabled took no input
+       after enabling. Skipped at the user's request: casual-profile spectate mid-round and the empty-team guard,
+       the Hint menu for a non-SLUI client, presence arriving late. Plugin / backend merged into their local
+       `main`. Deploy and release stay with the user.
 
 ## Validation commands
 
