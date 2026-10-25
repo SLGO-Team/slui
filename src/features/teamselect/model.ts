@@ -58,7 +58,13 @@ export type TeamSelectAction =
   | { type: "event"; event: SlgoEvent; receivedAtMs: number }
   | { type: "command"; command: TeamCommand; sentAtMs: number }
   | { type: "command-result"; result: CommandResult; receivedAtMs: number }
-  | { type: "tick"; nowMs: number };
+  | { type: "tick"; nowMs: number }
+  /**
+   * The overlay was disabled: the plugin draws the menu itself again (the player left its SLUI audience) and stops
+   * publishing it here, so the session here is stale. Enabling declares team-select again and the current state
+   * comes back (the sidecar's cached frame, then the plugin's).
+   */
+  | { type: "released" };
 
 /** The events teamSelectReducer reads; App dispatches no others to it (each dispatch re-renders App). */
 export const TEAM_SELECT_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "team.menu"]);
@@ -140,5 +146,9 @@ export function teamSelectReducer(state: TeamSelectState, action: TeamSelectActi
     }
     case "tick":
       return state.pending !== null && action.nowMs - state.pending.sentAtMs > TEAM_SELECT_COMMAND_TIMEOUT_MS ? { ...state, pending: null } : state;
+    case "released":
+      return state.menu === null && state.pending === null && state.error === null
+        ? state
+        : { ...state, menu: null, dismissedSessionId: null, pending: null, error: null };
   }
 }

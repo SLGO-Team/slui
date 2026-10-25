@@ -51,6 +51,10 @@ const live = run(initialTeamSelectState, { type: "connection", status: "live" },
   assert.equal(visibleTeamMenu(stale), null, "but nothing is drawn or sent until the stream is live again");
   assert.equal(visibleTeamMenu(run(stale, { type: "connection", status: "live" })).session_id, "7");
   assert.equal(run(open, event(closed())).menu, null, "menu: null closes it");
+  const released = run(open, { type: "released" });
+  assert.equal(visibleTeamMenu(released), null, "a disabled overlay lets the stale session go");
+  assert.equal(visibleTeamMenu(run(released, event(menu("7")))).session_id, "7", "the replayed session shows again");
+  assert.equal(run(released, { type: "released" }), released, "releasing nothing keeps the state");
   assert.ok(TEAM_SELECT_EVENT_TYPES.has("team.menu") && TEAM_SELECT_EVENT_TYPES.has("sidecar.baseline") && TEAM_SELECT_EVENT_TYPES.size === 2);
 }
 

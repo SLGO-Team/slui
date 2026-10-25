@@ -271,13 +271,15 @@ function App({ harness }: AppProps) {
     };
   }, [overlayController, settingsStore]);
 
-  // Disabling the overlay must not leave an open shop or chat (and so interaction) or a held zoom behind.
+  // Disabling the overlay must not leave an open shop, chat or team menu (and so interaction) or a held zoom behind.
+  // Rust drops the interaction itself; a panel left open here would come back on enabling without asking for it.
   useEffect(() => overlayState.subscribe((state) => {
     if (state.enabled) return;
     setShopOpen(false);
     chatFeature.close("unavailable");
+    teamSelectFeature.release();
     setMinimapOptions((current) => current.alternateZoomActive ? { ...current, alternateZoomActive: false } : current);
-  }), [overlayState, chatFeature.close]);
+  }), [overlayState, chatFeature.close, teamSelectFeature.release]);
 
   // While the overlay is enabled it owns Y/U and B, so the plugin ignores its own chat-area
   // toggle and no longer opens its in-game shop for this player. A disabled overlay keeps

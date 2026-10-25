@@ -25,9 +25,11 @@ export function useTeamSelectFeature() {
     dispatch({ type: "command-result", result, receivedAtMs });
   }, []);
 
+  const release = useCallback(() => dispatch({ type: "released" }), []);
+
   // Command timeouts: the clock ticks the reducer only while a command waits for its result.
   const timed = hasTimedTeamCommand(state);
   useEffect(() => timed ? overlayClock.subscribe((nowMs) => dispatch({ type: "tick", nowMs })) : undefined, [timed]);
 
-  return { state, setConnectionStatus, receiveEvent, beginCommand, resolveCommand };
+  return { state, setConnectionStatus, receiveEvent, beginCommand, resolveCommand, release };
 }
