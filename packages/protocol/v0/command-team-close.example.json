@@ -1,0 +1,5 @@
+{
+  "kind": "command.team.close",
+  "command_id": "team-close-abc123",
+  "session_id": "7"
+}

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 46
-- **Last Active**: 2026-10-24
+- **Total Sessions**: 47
+- **Last Active**: 2026-10-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1098 | Active |
+| `journal-1.md` | ~1126 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 47 | 2026-10-25 | CS2 team select menu | `176475e`, `3eb9cf1`, `d25778a`, `f04d455`, `2182b7f`, `484082b`, `8a16fa8` | `feat/team-select` |
 | 46 | 2026-10-24 | Move windows-sys to 0.61 | `ad9eca3` | `build/windows-sys-0.61` |
 | 45 | 2026-10-24 | CI gates: clippy, npm audit, pinned Rust, Dependabot npm | `a390b3c` | `ci/health-gates` |
 | 44 | 2026-10-24 | SLUI health check and dependency refresh | `c131768` | `chore/deps-refresh` |

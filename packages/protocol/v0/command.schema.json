@@ -6,11 +6,13 @@
   "additionalProperties": false,
   "required": ["kind", "command_id"],
   "properties": {
-    "kind": { "enum": ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send"] },
+    "kind": { "enum": ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send", "command.team.select", "command.team.close"] },
     "command_id": { "type": "string", "minLength": 1 },
     "item_id": { "type": "string", "minLength": 1 },
     "quantity": { "type": "integer", "minimum": 1 },
     "request_id": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "team": { "enum": ["ntf", "scp", "spectator", "auto"] },
+    "session_id": { "type": "string", "pattern": "^[0-9]{1,32}$" },
     "scope": { "enum": ["global", "team", "spectator"] },
     "body": { "type": "string", "minLength": 1 }
   },
@@ -18,6 +20,8 @@
     { "if": { "properties": { "kind": { "const": "command.shop.purchase" } } }, "then": { "required": ["item_id", "quantity"] } },
     { "if": { "properties": { "kind": { "const": "command.shop.request" } } }, "then": { "required": ["item_id"] } },
     { "if": { "properties": { "kind": { "const": "command.shop.fulfill" } } }, "then": { "required": ["request_id"] } },
-    { "if": { "properties": { "kind": { "const": "command.chat.send" } } }, "then": { "required": ["scope", "body"] } }
+    { "if": { "properties": { "kind": { "const": "command.chat.send" } } }, "then": { "required": ["scope", "body"] } },
+    { "if": { "properties": { "kind": { "const": "command.team.select" } } }, "then": { "required": ["team"] } },
+    { "if": { "properties": { "kind": { "const": "command.team.close" } } }, "then": { "required": ["session_id"] } }
   ]
 }

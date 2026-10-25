@@ -1,8 +1,11 @@
-import type { ChatSendCommand, MinimapInit, Role, ServerRoute, SlgoCommand, SlgoEvent, SteamIdentity } from "../contracts/index.ts";
+import type { ChatSendCommand, MinimapInit, Role, ServerRoute, SlgoCommand, SlgoEvent, SteamIdentity, TeamCommand } from "../contracts/index.ts";
 import { MockSidecarConnection } from "../platform/connection.ts";
 import { MAX_CHAT_LENGTH, chatLength } from "../features/chat/model.ts";
 import { createMinimapFrame, createMockMinimapInit, defaultMinimapPreviewOptions, mockMinimapInit, type MinimapPreviewOptions } from "./minimapFixtures.ts";
 import { createHudSceneFrame, hudSceneLoopMs, type HudScene, type HudSceneSelf } from "./hudScenes.ts";
+
+/** The debug team select scene's plugin side: a forced (first-join) session, and a side whose join it refuses. */
+export type MockTeamMenuOptions = Readonly<{ forced: boolean; reject: Role | null }>;
 
 export class RealtimeMockProvider extends MockSidecarConnection {
   private readonly initialEvents: SlgoEvent[];
@@ -28,6 +31,10 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private lastHudPayloads: Partial<Record<"hud.messages" | "round.result" | "hud.status" | "hud.spectating" | "hud.killfeed" | "scoreboard.snapshot", string>> = {};
   /** hud.status / hud.spectating change with every shot, so they are checked far more often than the 1 s scene re-sync. */
   private statusTimer: ReturnType<typeof setInterval> | undefined;
+  /** The debug team select scene: the mock plugin keeps a menu session open (null = none, like the real plugin idle). */
+  private teamMenu: MockTeamMenuOptions | null = null;
+  private teamMenuSession = 0;
+  private teamMenuTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(events: SlgoEvent[], viewerTeam: "team-a" | "team-b") {
     super();
@@ -51,6 +58,7 @@ export class RealtimeMockProvider extends MockSidecarConnection {
       else if (event.type === "hud.messages") this.restartHudScene();
       else if (event.type !== "round.result") this.emit(event.type, event.payload);
     }
+    this.openTeamMenu();
     this.timer = setInterval(() => {
       this.frame += 1;
       if (!this.previewOptions.paused) this.publishFrame();
@@ -176,9 +184,46 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     }
   }
 
+  /** The debug team select scene: opens a menu session now (and after every choice, for repeated reviews). */
+  configureTeamMenu(options: MockTeamMenuOptions | null) {
+    this.teamMenu = options;
+    clearTimeout(this.teamMenuTimer);
+    if (options) this.openTeamMenu();
+    else this.emit("team.menu", { menu: null });
+  }
+
+  private openTeamMenu() {
+    if (!this.teamMenu) return;
+    this.teamMenuSession += 1;
+    this.emit("team.menu", { menu: { session_id: String(this.teamMenuSession), forced: this.teamMenu.forced } });
+  }
+
+  /**
+   * Like the plugin's menu session: a choice is accepted (the session closes, then the menu result) unless the scene
+   * refuses that side with the plugin's CS2 text; a close of a forced session is refused. The menu reopens after 1.5 s.
+   */
+  private answerTeamCommand(command: TeamCommand) {
+    const options = this.teamMenu;
+    const refused = command.kind === "command.team.select" && options?.reject !== null && command.team === options?.reject
+      ? `${options.reject === "scp" ? "SCP" : "NTF"}队伍人数已满。`
+      : command.kind === "command.team.close" && options?.forced ? "forced-menu" : null;
+    const attempt = this.attempt;
+    setTimeout(() => {
+      if (attempt !== this.attempt) return;
+      if (refused === null && options) this.emit("team.menu", { menu: null });
+      this.emit("command.result", { command_id: command.command_id, command_kind: command.kind,
+        status: refused === null ? "accepted" : "rejected", ...(refused === null ? {} : { reason: refused }) });
+      if (refused === null && options) this.teamMenuTimer = setTimeout(() => this.openTeamMenu(), 1_500);
+    }, 150);
+  }
+
   /** Answers chat like the plugin's ChatManager: 120 text elements, one second between sends. */
   override async send(command: SlgoCommand) {
     await super.send(command);
+    if (command.kind === "command.team.select" || command.kind === "command.team.close") {
+      this.answerTeamCommand(command);
+      return;
+    }
     if (command.kind !== "command.chat.send") return;
     const nowMs = Date.now();
     const reason = command.scope === "spectator" ? "不支持的聊天范围"
@@ -235,6 +280,7 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     this.timer = undefined;
     if (this.statusTimer !== undefined) clearInterval(this.statusTimer);
     this.statusTimer = undefined;
+    clearTimeout(this.teamMenuTimer);
     this.streamRoute = null;
   }
 }

@@ -435,6 +435,21 @@ export type HudSpectatingTarget = {
  */
 export type HudSpectatingSnapshot = { target: HudSpectatingTarget | null };
 
+/** Longest `team.menu` `session_id` and `command.team.close` `session_id` (decimal digits). */
+export const MAX_TEAM_MENU_SESSION_ID_LENGTH = 32;
+/** The plugin's open team select session for the viewer (CS2's server-driven team menu). */
+export type TeamMenuSession = {
+  /** The plugin's session id as a decimal string; every new session has a new id. */
+  session_id: string;
+  /** Opened by the plugin because the player joined without a team: no Cancel, Escape and M do nothing. */
+  forced: boolean;
+};
+/**
+ * `team.menu`: the viewer's team select session (one recipient; sent only to clients declaring `team-select`).
+ * `menu` is null once the session closed. The plugin alone opens a session (its M key, or a join without a team).
+ */
+export type TeamMenuSnapshot = { menu: TeamMenuSession | null };
+
 /**
  * Weapon icon of a killfeed entry (CS2 `#Weapon`). A closed set covering every SCP:SL kill source; a client draws
  * a fallback icon for ids it has no artwork for. `other` = a kill source without an item or SCP of its own.
@@ -611,9 +626,27 @@ export type ChatSendCommand = {
   scope: ChatScope;
   body: string;
 };
+/** `command.team.select` choices: a side, the observers, or the side the plugin's auto rule picks. */
+export const TEAM_SELECT_CHOICES = ["ntf", "scp", "spectator", "auto"] as const;
+export type TeamSelectChoice = (typeof TEAM_SELECT_CHOICES)[number];
+/** Join a side, become an observer or let the plugin pick, as `.team <team>`; success closes an open team menu. */
+export type TeamSelectCommand = {
+  kind: "command.team.select";
+  command_id: string;
+  team: TeamSelectChoice;
+};
+/** Close the team menu session `session_id` (Cancel, Escape): a forced session refuses, a stale id is a no-op. */
+export type TeamCloseCommand = {
+  kind: "command.team.close";
+  command_id: string;
+  session_id: string;
+};
 export type ShopCommand = ShopPurchaseCommand | ShopRequestCommand | ShopFulfillCommand;
-export type SlgoCommand = ShopCommand | ChatSendCommand;
-export const COMMAND_KINDS = ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send"] as const satisfies readonly SlgoCommand["kind"][];
+export type TeamCommand = TeamSelectCommand | TeamCloseCommand;
+export type SlgoCommand = ShopCommand | ChatSendCommand | TeamCommand;
+export const COMMAND_KINDS = [
+  "command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send", "command.team.select", "command.team.close",
+] as const satisfies readonly SlgoCommand["kind"][];
 
 export type CommandResult = {
   command_id: string;
@@ -630,6 +663,7 @@ export type HudMessagesEvent = ProtocolEnvelope<HudMessagesSnapshot, "hud.messag
 export type RoundResultEvent = ProtocolEnvelope<RoundResultSnapshot, "round.result"> & { sent_at: string };
 export type HudStatusEvent = ProtocolEnvelope<HudStatusSnapshot, "hud.status">;
 export type HudSpectatingEvent = ProtocolEnvelope<HudSpectatingSnapshot, "hud.spectating">;
+export type TeamMenuEvent = ProtocolEnvelope<TeamMenuSnapshot, "team.menu">;
 export type HudKillfeedEvent = ProtocolEnvelope<HudKillfeedSnapshot, "hud.killfeed"> & { sent_at: string };
 export type ScoreboardSnapshotEvent = ProtocolEnvelope<ScoreboardSnapshot, "scoreboard.snapshot"> & { sent_at: string };
 export type InstanceEndedEvent = ProtocolEnvelope<InstanceEnded, "instance.ended"> & { sent_at: string };
@@ -643,6 +677,7 @@ export type SlgoEvent =
   | RoundResultEvent
   | HudStatusEvent
   | HudSpectatingEvent
+  | TeamMenuEvent
   | HudKillfeedEvent
   | ScoreboardSnapshotEvent
   | InstanceEndedEvent
@@ -795,6 +830,8 @@ export const CLIENT_FEATURE_HUD_SPECTATING = "hud-spectating";
 export const CLIENT_FEATURE_HUD_KILLFEED = "hud-killfeed";
 /** SLUI draws the scoreboard: the plugin ignores its own scoreboard key and publishes `scoreboard.snapshot` for this player. */
 export const CLIENT_FEATURE_SCOREBOARD = "scoreboard";
+/** SLUI draws the team select menu: the plugin publishes its menu session as `team.menu` instead of drawing its Hint roster. */
+export const CLIENT_FEATURE_TEAM_SELECT = "team-select";
 export const MAX_CLIENT_FEATURES = 16;
 const MAX_CLIENT_FEATURE_LENGTH = 64;
 const CLIENT_FEATURE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -1268,6 +1305,22 @@ export function parseHudSpectating(payload: unknown): ParseResult<HudSpectatingS
   return { ok: true, value: payload as unknown as HudSpectatingSnapshot };
 }
 
+const TEAM_MENU_KEYS = new Set(["menu"]);
+const TEAM_MENU_SESSION_KEYS = new Set(["session_id", "forced"]);
+const TEAM_MENU_SESSION_ID = new RegExp(`^[0-9]{1,${MAX_TEAM_MENU_SESSION_ID_LENGTH}}$`);
+const isTeamMenuSessionId = (value: unknown): value is string => typeof value === "string" && TEAM_MENU_SESSION_ID.test(value);
+
+/** `team.menu` payload: `menu` null, or exactly a decimal `session_id` and a boolean `forced`. */
+export function parseTeamMenu(payload: unknown): ParseResult<TeamMenuSnapshot> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, TEAM_MENU_KEYS) || !("menu" in payload)) return error("invalid-payload", "Team menu needs exactly menu");
+  const menu = payload.menu;
+  if (menu === null) return { ok: true, value: { menu: null } };
+  if (!isRecord(menu) || !hasOnlyKeys(menu, TEAM_MENU_SESSION_KEYS) || TEAM_MENU_SESSION_KEYS.size !== Object.keys(menu).length) return error("invalid-payload", "Team menu session fields are invalid");
+  if (!isTeamMenuSessionId(menu.session_id)) return error("invalid-payload", "Team menu session id is invalid");
+  if (typeof menu.forced !== "boolean") return error("invalid-payload", "Team menu forced flag is invalid");
+  return { ok: true, value: { menu: { session_id: menu.session_id, forced: menu.forced } } };
+}
+
 const HUD_KILLFEED_KEYS = new Set(["entries"]);
 const HUD_KILLFEED_ENTRY_KEYS = new Set(["entry_id", "suicide", "killer", "assister", "victim", "weapon", "headshot", "viewer", "visible_remaining_ms"]);
 const HUD_KILLFEED_PLAYER_KEYS = new Set(["player_id", "display_name", "team"]);
@@ -1397,6 +1450,14 @@ export function parseCommand(command: unknown): ParseResult<SlgoCommand> {
     if (!isNonEmptyString(command.request_id) || command.request_id.length > MAX_SHOP_REQUEST_ID_LENGTH) return error("invalid-payload", "Fulfil command is invalid");
     return { ok: true, value: command as ShopFulfillCommand };
   }
+  if (command.kind === "command.team.select") {
+    if (!(TEAM_SELECT_CHOICES as readonly unknown[]).includes(command.team)) return error("invalid-payload", "Team select command is invalid");
+    return { ok: true, value: command as TeamSelectCommand };
+  }
+  if (command.kind === "command.team.close") {
+    if (!isTeamMenuSessionId(command.session_id)) return error("invalid-payload", "Team close command is invalid");
+    return { ok: true, value: command as TeamCloseCommand };
+  }
   if (command.kind === "command.chat.send") {
     if (!["global", "team", "spectator"].includes(String(command.scope)) || !isNonEmptyString(command.body)) return error("invalid-payload", "Chat command is invalid");
     return { ok: true, value: command as ChatSendCommand };
@@ -1433,6 +1494,7 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
       break;
     case "hud.status": payloadResult = parseHudStatus(envelope.payload); break;
     case "hud.spectating": payloadResult = parseHudSpectating(envelope.payload); break;
+    case "team.menu": payloadResult = parseTeamMenu(envelope.payload); break;
     case "hud.killfeed":
       // Remaining times are counted from sent_at, as for hud.messages.
       if (envelope.sent_at === undefined) return error("invalid-envelope", "HUD killfeed timestamp is required", envelope.event_id);

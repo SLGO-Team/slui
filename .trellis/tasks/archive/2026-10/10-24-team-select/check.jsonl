@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Event and command contracts, client features, sidecar relay rules"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "CS2 replication rules: canvas, world blur, assets, no text shadows, team colours"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards and forbidden patterns"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Feature module layout for src/features/teamselect"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plugin -> sidecar -> SLUI event and commands cross three repos"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse the selection transaction, shop command tracking and HUD roster view"}
+{"file": ".trellis/tasks/10-24-team-select/research/cs2-team-select.md", "reason": "Panorama sources and capture measurements"}

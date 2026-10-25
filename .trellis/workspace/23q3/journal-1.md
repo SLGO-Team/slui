@@ -1096,3 +1096,31 @@ Moved SLUI's and the installer's direct windows-sys from 0.59 to 0.61 (Tauri 2.1
 ### Status
 
 [OK] **Completed**
+
+
+## Session 47: CS2 team select menu
+<!-- trellis-session: v=2 fp=bb36c4295bbb634d -->
+
+**Date**: 2026-10-25
+**Task**: CS2 team select menu
+**Branch**: `feat/team-select`
+
+### Summary
+
+CS2 team select menu driven by the plugin's team.menu session (protocol event and team commands, model, view, mock scenes), with side illustrations (NTF squad painting, the five classic SCPs' portraits grouped) and CS2's hover outline. In-game test on the local server (competitive) passed join, M toggle with music, refusal banner, auto and the mid-round not-now notice; it found two bugs fixed here: the menu taking the foreground hid itself (foreground event now carries overGame from the same sample as the overlay's visibility) and a menu left open while the overlay was disabled took no input after enabling (released like shop and chat). Skipped by the user: casual-profile spectate, the Hint menu for non-SLUI clients and late presence. Plugin and backend branches merged into their local main.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `176475e` | feat(teamselect): CS2 team select menu from the plugin's team session |
+| `3eb9cf1` | fix(teamselect): mouse hover in the debug scenes and an opaque red SCP fallback avatar |
+| `d25778a` | fix(teamselect): top gradients follow the captures' opacity curve instead of a linear fade |
+| `f04d455` | docs(teamselect): record the review status and next steps |
+| `2182b7f` | feat(teamselect): side illustrations in place of CS2's team models |
+| `484082b` | fix(teamselect): keep the menu while it holds the foreground |
+| `8a16fa8` | fix(teamselect): let the menu go when the overlay is disabled |
+
+### Status
+
+[OK] **Completed**

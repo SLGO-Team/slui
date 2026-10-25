@@ -35,33 +35,47 @@ function nativeFixture() {
 const race = nativeFixture();
 const observed = [];
 const stop = race.source.subscribeGameForeground((state) => observed.push(state));
-assert.deepEqual(observed, [{ focused: false, revision: 0 }]);
+assert.deepEqual(observed, [{ focused: false, overGame: false, revision: 0 }]);
 assert.equal(race.snapshotCount, 0, "snapshot waits for listener registration");
 race.register();
 await flush();
-race.emit({ focused: true, revision: 3 });
-race.snapshot.resolve({ focused: false, revision: 2 });
+race.emit({ focused: true, overGame: true, revision: 3 });
+race.snapshot.resolve({ focused: false, overGame: false, revision: 2 });
 await flush();
-assert.deepEqual(observed.at(-1), { focused: true, revision: 3 }, "late snapshot cannot revert focus");
-race.emit({ focused: false, revision: 3 });
-race.emit({ focused: false, revision: 1 });
+assert.deepEqual(observed.at(-1), { focused: true, overGame: true, revision: 3 }, "late snapshot cannot revert focus");
+race.emit({ focused: false, overGame: false, revision: 3 });
+race.emit({ focused: false, overGame: false, revision: 1 });
 assert.equal(observed.length, 2, "duplicate and old revisions are ignored");
-race.emit({ focused: false, revision: 4 });
-assert.deepEqual(observed.at(-1), { focused: false, revision: 4 });
+race.emit({ focused: false, overGame: false, revision: 4 });
+assert.deepEqual(observed.at(-1), { focused: false, overGame: false, revision: 4 });
 stop();
 stop();
-race.emit({ focused: true, revision: 5 });
+race.emit({ focused: true, overGame: true, revision: 5 });
 assert.equal(race.cleanupCount, 1);
 assert.equal(observed.length, 3, "no delivery after disposal");
+
+// A panel taking the foreground from the game: the game loses it, the overlay stays over the game.
+const handoff = nativeFixture();
+const handoffStates = [];
+const stopHandoff = handoff.source.subscribeGameForeground((state) => handoffStates.push(state));
+handoff.register();
+await flush();
+handoff.snapshot.resolve({ focused: true, overGame: true, revision: 1 });
+await flush();
+handoff.emit({ focused: false, overGame: true, revision: 2 });
+assert.deepEqual(handoffStates.at(-1), { focused: false, overGame: true, revision: 2 }, "the overlay in front stays over the game");
+handoff.emit({ focused: false, overGame: false, revision: 3 });
+assert.deepEqual(handoffStates.at(-1), { focused: false, overGame: false, revision: 3 }, "another application ends it");
+stopHandoff();
 
 const initial = nativeFixture();
 const initialStates = [];
 const stopInitial = initial.source.subscribeGameForeground((state) => initialStates.push(state));
 initial.register();
 await flush();
-initial.snapshot.resolve({ focused: true, revision: 1 });
+initial.snapshot.resolve({ focused: true, overGame: true, revision: 1 });
 await flush();
-assert.deepEqual(initialStates, [{ focused: false, revision: 0 }, { focused: true, revision: 1 }]);
+assert.deepEqual(initialStates, [{ focused: false, overGame: false, revision: 0 }, { focused: true, overGame: true, revision: 1 }]);
 stopInitial();
 
 const cancelled = nativeFixture();
@@ -80,7 +94,7 @@ const cancelQuery = queryCancelled.source.subscribeGameForeground((state) => que
 queryCancelled.register();
 await flush();
 cancelQuery();
-queryCancelled.snapshot.resolve({ focused: true, revision: 9 });
+queryCancelled.snapshot.resolve({ focused: true, overGame: true, revision: 9 });
 await flush();
 assert.equal(queryCancelledStates.length, 1, "pending snapshot cannot update a disposed consumer");
 assert.equal(queryCancelled.cleanupCount, 1);
@@ -94,18 +108,18 @@ try {
   failed.source.subscribeGameForeground((state) => failedStates.push(state));
   failed.register();
   await flush();
-  failed.emit({ focused: true, revision: 2 });
+  failed.emit({ focused: true, overGame: true, revision: 2 });
   failed.snapshot.reject(new Error("native query failed"));
   await flush();
-  assert.deepEqual(failedStates.at(-1), { focused: false, revision: 3 });
+  assert.deepEqual(failedStates.at(-1), { focused: false, overGame: false, revision: 3 });
   assert.equal(failed.cleanupCount, 1);
-  failed.emit({ focused: true, revision: 4 });
+  failed.emit({ focused: true, overGame: true, revision: 4 });
   assert.equal(failedStates.at(-1).focused, false, "failed setup stays closed");
 
   const malformed = nativeFixture();
   const malformedStates = [];
   malformed.source.subscribeGameForeground((state) => malformedStates.push(state));
-  malformed.emit({ focused: true, revision: Number.NaN });
+  malformed.emit({ focused: true, overGame: true, revision: Number.NaN });
   malformed.register();
   await flush();
   assert.equal(malformedStates.at(-1).focused, false);
@@ -117,7 +131,7 @@ try {
 
 const browserStates = [];
 subscribeGameForeground((state) => browserStates.push(state))();
-assert.deepEqual(browserStates, [{ focused: false, revision: 0 }], "preview must explicitly inject fake focus");
+assert.deepEqual(browserStates, [{ focused: false, overGame: false, revision: 0 }], "preview must explicitly inject fake focus");
 
 const preview = createPreviewGameForegroundSource(true);
 const previewStates = [];
@@ -126,9 +140,9 @@ preview.setFocused(false);
 preview.setFocused(false);
 preview.setFocused(true);
 assert.deepEqual(previewStates, [
-  { focused: true, revision: 1 },
-  { focused: false, revision: 2 },
-  { focused: true, revision: 3 },
+  { focused: true, overGame: true, revision: 1 },
+  { focused: false, overGame: false, revision: 2 },
+  { focused: true, overGame: true, revision: 3 },
 ]);
 stopPreview();
 preview.setFocused(false);

@@ -53,7 +53,11 @@ values.
   focus. Interactive mode is never a user toggle: the overlay derives it from
   the UI on screen (the shop, chat) and returns to passive when that
   UI closes. A UI may only open on an explicit player action (its hotkey),
-  never because plugin data such as `window_open` arrived.
+  never because plugin data such as `window_open` arrived. The one exception is
+  a session the plugin owns: the team select menu opens because `team.menu`
+  reports a session, which the player opened with the plugin's own keybind or
+  the plugin opened on a join without a team (CS2's server-driven team menu);
+  it still waits until the game holds the foreground.
 - `App` holds no clock. Time-derived values come from the shared overlay clock
   (`src/shared/clock.ts`: one 250 ms interval while anyone subscribes) through
   `useClockSelector(select, isEqual)`, which re-renders its reader only when the

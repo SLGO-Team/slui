@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/team-menu.schema.json",
+  "title": "SLGO team select menu payload (team.menu)",
+  "description": "The viewer's team select session, owned by the plugin (its M key, or a join without a team). One recipient per publish; sent only to clients declaring team-select. Rosters come from match.snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["menu"],
+  "properties": {
+    "menu": {
+      "description": "null while no session is open (also the first frame after the client declares team-select).",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_id", "forced"],
+          "properties": {
+            "session_id": {
+              "description": "The plugin's session id as a decimal string; every new session has a new id. command.team.close names it.",
+              "type": "string",
+              "pattern": "^[0-9]{1,32}$"
+            },
+            "forced": {
+              "description": "Opened because the player joined without a team: no Cancel, Escape and M do nothing; Spectate is the way out.",
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -299,6 +299,18 @@ Required boundary rules:
   plugin) the panel stays off and the plugin keeps its hint board. Declaring `scoreboard` makes the plugin ignore its
   own scoreboard key for that player. The plugin's `minimap.positions.scoreboard_visible` then stays false, so the
   overlay tells the minimap store itself (`local-scoreboard`) while SLUI's scoreboard is on screen.
+- `team.menu` (`{ menu }`, `parseTeamMenu`; wire rules in `packages/protocol/v0/README.md` "Team menu") is the
+  viewer's team select session owned by the plugin: `{ session_id, forced }` or `null`. One recipient, no time
+  fields, sent only to clients declaring `team-select` (`CLIENT_FEATURE_TEAM_SELECT`), with the current state as soon
+  as the feature is declared and on every change. The plugin alone opens a session (its SSS keybind, M by default, or
+  a join without a team while selection is allowed, `forced`) and closes it (a successful choice, its keybind, the
+  phase gate); SLUI never opens one and has no team hotkey. SLUI sends `command.team.select` (`ntf` / `scp` /
+  `spectator` / `auto`, the same rule path as `.team`) and `command.team.close` (the session id; a forced session
+  refuses); a refusal's `reason` is the plugin's text, drawn in the menu's error banner, while success notices stay
+  `hud.messages`. Rosters, names and avatars come from `match.snapshot` (an unassigned viewer gets both teams).
+  `teamSelectReducer` keeps the latest session of the baseline's instance (another instance or `ended` clears it, a
+  reconnect keeps it) and hides a session the player closed or left with an accepted choice before the plugin's
+  `menu: null` arrives. An older plugin never sends it and keeps its Hint roster.
 - Minimap payloads contain the plugin's actual map layout (the Entrance /
   HeavyContainment rooms of the current map generation) and player positions
   already filtered for the authenticated player's in-game visibility. The
@@ -461,6 +473,12 @@ by window label (`?window=home` in a browser preview).
   it hidden until the game comes to the front. It aligns its rect only to the
   game window. Show/hide runs on the main thread (`sync_overlay_visibility`),
   serialized with the enable / interactive commands and the tray.
+- `slgo-game-foreground` / `get_game_foreground` carry `{ focused, overGame, revision }` from one foreground
+  sample: `focused` = the game holds the foreground, `overGame` = the visibility rule above (game or overlay; a null
+  foreground keeps it). A panel whose own input takes the foreground must gate on `overGame`, never on `focused`:
+  taking the foreground drops `focused`, and a panel that then hides and hands the foreground back loops (the
+  team menu did: black flicker from its opening fade, 2026-10-25). Do not rebuild `overGame` in the page from
+  `document.hasFocus()`; the webview focus event and the native event race.
 - `interactive` is derived in the overlay, not toggled by the player:
   `interactive = (shopOpen && window_open) || chatOpen || scoreboard cursor mode`. The shop
   hotkey (default `B`, `settings.hotkeys.shop`) always closes the shop and

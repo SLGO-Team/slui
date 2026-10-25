@@ -7,7 +7,7 @@
   "required": ["command_id", "command_kind", "status"],
   "properties": {
     "command_id": { "type": "string", "minLength": 1 },
-    "command_kind": { "enum": ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send"] },
+    "command_kind": { "enum": ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send", "command.team.select", "command.team.close"] },
     "status": { "enum": ["accepted", "rejected", "duplicate", "failed"] },
     "reason": { "type": "string" }
   }

@@ -1,4 +1,9 @@
-export type GameForegroundState = Readonly<{ focused: boolean; revision: number }>;
+/**
+ * `focused`: the game holds the foreground. `overGame`: the overlay is over the game, i.e. the game or the overlay
+ * itself holds the foreground (the native overlay visibility rule, from the same sample), so a panel that takes the
+ * foreground from the game stays drawn.
+ */
+export type GameForegroundState = Readonly<{ focused: boolean; overGame: boolean; revision: number }>;
 type GameForegroundListener = (state: GameForegroundState) => void;
 
 export interface GameForegroundSource {
@@ -13,8 +18,9 @@ type GameForegroundBridge = {
 function isGameForegroundState(value: unknown): value is GameForegroundState {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const state = value as Record<string, unknown>;
-  return Object.keys(state).length === 2
+  return Object.keys(state).length === 3
     && typeof state.focused === "boolean"
+    && typeof state.overGame === "boolean"
     && typeof state.revision === "number"
     && Number.isSafeInteger(state.revision)
     && state.revision >= 0;
@@ -26,13 +32,13 @@ export function createNativeGameForegroundSource(bridge: GameForegroundBridge): 
       let active = true;
       let revision = 0;
       let unlisten: (() => void) | undefined;
-      listener({ focused: false, revision });
+      listener({ focused: false, overGame: false, revision });
 
       const fail = (error: unknown) => {
         if (!active) return;
         active = false;
         unlisten?.();
-        listener({ focused: false, revision: revision + 1 });
+        listener({ focused: false, overGame: false, revision: revision + 1 });
         console.error("Unable to subscribe to game foreground state", error);
       };
       const receive = (state: unknown) => {
@@ -43,7 +49,7 @@ export function createNativeGameForegroundSource(bridge: GameForegroundBridge): 
         }
         if (state.revision <= revision) return;
         revision = state.revision;
-        listener({ focused: state.focused, revision });
+        listener({ focused: state.focused, overGame: state.overGame, revision });
       };
 
       // Register first, then query; a late snapshot cannot overwrite a newer event.
@@ -78,17 +84,18 @@ const nativeSource = createNativeGameForegroundSource({
 
 export function subscribeGameForeground(listener: GameForegroundListener): () => void {
   if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) {
-    listener({ focused: false, revision: 0 });
+    listener({ focused: false, overGame: false, revision: 0 });
     return () => {};
   }
   return nativeSource.subscribeGameForeground(listener);
 }
 
-// Explicit fixture input, independent of browser focus and native game detection.
+// Explicit fixture input, independent of browser focus and native game detection; a preview has no overlay window, so
+// the overlay is over the game exactly while the game is focused.
 export function createPreviewGameForegroundSource(initialFocused = false): GameForegroundSource & {
   setFocused(focused: boolean): void;
 } {
-  let state: GameForegroundState = { focused: initialFocused, revision: initialFocused ? 1 : 0 };
+  let state: GameForegroundState = { focused: initialFocused, overGame: initialFocused, revision: initialFocused ? 1 : 0 };
   const listeners = new Set<GameForegroundListener>();
   return {
     subscribeGameForeground(listener) {
@@ -98,7 +105,7 @@ export function createPreviewGameForegroundSource(initialFocused = false): GameF
     },
     setFocused(focused) {
       if (state.focused === focused) return;
-      state = { focused, revision: state.revision + 1 };
+      state = { focused, overGame: focused, revision: state.revision + 1 };
       for (const listener of listeners) listener({ ...state });
     },
   };
