@@ -173,9 +173,10 @@ function App({ harness }: AppProps) {
   const chatOpenRef = useRef(false);
   const shopVisibleRef = useRef(false);
   const teamSelectShownRef = useRef(false);
-  // Whether the game (or the overlay itself) holds the foreground: a menu the plugin opened never takes the
-  // foreground from another application, it waits until the game is back.
-  const [gameFocused, setGameFocused] = useState(false);
+  // Whether the overlay is over the game: the game or the overlay itself holds the foreground (native, one sample).
+  // A menu the plugin opened takes the input only then, so it never takes the foreground from another application,
+  // and taking it from the game keeps it (the game alone loses the foreground at that moment).
+  const [overGame, setOverGame] = useState(false);
   const overlayController = useMemo(() => createOverlayWindowController(), []);
   useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurStrength);
 
@@ -330,7 +331,7 @@ function App({ harness }: AppProps) {
       ? previewFocus.subscribeGameForeground : subscribeGameForeground;
     return subscribe((state) => {
       minimapFeature.setGameForeground(state);
-      setGameFocused(state.focused);
+      setOverGame(state.overGame);
     });
   }, [previewFocus, minimapFeature.setGameForeground]);
 
@@ -464,14 +465,16 @@ function App({ harness }: AppProps) {
   const teamSelectTeams = useMemo(() => debug && teamSelectDebug ? debug.teamSelectDebugTeams(teamSelectDebug)
     : scoreboardHud.hasSnapshot ? scoreboardHud.teams : null, [debug, scoreboardHud, teamSelectDebug]);
   const teamSelect = useMemo(() => selectTeamSelect(teamSelectFeature.state, teamSelectTeams), [teamSelectFeature.state, teamSelectTeams]);
-  const teamSelectShown = teamSelect !== null && gameFocused;
+  // Drawn while the session is open; the overlay window itself is shown only over the game, so a menu that stays open
+  // while the player is in another application is not seen and does not replay its opening fade on return.
+  const teamSelectShown = teamSelect !== null;
   teamSelectShownRef.current = teamSelectShown;
   // Shown while its key is held over the game, never under the shop, chat or team menu, never without data (an old
   // plugin keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up.
   const scoreboardMode: ScoreboardMode = !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen || teamSelectShown
     ? "hidden" : scoreboardCursor ? "cursor" : "passive";
   scoreboardModeRef.current = scoreboardMode;
-  const overlayInteractive = (shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || teamSelectShown;
+  const overlayInteractive = (shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || (teamSelectShown && overGame);
   const wasChatOpenRef = useRef(false);
   // Diagnostics: every close, including a send and a session change.
   useEffect(() => {

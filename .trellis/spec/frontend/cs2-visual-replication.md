@@ -671,10 +671,12 @@ The team select menu is a hand-built React feature under `src/features/teamselec
 captures of 2026-10-24 (hover T, hover CT, first join; kept locally); numbers are in the task research
 `cs2-team-select.md` (task `10-24-team-select`).
 
-- Session (system-boundaries 3): drawn only while the plugin's `team.menu` session is open, the stream is live, a
-  roster is known and the game (or the overlay) holds the foreground. It is modal: the other panels are not rendered
-  (CS2 hides its HUD), the shop, chat and scoreboard stay shut and their keys are ignored, and the overlay is
-  interactive. A close or an accepted choice hides it at once; a refusal keeps it with the error banner.
+- Session (system-boundaries 3): drawn while the plugin's `team.menu` session is open, the stream is live and a
+  roster is known; the overlay window itself shows only over the game, so the menu stays mounted across an alt-tab
+  and its opening fade plays once per session. It is modal: the other panels are not rendered (CS2 hides its HUD),
+  the shop, chat and scoreboard stay shut and their keys are ignored, and the overlay takes the input while it is
+  over the game (`overGame`, never the game's own `focused`: taking the foreground drops that, see
+  system-boundaries). A close or an accepted choice hides it at once; a refusal keeps it with the error banner.
 - Background (task decision D1): SLUI's world blur over the live game instead of CS2's 3D team scene; the
   full-window backdrop registers `useBackdropRef`; blur on = black 0.3 over it (Panorama's fallback
   `brightness .7`), blur off = `rgba(10,11,13,0.62)`. The bottom band is `.mainmenu-content`'s 50% black from 91.5%.

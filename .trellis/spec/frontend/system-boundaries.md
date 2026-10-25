@@ -473,6 +473,12 @@ by window label (`?window=home` in a browser preview).
   it hidden until the game comes to the front. It aligns its rect only to the
   game window. Show/hide runs on the main thread (`sync_overlay_visibility`),
   serialized with the enable / interactive commands and the tray.
+- `slgo-game-foreground` / `get_game_foreground` carry `{ focused, overGame, revision }` from one foreground
+  sample: `focused` = the game holds the foreground, `overGame` = the visibility rule above (game or overlay; a null
+  foreground keeps it). A panel whose own input takes the foreground must gate on `overGame`, never on `focused`:
+  taking the foreground drops `focused`, and a panel that then hides and hands the foreground back loops (the
+  team menu did: black flicker from its opening fade, 2026-10-25). Do not rebuild `overGame` in the page from
+  `document.hasFocus()`; the webview focus event and the native event race.
 - `interactive` is derived in the overlay, not toggled by the player:
   `interactive = (shopOpen && window_open) || chatOpen || scoreboard cursor mode`. The shop
   hotkey (default `B`, `settings.hotkeys.shop`) always closes the shop and

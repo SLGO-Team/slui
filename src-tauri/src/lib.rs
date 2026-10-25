@@ -116,9 +116,14 @@ struct TrayOverlayItem(MenuItem<tauri::Wry>);
 #[derive(Default)]
 struct GameRunningState(Mutex<bool>);
 
+/// `focused`: the game holds the foreground. `over_game`: the overlay is over the game, i.e. the game or the
+/// overlay itself holds the foreground (the overlay's own visibility rule; a null foreground keeps it), so a
+/// panel that takes the foreground stays drawn.
 #[derive(Clone, Copy, Default, serde::Serialize)]
 struct GameForegroundState {
     focused: bool,
+    #[serde(rename = "overGame")]
+    over_game: bool,
     revision: u64,
 }
 
@@ -220,21 +225,22 @@ fn is_game_foreground(foreground: windows_sys::Win32::Foundation::HWND) -> bool 
 }
 
 #[cfg(windows)]
-fn publish_game_foreground(app: &tauri::AppHandle, focused: bool) {
+fn publish_game_foreground(app: &tauri::AppHandle, focused: bool, over_game: bool) {
     let state = app.state::<Mutex<GameForegroundState>>();
     let Ok(mut state) = state.lock() else {
         eprintln!("SLGO: game foreground state unavailable");
         return;
     };
-    if state.focused == focused {
+    if state.focused == focused && state.over_game == over_game {
         return;
     }
     state.focused = focused;
+    state.over_game = over_game;
     state.revision += 1;
     let snapshot = *state;
     drop(state);
     eprintln!(
-        "SLGO: game foreground {focused} (revision {})",
+        "SLGO: game foreground {focused}, overlay over game {over_game} (revision {})",
         snapshot.revision
     );
     if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-game-foreground", snapshot) {
@@ -710,12 +716,23 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
         }
         backdrop::tick();
         GAME_FOREGROUND_WINDOW.store(if game_foreground { foreground as isize } else { 0 }, Ordering::SeqCst);
-        publish_game_foreground(&app, game_foreground);
 
         let overlay_hwnd = app
             .get_webview_window(OVERLAY_WINDOW)
             .and_then(|overlay| overlay.hwnd().ok())
             .map(|hwnd| hwnd.0 as windows_sys::Win32::Foundation::HWND);
+
+        // The overlay is shown only over the game, or while it holds the foreground
+        // itself (shop, chat, team menu). A null foreground is a transient switch; keep
+        // the current visibility.
+        let over_game = if foreground.is_null() {
+            OVERLAY_OVER_GAME.load(Ordering::SeqCst)
+        } else {
+            game_foreground || overlay_hwnd == Some(foreground)
+        };
+        // The page reads the same sample: a panel that takes the foreground from the game
+        // must not see a moment in which neither holds it.
+        publish_game_foreground(&app, game_foreground, over_game);
 
         // Align before showing, so the overlay never appears at a stale rect.
         if game_foreground && OVERLAY_ENABLED.load(Ordering::SeqCst) {
@@ -726,11 +743,7 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
             }
         }
 
-        // The overlay is shown only over the game, or while it holds the foreground
-        // itself (shop and chat). A null foreground is a transient switch; keep the
-        // current visibility.
         if !foreground.is_null() {
-            let over_game = game_foreground || overlay_hwnd == Some(foreground);
             if OVERLAY_OVER_GAME.swap(over_game, Ordering::SeqCst) != over_game {
                 // Visibility changes run on the main thread, where the enable and
                 // interactive commands and the tray also run, so they cannot race.
