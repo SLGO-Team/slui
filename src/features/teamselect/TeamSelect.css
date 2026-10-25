@@ -124,6 +124,44 @@ html[data-world-blur="on"] .ts-backdrop {
   pointer-events: none;
 }
 
+/* Each side's illustration stands where CS2 poses its team models: centred under the column (400 px from the seam),
+   heads clear of a full five-row roster (y 476), feet around y 1000 in the band. NTF is the squad painting with its
+   own ground, SCP the five classic F1 portraits grouped (public/assets/teamselect/SOURCES.md) over .ts-ground.
+   The hovered side gets CS2's model outline: a thin glow in a pale tint of its colour (CS2's pale yellow / blue). */
+.ts-art {
+  position: absolute;
+  transform: translateX(-50%);
+  transition: filter 0.25s ease-in-out;
+  --ts-glow: color-mix(in srgb, var(--ts-color), white 40%);
+}
+
+.ts-art--ntf {
+  top: 488px;
+  left: calc(50% - 400px);
+  height: 582px;
+}
+
+.ts-art--scp {
+  top: 495px;
+  left: calc(50% + 400px);
+  height: 499px;
+}
+
+.ts-art[data-hover] {
+  filter: drop-shadow(0 0 1px var(--ts-glow)) drop-shadow(0 0 4px color-mix(in srgb, var(--ts-glow) 60%, transparent));
+}
+
+/* The SCP portraits have no ground of their own: a soft shadow under their feet, outside the outline. */
+.ts-ground {
+  position: absolute;
+  top: 899px;
+  left: calc(50% + 414px);
+  width: 720px;
+  height: 150px;
+  background: radial-gradient(closest-side, rgb(18 6 8 / 0.8), rgb(18 6 8 / 0.6) 50%, rgb(18 6 8 / 0.25) 75%, transparent);
+  transform: translateX(-50%);
+}
+
 .ts-col {
   position: absolute;
   top: 0;

@@ -675,9 +675,16 @@ captures of 2026-10-24 (hover T, hover CT, first join; kept locally); numbers ar
   roster is known and the game (or the overlay) holds the foreground. It is modal: the other panels are not rendered
   (CS2 hides its HUD), the shop, chat and scoreboard stay shut and their keys are ignored, and the overlay is
   interactive. A close or an accepted choice hides it at once; a refusal keeps it with the error banner.
-- Background (task decision D1): SLUI's world blur over the live game instead of CS2's 3D team scene and its model
-  glow; the full-window backdrop registers `useBackdropRef`; blur on = black 0.3 over it (Panorama's fallback
+- Background (task decision D1): SLUI's world blur over the live game instead of CS2's 3D team scene; the
+  full-window backdrop registers `useBackdropRef`; blur on = black 0.3 over it (Panorama's fallback
   `brightness .7`), blur off = `rgba(10,11,13,0.62)`. The bottom band is `.mainmenu-content`'s 50% black from 91.5%.
+- Illustrations in place of the team models (user's request 2026-10-25; provenance in
+  `public/assets/teamselect/SOURCES.md`): NTF the squad painting (`ntf-squad.webp`), SCP the five classic SCPs' class
+  portraits (173, 049, 096, 106, 939) grouped in one image (`scp-group.webp`) over a CSS ground shadow. They sit
+  under the bottom band like the models (the band darkens their feet), centred under the columns, heads below a full
+  five-row roster (y 488 / 495), 582 / 499 px tall. The hovered side gets CS2's model outline: `drop-shadow` in its
+  colour mixed 40% with white (CS2's pale outline), 1 px plus a 4 px glow at 0.6, 0.25 s. Anything soft and
+  semi-transparent (a ground shadow) stays out of the outlined image, or the glow turns it into a coloured haze.
 - Halves: 50% of the window and 90% tall each; the side's dark gradient over the top 30%, 40% while hovered. Not
   Panorama's linear fade: the captures (seam where one wall crosses both halves) read opacity 0.93 at the top, 0.57
   at y 32, 0.27 at y 110, 0.2 at y 160, 0.1 at y 210, 0.05 at y 270; a linear fade was about twice as heavy and the

@@ -9,6 +9,8 @@ import "./TeamSelect.css";
 
 const ASSETS = "/assets/teamselect";
 const EMBLEM: Readonly<Record<Role, string>> = { ntf: "/assets/bottomhud/emblem-ntf.svg", scp: "/assets/bottomhud/emblem-scp.svg" };
+/** The side's illustration in place of CS2's team models (public/assets/teamselect/SOURCES.md). */
+const ART: Readonly<Record<Role, string>> = { ntf: `${ASSETS}/ntf-squad.webp`, scp: `${ASSETS}/scp-group.webp` };
 /** CS2 key binds: 1 joins T (NTF), 2 joins CT (SCP). */
 const SIDE_KEYS: Readonly<Record<string, Role>> = { Digit1: "ntf", Numpad1: "ntf", Digit2: "scp", Numpad2: "scp" };
 
@@ -69,8 +71,9 @@ function ErrorBanner({ error }: { error: TeamSelectView["error"] }) {
 }
 
 /**
- * CS2's team select menu (teamselectmenu.xml) over the live game: SLUI's world blur instead of the 3D scene, a half
- * per side with its top gradient, round team icon, title, player count and roster, the action bar and the join error.
+ * CS2's team select menu (teamselectmenu.xml) over the live game: SLUI's world blur instead of the 3D scene and an
+ * illustration per side instead of its models, a half per side with its top gradient, round team icon, title, player
+ * count and roster, the action bar and the join error.
  * The plugin owns the session; every choice goes out as a command and the plugin's rules decide.
  */
 export const TeamSelect = memo(function TeamSelect({ view, onCommand, initialHover = null, still = false }: TeamSelectProps) {
@@ -103,6 +106,14 @@ export const TeamSelect = memo(function TeamSelect({ view, onCommand, initialHov
     <section className="ts-overlay" aria-label="选择队伍" data-forced={view.forced || undefined} data-pending={view.pending || undefined}
       style={{ "--ts-scale": scale } as CSSProperties}>
       <div ref={backdrop} className="ts-backdrop" />
+      {/* The illustrations stand in for CS2's 3D models, so the band darkens their feet as it does the scene. */}
+      <div className="ts-canvas" aria-hidden="true">
+        <span className="ts-ground" />
+        {[ntf, scp].map((side) => (
+          <img key={side.role} className={`ts-art ts-art--${side.role}`} src={ART[side.role]} alt="" draggable={false}
+            data-hover={hovered === side.role || undefined} style={{ "--ts-color": side.color } as CSSProperties} />
+        ))}
+      </div>
       <div className="ts-band" />
       {[ntf, scp].map((side) => (
         <button key={side.role} type="button" className={`ts-half ts-half--${side.role}`} aria-label={`加入 ${side.title}`}
