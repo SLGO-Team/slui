@@ -438,6 +438,22 @@ request", "Sidecar session handshake", "Security boundary").
   `fulfill:` + id) blocks a repeat of the same target while in flight, and a
   rejected or failed result of any kind fills the banner. Success notices
   arrive as `hud.messages`, not in the shop.
+- Purchase refunds (task `10-26-shop-refund`, protocol v0 README "Shop
+  refunds") stay plugin rules: SLUI offers a refund only where the snapshot
+  says `refundable`, and the plugin rechecks every command. The presence of
+  `has_refundable` is the capability signal: without it (older plugin) SLUI
+  draws no undo buttons and no refund-all button and ignores Backspace and
+  Delete. A refundable card's sellback button (whether or not the card is
+  purchasable) or Backspace over the hovered card sends `command.shop.refund`
+  and plays the `purchase` cue (CS2 SellbackSlot); the navbar's `[DEL]全部退款`
+  or Delete sends `command.shop.refund_all` only while `canRefundAll`, with no
+  sound (CS2 sellbackall). These keys are SLUI's own because the open shop holds
+  the foreground; with the shop closed the plugin's game keys (Backspace /
+  Delete) still work. Targets are `refund:<item>` and `refund-all`. The plugin
+  answers a refusal the player should read (inventory overflow) with a
+  `reason`, which fills the banner; nothing refundable, a closed shop or a
+  pending role restore come back `rejected` without a reason and show nothing.
+  Success shows no notice: the actor's snapshot (balance, cards) arrives first.
 
 ### 3.1 Desktop windows, commands and events
 

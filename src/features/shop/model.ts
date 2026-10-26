@@ -6,6 +6,8 @@ import {
   type ShopFulfillCommand,
   type ShopItem,
   type ShopPurchaseCommand,
+  type ShopRefundAllCommand,
+  type ShopRefundCommand,
   type ShopRequest,
   type ShopRequestCommand,
   type ShopSnapshot,
@@ -19,7 +21,8 @@ export type ShopCommandState = "idle" | "pending" | "success" | "failed" | "time
 
 /**
  * What a command acts on: `purchase:<item>` (buy for oneself), `request:<item>` (toggle one's teammate
- * request), `fulfill:<request id>` (buy a teammate's request). A command blocks repeats of its own target.
+ * request), `fulfill:<request id>` (buy a teammate's request), `refund:<item>` (undo its latest refundable
+ * purchase), `refund-all`. A command blocks repeats of its own target.
  */
 export type ShopCommandTarget = string;
 
@@ -28,6 +31,8 @@ export function shopCommandTarget(command: ShopCommand): ShopCommandTarget {
     case "command.shop.purchase": return `purchase:${command.item_id}`;
     case "command.shop.request": return `request:${command.item_id}`;
     case "command.shop.fulfill": return `fulfill:${command.request_id}`;
+    case "command.shop.refund": return `refund:${command.item_id}`;
+    case "command.shop.refund_all": return "refund-all";
   }
 }
 
@@ -115,6 +120,14 @@ export function createFulfillCommand(requestId: string): ShopFulfillCommand {
   return { kind: "command.shop.fulfill", command_id: createCommandId("fulfill"), request_id: requestId };
 }
 
+export function createRefundCommand(itemId: string): ShopRefundCommand {
+  return { kind: "command.shop.refund", command_id: createCommandId("refund"), item_id: itemId };
+}
+
+export function createRefundAllCommand(): ShopRefundAllCommand {
+  return { kind: "command.shop.refund_all", command_id: createCommandId("refund_all") };
+}
+
 export function canPurchase(snapshot: ShopSnapshot, itemId: string): boolean {
   const item = snapshot.items.find((candidate) => candidate.item_id === itemId);
   return Boolean(snapshot.window_open && item?.purchasable);
@@ -135,6 +148,8 @@ export function canSendShopCommand(snapshot: ShopSnapshot, command: ShopCommand)
     case "command.shop.purchase": return canPurchase(snapshot, command.item_id);
     case "command.shop.request": return canRequestAny(snapshot) && snapshot.items.some((item) => item.item_id === command.item_id);
     case "command.shop.fulfill": return Boolean(snapshot.requests?.find((request) => request.request_id === command.request_id)?.purchasable);
+    case "command.shop.refund": return snapshot.items.some((item) => item.item_id === command.item_id && item.refundable === true);
+    case "command.shop.refund_all": return snapshot.has_refundable === true;
   }
 }
 
@@ -288,6 +303,8 @@ export type ShopItemView = ShopItem & {
   disabled: boolean;
   /** A request toggle for this item is in flight; a repeat waits for its result. */
   requestPending: boolean;
+  /** A refund of this item is in flight; a repeat waits for its result. */
+  refundPending: boolean;
 };
 
 /** A teammate's request as the request area draws it; the same purchase rules as a card. */
@@ -323,6 +340,10 @@ export type ShopViewModel = {
   requests: ShopRequestView[];
   /** Some item is requestable: R / right-click on a card sends a request and the navbar shows the hint. */
   canRequest: boolean;
+  /** The plugin has refunds (the snapshot carries `has_refundable`): the navbar shows CS2's refund-all button. */
+  refundsSupported: boolean;
+  /** Refund all would refund something now and none is in flight: the button and Delete send it. */
+  canRefundAll: boolean;
   failureReason: string | null;
   pendingCount: number;
   frame: ShopSnapshotFrame | null;
@@ -350,7 +371,7 @@ export function sameShopTime(a: ShopViewModel, b: ShopViewModel): boolean {
 export function selectShop(state: ShopState, nowMs: number): ShopViewModel {
   const availability = availabilityForState(state, nowMs);
   const status = { availability, connectionStatus: state.connectionStatus, statusLabel: statusLabel(availability, state.connectionStatus) };
-  if (!state.frame) return { ...status, hasSnapshot: false, windowOpen: false, balance: 0, nextRoundMinMoney: null, categories: undefined, items: [], requests: [], canRequest: false, failureReason: state.failureReason, pendingCount: Object.keys(state.pending).length, frame: null };
+  if (!state.frame) return { ...status, hasSnapshot: false, windowOpen: false, balance: 0, nextRoundMinMoney: null, categories: undefined, items: [], requests: [], canRequest: false, refundsSupported: false, canRefundAll: false, failureReason: state.failureReason, pendingCount: Object.keys(state.pending).length, frame: null };
   const snapshot = state.frame.snapshot;
   const enabled = availability === "live" && snapshot.window_open;
   return {
@@ -364,7 +385,8 @@ export function selectShop(state: ShopState, nowMs: number): ShopViewModel {
       const { pending: command, record } = commandFor(state, `purchase:${item.item_id}`);
       const unavailable = !enabled || !item.purchasable;
       const requestPending = Boolean(commandFor(state, `request:${item.item_id}`).pending);
-      return { ...item, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command), requestPending };
+      const refundPending = Boolean(commandFor(state, `refund:${item.item_id}`).pending);
+      return { ...item, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command), requestPending, refundPending };
     }),
     requests: (snapshot.requests ?? []).map((request) => {
       const { pending: command, record } = commandFor(state, `fulfill:${request.request_id}`);
@@ -372,6 +394,8 @@ export function selectShop(state: ShopState, nowMs: number): ShopViewModel {
       return { ...request, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command) };
     }),
     canRequest: enabled && canRequestAny(snapshot),
+    refundsSupported: snapshot.has_refundable !== undefined,
+    canRefundAll: enabled && snapshot.has_refundable === true && !commandFor(state, "refund-all").pending,
     failureReason: state.failureReason,
     pendingCount: Object.keys(state.pending).length,
     frame: state.frame,

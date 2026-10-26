@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Shop contract rules: purchasable-only eligibility, banner, commands and targets, keyboard while the shop holds the foreground"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Visual authority order, no CS2 assets in the repo, shop replication rules (section 8)"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards and forbidden patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plugin -> sidecar -> SLUI contract crosses three repos"}
+{"file": ".trellis/tasks/archive/2026-10/10-22-shop-teammate-requests/design.md", "reason": "Precedent for the same cross-repo shop command pattern (snapshot fields, commands, result mapping, mock scenes)"}

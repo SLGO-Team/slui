@@ -9,6 +9,7 @@
     "balance": { "type": "integer", "minimum": 0 },
     "next_round_min_money": { "description": "Plugin-authoritative minimum money required for the next round.", "type": ["integer", "null"], "minimum": 0 },
     "window_open": { "type": "boolean" },
+    "has_refundable": { "description": "command.shop.refund_all would refund something now. Always sent by plugins with refunds; absent from older plugins.", "type": "boolean" },
     "categories": {
       "type": "array",
       "items": {
@@ -41,7 +42,8 @@
           "purchasable": { "description": "Final plugin-authoritative eligibility, including balance and inventory rules.", "type": "boolean" },
           "unavailable_reason": { "type": ["string", "null"] },
           "requestable": { "description": "The mode and its item scope let the viewer ask teammates to buy this item (command.shop.request).", "type": "boolean" },
-          "requested": { "description": "The viewer's own open teammate request is this item.", "type": "boolean" }
+          "requested": { "description": "The viewer's own open teammate request is this item.", "type": "boolean" },
+          "refundable": { "description": "command.shop.refund for this item would refund now (plugin rules). Written only when true.", "type": "boolean" }
         }
       }
     },

@@ -1,10 +1,10 @@
-import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Role, ShopCommand } from "../../contracts";
 import { DEFAULT_AUDIO_SETTINGS } from "../../platform/audioSettings";
 import { useBackdropRef } from "../../platform/backdrop";
 import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
-import { createFulfillCommand, createPurchaseCommand, createRequestCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopRequestView, type ShopViewModel } from "./model";
+import { createFulfillCommand, createPurchaseCommand, createRefundAllCommand, createRefundCommand, createRequestCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopRequestView, type ShopViewModel } from "./model";
 import { formatShopMoney, groupShopItems, groupShopRequests, shopIconSource, shopMinMoneyColor, shopOwnerPipColors, shopPreviewSource, shopWashForRole, type ShopColumn } from "./presentation";
 import { useShopAudio } from "./useShopAudio";
 import "./ShopPanel.css";
@@ -22,7 +22,7 @@ export type ShopPanelProps = {
   volume?: number;
   /** The buy time left at a time, from MatchSnapshot.phase_remaining_ms (the HUD clock's phaseClockSeconds). */
   countdownAt?: (nowMs: number) => number | null;
-  /** Purchases, teammate-request toggles and fulfilments; the model tracks each until its result. */
+  /** Purchases, teammate-request toggles, fulfilments and refunds; the model tracks each until its result. */
   onCommand(command: ShopCommand): void;
   onClose(): void;
 };
@@ -41,14 +41,21 @@ function ShopCountdown({ countdownAt }: { countdownAt: (nowMs: number) => number
   return <b>{formatShopCountdown(useClockSelector(countdownAt))}</b>;
 }
 
-function ShopCard({ item, slot, wash, pips, onPurchase, onRequest, onHover, onPreview }: { item: ShopItemView; slot: number; wash: string; pips: readonly string[]; onPurchase(item: ShopItemView): void; onRequest(item: ShopItemView): void; onHover(item: ShopItemView | null): void; onPreview(itemId: string): void }) {
+/**
+ * buymenu.xml ItemPanel: a `button-container` holding the BuyButton and, as its sibling, the SellbackButton
+ * (buttons cannot nest). The in-game capture shows the sellback button taking the hover from the card: the
+ * details card goes away and only the 退款 tooltip shows.
+ */
+function ShopCard({ item, slot, wash, pips, onPurchase, onRequest, onRefund, onRefundHover, onHover, onPreview }: { item: ShopItemView; slot: number; wash: string; pips: readonly string[]; onPurchase(item: ShopItemView): void; onRequest(item: ShopItemView): void; onRefund(item: ShopItemView): void; onRefundHover(item: ShopItemView | null, button?: HTMLElement): void; onHover(item: ShopItemView | null): void; onPreview(itemId: string): void }) {
   const owned = item.owned_quantity !== undefined && item.owned_quantity !== null && item.owned_quantity > 0;
+  const refundable = item.refundable === true;
   const cardStyle = { "--shop-wash": wash } as CSSProperties;
   const handleClick = () => {
     onPreview(item.item_id);
     onPurchase(item);
   };
   return (
+    <div className="shop-card-slot">
     <button
       type="button"
       className={`shop-card${item.unavailable ? " shop-card--disabled" : ""}${owned ? " shop-card--owned" : ""}${item.commandState === "success" ? " shop-card--success" : ""}`}
@@ -64,7 +71,7 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onRequest, onHover, onPr
       onKeyDown={(event) => { if (event.repeat && (event.key === "Enter" || event.key === " ")) event.preventDefault(); }}
       onClick={handleClick}
       onContextMenu={(event) => { event.preventDefault(); onRequest(item); }}
-      aria-label={`${item.name} ${formatShopMoney(item.price)}${item.unavailable ? `: ${item.unavailable_reason ?? "不可购买"}` : ""}${item.requested ? "，已请求队友购买" : ""}`}
+      aria-label={`${item.name} ${formatShopMoney(item.price)}${item.unavailable ? `: ${item.unavailable_reason ?? "不可购买"}` : ""}${item.requested ? "，已请求队友购买" : ""}${refundable ? "，可退款" : ""}`}
     >
       <span className="shop-card__key" aria-hidden="true">{slot}</span>
       <span className="shop-card__name">{item.name}</span>
@@ -75,11 +82,28 @@ function ShopCard({ item, slot, wash, pips, onPurchase, onRequest, onHover, onPr
           {pips.map((color, index) => <span key={index} className="shop-card__pip" style={{ backgroundColor: color }} />)}
         </span>
       ) : null}
-      {/* The viewer's own open teammate request, in the card's free bottom-left corner. */}
-      {item.requested ? <span className="shop-card__requested" aria-hidden="true">已请求</span> : null}
+      {/* The viewer's own open teammate request, in the card's free bottom-left corner (the undo button's
+          corner: a refundable card shows that instead). */}
+      {item.requested && !refundable ? <span className="shop-card__requested" aria-hidden="true">已请求</span> : null}
       {/* The plugin answers in well under the timeout, so an in-flight purchase only blocks
           repeats and draws nothing; the label marks one that has outlived the timeout. */}
     </button>
+    {/* buymenu.css .sellback-button: collapsed unless the card `can-sellback`; it never purchases. */}
+    {refundable ? (
+      <button
+        type="button"
+        className="shop-card__sellback"
+        data-shop-refund={item.item_id}
+        aria-label={`退款 ${item.name}`}
+        onPointerEnter={(event) => { if (event.pointerType !== "touch") onRefundHover(item, event.currentTarget); }}
+        onPointerLeave={() => onRefundHover(null)}
+        onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) onRefundHover(item, event.currentTarget); }}
+        onBlur={() => onRefundHover(null)}
+        onClick={() => onRefund(item)}
+        onContextMenu={(event) => event.preventDefault()}
+      />
+    ) : null}
+    </div>
   );
 }
 
@@ -189,6 +213,37 @@ export const ShopPanel = memo(function ShopPanel({
     setDenial(null);
     onCommand(createRequestCommand(item.item_id));
   }, [audio, canRequest, onCommand]);
+  // CS2 SellbackSlot plays buymenu_purchase, then sends `sellback`; only a refundable card offers it.
+  const handleItemRefund = useCallback((item: ShopItemView) => {
+    if (item.refundable !== true || item.refundPending) return;
+    audio.play("purchase");
+    setDenial(null);
+    onCommand(createRefundCommand(item.item_id));
+  }, [audio, onCommand]);
+  // The sellback button's text tooltip (CSGOTooltipManager TooltipText), drawn on the design canvas so the
+  // columns' scroll boxes cannot clip it; placed from the button's box (canvas units).
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [refundTip, setRefundTip] = useState<{ itemId: string; left: number; top: number } | null>(null);
+  const handleRefundHover = useCallback((item: ShopItemView | null, button?: HTMLElement) => {
+    const canvas = canvasRef.current;
+    if (!item || !button || !canvas) {
+      setRefundTip(null);
+      return;
+    }
+    const target = button.getBoundingClientRect();
+    const origin = canvas.getBoundingClientRect();
+    setRefundTip({ itemId: item.item_id, left: (target.right - origin.left) / scale, top: (target.top + target.height / 2 - origin.top) / scale });
+  }, [scale]);
+  // A refunded card loses its button under the pointer, so no pointerleave clears the tooltip.
+  const refundTipShown = refundTip !== null && shop.items.some((item) => item.item_id === refundTip.itemId && item.refundable === true);
+  useEffect(() => { if (refundTip !== null && (!refundTipShown || !visible)) setRefundTip(null); }, [refundTip, refundTipShown, visible]);
+  // CS2 sellbackall: no sound; with nothing refundable it does nothing.
+  const canRefundAll = shop.canRefundAll;
+  const handleRefundAll = useCallback(() => {
+    if (!canRefundAll) return;
+    setDenial(null);
+    onCommand(createRefundAllCommand());
+  }, [canRefundAll, onCommand]);
   const handleRequestHover = useCallback((request: ShopRequestView | null) => {
     setHoveredRequestId(request?.request_id ?? null);
     if (!request) return;
@@ -241,6 +296,19 @@ export const ShopPanel = memo(function ShopPanel({
         handleItemRequest(hovered);
         return;
       }
+      // The plugin's in-game 退款 / 全部退款 keys (Backspace / Delete, Delete also being CS2's sellbackall
+      // bind): the open shop holds the foreground, so the game never sees them.
+      if (event.code === "Backspace") {
+        event.preventDefault();
+        const hovered = hoveredItemId === null ? undefined : shop.items.find((item) => item.item_id === hoveredItemId);
+        if (hovered) handleItemRefund(hovered);
+        return;
+      }
+      if (event.code === "Delete") {
+        event.preventDefault();
+        handleRefundAll();
+        return;
+      }
       if (!/^[1-9]$/.test(event.key)) return;
       const slot = Number(event.key) - 1;
       event.preventDefault();
@@ -265,7 +333,7 @@ export const ShopPanel = memo(function ShopPanel({
     };
     window.addEventListener("keydown", handleWindowKeyDown);
     return () => window.removeEventListener("keydown", handleWindowKeyDown);
-  }, [audio, canRequest, columns, deny, handleItemPurchase, handleItemRequest, hoveredItemId, onClose, selectedCategory, shop.items, visible]);
+  }, [audio, canRequest, columns, deny, handleItemPurchase, handleItemRefund, handleItemRequest, handleRefundAll, hoveredItemId, onClose, selectedCategory, shop.items, visible]);
   if (!visible) return null;
   const wash = shopWashForRole(role);
   const selected = selectedCategory;
@@ -280,7 +348,7 @@ export const ShopPanel = memo(function ShopPanel({
     <>
       <ShopMask />
       <section className="shop-overlay" data-shop-availability={shop.availability} aria-label="商店">
-        <div className="shop-design-canvas" style={{ "--shop-overlay-scale": scale, "--shop-wash": wash } as CSSProperties}>
+        <div ref={canvasRef} className="shop-design-canvas" style={{ "--shop-overlay-scale": scale, "--shop-wash": wash } as CSSProperties}>
         <div className="shop-content" data-shop-content>
           <div className="shop-left">
             <div className="shop-info" data-shop-info>
@@ -300,7 +368,7 @@ export const ShopPanel = memo(function ShopPanel({
                       <span>{column.label}</span>
                     </div>
                     <div className="shop-column__items">
-                      {column.items.map((item, itemIndex) => <ShopCard key={item.item_id} item={item as ShopItemView} slot={itemIndex + 1} wash={wash} pips={shopOwnerPipColors(item, playerColors, localPlayerId)} onPurchase={handleItemPurchase} onRequest={handleItemRequest} onHover={handleItemHover} onPreview={setPreviewItemId} />)}
+                      {column.items.map((item, itemIndex) => <ShopCard key={item.item_id} item={item as ShopItemView} slot={itemIndex + 1} wash={wash} pips={shopOwnerPipColors(item, playerColors, localPlayerId)} onPurchase={handleItemPurchase} onRequest={handleItemRequest} onRefund={handleItemRefund} onRefundHover={handleRefundHover} onHover={handleItemHover} onPreview={setPreviewItemId} />)}
                     </div>
                   </div>
                 ))}
@@ -322,9 +390,12 @@ export const ShopPanel = memo(function ShopPanel({
             </div> : null}
           </aside>
         </div>
+        {refundTip !== null && refundTipShown ? <span className="shop-tooltip" style={{ left: `${refundTip.left}px`, top: `${refundTip.top}px` }} role="tooltip">退款</span> : null}
         <nav className="shop-navbar" aria-label="商店操作">
           {/* buymenu.xml BuyForTeammateLabel: CS2's own buy-for-teammate hint, washed and dimmed. */}
           {canRequest ? <span className="shop-navbar__for-teammate">按<span className="shop-navbar__key">[R]</span>或右键请求队友购买</span> : null}
+          {/* buymenu.xml's sellbackall PopupButton, after rebuy / autobuy (not replicated); DEL is CS2's bind. */}
+          {shop.refundsSupported ? <button type="button" data-shop-refund-all onClick={handleRefundAll}><span className="shop-navbar__key">[DEL]</span>全部退款</button> : null}
           <button type="button" onClick={onClose}><span className="shop-navbar__key">[ESCAPE]</span>返回</button>
         </nav>
         </div>

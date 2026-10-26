@@ -255,6 +255,11 @@ export type ShopItem = {
   requestable?: boolean;
   /** The viewer's own open teammate request is this item. */
   requested?: boolean;
+  /**
+   * `command.shop.refund` for this item would refund now: the viewer bought it this round inside the buy
+   * window and has not used it (plugin rules). Written only when true; absent means not refundable.
+   */
+  refundable?: boolean;
 };
 
 export type ShopCategory = { id: string; label: string; order: number };
@@ -292,6 +297,11 @@ export type ShopSnapshot = {
   categories?: ShopCategory[];
   /** Teammates' requests the viewer may fulfil, in team order; never the viewer's own. Absent from older plugins. */
   requests?: ShopRequest[];
+  /**
+   * `command.shop.refund_all` would refund something now. Plugins with refunds always send it (true or
+   * false); absent from older plugins, which have no refunds.
+   */
+  has_refundable?: boolean;
 };
 
 export type ChatScope = "global" | "team" | "spectator";
@@ -620,6 +630,17 @@ export type ShopFulfillCommand = {
   command_id: string;
   request_id: string;
 };
+/** Undo the sender's latest refundable purchase of `item_id` (CS2 sellback): the full price comes back. */
+export type ShopRefundCommand = {
+  kind: "command.shop.refund";
+  command_id: string;
+  item_id: string;
+};
+/** Undo every refundable purchase of the sender (CS2 sellbackall). */
+export type ShopRefundAllCommand = {
+  kind: "command.shop.refund_all";
+  command_id: string;
+};
 export type ChatSendCommand = {
   kind: "command.chat.send";
   command_id: string;
@@ -641,11 +662,12 @@ export type TeamCloseCommand = {
   command_id: string;
   session_id: string;
 };
-export type ShopCommand = ShopPurchaseCommand | ShopRequestCommand | ShopFulfillCommand;
+export type ShopCommand = ShopPurchaseCommand | ShopRequestCommand | ShopFulfillCommand | ShopRefundCommand | ShopRefundAllCommand;
 export type TeamCommand = TeamSelectCommand | TeamCloseCommand;
 export type SlgoCommand = ShopCommand | ChatSendCommand | TeamCommand;
 export const COMMAND_KINDS = [
-  "command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.chat.send", "command.team.select", "command.team.close",
+  "command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.shop.refund", "command.shop.refund_all",
+  "command.chat.send", "command.team.select", "command.team.close",
 ] as const satisfies readonly SlgoCommand["kind"][];
 
 export type CommandResult = {
@@ -1155,12 +1177,14 @@ export function parseShopSnapshot(payload: unknown): ParseResult<ShopSnapshot> {
     if (item.owned_quantity !== undefined && item.owned_quantity !== null && (!Number.isInteger(item.owned_quantity) || Number(item.owned_quantity) < 0)) return null;
     if (item.owner_player_ids !== undefined && item.owner_player_ids !== null && (!Array.isArray(item.owner_player_ids) || !item.owner_player_ids.every(isNonEmptyString))) return null;
     if ((item.requestable !== undefined && typeof item.requestable !== "boolean") || (item.requested !== undefined && typeof item.requested !== "boolean")) return null;
+    if (item.refundable !== undefined && typeof item.refundable !== "boolean") return null;
     return item as unknown as ShopItem;
   });
   if (!items.every(Boolean)) return error("invalid-payload", "Shop snapshot contains an invalid item");
   const requests = payload.requests === undefined ? undefined : parseShopRequests(payload.requests);
   if (requests === null) return error("invalid-payload", "Shop requests are invalid");
-  return { ok: true, value: { balance: payload.balance as number, next_round_min_money: payload.next_round_min_money as number | null | undefined, window_open: payload.window_open, items: items as ShopItem[], ...(categories ? { categories: categories as ShopCategory[] } : {}), ...(requests ? { requests } : {}) } };
+  if (payload.has_refundable !== undefined && typeof payload.has_refundable !== "boolean") return error("invalid-payload", "Shop refund flag is invalid");
+  return { ok: true, value: { balance: payload.balance as number, next_round_min_money: payload.next_round_min_money as number | null | undefined, window_open: payload.window_open, items: items as ShopItem[], ...(categories ? { categories: categories as ShopCategory[] } : {}), ...(requests ? { requests } : {}), ...(payload.has_refundable !== undefined ? { has_refundable: payload.has_refundable } : {}) } };
 }
 
 const SHOP_REQUEST_KEYS = new Set(["request_id", "requester_player_id", "requester_name", "item_id", "name", "description", "icon_url", "category_id", "price", "purchasable", "unavailable_reason"]);
@@ -1450,6 +1474,11 @@ export function parseCommand(command: unknown): ParseResult<SlgoCommand> {
     if (!isNonEmptyString(command.request_id) || command.request_id.length > MAX_SHOP_REQUEST_ID_LENGTH) return error("invalid-payload", "Fulfil command is invalid");
     return { ok: true, value: command as ShopFulfillCommand };
   }
+  if (command.kind === "command.shop.refund") {
+    if (!isNonEmptyString(command.item_id)) return error("invalid-payload", "Refund command is invalid");
+    return { ok: true, value: command as ShopRefundCommand };
+  }
+  if (command.kind === "command.shop.refund_all") return { ok: true, value: command as ShopRefundAllCommand };
   if (command.kind === "command.team.select") {
     if (!(TEAM_SELECT_CHOICES as readonly unknown[]).includes(command.team)) return error("invalid-payload", "Team select command is invalid");
     return { ok: true, value: command as TeamSelectCommand };
