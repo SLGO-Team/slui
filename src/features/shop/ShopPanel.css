@@ -109,7 +109,10 @@
    once. Keep the CS card rhythm, but let the column scroll instead of clipping
    authoritative products at the body edge. */
 .shop-column__items { display: flex; flex-direction: column; max-height: 500px; overflow-x: hidden; overflow-y: auto; scrollbar-color: rgb(216 216 216 / 25%) transparent; scrollbar-width: thin; }
-.shop-card { position: relative; box-sizing: border-box; width: 100%; height: 90px; margin-bottom: 10px; padding: 0; overflow: hidden; color: #fff; background: radial-gradient(ellipse 55% 55% at 50% 50%, rgb(165 165 165 / 30%), rgb(85 85 85 / 20%)); border: 1px solid transparent; border-radius: 5px; filter: brightness(1); cursor: pointer; transition: filter 0s ease-in-out; }
+/* buymenu.xml button-container: the card and its sellback button. The slot carries the card's size and
+   spacing, and shrinks like the card did (min-height 0), so a six-item column still fits its 500px. */
+.shop-card-slot { position: relative; flex: 0 1 auto; height: 90px; min-height: 0; margin-bottom: 10px; }
+.shop-card { position: relative; display: block; box-sizing: border-box; width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; color: #fff; background: radial-gradient(ellipse 55% 55% at 50% 50%, rgb(165 165 165 / 30%), rgb(85 85 85 / 20%)); border: 1px solid transparent; border-radius: 5px; filter: brightness(1); cursor: pointer; transition: filter 0s ease-in-out; }
 /* Keyed on unavailability, not aria-disabled: an in-flight purchase must keep the hover highlight. */
 .shop-card:hover:not(.shop-card--disabled), .shop-card:focus-visible:not(.shop-card--disabled) { filter: brightness(2.2); outline: none; transition-duration: .2s; }
 .shop-card--disabled { cursor: not-allowed; }
@@ -143,6 +146,15 @@
 .shop-card[data-shop-item="GunFRMG0"] .shop-card__icon { top: 31px; height: 32px; mask-size: auto 32px; -webkit-mask-size: auto 32px; }
 .shop-card[data-shop-item="GunLogicer"] .shop-card__icon { top: 20px; height: 44px; mask-size: auto 44px; -webkit-mask-size: auto 44px; }
 .shop-card__price { position: absolute; right: 10px; bottom: 4px; color: var(--shop-wash); font: 700 14px/18px "Stratum2 Shop Mono", monospace; text-shadow: 1px 1px #00000088; }
+/* buymenu.css:824-860 - SellbackButton: bottom-left of the button container, a 20px undo image with
+   8px left and 5px bottom margins, washed rgb(133,133,133) and white on hover; the user's in-game capture
+   (2026-10-26) agrees. The icon is SLUI's own drawing (public/assets/icons/undo.svg). */
+.shop-card__sellback { position: absolute; bottom: 5px; left: 8px; z-index: 1; width: 20px; height: 20px; padding: 0; background: rgb(133 133 133); border: 0; cursor: pointer; mask: url("/assets/icons/undo.svg") center / contain no-repeat; -webkit-mask: url("/assets/icons/undo.svg") center / contain no-repeat; }
+.shop-card__sellback:hover, .shop-card__sellback:focus-visible { background: #fff; outline: none; }
+/* The 退款 tooltip (csgostyles.css:1532-1563 TooltipText: #Contents rgba(15,15,15,.99), radius 5, an 8px
+   #0000005e glow, 19px margin; 14px #c8c8c8 label). Box and text placement from the capture: 81x52, the
+   label 16px in from the left, the box centred on the button 19px to its right. */
+.shop-tooltip { position: absolute; z-index: 3; box-sizing: border-box; width: 81px; height: 52px; margin-left: 19px; padding: 0 16px; color: #c8c8c8; background: rgb(15 15 15 / 99%); border-radius: 5px; box-shadow: 0 0 8px rgb(0 0 0 / 37%); font: 400 14px/52px "Stratum2 Shop", "Noto Sans SC Shop", sans-serif; white-space: nowrap; transform: translateY(-50%); pointer-events: none; }
 /* buymenu.css:802-822 - TeammateInventory: a 15px bottom strip centred under the card, flowing
    right to left, one 5px pip with 2px side margins per holder. The capture puts the pip centre
    7px above the card bottom. Competitive CS2 colours each pip with the holder's slot colour

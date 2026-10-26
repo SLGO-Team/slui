@@ -79,6 +79,8 @@ Payload schemas:
 | client -> sidecar | `command.shop.purchase` | Plugin-defined purchase request |
 | client -> sidecar | `command.shop.request` | Ask teammates to buy an item (toggle) |
 | client -> sidecar | `command.shop.fulfill` | Buy a teammate's request for them |
+| client -> sidecar | `command.shop.refund` | Undo the sender's latest refundable purchase of an item |
+| client -> sidecar | `command.shop.refund_all` | Undo every refundable purchase of the sender |
 | client -> sidecar | `command.chat.send` | Plugin-defined chat request |
 | client -> sidecar | `command.team.select` | Join a side, spectate or auto-select (plugin rules) |
 | client -> sidecar | `command.team.close` | Close the viewer's team menu session |
@@ -124,6 +126,29 @@ again cancels it, another item replaces it (with a new `request_id`).
 request is fulfilled at most once; a refusal comes back as `rejected` with the
 plugin's text in `reason`, and the requester learns of a purchase through its
 `hud.messages`.
+
+### Shop refunds
+
+A player may undo their own purchases of this round inside the buy window and
+get the price back, as CS2's buy-menu refund does. The plugin decides what is
+refundable (bought by the viewer for themself this round, not used since, the
+shop gate open); SLUI only offers what the snapshot says. Both fields are
+optional, so older clients ignore them:
+
+- item `refundable` (boolean, written only when true): `command.shop.refund`
+  for this item would refund now.
+- `has_refundable` (boolean): `command.shop.refund_all` would refund something
+  now. Plugins with refunds always send it; its absence means the plugin has no
+  refunds and the client offers none.
+
+`command.shop.refund` (`item_id`) undoes the sender's latest refundable
+purchase of that item (for an SCP role, together with the upgrades bought on
+it); `command.shop.refund_all` undoes all of them. Success is `accepted`, with
+the sender's new `shop.snapshot` published before the result and no
+`hud.messages` notice. A refusal the player should read (the inventory would
+overflow without the armour) is `rejected` with the plugin's text in `reason`;
+nothing refundable, a closed shop or a refund still settling is `rejected`
+without a reason, which clients show as nothing.
 
 Chat history mirrors the plugin's in-game message area, with the same
 recipients. `chat.message` carries `command_id` when a client's

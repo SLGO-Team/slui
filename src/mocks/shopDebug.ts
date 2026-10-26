@@ -1,6 +1,6 @@
 import type { ShopRequest, ShopSnapshot, SlgoEvent } from "../contracts/index.ts";
 import { initialShopState, shopReducer, type ShopState } from "../features/shop/model.ts";
-import { createPurchaseCommand } from "../features/shop/model.ts";
+import { createPurchaseCommand, createRefundCommand } from "../features/shop/model.ts";
 import { mockScp079ShopSnapshot, mockScpShopSnapshot, type MockShopRole } from "./provider.ts";
 
 export const SHOP_DEBUG_AVAILABILITIES = ["live", "stale", "offline", "restarted", "baseline-required", "no-shop"] as const;
@@ -8,12 +8,15 @@ export const SHOP_DEBUG_STATES = ["standard", "pending", "rejected", "unavailabl
 export const SHOP_DEBUG_ROLES = ["scp", "scp079"] as const satisfies readonly MockShopRole[];
 /** Teammate requests: none, the payer's view (requests listed), the requester's own view, a full 10v10 column. */
 export const SHOP_DEBUG_REQUESTS = ["none", "payer", "requester", "crowded"] as const;
+/** Refunds: a plugin without refunds, refundable purchases, and an armour refund refused with the plugin's text. */
+export const SHOP_DEBUG_REFUNDS = ["none", "some", "rejected"] as const;
 export type ShopDebugAvailability = typeof SHOP_DEBUG_AVAILABILITIES[number];
 export type ShopDebugState = typeof SHOP_DEBUG_STATES[number];
 export type ShopDebugRole = typeof SHOP_DEBUG_ROLES[number];
 export type ShopDebugRequests = typeof SHOP_DEBUG_REQUESTS[number];
-export type ShopDebugOptions = { availability: ShopDebugAvailability; state: ShopDebugState; role: ShopDebugRole; requests: ShopDebugRequests; open: boolean };
-export const DEFAULT_SHOP_DEBUG_OPTIONS: ShopDebugOptions = { availability: "live", state: "standard", role: "scp", requests: "none", open: false };
+export type ShopDebugRefunds = typeof SHOP_DEBUG_REFUNDS[number];
+export type ShopDebugOptions = { availability: ShopDebugAvailability; state: ShopDebugState; role: ShopDebugRole; requests: ShopDebugRequests; refunds: ShopDebugRefunds; open: boolean };
+export const DEFAULT_SHOP_DEBUG_OPTIONS: ShopDebugOptions = { availability: "live", state: "standard", role: "scp", requests: "none", refunds: "none", open: false };
 
 function valid<T extends string>(values: readonly T[], value: string | null, fallback: T): T {
   return value && values.includes(value as T) ? value as T : fallback;
@@ -28,6 +31,7 @@ export function readShopDebugOptions(search = window.location.search): ShopDebug
     // canonical role id used by the provider and fixture snapshots.
     role: valid(SHOP_DEBUG_ROLES, params.get("shopRole") === "079" ? "scp079" : params.get("shopRole"), DEFAULT_SHOP_DEBUG_OPTIONS.role),
     requests: valid(SHOP_DEBUG_REQUESTS, params.get("shopRequests"), DEFAULT_SHOP_DEBUG_OPTIONS.requests),
+    refunds: valid(SHOP_DEBUG_REFUNDS, params.get("shopRefunds"), DEFAULT_SHOP_DEBUG_OPTIONS.refunds),
     // Shop visibility is React state that a reload resets. Mirroring it into the
     // URL is what makes a given shop state reproducible from a link when
     // comparing against the live baseline screenshot.
@@ -43,6 +47,7 @@ export function replaceShopDebugUrl(options: ShopDebugOptions): void {
   // remains the provider's `scp079` role id.
   url.searchParams.set("shopRole", options.role === "scp079" ? "079" : options.role);
   url.searchParams.set("shopRequests", options.requests);
+  url.searchParams.set("shopRefunds", options.refunds);
   url.searchParams.set("shopOpen", options.open ? "1" : "0");
   window.history.replaceState(window.history.state, "", url);
 }
@@ -90,8 +95,26 @@ function withDebugRequests(snapshot: ShopSnapshot, requests: ShopDebugRequests):
   return { ...snapshot, items, requests: list };
 }
 
+// This round's own purchases: an owned rifle / current role (refundable but not purchasable), a grenade that is
+// still purchasable, armour, an upgrade. Ids missing from the viewer's catalog are skipped.
+const REFUNDABLE_OWNED: Readonly<Record<string, string>> = { GunE11SR: "你已经拥有 E-11 SR", Scp173: "你已经是 SCP-173 了", HealthUpgrade1: "你已经拥有 生命强化 I" };
+const REFUNDABLE_PURCHASABLE = new Set(["GrenadeFlash", "ArmorHeavy"]);
+/** The item the `rejected` scene tried to refund: armour, or the upgrade on the SCP side. */
+const REFUND_REJECTED_ITEMS = ["ArmorHeavy", "HealthUpgrade1"];
+
+function withDebugRefunds(snapshot: ShopSnapshot, refunds: ShopDebugRefunds): ShopSnapshot {
+  // `none` is a plugin without refunds (no field), so the default scenes keep their earlier captures.
+  if (refunds === "none") return snapshot;
+  const items = snapshot.items.map((item) => {
+    const ownedReason = REFUNDABLE_OWNED[item.item_id];
+    if (ownedReason) return { ...item, owned_quantity: 1, purchasable: false, unavailable_reason: ownedReason, refundable: true };
+    return REFUNDABLE_PURCHASABLE.has(item.item_id) ? { ...item, owned_quantity: Math.max(1, item.owned_quantity ?? 0), refundable: true } : item;
+  });
+  return { ...snapshot, items, has_refundable: items.some((item) => item.refundable === true) };
+}
+
 export function createShopDebugSnapshot(options: ShopDebugOptions, sourceSnapshot?: ShopSnapshot): ShopSnapshot {
-  const snapshot = withDebugRequests(structuredClone(sourceSnapshot ?? snapshotForRole(options.role)), options.requests);
+  const snapshot = withDebugRefunds(withDebugRequests(structuredClone(sourceSnapshot ?? snapshotForRole(options.role)), options.requests), options.refunds);
   if (options.state === "unavailable") snapshot.items = snapshot.items.map((item) => ({ ...item, purchasable: false, unavailable_reason: "Purchase not allowed" }));
   if (options.state === "owned") snapshot.items = snapshot.items.map((item) => ({ ...item, owned_quantity: Math.max(1, item.owned_quantity ?? 0) }));
   if (options.state === "disconnected") snapshot.window_open = true;
@@ -114,6 +137,14 @@ export function createShopDebugState(options: ShopDebugOptions, nowMs = Date.now
     const command = createPurchaseCommand(targetItem.item_id);
     state = shopReducer(state, { type: "command", command, sentAtMs: nowMs });
     if (options.state === "rejected") state = shopReducer(state, { type: "command-result", result: { command_id: command.command_id, command_kind: command.kind, status: "rejected", reason: "Plugin rejected purchase" } });
+  }
+  if (options.refunds === "rejected") {
+    const target = snapshot.items.find((item) => item.refundable === true && REFUND_REJECTED_ITEMS.includes(item.item_id));
+    if (target) {
+      const command = createRefundCommand(target.item_id);
+      state = shopReducer(state, { type: "command", command, sentAtMs: nowMs });
+      state = shopReducer(state, { type: "command-result", result: { command_id: command.command_id, command_kind: command.kind, status: "rejected", reason: "退款后背包将超出容量" } });
+    }
   }
   if (options.availability === "stale") state = shopReducer(state, { type: "connection", status: "stale" });
   if (options.availability === "offline" || options.state === "disconnected") state = shopReducer(state, { type: "connection", status: "offline" });

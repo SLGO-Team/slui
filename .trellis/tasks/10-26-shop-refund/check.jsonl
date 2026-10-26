@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Shop contract rules: refundability stays plugin-owned, silent refusals, capability by field presence"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Visual authority order, no CS2 assets in the repo, shop replication rules (section 8)"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Code standards and forbidden patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plugin -> sidecar -> SLUI contract crosses three repos"}

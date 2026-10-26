@@ -4,6 +4,8 @@ import {
   SHOP_STALE_AFTER_MS,
   createFulfillCommand,
   createPurchaseCommand,
+  createRefundAllCommand,
+  createRefundCommand,
   createRequestCommand,
   initialShopState,
   isShopItemPurchaseBlocked,
@@ -218,6 +220,77 @@ for (const skewMs of [60_000, -60_000]) {
   const requester = selectShop(createShopDebugState({ ...DEFAULT_SHOP_DEBUG_OPTIONS, requests: "requester" }, 1_000), 1_000);
   assert.equal(requester.items.find((item) => item.item_id === "Scp939")?.requested, true);
   assert.equal(requester.canRequest, true);
+}
+
+// Refunds: the plugin marks what is refundable; the undo button and Backspace send `refund`, Delete `refund_all`.
+{
+  const refundEvent = (sequence, payload) => ({ ...snapshot, event_id: `shop-refund-${sequence}`, sequence, payload });
+  let live = shopReducer(initialShopState, { type: "connection", status: "live" });
+  live = shopReducer(live, { type: "event", event: baseline, receivedAtMs: 1_000 });
+  live = shopReducer(live, { type: "event", event: refundEvent(2, { balance: 100, window_open: true, has_refundable: true, items: [
+    { item_id: "GunE11SR", name: "E-11 SR", price: 3100, quantity: null, purchasable: false, unavailable_reason: "你已经拥有 E-11 SR", refundable: true },
+    { item_id: "GrenadeFlash", name: "闪光弹", price: 200, quantity: 1, purchasable: true },
+  ] }), receivedAtMs: 1_000 });
+  let view = selectShop(live, 1_000);
+  assert.equal(view.refundsSupported, true);
+  assert.equal(view.canRefundAll, true);
+  assert.equal(view.items[0].refundable, true);
+  assert.equal(view.items[0].unavailable, true, "an owned refundable card stays unpurchasable");
+
+  const refund = createRefundCommand("GunE11SR");
+  let next = shopReducer(live, { type: "command", command: refund, sentAtMs: 1_000 });
+  assert.equal(next.pending[refund.command_id]?.target, "refund:GunE11SR");
+  assert.equal(selectShop(next, 1_000).items[0].refundPending, true);
+  assert.equal(selectShop(next, 1_000).items[0].commandState, "idle", "a refund never marks the purchase state");
+  const repeat = createRefundCommand("GunE11SR");
+  assert.equal(shopReducer(next, { type: "command", command: repeat, sentAtMs: 1_000 }).pending[repeat.command_id], undefined, "a refund in flight blocks a repeat");
+  next = shopReducer(next, { type: "command-result", result: { command_id: refund.command_id, command_kind: refund.kind, status: "rejected" } });
+  assert.equal(selectShop(next, 1_000).failureReason, null, "a silent refusal leaves the banner empty");
+  assert.equal(selectShop(next, 1_000).items[0].refundPending, false);
+  const overflow = createRefundCommand("GunE11SR");
+  next = shopReducer(next, { type: "command", command: overflow, sentAtMs: 1_000 });
+  next = shopReducer(next, { type: "command-result", result: { command_id: overflow.command_id, command_kind: overflow.kind, status: "rejected", reason: "退款后背包将超出容量" } });
+  assert.equal(selectShop(next, 1_000).failureReason, "退款后背包将超出容量", "a refusal with a reason fills the banner");
+  const notRefundable = createRefundCommand("GrenadeFlash");
+  assert.equal(shopReducer(live, { type: "command", command: notRefundable, sentAtMs: 1_000 }).pending[notRefundable.command_id], undefined, "a card that is not refundable sends nothing");
+
+  const all = createRefundAllCommand();
+  next = shopReducer(live, { type: "command", command: all, sentAtMs: 1_000 });
+  assert.equal(next.pending[all.command_id]?.target, "refund-all");
+  assert.equal(selectShop(next, 1_000).canRefundAll, false, "refund all in flight waits for its result");
+
+  // Nothing refundable: the button stays (CS2 always shows it) but sends nothing.
+  const empty = shopReducer(live, { type: "event", event: refundEvent(3, { balance: 100, window_open: true, has_refundable: false, items: [{ item_id: "GrenadeFlash", name: "闪光弹", price: 200, quantity: 1, purchasable: true }] }), receivedAtMs: 1_000 });
+  view = selectShop(empty, 1_000);
+  assert.equal(view.refundsSupported, true);
+  assert.equal(view.canRefundAll, false);
+  const idle = createRefundAllCommand();
+  assert.equal(shopReducer(empty, { type: "command", command: idle, sentAtMs: 1_000 }).pending[idle.command_id], undefined);
+
+  // A closed window or a stale shop refunds nothing either.
+  const shut = shopReducer(live, { type: "event", event: refundEvent(4, { balance: 100, window_open: false, has_refundable: true, items: [{ item_id: "GunE11SR", name: "E-11 SR", price: 3100, quantity: null, purchasable: false, refundable: true }] }), receivedAtMs: 1_000 });
+  assert.equal(selectShop(shut, 1_000).canRefundAll, false);
+  assert.equal(selectShop(live, 1_000 + SHOP_STALE_AFTER_MS + 1).canRefundAll, false);
+
+  // An older plugin (no field): no refund UI at all.
+  let legacy = shopReducer(initialShopState, { type: "connection", status: "live" });
+  legacy = shopReducer(legacy, { type: "event", event: baseline, receivedAtMs: 1_000 });
+  legacy = shopReducer(legacy, { type: "event", event: snapshot, receivedAtMs: 1_000 });
+  assert.equal(selectShop(legacy, 1_000).refundsSupported, false);
+  assert.equal(selectShop(legacy, 1_000).canRefundAll, false);
+
+  // Debug scenes.
+  assert.equal(readShopDebugOptions("?shopRefunds=some").refunds, "some");
+  assert.equal(readShopDebugOptions("?shopRefunds=bogus").refunds, "none");
+  const none = selectShop(createShopDebugState(DEFAULT_SHOP_DEBUG_OPTIONS, 1_000), 1_000);
+  assert.equal(none.refundsSupported, false, "the default scene is a plugin without refunds");
+  const some = selectShop(createShopDebugState({ ...DEFAULT_SHOP_DEBUG_OPTIONS, refunds: "some" }, 1_000), 1_000);
+  assert.deepEqual(some.items.filter((item) => item.refundable).map((item) => item.item_id), ["Scp173", "HealthUpgrade1"]);
+  assert.equal(some.canRefundAll, true);
+  const ntf = selectShop(createShopDebugState({ ...DEFAULT_SHOP_DEBUG_OPTIONS, refunds: "some" }, 1_000, mockShopSnapshotFor("team-a", "scp")), 1_000);
+  assert.deepEqual(ntf.items.filter((item) => item.refundable).map((item) => item.item_id).sort(), ["ArmorHeavy", "GrenadeFlash", "GunE11SR"]);
+  const rejected = selectShop(createShopDebugState({ ...DEFAULT_SHOP_DEBUG_OPTIONS, refunds: "rejected" }, 1_000), 1_000);
+  assert.equal(rejected.failureReason, "退款后背包将超出容量");
 }
 console.log("shop model smoke: ok");
 

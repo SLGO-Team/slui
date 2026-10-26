@@ -918,6 +918,30 @@ assert.equal(parseShopSnapshot({
   assert.equal(parseCommand({ kind: "command.shop.fulfill", command_id: "f-1" }).ok, false);
   assert.equal(parseCommand({ kind: "command.shop.fulfill", command_id: "f-2", request_id: "1".repeat(33) }).ok, false);
 }
+{
+  // Refunds (packages/protocol/v0/README.md "Shop refunds").
+  const example = JSON.parse(readFileSync(new URL("../packages/protocol/v0/shop-snapshot-refunds.example.json", import.meta.url), "utf8"));
+  const parsed = parseEvent(example);
+  assert.equal(parsed.ok, true, JSON.stringify(parsed));
+  assert.equal(parsed.value.payload.has_refundable, true, "has_refundable survives parsing");
+  assert.deepEqual(parsed.value.payload.items.map((item) => item.refundable === true), [false, true, true]);
+  const base = example.payload;
+  assert.equal(parseShopSnapshot({ ...base, has_refundable: false }).value.has_refundable, false);
+  assert.equal("has_refundable" in parseShopSnapshot({ ...base, has_refundable: undefined }).value, false, "older plugins send no flag");
+  assert.equal(parseShopSnapshot({ ...base, has_refundable: "true" }).ok, false);
+  assert.equal(parseShopSnapshot({ ...base, items: [{ ...base.items[1], refundable: 1 }] }).ok, false);
+  for (const name of ["command-shop-refund", "command-shop-refund-all"]) {
+    const command = JSON.parse(readFileSync(new URL(`../packages/protocol/v0/${name}.example.json`, import.meta.url), "utf8"));
+    assert.equal(parseCommand(command).ok, true, name);
+    for (const result of [{ status: "accepted" }, { status: "rejected" }, { status: "rejected", reason: "退款后背包将超出容量" }]) {
+      const event = parseEvent({ protocol_version: 0, schema_version: 1, event_id: "evt-r", server_id: "s", instance_id: "i", sequence: 9, type: "command.result", payload: { command_id: command.command_id, command_kind: command.kind, ...result } });
+      assert.equal(event.ok, true, `${name} result`);
+    }
+  }
+  assert.equal(parseCommand({ kind: "command.shop.refund", command_id: "rf-1" }).ok, false, "a refund names its item");
+  assert.equal(parseCommand({ kind: "command.shop.refund", command_id: "rf-2", item_id: "" }).ok, false);
+  assert.equal(parseCommand({ kind: "command.shop.refund_all", command_id: "" }).ok, false);
+}
 assert.equal(parseShopSnapshot({
   balance: 100,
   window_open: true,

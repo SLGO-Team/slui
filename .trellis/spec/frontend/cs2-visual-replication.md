@@ -217,10 +217,11 @@ use Panorama translation or generated nodes.
   to a stable icon from this source set without changing card geometry. Fonts
   come from the `src/shared/fonts.ts` registry.
 - The shop uses the shared `overlayScaleForViewport` value and an independent
-  1920x1080 design canvas. Run `npm run shop-layout-audit` and
-  `npm run shop-visual-audit` against a CDP-enabled preview before accepting a
-  visual change; the layout audit must report zero generated nodes and raw
-  Panorama binding text.
+  1920x1080 design canvas. Before accepting a visual change, capture the mock
+  at 1920x1080 through a CDP-enabled headless browser and compare it with the
+  previous capture; a change that adds UI keeps every other pixel identical.
+  (The `shop-layout-audit` / `shop-visual-audit` scripts this rule once named
+  no longer exist.)
 - The teammate-request area is CS2's `buymenu__ground-weapons` (SLGO has no
   dropped weapons; user decision 2026-10-22): one lister per item column with
   the column widths, CS2 ground-weapon entries (requester name and price on the
@@ -234,6 +235,22 @@ use Panorama translation or generated nodes.
   corner (the key's 40% white, the price's baseline); a black CS2 nux-style
   ribbon there was rejected as too loud (user, 2026-10-22);
   the navbar's request hint is CS2's BuyForTeammateLabel (wash x 0.63).
+- Refunds follow buymenu.xml's ItemPanel: each card sits in a `.shop-card-slot`
+  (the `button-container`, which carries the card's 90px height, its 10px
+  spacing and its flex shrink, so a six-item column still fits its 500px) with
+  the sellback button as the card's sibling. The button is a 20px mask of SLUI's
+  own `public/assets/icons/undo.svg`, 8px from the left and 5px from the bottom,
+  `rgb(133,133,133)` and white on hover (buymenu.css:824-860, confirmed by the
+  user's in-game capture, 2026-10-26). Hovering it takes the hover from the card,
+  as the capture shows: the details card goes away and only the 退款 tooltip
+  shows. The tooltip is CSGOTooltipManager's TooltipText (csgostyles.css:1532-1563:
+  `rgba(15,15,15,.99)`, radius 5, an 8px `#0000005e` glow, 14px `#c8c8c8`) at the
+  capture's 81x52 with the label 16px in from the left, centred on the button
+  19px to its right. It is drawn on the design canvas, outside the columns'
+  scroll boxes, so it is never clipped. A refundable card hides its 已请求 label
+  (same corner). The navbar shows CS2's `[DEL]全部退款` between the
+  for-teammate hint and `[ESCAPE]返回` whenever the plugin has refunds; rebuy
+  and autobuy stay out.
 
 ## 9. Chat-specific replication rules
 
