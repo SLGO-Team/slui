@@ -130,7 +130,7 @@ way CS2's buy menu has them: an undo button on each refundable card and a "[DEL]
       Backspace and Delete do nothing.
 - [x] AC8 (R1, R4) Example payloads parse in slui (`npm test`), slgo-backend (`bun test`) and the plugin
       tests (`dotnet test`).
-- [ ] AC9 (D3, R6) 1080p mock captures sit beside the user's CS2 capture (undo button idle and hovered,
+- [x] AC9 (D3, R6) 1080p mock captures sit beside the user's CS2 capture (undo button idle and hovered,
       navbar), then the user approves them. Without refund state the shop matches the previous captures
       pixel for pixel.
 
@@ -145,7 +145,7 @@ Verified 2026-10-26:
   - Backspace over a hovered refundable card sends `command.shop.refund`.
   - Delete and the navbar button send `command.shop.refund_all`.
   - The undo button on a purchasable card refunds and never purchases.
-- AC1-AC6 need the deployed plugin and backend (live test). AC9 waits for the user's visual approval.
+- AC1-AC6 need the deployed plugin and backend (live test). The user approved the visuals on 2026-10-26 (AC9).
 
 ## Out of Scope
 
