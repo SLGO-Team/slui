@@ -1124,3 +1124,25 @@ CS2 team select menu driven by the plugin's team.menu session (protocol event an
 ### Status
 
 [OK] **Completed**
+
+
+## Session 48: SLUI shop purchase refunds (CS2 sellback)
+<!-- trellis-session: v=2 fp=626d770da00d6207 -->
+
+**Date**: 2026-10-26
+**Task**: SLUI shop purchase refunds (CS2 sellback)
+**Branch**: `feat/shop-refund`
+
+### Summary
+
+Brought the plugin's purchase refunds into the SLUI shop. Protocol v0: item refundable, snapshot has_refundable (capability signal), command.shop.refund / command.shop.refund_all. SLUI: CS2 sellback button on refundable cards (SLUI-drawn undo icon, 退款 tooltip measured from the user's in-game capture), Backspace over the hovered card, navbar [DEL]全部退款 and Delete; card layout without refunds pixel-identical to main. Plugin (../SLGO 274682c) and slgo-backend (aabbb33) merged into their local main, not deployed. Visuals approved by the user; live test (AC1-AC6) pending.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0cad8c1` | feat(shop): purchase refunds from the plugin (CS2 sellback) |
+
+### Status
+
+[OK] **Completed**
