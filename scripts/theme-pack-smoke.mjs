@@ -7,9 +7,7 @@ import { EMPTY_THEME_PACK, themePackUrl } from "../src/shared/themePack.ts";
 const pack = (files) => ({ files: new Set(files), baseUrl: "http://theme.localhost/" });
 const fullPack = pack([
   ...FONT_FACES.map((face) => face.pack.file),
-  THEME_PACK_SHOP_SOUNDS.select,
-  THEME_PACK_SHOP_SOUNDS.unavailable,
-  ...THEME_PACK_SHOP_SOUNDS.purchase,
+  ...Object.values(THEME_PACK_SHOP_SOUNDS),
 ]);
 
 assert.equal(themePackUrl(fullPack, "fonts/stratum2-bold.otf"), "http://theme.localhost/fonts/stratum2-bold.otf");
@@ -36,7 +34,7 @@ for (const [index, face] of FONT_FACES.entries()) {
 }
 
 // A partial pack overrides only what it provides.
-const partial = pack(["fonts/stratum2-medium.otf", "sounds/radial_menu_buy_02.wav"]);
+const partial = pack(["fonts/stratum2-medium.otf", "sounds/inventory_item_select_01.wav"]);
 const partialFaces = resolveFontFaces(partial);
 for (const face of partialFaces) {
   const spec = FONT_FACES.find((candidate) => candidate.family === face.family && String(candidate.weight) === face.descriptors.weight);
@@ -46,8 +44,18 @@ for (const face of partialFaces) {
 assert.deepEqual(resolveShopSoundSources(EMPTY_THEME_PACK), BUILTIN_SHOP_SOUND_SOURCES);
 assert.deepEqual(resolveShopSoundSources(partial), {
   ...BUILTIN_SHOP_SOUND_SOURCES,
-  purchase: [BUILTIN_SHOP_SOUND_SOURCES.purchase[0], "http://theme.localhost/sounds/radial_menu_buy_02.wav", BUILTIN_SHOP_SOUND_SOURCES.purchase[2]],
+  select: "http://theme.localhost/sounds/inventory_item_select_01.wav",
 });
-assert.equal(resolveShopSoundSources(fullPack).select, "http://theme.localhost/sounds/radial_canselect_01.wav");
+assert.deepEqual(resolveShopSoundSources(fullPack), {
+  hover: "http://theme.localhost/sounds/itemtile_rollover_09.wav",
+  select: "http://theme.localhost/sounds/inventory_item_select_01.wav",
+  purchase: "http://theme.localhost/sounds/radial_menu_buy_03.wav",
+});
+// An older pack has only the radial files: hover and select fall back, purchase keeps buy_03.
+const olderPack = pack(["sounds/radial_canselect_01.wav", "sounds/radial_cantselect_01.wav", "sounds/radial_menu_buy_01.wav", "sounds/radial_menu_buy_02.wav", "sounds/radial_menu_buy_03.wav"]);
+assert.deepEqual(resolveShopSoundSources(olderPack), {
+  ...BUILTIN_SHOP_SOUND_SOURCES,
+  purchase: "http://theme.localhost/sounds/radial_menu_buy_03.wav",
+});
 
 console.log("theme pack smoke passed");

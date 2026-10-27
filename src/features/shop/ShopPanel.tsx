@@ -183,24 +183,26 @@ export const ShopPanel = memo(function ShopPanel({
   const [denial, setDenial] = useState<{ reason: string; seq: number } | null>(null);
   const columns = useMemo(() => groupShopItems(shop.items, shop.categories, role), [role, shop.items, shop.categories]);
   const visible = open && shop.hasSnapshot && shop.windowOpen;
-  const audio = useShopAudio(visible, shop.items, volume);
+  const audio = useShopAudio(visible, volume);
   useEffect(() => { if (!visible) setDenial(null); }, [visible]);
+  // Banner only: CS2's buy menu has no failure sound (the purchase cue already played).
   const deny = useCallback((item: ShopItemView | ShopRequestView) => {
-    audio.play("deny");
     // A purchase still in flight blocks a repeat silently; only an unavailable card has a reason.
     if (item.unavailable) setDenial((current) => ({ reason: item.unavailable_reason ?? "不可购买", seq: (current?.seq ?? 0) + 1 }));
-  }, [audio]);
+  }, []);
+  // CS2 HoverSlot plays buymenu_mouseover on every card, buyable or not.
   const handleItemHover = useCallback((item: ShopItemView | null) => {
     setHoveredItemId(item?.item_id ?? null);
-    if (item) audio.play(item.unavailable ? "unavailable" : "select");
+    if (item) audio.play("hover");
   }, [audio]);
+  // CS2 PurchaseSlot plays buymenu_purchase on any card, then sends `buy`; the server's refusal is
+  // silent. The cue acknowledges the attempt; only the authoritative result confirms the purchase.
   const handleItemPurchase = useCallback((item: ShopItemView) => {
+    audio.play("purchase");
     if (isShopItemPurchaseBlocked(item)) {
       deny(item);
       return;
     }
-    // This cue acknowledges submission; only the authoritative result confirms purchase.
-    audio.play("purchase");
     setDenial(null);
     onCommand(createPurchaseCommand(item.item_id));
   }, [audio, deny, onCommand]);
@@ -248,14 +250,15 @@ export const ShopPanel = memo(function ShopPanel({
     setHoveredRequestId(request?.request_id ?? null);
     if (!request) return;
     setPreviewItemId(request.item_id);
-    audio.play(request.unavailable ? "unavailable" : "select");
+    audio.play("hover");
   }, [audio]);
+  // Buying a teammate's request plays the purchase cue like any other purchase attempt.
   const handleFulfil = useCallback((request: ShopRequestView) => {
+    audio.play("purchase");
     if (isShopItemPurchaseBlocked(request)) {
       deny(request);
       return;
     }
-    audio.play("purchase");
     setDenial(null);
     onCommand(createFulfillCommand(request.request_id));
   }, [audio, deny, onCommand]);
@@ -324,6 +327,7 @@ export const ShopPanel = memo(function ShopPanel({
       if (!item) return;
       // Same rule as a click: owned_quantity is display-only (the pip), purchasable decides.
       if (isShopItemPurchaseBlocked(item)) {
+        audio.play("purchase");
         deny(item);
         setSelectedCategory(null);
         return;

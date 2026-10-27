@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { BUILTIN_SHOP_SOUND_SOURCES as SHOP_SOUND_SOURCES, createShopAudio } from "../src/features/shop/audio.ts";
 
-const sources = [SHOP_SOUND_SOURCES.select, SHOP_SOUND_SOURCES.unavailable, ...SHOP_SOUND_SOURCES.purchase];
-assert.equal(new Set(sources).size, 5);
+const sources = [SHOP_SOUND_SOURCES.hover, SHOP_SOUND_SOURCES.select, SHOP_SOUND_SOURCES.purchase];
+assert.equal(new Set(sources).size, 3);
 for (const source of sources) {
   const wav = await readFile(new URL(`../public${source}`, import.meta.url));
   assert.equal(wav.toString("ascii", 0, 4), "RIFF", source);
@@ -46,52 +46,52 @@ function fixture({ readyState = 4, playError, volume } = {}) {
       return clip;
     },
   });
-  return { player, clips, played, playedVolumes, advance: (ms = 500) => { time += ms; } };
+  const clip = (source) => clips.find((candidate) => candidate.source === source);
+  return { player, clips, clip, played, playedVolumes, advance: (ms = 500) => { time += ms; } };
 }
 
 const audio = fixture();
 audio.player.preload();
 audio.player.preload();
-assert.equal(audio.clips.length, 5, "preloading reuses all five clips");
+assert.equal(audio.clips.length, 3, "preloading reuses all three clips");
 assert.ok(audio.clips.every((clip) => clip.preload === "auto" && clip.loads === 1));
-assert.ok(audio.clips.every((clip) => clip.volume === 0.3), "preloaded clips start at the quieter navigation volume");
-audio.player.play("select");
-assert.equal(audio.playedVolumes.at(-1), 0.3, "selection feedback uses the CS2 mouseover volume");
-audio.advance(10);
-audio.player.play("select");
-assert.deepEqual(audio.played, [SHOP_SOUND_SOURCES.select], "rapid pointer or focus events do not pile up");
-audio.advance();
-audio.player.play("unavailable");
-assert.equal(audio.played.at(-1), SHOP_SOUND_SOURCES.unavailable);
-assert.equal(audio.playedVolumes.at(-1), 0.3, "unavailable hover uses the CS2 mouseover volume");
-audio.advance();
-audio.player.play("deny");
-assert.equal(audio.played.at(-1), SHOP_SOUND_SOURCES.unavailable);
-assert.equal(audio.playedVolumes.at(-1), 0.4, "purchase denial uses the CS2 failure volume");
-const countAfterDenial = audio.played.length;
-audio.advance(10);
-audio.player.play("select");
-assert.equal(audio.played.length, countAfterDenial, "a trailing hover cannot obscure action feedback");
-audio.advance();
-audio.player.play("unavailable");
-assert.equal(audio.played.at(-1), SHOP_SOUND_SOURCES.unavailable);
-assert.equal(audio.playedVolumes.at(-1), 0.3, "hover resets the volume of the clip shared with purchase denial");
+assert.ok(audio.clips.every((clip) => clip.volume === 0.3), "preloaded clips start at the quieter hover volume");
 
+// Hover: CS2 buymenu_mouseover at 0.3, whether the card can be bought or not.
+audio.player.play("hover");
+assert.equal(audio.played.at(-1), SHOP_SOUND_SOURCES.hover);
+assert.equal(audio.playedVolumes.at(-1), 0.3, "hover uses the CS2 mouseover volume");
+audio.advance(10);
+audio.player.play("hover");
+assert.deepEqual(audio.played, [SHOP_SOUND_SOURCES.hover], "rapid pointer or focus events do not pile up");
+
+// Select: CS2 buymenu_select at 0.5; a trailing hover neither plays nor cuts it.
+audio.advance();
+audio.player.play("select");
+assert.equal(audio.played.at(-1), SHOP_SOUND_SOURCES.select);
+assert.equal(audio.playedVolumes.at(-1), 0.5, "select uses the CS2 select volume");
+const countAfterSelect = audio.played.length;
+audio.advance(10);
+audio.player.play("hover");
+assert.equal(audio.played.length, countAfterSelect, "a trailing hover cannot obscure action feedback");
+audio.advance(200);
+audio.player.play("hover");
+assert.equal(audio.played.at(-1), SHOP_SOUND_SOURCES.hover, "hover resumes after the quiet window");
+assert.equal(audio.clip(SHOP_SOUND_SOURCES.select).paused, false, "a later hover does not cut the longer select sound");
+
+// Purchase: CS2 buymenu_purchase at 0.3, always the same single file.
 for (let index = 0; index < 3; index += 1) {
   audio.advance();
   audio.player.play("purchase");
 }
-assert.deepEqual(audio.played.slice(-3), SHOP_SOUND_SOURCES.purchase, "all three purchase variants are used");
-assert.deepEqual(audio.playedVolumes.slice(-3), [0.3, 0.3, 0.3], "all purchase variants use the CS2 purchase volume");
+assert.deepEqual(audio.played.slice(-3), [SHOP_SOUND_SOURCES.purchase, SHOP_SOUND_SOURCES.purchase, SHOP_SOUND_SOURCES.purchase], "purchase never rotates files");
+assert.deepEqual(audio.playedVolumes.slice(-3), [0.3, 0.3, 0.3], "purchase uses the CS2 purchase volume");
 const countAfterPurchase = audio.played.length;
 audio.advance(1);
 audio.player.play("purchase");
 assert.equal(audio.played.length, countAfterPurchase, "rapid repeated purchase cues are bounded");
 assert.ok(audio.clips.filter((clip) => !clip.paused).length <= 2, "bounded concurrent audio");
-audio.advance();
-audio.player.play("purchase");
-assert.equal(audio.played.at(-1), SHOP_SOUND_SOURCES.purchase[0], "purchase cycle wraps");
-assert.equal(audio.clips.length, 5, "interaction does not allocate more audio elements");
+assert.equal(audio.clips.length, 3, "interaction does not allocate more audio elements");
 assert.ok(audio.clips.every((clip) => clip.currentTime === 0 && clip.volume > 0 && clip.volume <= 1));
 const countBeforeStop = audio.played.length;
 audio.player.stop();
@@ -103,15 +103,15 @@ audio.advance();
 audio.player.play("purchase");
 audio.player.preload();
 assert.equal(audio.played.length, countBeforeDispose, "disposed player never plays again");
-assert.equal(audio.clips.length, 5);
+assert.equal(audio.clips.length, 3);
 
 const loading = fixture({ readyState: 0 });
-loading.player.play("select");
+loading.player.play("hover");
 assert.equal(loading.played.length, 0, "loading clips are skipped, not queued");
 loading.clips.forEach((clip) => { clip.readyState = 4; });
 await new Promise(setImmediate);
 assert.equal(loading.played.length, 0, "becoming ready does not replay stale feedback");
-loading.player.play("select");
+loading.player.play("hover");
 assert.equal(loading.played.length, 1, "a new interaction can play after loading");
 
 const blocked = fixture({ playError: new DOMException("Blocked until gesture", "NotAllowedError") });
@@ -124,18 +124,18 @@ await new Promise(setImmediate);
 assert.equal(blocked.played.length, 2, "later gestures may retry without an unhandled rejection");
 blocked.player.dispose();
 loading.player.dispose();
-assert.doesNotThrow(() => createShopAudio({ createAudio: () => null }).play("select"), "unavailable audio does not break the shop");
+assert.doesNotThrow(() => createShopAudio({ createAudio: () => null }).play("hover"), "unavailable audio does not break the shop");
 
 // The shop volume setting scales every cue's CS2 volume, from the next cue on.
 const close = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-9, `${label}: ${actual} != ${expected}`);
 const scaled = fixture({ volume: 0.3 });
 scaled.player.preload();
 scaled.clips.forEach((clip) => close(clip.volume, 0.09, "preload volume is scaled"));
-scaled.player.play("select");
-close(scaled.playedVolumes.at(-1), 0.09, "select at 30%");
+scaled.player.play("hover");
+close(scaled.playedVolumes.at(-1), 0.09, "hover at 30%");
 scaled.advance();
-scaled.player.play("deny");
-close(scaled.playedVolumes.at(-1), 0.12, "deny at 30%");
+scaled.player.play("select");
+close(scaled.playedVolumes.at(-1), 0.15, "select at 30%");
 scaled.player.setVolume(0);
 scaled.advance();
 scaled.player.play("purchase");
@@ -147,4 +147,4 @@ for (const [input, expected] of [[2, 0.3], [-1, 0], [Number.NaN, 0.3]]) {
   close(scaled.playedVolumes.at(-1), expected, `setVolume(${input}) is clamped`);
 }
 scaled.player.dispose();
-console.log("shop audio smoke: assets, preload, feedback volumes, volume setting, throttling, autoplay and cleanup ok");
+console.log("shop audio smoke: assets, preload, CS2 cue volumes, volume setting, throttling, autoplay and cleanup ok");

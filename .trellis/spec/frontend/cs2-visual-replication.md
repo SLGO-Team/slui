@@ -116,6 +116,13 @@ When static source and observed output disagree, the in-game screenshot wins.
   (`<install>/theme-pack/fonts|sounds/<original file name>`, read via
   the `theme` URI scheme in Tauri and `/theme-pack/*` in Vite dev). Missing
   files fall back one by one to bundled OFL fonts and synthesized sounds.
+- The shop plays only the three sounds CS2's buy menu references
+  (`src/features/shop/audio.ts`): hover (`buymenu_mouseover`, on every card,
+  buyable or not), category select (`buymenu_select`, also the request key) and
+  purchase (`buymenu_purchase`, one file, on every purchase or fulfil attempt
+  and a refund). CS2 has no buy-menu failure sound: a blocked card plays the
+  purchase cue and shows the failure banner, and a refused command only shows
+  the banner. Do not add failure, open or close sounds.
 - Register every Stratum2 (theme-pack) face in `src/shared/fonts.ts`, never in
   CSS `@font-face`; bundle-only OFL faces (Noto Sans SC, Chakra Petch) may stay in CSS.
   Each face carries metrics for both sources: Stratum2 keeps its calibrated

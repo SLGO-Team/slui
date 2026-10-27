@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createShopAudio } from "./audio";
-import type { ShopItemView } from "./model";
 
-export function useShopAudio(visible: boolean, items: readonly ShopItemView[], volume: number) {
+// A failed or rejected command plays nothing: CS2's buy menu has no failure sound, the banner reports it.
+export function useShopAudio(visible: boolean, volume: number) {
   const [audio] = useState(() => createShopAudio({ volume }));
   const mounted = useRef(false);
-  const previousCommands = useRef(new Map(items.map((item) => [item.item_id, item.commandState])));
 
   useEffect(() => {
     mounted.current = true;
@@ -24,16 +23,6 @@ export function useShopAudio(visible: boolean, items: readonly ShopItemView[], v
   useEffect(() => {
     if (!visible) audio.stop();
   }, [audio, visible]);
-
-  useEffect(() => {
-    const failed = items.some((item) => {
-      const previous = previousCommands.current.get(item.item_id);
-      return previous !== undefined && previous !== item.commandState
-        && (item.commandState === "failed" || item.commandState === "rejected");
-    });
-    previousCommands.current = new Map(items.map((item) => [item.item_id, item.commandState]));
-    if (visible && failed) audio.play("deny");
-  }, [audio, items, visible]);
 
   return audio;
 }

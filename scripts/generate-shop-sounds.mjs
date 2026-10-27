@@ -79,38 +79,35 @@ function wav(samples) {
   return Buffer.concat([header, data]);
 }
 
-// Hover/select: a light tick with a short glassy ring.
+// The three cues CS2's buy menu plays (see src/features/shop/audio.ts).
+
+// Hover (buymenu_mouseover, itemtile_rollover_09 is 27 ms): a single very short dry tick.
+const hover = render(0.028, [
+  ["noise", { at: 0, frequency: 8_200, q: 1.6, decay: 0.0018, gain: 1, seed: 7 }],
+  ["partial", { at: 0, frequency: 10_400, decay: 0.006, gain: 0.25 }],
+]);
+
+// Select (buymenu_select): a light tick with a short glassy ring.
 const select = render(0.3, [
   ["noise", { at: 0, frequency: 9_000, q: 1.2, decay: 0.002, gain: 1, seed: 11 }],
   ["partial", { at: 0, frequency: 7_650, decay: 0.045, gain: 0.35 }],
   ["partial", { at: 0, frequency: 12_900, decay: 0.03, gain: 0.18 }],
 ]);
 
-// Unavailable: a dry, muted double click.
-const unavailable = render(0.03, [
-  ["noise", { at: 0, frequency: 6_500, q: 2, decay: 0.0025, gain: 1, seed: 23 }],
-  ["noise", { at: 0.009, frequency: 4_800, q: 2, decay: 0.002, gain: 0.7, seed: 29 }],
+// Purchase (buymenu_purchase, one file): a soft pre-click, then a bright metallic latch at 80 ms.
+const purchase = render(0.3, [
+  ["noise", { at: 0, frequency: 5_200 * 0.97, q: 3, decay: 0.004, gain: 0.25, seed: 43 }],
+  ["noise", { at: 0.08, frequency: 7_400 * 0.97, q: 1.5, decay: 0.006, gain: 1, seed: 55 }],
+  ["partial", { at: 0.08, frequency: 6_300 * 0.97, decay: 0.09, gain: 0.3 }],
+  ["partial", { at: 0.08, frequency: 9_850 * 0.97, decay: 0.065, gain: 0.2 }],
+  ["partial", { at: 0.082, frequency: 15_600 * 0.97, decay: 0.02, gain: 0.08 }],
 ]);
-
-// Purchase: a soft pre-click, then a bright metallic latch at 80 ms.
-function purchase(variant) {
-  const detune = [1, 1.035, 0.97][variant];
-  return render([0.16, 0.4, 0.3][variant], [
-    ["noise", { at: 0, frequency: 5_200 * detune, q: 3, decay: 0.004, gain: 0.25, seed: 41 + variant }],
-    ["noise", { at: 0.08, frequency: 7_400 * detune, q: 1.5, decay: 0.006, gain: 1, seed: 53 + variant }],
-    ["partial", { at: 0.08, frequency: 6_300 * detune, decay: 0.05 + variant * 0.02, gain: 0.3 }],
-    ["partial", { at: 0.08, frequency: 9_850 * detune, decay: 0.035 + variant * 0.015, gain: 0.2 }],
-    ["partial", { at: 0.082, frequency: 15_600 * detune, decay: 0.02, gain: 0.08 }],
-  ]);
-}
 
 await mkdir(OUT, { recursive: true });
 const files = {
+  "hover.wav": hover,
   "select.wav": select,
-  "unavailable.wav": unavailable,
-  "purchase-1.wav": purchase(0),
-  "purchase-2.wav": purchase(1),
-  "purchase-3.wav": purchase(2),
+  "purchase.wav": purchase,
 };
 for (const [name, samples] of Object.entries(files)) {
   await writeFile(new URL(name, OUT), wav(samples));

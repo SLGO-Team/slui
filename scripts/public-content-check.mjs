@@ -14,6 +14,8 @@ const FILE_RULES = [
   [/stratum2[^/]*\.(otf|ttf|woff2?)$/i, "Stratum2 font (theme pack only)"],
   [/\.vtex(_c)?$/i, "Source 2 texture"],
   [/radial_[^/]*\.wav$/i, "CS2 shop sound (theme pack only)"],
+  [/itemtile_rollover_[^/]*\.wav$/i, "CS2 shop sound (theme pack only)"],
+  [/inventory_item_select_[^/]*\.wav$/i, "CS2 shop sound (theme pack only)"],
   [/^public\/panorama\//, "Panorama asset tree"],
 ];
 for (const file of files) {

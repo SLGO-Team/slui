@@ -1,45 +1,36 @@
 import { currentThemePack, themePackUrl, type ThemePack } from "../../shared/themePack.ts";
 
-export type ShopSoundSources = {
-  select: string;
-  unavailable: string;
-  purchase: readonly [string, string, string];
-};
+// The three sounds CS2's buy menu plays; each event is a single file. It has no failure sound: a
+// card the player cannot buy still plays the purchase cue, and a refused command stays silent.
+export type ShopSoundCue = "hover" | "select" | "purchase";
+export type ShopSoundSources = Record<ShopSoundCue, string>;
 
 // Synthesized by scripts/generate-shop-sounds.mjs.
 export const BUILTIN_SHOP_SOUND_SOURCES: ShopSoundSources = {
+  hover: "/assets/sounds/shop/hover.wav",
   select: "/assets/sounds/shop/select.wav",
-  unavailable: "/assets/sounds/shop/unavailable.wav",
-  purchase: ["/assets/sounds/shop/purchase-1.wav", "/assets/sounds/shop/purchase-2.wav", "/assets/sounds/shop/purchase-3.wav"],
+  purchase: "/assets/sounds/shop/purchase.wav",
 };
 
-// Theme-pack files that replace each bundled sound when present.
+// Theme-pack files (CS2's own) that replace each bundled sound when present.
 export const THEME_PACK_SHOP_SOUNDS: ShopSoundSources = {
-  select: "sounds/radial_canselect_01.wav",
-  unavailable: "sounds/radial_cantselect_01.wav",
-  purchase: ["sounds/radial_menu_buy_01.wav", "sounds/radial_menu_buy_02.wav", "sounds/radial_menu_buy_03.wav"],
+  hover: "sounds/itemtile_rollover_09.wav",
+  select: "sounds/inventory_item_select_01.wav",
+  purchase: "sounds/radial_menu_buy_03.wav",
 };
 
+// Each cue falls back on its own, so an older pack still supplies the sounds it has.
 export function resolveShopSoundSources(pack: ThemePack): ShopSoundSources {
-  const pick = (file: string, builtin: string) => themePackUrl(pack, file) ?? builtin;
-  const [buy1, buy2, buy3] = BUILTIN_SHOP_SOUND_SOURCES.purchase;
-  const [packBuy1, packBuy2, packBuy3] = THEME_PACK_SHOP_SOUNDS.purchase;
-  return {
-    select: pick(THEME_PACK_SHOP_SOUNDS.select, BUILTIN_SHOP_SOUND_SOURCES.select),
-    unavailable: pick(THEME_PACK_SHOP_SOUNDS.unavailable, BUILTIN_SHOP_SOUND_SOURCES.unavailable),
-    purchase: [pick(packBuy1, buy1), pick(packBuy2, buy2), pick(packBuy3, buy3)],
-  };
+  const pick = (cue: ShopSoundCue) => themePackUrl(pack, THEME_PACK_SHOP_SOUNDS[cue]) ?? BUILTIN_SHOP_SOUND_SOURCES[cue];
+  return { hover: pick("hover"), select: pick("select"), purchase: pick("purchase") };
 }
 
-export type ShopSoundCue = "select" | "unavailable" | "purchase" | "deny";
-
-// CS2 buymenu_mouseover/purchase/failure volumes; select also handles hover here.
-// https://github.com/SteamTracking/GameTracking-CS2/blob/8d7a89560bdbed4d65fd6728a9d485066ecccf67/game/csgo/pak01_dir/soundevents/game_sounds_ui.vsndevts#L8182
+// CS2 UIPanorama.buymenu_mouseover / buymenu_select / buymenu_purchase volumes.
+// https://github.com/SteamTracking/GameTracking-CS2/blob/8d7a89560bdbed4d65fd6728a9d485066ecccf67/game/csgo/pak01_dir/soundevents/game_sounds_ui.vsndevts#L8175-L8309
 const SHOP_SOUND_VOLUMES = {
-  select: 0.3,
-  unavailable: 0.3,
+  hover: 0.3,
+  select: 0.5,
   purchase: 0.3,
-  deny: 0.4,
 } as const satisfies Record<ShopSoundCue, number>;
 
 const clampVolume = (value: number) => Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
@@ -67,7 +58,6 @@ export function createShopAudio({
   let action: ShopAudioElement | null = null;
   let lastNavigationAt = -Infinity;
   let quietNavigationUntil = -Infinity;
-  let purchaseIndex = 0;
   let disposed = false;
   let scale = clampVolume(volume);
 
@@ -81,14 +71,14 @@ export function createShopAudio({
 
   function preload() {
     if (disposed) return;
-    for (const source of [sources.select, sources.unavailable, ...sources.purchase]) {
+    for (const source of [sources.hover, sources.select, sources.purchase]) {
       if (clips.has(source)) continue;
       try {
         const clip = createAudio(source);
         if (!clip) continue;
         clips.set(source, clip);
         clip.preload = "auto";
-        clip.volume = SHOP_SOUND_VOLUMES.select * scale;
+        clip.volume = SHOP_SOUND_VOLUMES.hover * scale;
         clip.load();
       } catch (error) {
         reportPlaybackError(source, error);
@@ -107,12 +97,12 @@ export function createShopAudio({
     if (disposed) return;
     preload();
     const timestamp = now();
-    const isNavigation = cue === "select" || cue === "unavailable";
+    // Hover is navigation: throttled, quiet right after an action, and it only cuts another hover,
+    // so a following mouse-over never cuts the longer select or purchase sound.
+    const isNavigation = cue === "hover";
     if (isNavigation && (timestamp < quietNavigationUntil || timestamp - lastNavigationAt < 60)) return;
     if (!isNavigation && timestamp - (lastAction.get(cue) ?? -Infinity) < 100) return;
-    const source = cue === "purchase"
-      ? sources.purchase[purchaseIndex]
-      : cue === "deny" ? sources.unavailable : sources[cue];
+    const source = sources[cue];
     const clip = clips.get(source);
     // Never enqueue sounds behind loading or autoplay unlocking.
     if (!clip || clip.readyState < 2) return;
@@ -126,7 +116,6 @@ export function createShopAudio({
       lastAction.set(cue, timestamp);
       quietNavigationUntil = timestamp + 140;
     }
-    if (cue === "purchase") purchaseIndex = (purchaseIndex + 1) % sources.purchase.length;
     try {
       clip.volume = SHOP_SOUND_VOLUMES[cue] * scale;
       clip.currentTime = 0;
