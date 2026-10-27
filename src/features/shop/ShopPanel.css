@@ -115,7 +115,8 @@
 .shop-card { position: relative; display: block; box-sizing: border-box; width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; color: #fff; background: radial-gradient(ellipse 55% 55% at 50% 50%, rgb(165 165 165 / 30%), rgb(85 85 85 / 20%)); border: 1px solid transparent; border-radius: 5px; filter: brightness(1); cursor: pointer; transition: filter 0s ease-in-out; }
 /* Keyed on unavailability, not aria-disabled: an in-flight purchase must keep the hover highlight. */
 .shop-card:hover:not(.shop-card--disabled), .shop-card:focus-visible:not(.shop-card--disabled) { filter: brightness(2.2); outline: none; transition-duration: .2s; }
-.shop-card--disabled { cursor: not-allowed; }
+/* CS2 keeps its arrow over a card it cannot buy; the greys below are the only unavailable cue. */
+.shop-card--disabled { cursor: default; }
 /* buymenu.css:672-686 - "cannot buy" swaps the card fill and washes the icon to
    64,64,64 and the name/price to 128,128,128. There is only one unavailable
    visual; see research/cs2ui-buymenu.md section 9.2. */
@@ -184,7 +185,7 @@
 .shop-request__name { overflow: hidden; text-overflow: ellipsis; }
 .shop-request__price { flex: 0 0 auto; font-family: "Stratum2 Shop Mono", "Stratum2 Shop", monospace; font-weight: 700; }
 /* Cannot pay it now: the card's cant-buy greys (buymenu.css:672-686). */
-.shop-request--disabled { cursor: not-allowed; }
+.shop-request--disabled { cursor: default; }
 .shop-request--disabled .shop-request__icon { background: rgb(64 64 64); }
 .shop-request--disabled .shop-request__label { color: rgb(128 128 128); }
 /* 350px card + 32px inset = the 382px this column contributes; see the geometry
