@@ -514,8 +514,8 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 
 /* ---- Home: Steam account tile ---- */
 
-/* Avatar in a HUD focus frame on the left, the account beside it. A blurred copy of the avatar tints
-   the tile from behind, so every account gets its own colour. */
+/* Avatar in a HUD focus frame on the left, the account beside it. A blurred, desaturated copy of the
+   avatar leaves a faint glow around it: a vivid wash stands out too much on the dark home window. */
 .home-steam { flex-direction: row; align-items: flex-start; gap: 14px; padding-left: 14px; }
 .home-steam::before { z-index: 1; }
 .home-steam__glow {
@@ -525,12 +525,12 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
   width: 260px;
   height: 260px;
   object-fit: cover;
-  opacity: 0.34;
-  filter: blur(34px) saturate(1.5);
+  opacity: 0.2;
+  filter: blur(40px) saturate(0.55);
   transform: translateY(-50%);
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 35%, transparent 88%);
-  mask-image: linear-gradient(90deg, #000 35%, transparent 88%);
+  -webkit-mask-image: linear-gradient(90deg, #000 20%, transparent 62%);
+  mask-image: linear-gradient(90deg, #000 20%, transparent 62%);
   animation: home-steam-glow-in 600ms ease-out;
 }
 @keyframes home-steam-glow-in { from { opacity: 0; } }
