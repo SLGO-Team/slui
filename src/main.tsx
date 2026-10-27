@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { currentWindowLabel } from "./platform/desktop";
+import { currentWindowLabel, isTauri } from "./platform/desktop";
 import { loadThemePack } from "./platform/themePack";
 import { registerFontFaces } from "./shared/fonts";
 import { setThemePack } from "./shared/themePack";
@@ -25,6 +25,9 @@ void Promise.all([currentWindowLabel(), loadThemePack()]).then(async ([label, th
     const { HomeApp } = await import("./app/home/HomeApp");
     root = <HomeApp />;
   } else {
+    // The overlay stands in for CS2's own UI, which has no context menu: WebView2's default one
+    // (Back / Reload / Inspect) must never open over the game. The browser preview keeps it for DevTools.
+    if (isTauri()) window.addEventListener("contextmenu", (event) => event.preventDefault());
     // The mocks load only in the `mock` mode; Vite replaces MODE at build time, so packages never include them.
     const harness = import.meta.env.MODE === "mock" ? await import("./mocks/harness") : null;
     const { default: App } = await import("./App");
