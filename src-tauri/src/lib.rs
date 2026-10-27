@@ -1,6 +1,7 @@
 mod backdrop;
 mod settings;
 mod sidecar_socket;
+mod steam_profile;
 mod theme_pack;
 mod updater;
 
@@ -1081,6 +1082,7 @@ pub fn run() {
             save_settings,
             get_game_running,
             get_current_steam_identity,
+            steam_profile::get_steam_profile,
             get_game_foreground,
             backdrop::set_backdrop_regions,
             backdrop::set_backdrop_options,

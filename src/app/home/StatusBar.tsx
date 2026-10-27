@@ -1,8 +1,10 @@
 import type { SessionStatusSnapshot } from "../../platform/desktop";
 import type { UpdateState } from "../../platform/updater";
 import { homeServerStatus } from "../updateModel";
-import { AccountIcon, GameIcon, ServerIcon } from "./icons";
+import { GameIcon, ServerIcon } from "./icons";
 import type { Tone } from "./status";
+import type { SteamAccount } from "./steamAccount";
+import { SteamTile } from "./SteamTile";
 
 function StatusTile({ icon, name, value, tone, children }: {
   icon: React.ReactNode;
@@ -22,8 +24,9 @@ function StatusTile({ icon, name, value, tone, children }: {
   </div>;
 }
 
-export function StatusBar({ session, gameRunning, update, onRetry }: {
+export function StatusBar({ session, steam, gameRunning, update, onRetry }: {
   session: SessionStatusSnapshot | null;
+  steam: SteamAccount;
   gameRunning: boolean | null;
   update: UpdateState | null;
   onRetry(): void;
@@ -32,8 +35,7 @@ export function StatusBar({ session, gameRunning, update, onRetry }: {
   return <section className="home-section" aria-labelledby="home-status-title">
     <h2 id="home-status-title" className="home-section__title">连接状态<span className="home-eyebrow">STATUS</span></h2>
     <div className="home-status">
-      <StatusTile icon={<AccountIcon />} name="Steam" tone={!session ? "muted" : session.steamId ? "ok" : "muted"}
-        value={!session ? "正在获取…" : session.steamId ? session.steamId : "未检测到 Steam 登录"} />
+      <SteamTile account={steam} />
       <StatusTile icon={<GameIcon />} name="游戏" tone={gameRunning ? "ok" : "muted"}
         value={gameRunning === null ? "正在检测…" : gameRunning ? "运行中" : "未运行"} />
       <StatusTile icon={<ServerIcon />} name="服务器" tone={server.tone} value={server.label}>
