@@ -10,6 +10,8 @@ import type { OverlaySettings as Overlay } from "../../platform/overlaySettings"
 import { createSettingsStore, DEFAULT_APP_SETTINGS, type AppSettings } from "../../platform/settings";
 import { readBackendConfig } from "../../platform/backend";
 import { createUpdateSource, type UpdateState } from "../../platform/updater";
+import { createSteamProfileSource, EMPTY_STEAM_PROFILE } from "../../platform/steamProfile";
+import { readSteamPreview } from "../../mocks/steamPreview";
 import { readUpdatePreview } from "../../mocks/updatePreview";
 import { aboutUpdate, homeServerStatus, requiredBanner, titleBarUpdate, type UpdateAction } from "../updateModel";
 import { AboutSettings } from "./AboutSettings";
@@ -21,6 +23,7 @@ import { SystemSettings } from "./SystemSettings";
 import { OverlaySwitch } from "./OverlaySwitch";
 import { RadarSettings } from "./RadarSettings";
 import { StatusBar } from "./StatusBar";
+import { steamAccount, type LoadedSteamProfile } from "./steamAccount";
 import { TitleBar } from "./TitleBar";
 import { UpdateBanner } from "./UpdateBanner";
 import "./home.css";
@@ -49,6 +52,8 @@ export function HomeApp() {
   const windowControls = useMemo(() => createWindowControls(), []);
   const updateSource = useMemo(() => createUpdateSource(undefined, undefined,
     import.meta.env.DEV ? readUpdatePreview(window.location.search) : null), []);
+  const steamProfiles = useMemo(() => createSteamProfileSource(), []);
+  const steamPreview = useMemo(() => import.meta.env.DEV ? readSteamPreview(window.location.search) : null, []);
 
   const [page, setPage] = useState<HomePage>("home");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -58,6 +63,7 @@ export function HomeApp() {
   const [overlayError, setOverlayError] = useState<string | null>(null);
   const [gameRunning, setGameRunning] = useState<boolean | null>(null);
   const [session, setSession] = useState<SessionStatusSnapshot | null>(null);
+  const [steamProfile, setSteamProfile] = useState<LoadedSteamProfile | null>(null);
   const [update, setUpdate] = useState<UpdateState | null>(null);
   const saveTimer = useRef<number | null>(null);
   const settingsRef = useRef(settings);
@@ -110,6 +116,28 @@ export function HomeApp() {
     const timer = window.setInterval(sessionSource.requestSnapshot, 2_000);
     return () => window.clearInterval(timer);
   }, [session, sessionSource]);
+
+  // Steam writes the persona name at sign-in and refreshes its avatar cache on its own; read both
+  // again whenever home is shown, like the session snapshot.
+  const steamId = session?.steamId ?? null;
+  useEffect(() => {
+    if (!steamId) return undefined;
+    let active = true;
+    const read = () => void steamProfiles.get(steamId).then((profile) => {
+      if (active) setSteamProfile({ steamId, profile });
+    }).catch((error: unknown) => {
+      console.error("Unable to read the Steam profile", error);
+      // A failed re-read keeps what the last read found for this account.
+      if (active) setSteamProfile((current) => current?.steamId === steamId ? current : { steamId, profile: EMPTY_STEAM_PROFILE });
+    });
+    read();
+    const onVisible = () => { if (document.visibilityState === "visible") read(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [steamId, steamProfiles]);
 
   // The home window starts the update checks (Rust keeps them running while it is hidden).
   useEffect(() => {
@@ -170,7 +198,8 @@ export function HomeApp() {
       {page === "home" ? <div className="home-page">
         {banner ? <UpdateBanner banner={banner} onAction={updateAction} /> : null}
         <OverlaySwitch state={overlay} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
-        <StatusBar session={session} gameRunning={gameRunning} update={update} onRetry={sessionSource.retry} />
+        <StatusBar session={session} steam={steamPreview ?? steamAccount(session, steamProfile)} gameRunning={gameRunning}
+          update={update} onRetry={sessionSource.retry} />
         <KeyHints shopKey={settings.hotkeys.shop} scoreboardKey={settings.hotkeys.scoreboard} />
       </div> : <>
         <header className="home-page__header">

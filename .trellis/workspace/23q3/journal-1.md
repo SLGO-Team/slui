@@ -1146,3 +1146,25 @@ Brought the plugin's purchase refunds into the SLUI shop. Protocol v0: item refu
 ### Status
 
 [OK] **Completed**
+
+
+## Session 49: Home Steam tile: avatar and persona name
+<!-- trellis-session: v=2 fp=0ee239888074e32a -->
+
+**Date**: 2026-10-27
+**Task**: Home Steam tile: avatar and persona name
+**Branch**: `feat/home-steam-profile`
+
+### Summary
+
+Home Steam status tile now shows the signed-in account's avatar (HUD focus frame, blurred tint) and persona name above the SteamID. New get_steam_profile Tauri command reads loginusers.vdf PersonaName and config/avatarcache/<id>.png from the local Steam client (SteamPath registry), no network; returns a data: URL. Rust VDF lexer/parser with unit tests and an ignored local probe; TS adapter + steamAccount model in desktop-adapters smoke; ?steam=<scene> DEV previews; Steam column widened to 1.6fr so the SteamID fits at the 820 px minimum. Spec: command table, Steam tile contract, preview exception.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2d92010` | feat(home): show the Steam avatar and persona name on the status tile |
+
+### Status
+
+[OK] **Completed**

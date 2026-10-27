@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 48
-- **Last Active**: 2026-10-26
+- **Total Sessions**: 49
+- **Last Active**: 2026-10-27
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1148 | Active |
+| `journal-1.md` | ~1170 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 49 | 2026-10-27 | Home Steam tile: avatar and persona name | `2d92010` | `feat/home-steam-profile` |
 | 48 | 2026-10-26 | SLUI shop purchase refunds (CS2 sellback) | `0cad8c1` | `feat/shop-refund` |
 | 47 | 2026-10-25 | CS2 team select menu | `176475e`, `3eb9cf1`, `d25778a`, `f04d455`, `2182b7f`, `484082b`, `8a16fa8` | `feat/team-select` |
 | 46 | 2026-10-24 | Move windows-sys to 0.61 | `ad9eca3` | `build/windows-sys-0.61` |

@@ -4,6 +4,8 @@ import {
   DISABLED_OVERLAY, parseOverlayState, parseSessionStatus,
 } from "../src/platform/desktop.ts";
 import { SERVER_STATUS, serverStatus } from "../src/app/home/status.ts";
+import { steamAccount, steamTone } from "../src/app/home/steamAccount.ts";
+import { createSteamProfileSource, EMPTY_STEAM_PROFILE, parseSteamProfile } from "../src/platform/steamProfile.ts";
 
 // In-process bus that records emits and delivers to listeners, like two windows sharing app events.
 function createFakeBus() {
@@ -121,4 +123,40 @@ for (const bad of [null, 1, {}, { enabled: "yes", interactive: false }, { enable
   assert.equal(targets["slgo-session-retry"], "overlay");
 }
 
-console.log("desktop adapters smoke: overlay state, game process and session status bridge ok");
+// Steam profile: Rust reads it from the local Steam client; every part may be missing.
+{
+  const AVATAR = "data:image/png;base64,iVBORw0KGgo=";
+  const nova = { personaName: "Nova", avatarUrl: AVATAR };
+  assert.deepEqual(parseSteamProfile(nova), nova);
+  assert.deepEqual(parseSteamProfile(EMPTY_STEAM_PROFILE), EMPTY_STEAM_PROFILE);
+  for (const bad of [null, "Nova", {}, { personaName: 7, avatarUrl: null }, { personaName: null },
+    { personaName: null, avatarUrl: "https://avatars.steamstatic.com/a.jpg" },
+    { personaName: null, avatarUrl: "data:image/svg+xml;base64,PHN2Zz4=" },
+    { personaName: null, avatarUrl: "data:image/png;base64,\"onerror=\"" }]) {
+    assert.equal(parseSteamProfile(bad), null, JSON.stringify(bad));
+  }
+
+  const calls = [];
+  const source = createSteamProfileSource(async (command, args) => {
+    calls.push([command, args]);
+    return args.steamId === "76561198000000001" ? nova : { personaName: 1 };
+  });
+  assert.deepEqual(await source.get("76561198000000001"), nova);
+  assert.deepEqual(calls, [["get_steam_profile", { steamId: "76561198000000001" }]], "the SteamID goes to Rust as steamId");
+  await assert.rejects(source.get("76561198000000002"), /Invalid Steam profile/, "a malformed answer is an error, not an empty profile");
+  assert.deepEqual(await createSteamProfileSource(null).get("76561198000000001"), EMPTY_STEAM_PROFILE, "browsers have no Steam client");
+
+  const session = { status: "live", steamId: "76561198000000001", detail: null, endReason: null };
+  assert.deepEqual(steamAccount(null, null), { kind: "loading" });
+  assert.deepEqual(steamAccount({ ...session, steamId: null }, { steamId: "76561198000000001", profile: nova }), { kind: "signed-out" });
+  assert.deepEqual(steamAccount(session, null), { kind: "signed-in", steamId: session.steamId, profile: null }, "reading");
+  assert.deepEqual(steamAccount(session, { steamId: session.steamId, profile: nova }),
+    { kind: "signed-in", steamId: session.steamId, profile: nova });
+  assert.deepEqual(steamAccount(session, { steamId: "76561198000000002", profile: nova }),
+    { kind: "signed-in", steamId: session.steamId, profile: null }, "another account's profile is never shown");
+  assert.equal(steamTone(steamAccount(session, null)), "ok");
+  assert.equal(steamTone(steamAccount({ ...session, steamId: null }, null)), "muted");
+  assert.equal(steamTone(steamAccount(null, null)), "muted");
+}
+
+console.log("desktop adapters smoke: overlay state, game process, session status bridge and Steam profile ok");

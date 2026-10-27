@@ -478,8 +478,9 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 /* ---- Home: status tiles ---- */
 
 .home-section { display: flex; flex-direction: column; gap: 12px; }
-/* The Steam tile holds a 17-digit SteamID, so it gets the widest column. */
-.home-status { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+/* The Steam tile holds an avatar beside the name and a 17-digit SteamID, so it gets the widest column: the
+   SteamID still fits whole at the window's minimum width. */
+.home-status { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .home-tile {
   position: relative;
   display: flex;
@@ -510,6 +511,85 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 }
 .home-tile__detail { overflow: hidden; color: var(--home-muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .home-tile .home-button { align-self: flex-start; margin-top: 2px; }
+
+/* ---- Home: Steam account tile ---- */
+
+/* Avatar in a HUD focus frame on the left, the account beside it. A blurred, desaturated copy of the
+   avatar leaves a faint glow around it: a vivid wash stands out too much on the dark home window. */
+.home-steam { flex-direction: row; align-items: flex-start; gap: 14px; padding-left: 14px; }
+.home-steam::before { z-index: 1; }
+.home-steam__glow {
+  position: absolute;
+  top: 50%;
+  left: -56px;
+  width: 260px;
+  height: 260px;
+  object-fit: cover;
+  opacity: 0.2;
+  filter: blur(40px) saturate(0.55);
+  transform: translateY(-50%);
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 20%, transparent 62%);
+  mask-image: linear-gradient(90deg, #000 20%, transparent 62%);
+  animation: home-steam-glow-in 600ms ease-out;
+}
+@keyframes home-steam-glow-in { from { opacity: 0; } }
+
+.home-steam__frame {
+  --bracket: var(--home-bracket);
+  --l: 10px;
+  --w: 2px;
+  position: relative;
+  flex: none;
+  padding: 5px;
+  background:
+    linear-gradient(var(--bracket), var(--bracket)) top left / var(--l) var(--w),
+    linear-gradient(var(--bracket), var(--bracket)) top left / var(--w) var(--l),
+    linear-gradient(var(--bracket), var(--bracket)) top right / var(--l) var(--w),
+    linear-gradient(var(--bracket), var(--bracket)) top right / var(--w) var(--l),
+    linear-gradient(var(--bracket), var(--bracket)) bottom left / var(--l) var(--w),
+    linear-gradient(var(--bracket), var(--bracket)) bottom left / var(--w) var(--l),
+    linear-gradient(var(--bracket), var(--bracket)) bottom right / var(--l) var(--w),
+    linear-gradient(var(--bracket), var(--bracket)) bottom right / var(--w) var(--l);
+  background-repeat: no-repeat;
+}
+.home-steam[data-signed-in="true"] .home-steam__frame { --bracket: var(--home-orange); }
+.home-steam__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(135deg, rgba(236, 242, 248, 0.035) 0 2px, transparent 2px 7px),
+    var(--home-raised);
+  color: var(--home-muted);
+}
+.home-steam__avatar img { display: block; width: 100%; height: 100%; object-fit: cover; animation: home-steam-in 320ms ease-out; }
+/* Hairline over the picture so light avatars keep an edge against the frame. */
+.home-steam__avatar::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px rgba(236, 242, 248, 0.1); }
+
+.home-steam__body { position: relative; display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.home-steam__title {
+  min-height: 25px;
+  overflow: hidden;
+  font: 700 19px/25px var(--home-font-latin);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  user-select: text;
+  animation: home-steam-in 240ms ease-out;
+}
+.home-steam__title--muted { color: var(--home-text-2); font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.home-steam__detail { overflow: hidden; color: var(--home-muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.home-steam__id {
+  font: 600 12.5px/16px var(--home-font-latin);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+}
+@keyframes home-steam-in { from { opacity: 0; transform: translateY(3px); } }
 
 .home-keys { display: flex; flex-wrap: wrap; gap: 10px 28px; }
 .home-keys__item { display: flex; align-items: center; gap: 10px; color: var(--home-text-2); font-size: 13px; }
@@ -698,7 +778,8 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-main, [data-tone="pending"] .home-dot, .home-keycap[data-capturing="true"] { animation: none; }
+  .home-main, [data-tone="pending"] .home-dot, .home-keycap[data-capturing="true"],
+  .home-steam__glow, .home-steam__avatar img, .home-steam__title { animation: none; }
   .home-hero__scan, .home-hero__mark-ping { display: none; }
   .home-hero, .home-hero *, .home-hero::before, .home-hero::after, .home-hero *::before {
     transition-duration: 1ms !important;

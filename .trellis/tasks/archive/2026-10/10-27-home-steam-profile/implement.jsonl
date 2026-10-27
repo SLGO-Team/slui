@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Home window contract: Tauri command table, session snapshot bridge, home fonts"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Platform adapters own invoke calls; mock boundary; no swallowed errors"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "platform/ vs app/home placement, brand tokens"}

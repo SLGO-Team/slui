@@ -623,6 +623,16 @@ by window label (`?window=home` in a browser preview).
   `is_bindable_shop_hotkey()` / `is_bindable_scoreboard_hotkey()` /
   `validate_hotkeys()` must accept the same sets.
   Action state (`alternateZoomActive`) is never saved.
+- The home Steam tile shows the account in the overlay's session snapshot
+  (`steamId`) with the persona name and avatar the local Steam client keeps for
+  it (`src-tauri/src/steam_profile.rs`): `<SteamPath>/config/loginusers.vdf`
+  `users.<SteamID64>.PersonaName` and `config/avatarcache/<SteamID64>.png`,
+  `SteamPath` from `HKCU\Software\Valve\Steam`. No Web API key and no request
+  to steamcommunity.com (often unreachable from mainland China). Home re-reads
+  them when the SteamID changes and whenever it is shown again; a profile read
+  for another SteamID is never shown, and each missing part has its own state
+  (placeholder avatar, SteamID as the title). Browser previews pick a fixed tile
+  with `?steam=<scene>` (`src/mocks/steamPreview.ts`).
 - Home is the only settings writer. It applies edits locally, saves with a
   150ms debounce, and does not consume `slgo-settings-changed` (that would
   echo stale values back during a slider drag).
@@ -638,6 +648,7 @@ by window label (`?window=home` in a browser preview).
 | `set_scoreboard_capture(capture)` | overlay | right-click goes to the scoreboard while true and the game is foreground |
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
 | `get_game_running()` | home | `boolean` (SCPSL process present, independent of focus) |
+| `get_steam_profile(steamId)` | home (via `steamProfile.ts`) | `{ personaName, avatarUrl }`, each `string \| null`; `avatarUrl` is a PNG/JPEG `data:` URL; error unless `steamId` is 17 digits |
 | `sidecar_open(url, onEvent: Channel)` / `sidecar_send(id, data)` / `sidecar_close(id, code, reason)` | overlay (via `sidecarSocket.ts`) | socket id; `onEvent` gets `{kind:"open"}`, `{kind:"message",data}`, then exactly one `{kind:"close",code,reason}`; send/close on a closed id are dropped |
 | `updater_start(controlPlaneUrl)` | home (via `updater.ts`) | `UpdateState`; the first call starts the check loop, later calls only return the state; error for a non-http(s) URL |
 | `get_update_state()` | both | `UpdateState` |
@@ -656,7 +667,7 @@ by window label (`?window=home` in a browser preview).
 | `slui://update-state` | Rust → all | `UpdateState` (see 3.2), on every change |
 
 React components reach all of these only through `src/platform/desktop.ts`,
-`src/platform/settings.ts` and `src/platform/updater.ts`. Browser previews use a
+`src/platform/settings.ts`, `src/platform/steamProfile.ts` and `src/platform/updater.ts`. Browser previews use a
 `BroadcastChannel` and `localStorage` so a home tab and an overlay tab still drive
 each other.
 
