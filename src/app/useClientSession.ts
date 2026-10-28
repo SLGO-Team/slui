@@ -13,6 +13,8 @@ export function useClientSession(
   onStatus?: (status: ConnectionStatus) => void,
   /** The SLUI version a required update asks for; while set, nothing connects. */
   updateRequired: string | null = null,
+  /** Whether the game process runs (null until known): a closed game ends the session and connects nothing. */
+  gameRunning: boolean | null = true,
 ) {
   const [state, dispatch] = useReducer(clientSessionReducer, initialClientSessionState);
   const [retryKey, requestRetry] = useReducer((value: number) => value + 1, 0);
@@ -22,6 +24,8 @@ export function useClientSession(
   const statusHandlerRef = useRef(onStatus);
   const failuresRef = useRef(0);
   const liveSinceRef = useRef<number | null>(null);
+  // Every run of the attempt effect gets a new number, so a game start or exit never reuses the last one's.
+  const attemptRef = useRef(0);
   // Set only by the retry timer; a manual retry or an account switch shows its progress.
   const backgroundRetryRef = useRef(false);
   stateRef.current = state;
@@ -35,7 +39,8 @@ export function useClientSession(
   }, []);
 
   useEffect(() => {
-    const attempt = retryKey + 1;
+    if (gameRunning === null) return undefined;
+    const attempt = ++attemptRef.current;
     if (updateRequired) {
       dispatch({ type: "failed", attempt, status: "incompatible", detail: updateRequiredDetail(updateRequired), retry: "none" });
       statusHandlerRef.current?.("incompatible");
@@ -51,7 +56,7 @@ export function useClientSession(
       onDiagnostic: (diagnostic) => diagnosticHandlerRef.current?.(diagnostic),
       onStatus: (status) => statusHandlerRef.current?.(status),
       isCurrent: () => current,
-    }, quiet).then((cleanup) => {
+    }, quiet, gameRunning).then((cleanup) => {
       if (current) unsubscribe = cleanup;
       else cleanup();
     });
@@ -61,7 +66,7 @@ export function useClientSession(
       unsubscribe();
       void dependencies.connection.disconnect();
     };
-  }, [dependencies, retryKey, updateRequired]);
+  }, [dependencies, gameRunning, retryKey, updateRequired]);
 
   useEffect(() => {
     let active = true;

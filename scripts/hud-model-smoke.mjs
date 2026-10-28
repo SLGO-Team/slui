@@ -108,6 +108,11 @@ function hudFor(snapshotOverrides, nowMs = receivedAt) {
   assert.equal(ended.hasSnapshot, false);
   assert.equal(ended.availability, "disconnected");
   assert.equal(ended.statusLabel, "SERVER RESTARTING", "without a reason an end reads as a restart");
+  for (const status of ["not-in-game", "game-not-running"]) {
+    const over = selectRoundHud(roundHudReducer(state, { type: "connection", status }), receivedAt);
+    assert.equal(over.hasSnapshot, false, `${status} ends the match`);
+    assert.equal(over.availability, "disconnected");
+  }
   const endedState = roundHudReducer(state, { type: "connection", status: "ended" });
   assert.equal(selectRoundHud(endedState, receivedAt, "server-shutdown").statusLabel, "SERVER CLOSED");
   assert.equal(selectRoundHud(endedState, receivedAt, "round-restart").statusLabel, "SERVER RESTARTING");

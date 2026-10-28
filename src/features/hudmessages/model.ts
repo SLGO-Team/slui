@@ -1,4 +1,5 @@
 import {
+  endsMatch,
   HUD_SECONDS_REMAINING_TOKEN,
   HUD_TIME_REMAINING_TOKEN,
   type ConnectionStatus,
@@ -149,9 +150,9 @@ function nextSlot<M extends HudSlotMessage>(
 export const HUD_MESSAGES_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "hud.messages"]);
 
 export function hudMessagesReducer(state: HudMessagesState, action: HudMessagesAction): HudMessagesState {
-  // Only an ended instance clears the board; other drops keep it for a reconnect to the same instance.
+  // Only the end of the match clears the board; other drops keep it for a reconnect to the same instance.
   if (action.type === "connection") {
-    return action.status === "ended" && state.source !== null ? { ...initialHudMessagesState, nextAppearance: state.nextAppearance } : state;
+    return endsMatch(action.status) && state.source !== null ? { ...initialHudMessagesState, nextAppearance: state.nextAppearance } : state;
   }
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {

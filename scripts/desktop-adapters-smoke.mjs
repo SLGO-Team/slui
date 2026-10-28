@@ -90,6 +90,10 @@ for (const bad of [null, 1, {}, { enabled: "yes", interactive: false }, { enable
   assert.equal(serverStatus(waiting).tone, "pending", "waiting for a server is blue, not an error");
   assert.equal(serverStatus(waiting).retry, false);
   assert.equal(serverStatus(waiting).hint, "等待进入游戏服务器");
+  // A closed game: muted, says the session connects by itself once the game starts, no retry button.
+  const closed = { ...valid, status: "game-not-running", detail: null };
+  assert.deepEqual(parseSessionStatus(closed), closed, "the home window receives the closed-game state");
+  assert.deepEqual(serverStatus(closed), { label: "未连接", tone: "muted", retry: false, hint: "启动游戏后自动连接" });
   // An ended instance shows its reason; without one it reads as a restart.
   const ended = { ...valid, status: "ended", detail: "Server instance ended", endReason: "server-shutdown" };
   assert.deepEqual(parseSessionStatus(ended), ended);

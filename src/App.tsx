@@ -38,6 +38,7 @@ import { createTauriSidecarSocket } from "./platform/sidecarSocket";
 import { readBackendConfig } from "./platform/backend";
 import { createIdentityProofProvider, LocalSteamIdentity } from "./platform/identity";
 import { useClientSession } from "./app/useClientSession";
+import { useGameRunning } from "./app/useGameRunning";
 import { LiveMinimapRadar } from "./features/minimap/MinimapRadar";
 import { useMinimapFeature } from "./features/minimap/useMinimapFeature";
 import type { MinimapPreviewOptions } from "./mocks/minimapFixtures";
@@ -233,7 +234,9 @@ function App({ harness }: AppProps) {
       unsubscribe();
     };
   }, [updateSource]);
-  const session = useClientSession(dependencies, handleEvent, handleDiagnostic, handleStatus, updateRequired);
+  // The game's exit ends the session (status `game-not-running`, every feature drops its match); its start begins one.
+  const gameRunning = useGameRunning();
+  const session = useClientSession(dependencies, handleEvent, handleDiagnostic, handleStatus, updateRequired, gameRunning);
   const settingsStore = useMemo(() => createSettingsStore(), []);
   const overlayState = useMemo(() => createOverlayStateSource(), []);
   const sessionPublisher = useMemo(() => createSessionStatusPublisher(), []);

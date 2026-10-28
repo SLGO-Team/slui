@@ -82,6 +82,7 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
   assert.equal(killfeedReducer(state, event(baseline(), 4_000)), state, "a reconnect to the same instance keeps the feed");
   assert.equal(killfeedReducer(state, { type: "connection", status: "stale" }), state);
   assert.equal(killfeedReducer(state, { type: "connection", status: "ended" }), initialKillfeedState);
+  for (const status of ["not-in-game", "game-not-running"]) assert.equal(killfeedReducer(state, { type: "connection", status }), initialKillfeedState, `${status} ends the match`);
   assert.equal(killfeedReducer(initialKillfeedState, event(feed(kill("kill-9")), 0)), initialKillfeedState, "no feed before a baseline");
 }
 

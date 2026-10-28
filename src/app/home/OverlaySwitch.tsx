@@ -25,8 +25,10 @@ function HeroMark({ pulse }: { pulse: number }) {
   </svg>;
 }
 
-export function OverlaySwitch({ state, busy, error, onToggle }: {
+export function OverlaySwitch({ state, autoEnable, busy, error, onToggle }: {
   state: OverlayState;
+  /** The `autoEnableOnConnect` setting: an off switch then says it turns on by itself (it goes off when the game exits). */
+  autoEnable: boolean;
   busy: boolean;
   error: string | null;
   onToggle(): void;
@@ -60,10 +62,13 @@ export function OverlaySwitch({ state, busy, error, onToggle }: {
         <span className="home-hero__state"><span className="home-dot" aria-hidden="true" />{state.enabled ? "已启用" : "已停用"}</span>
       </h1>
       {error ? <p className="home-error" role="alert">{error}</p> : null}
-      <button type="button" className={`home-button home-button--hero${state.enabled ? "" : " home-button--primary"}`}
-        disabled={busy} aria-pressed={state.enabled} onClick={toggle}>
-        {state.enabled ? "停用 UI" : "启用 UI"}
-      </button>
+      <div className="home-hero__actions">
+        <button type="button" className={`home-button home-button--hero${state.enabled ? "" : " home-button--primary"}`}
+          disabled={busy} aria-pressed={state.enabled} onClick={toggle}>
+          {state.enabled ? "停用 UI" : "启用 UI"}
+        </button>
+        {!state.enabled && autoEnable ? <p className="home-hero__note">进入服务器后自动启用</p> : null}
+      </div>
     </div>
   </section>;
 }

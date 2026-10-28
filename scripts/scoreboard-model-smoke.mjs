@@ -96,6 +96,7 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   const other = parsed({ ...envelope("sidecar.baseline", 1, { baseline: true }), instance_id: "instance-2" });
   assert.equal(scoreboardReducer(state, { type: "event", event: other, receivedAtMs: 5 }).frame, null);
   assert.equal(scoreboardReducer(state, { type: "connection", status: "ended" }), initialScoreboardState);
+  for (const status of ["not-in-game", "game-not-running"]) assert.equal(scoreboardReducer(state, { type: "connection", status }), initialScoreboardState, `${status} ends the match`);
   assert.equal(scoreboardReducer(state, { type: "connection", status: "offline" }), state);
   const stranger = parsed({ ...envelope("scoreboard.snapshot", 9, board().payload), instance_id: "instance-9" });
   assert.equal(scoreboardReducer(state, { type: "event", event: stranger, receivedAtMs: 5 }), state);

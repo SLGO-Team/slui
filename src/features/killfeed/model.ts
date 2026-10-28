@@ -1,4 +1,4 @@
-import type { ConnectionStatus, HudKillfeedEntry, HudKillfeedViewerRole, SlgoEvent } from "../../contracts/index.ts";
+import { endsMatch, type ConnectionStatus, type HudKillfeedEntry, type HudKillfeedViewerRole, type SlgoEvent } from "../../contracts/index.ts";
 import { killfeedNameColor, killfeedWeaponIcon, type KillfeedPlayerView } from "./presentation.ts";
 
 /** CS2 `DeathNoticeFadeOutTime`: an entry fades out over 1 s once its time is up. */
@@ -42,7 +42,7 @@ export const KILLFEED_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<Slgo
  */
 export function killfeedReducer(state: KillfeedState, action: KillfeedAction): KillfeedState {
   // Only an ended instance clears the feed; other drops keep it for a reconnect to the same instance.
-  if (action.type === "connection") return action.status === "ended" && state !== initialKillfeedState ? initialKillfeedState : state;
+  if (action.type === "connection") return endsMatch(action.status) && state !== initialKillfeedState ? initialKillfeedState : state;
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     if (sameSource(state.source, event.server_id, event.instance_id)) return state;

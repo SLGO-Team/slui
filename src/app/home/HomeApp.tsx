@@ -197,7 +197,7 @@ export function HomeApp() {
     <main className={page === "home" ? "home-main" : "home-main home-main--split"} key={page}>
       {page === "home" ? <div className="home-page">
         {banner ? <UpdateBanner banner={banner} onAction={updateAction} /> : null}
-        <OverlaySwitch state={overlay} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
+        <OverlaySwitch state={overlay} autoEnable={settings.overlay.autoEnableOnConnect} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
         <StatusBar session={session} steam={steamPreview ?? steamAccount(session, steamProfile)} gameRunning={gameRunning}
           update={update} onRetry={sessionSource.retry} />
         <KeyHints shopKey={settings.hotkeys.shop} scoreboardKey={settings.hotkeys.scoreboard} />

@@ -1,5 +1,6 @@
 import {
   createCommandId,
+  endsMatch,
   type CommandResult,
   type ConnectionStatus,
   type ShopCommand,
@@ -162,7 +163,7 @@ export const SHOP_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEven
 
 export function shopReducer(state: ShopState, action: ShopAction): ShopState {
   if (action.type === "connection") {
-    if (action.status === "ended") return { ...initialShopState, connectionStatus: "ended" };
+    if (endsMatch(action.status)) return { ...initialShopState, connectionStatus: action.status };
     const next = { ...state, connectionStatus: action.status };
     if (action.status === "offline" || action.status === "not-in-game" || action.status === "unauthorized") return abandonPending(next);
     return next;
@@ -271,7 +272,7 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
 }
 
 function availabilityForState(state: ShopState, nowMs: number): ShopAvailability {
-  if (["signed-out", "offline", "not-in-game", "ended", "unauthorized", "incompatible"].includes(state.connectionStatus)) return "disconnected";
+  if (["signed-out", "offline", "not-in-game", "ended", "unauthorized", "incompatible", "game-not-running"].includes(state.connectionStatus)) return "disconnected";
   if (state.connectionStatus === "stale") return "stale";
   if (state.restartPending && !state.frame) return "restarted";
   if (["discovering", "route-pending", "connecting", "baseline-required"].includes(state.connectionStatus) && !state.frame) return "baseline-required";

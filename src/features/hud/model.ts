@@ -9,6 +9,7 @@ import type {
   SlgoEvent,
   TeamId,
 } from "../../contracts";
+import { endsMatch } from "../../contracts/index.ts";
 
 export const HUD_STALE_AFTER_MS = 5_000;
 
@@ -146,8 +147,8 @@ export const HUD_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent
 export function roundHudReducer(state: RoundHudState, action: RoundHudAction): RoundHudState {
   if (action.type === "connection") {
     if (state.connectionStatus === action.status) return state;
-    // An ended instance takes its match with it.
-    if (action.status === "ended") return { ...initialRoundHudState, connectionStatus: "ended" };
+    // An ended instance, a player on no server or a closed game takes the match with it.
+    if (endsMatch(action.status)) return { ...initialRoundHudState, connectionStatus: action.status };
     return { ...state, connectionStatus: action.status };
   }
 
@@ -273,7 +274,7 @@ export function phaseLabel(state: RoundState): string {
 }
 
 function availabilityForState(state: RoundHudState, nowMs: number): HudAvailability {
-  if (["signed-out", "offline", "not-in-game", "ended", "unauthorized", "incompatible"].includes(state.connectionStatus)) {
+  if (["signed-out", "offline", "not-in-game", "ended", "unauthorized", "incompatible", "game-not-running"].includes(state.connectionStatus)) {
     return "disconnected";
   }
   if (state.connectionStatus === "stale") return "stale";

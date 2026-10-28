@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "lint, smoke and CI gates"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "contract the change must keep"}

@@ -39,6 +39,8 @@ export type ClientSessionState = {
 export type ClientSessionAction =
   | { type: "discover"; attempt: number; quiet?: boolean }
   | { type: "signed-out"; attempt: number }
+  /** The game is closed: the attempt read the Steam identity (null when there is none) and stops there. */
+  | { type: "game-not-running"; attempt: number; identity: SteamIdentity | null }
   | { type: "identity-found"; attempt: number; identity: SteamIdentity; quiet?: boolean }
   | { type: "route-resolved"; attempt: number; quiet?: boolean }
   | { type: "connected"; attempt: number; status: ConnectionStatus }
@@ -66,6 +68,9 @@ export function clientSessionReducer(state: ClientSessionState, action: ClientSe
       return { status: "discovering", identity: null, detail: null, attempt: action.attempt, retry: null, endReason: null };
     case "signed-out":
       return { status: "signed-out", identity: null, detail: "Steam client identity is unavailable", attempt: action.attempt, retry: null, endReason: null };
+    // Nothing to retry: the game starting begins the next attempt.
+    case "game-not-running":
+      return { status: "game-not-running", identity: action.identity, detail: null, attempt: action.attempt, retry: null, endReason: null };
     case "identity-found":
       return { status: "route-pending", identity: action.identity, detail: null, attempt: action.attempt, retry: null, endReason: null };
     case "route-resolved":
@@ -143,7 +148,17 @@ export async function runClientSessionAttempt(
   callbacks: SessionAttemptCallbacks,
   /** A background retry: progress steps are `quiet`, only the outcome shows. */
   quiet = false,
+  /** Whether the game process runs; without it the attempt only reads the Steam identity for home. */
+  gameRunning = true,
 ): Promise<() => void> {
+  if (!gameRunning) {
+    // No discover step, so home's cards never flash; the local identity read needs no network.
+    const identity = await dependencies.identity.getCurrentUser().catch(() => null);
+    if (!callbacks.isCurrent()) return () => undefined;
+    callbacks.dispatch({ type: "game-not-running", attempt, identity });
+    callbacks.onStatus?.("game-not-running");
+    return () => undefined;
+  }
   callbacks.dispatch({ type: "discover", attempt, quiet });
   let currentIdentity: SteamIdentity | null;
   try {

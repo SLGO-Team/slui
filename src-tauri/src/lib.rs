@@ -638,12 +638,32 @@ fn start_game_process_tracking(app: AppHandle) {
             .map(|mut state| std::mem::replace(&mut *state, running) != running)
             .unwrap_or(false);
         if changed {
+            eprintln!("SLGO: game {}", if running { "started" } else { "exited" });
             if let Err(error) = app.emit("slgo-game-running", running) {
                 eprintln!("SLGO: failed to emit game process state: {error}");
             }
         }
+        // The game's exit ends its session: the overlay goes off, as from the tray, and the next
+        // connection's auto-enable turns it on again.
+        if changed && !running {
+            let handle = app.clone();
+            if let Err(error) = app.run_on_main_thread(move || disable_overlay_after_game(&handle)) {
+                eprintln!("SLGO: failed to schedule disabling the overlay: {error}");
+            }
+        }
         thread::sleep(Duration::from_secs(2));
     });
+}
+
+// Main thread only, where the enable command and the tray also run.
+fn disable_overlay_after_game(app: &AppHandle) {
+    if !overlay_snapshot(app).enabled {
+        return;
+    }
+    match apply_overlay_enabled(app, false) {
+        Ok(_) => eprintln!("SLGO: overlay disabled after the game exited"),
+        Err(error) => eprintln!("SLGO: {error}"),
+    }
 }
 
 fn show_home(app: &AppHandle, request_attention: bool) {

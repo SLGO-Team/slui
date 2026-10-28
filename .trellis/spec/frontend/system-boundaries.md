@@ -28,7 +28,7 @@ sends an action back to SLGO.
   (`local-steamid`); the control plane routes it without verification; the
   sidecar admits the WebSocket session only if its source address equals the
   player's game-connection address reported by the plugin, and closes it with
-  4001 when the player leaves or their address changes. No pairing codes. The
+  4004 when the player leaves (4001 when their address changes). No pairing codes. The
   identity provider stays replaceable; the other identity modes are reserved
   for stronger proofs.
 - Match HUD snapshots are viewer-scoped payloads. The authenticated viewer's
@@ -158,6 +158,21 @@ None has a retry button: the session reroutes (and then polls) by itself. The
 reasons' authorities (game exit action to LocalAdmin, plugin lifecycle,
 operator declaration, sidecar observation) are in the protocol README; SLUI
 only displays them.
+
+Game session lifecycle (2026-10-28). A player's match is over in three cases, each from its own authority, and
+`endsMatch(status)` (`src/contracts`) is true for exactly these: `ended` (sidecar 4003), `not-in-game` (control plane
+route rejection, or sidecar 4004 after the player left the server) and `game-not-running` (Rust's SCPSL.exe process
+probe). Every feature reducer resets to its initial state on `endsMatch` — a new feature must too; branch on the
+helper, never on `"ended"` alone. Lost connections (`offline`, `stale`, `unauthorized`) keep the state for a reconnect.
+
+- One SCPSL.exe process run is one game session. The overlay reads the probe through `useGameRunning()` (`null` until
+  the first answer; always `true` outside Tauri and in the `mock` mode) and passes it to `useClientSession`. While the
+  game is closed an attempt only reads the local Steam identity (errors read as none), then reports
+  `game-not-running` to the reducer and through `onStatus`: no `discover` step (home never flashes), no proof, route
+  or sidecar socket, and no retry timer. The game starting re-runs the attempt effect at once; every run gets a new
+  attempt number, so a stale attempt can never pass as the current one.
+- On the game's exit Rust also switches the overlay off (see 3.1); the next connection's auto-enable turns it on.
+- Home shows `game-not-running` as muted 「未连接」 with the hint 「启动游戏后自动连接」 and no retry button.
 
 ---
 
@@ -381,8 +396,8 @@ request", "Sidecar session handshake", "Security boundary").
   Manual check of a real sidecar with the production TLS settings:
   `SLUI_SIDECAR_PROBE_URL=wss://<host>:<port>/slgo/sidecar cargo test -p slui -- --ignored probe`.
 - Close mapping: 4000/4002 → `incompatible`, no retry; 4001 → `unauthorized`,
-  backoff, detail = same-PC/network hint; 4003 → `stale`, reroute; any other
-  close → `offline`, backoff. Before the baseline these reject `connect()` with
+  backoff, detail = same-PC/network hint; 4003 → `ended`, reroute; 4004 →
+  `not-in-game`, poll; any other close → `offline`, backoff. Before the baseline these reject `connect()` with
   `SidecarConnectionError`; afterwards they go to `subscribeFailure`.
 - Session retry (`src/app/clientSession.ts`): `not-in-game`, `rate-limited`,
   an unreachable control plane and lost sessions retry with backoff
@@ -480,7 +495,13 @@ by window label (`?window=home` in a browser preview).
   the generated `android/`, `ios/` and `64x64.png`, which the Windows app does
   not use.
 - Rust owns the overlay `{ enabled, interactive }` state. The home switch and
-  the tray menu both call the same Rust path, so they cannot disagree. While
+  the tray menu both call the same Rust path, so they cannot disagree. The
+  game's exit (the 2 s process probe going from running to not running, a
+  crash included) ends its session: Rust switches an enabled overlay off on
+  the main thread through that same path (`disable_overlay_after_game`), so
+  the tray label, the home switch and the overlay page follow. While off with
+  `autoEnableOnConnect` on, the home switch says 「进入服务器后自动启用」 beside
+  its button (beside, so the hero keeps its height). While
   disabled, the overlay is hidden, game-window alignment and the `slgo-shortcut`
   keys are skipped, and `set_overlay_interactive(true)` is rejected.
 - An enabled overlay is visible only while the game (`SCPSL.exe`) or the
@@ -647,7 +668,7 @@ by window label (`?window=home` in a browser preview).
 | `set_hotkeys(shop, scoreboard)` | overlay | virtual-key codes; error for keys outside the bindable sets or one key for both |
 | `set_scoreboard_capture(capture)` | overlay | right-click goes to the scoreboard while true and the game is foreground |
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
-| `get_game_running()` | home | `boolean` (SCPSL process present, independent of focus) |
+| `get_game_running()` | home, overlay | `boolean` (SCPSL process present, independent of focus) |
 | `get_steam_profile(steamId)` | home (via `steamProfile.ts`) | `{ personaName, avatarUrl }`, each `string \| null`; `avatarUrl` is a PNG/JPEG `data:` URL; error unless `steamId` is 17 digits |
 | `sidecar_open(url, onEvent: Channel)` / `sidecar_send(id, data)` / `sidecar_close(id, code, reason)` | overlay (via `sidecarSocket.ts`) | socket id; `onEvent` gets `{kind:"open"}`, `{kind:"message",data}`, then exactly one `{kind:"close",code,reason}`; send/close on a closed id are dropped |
 | `updater_start(controlPlaneUrl)` | home (via `updater.ts`) | `UpdateState`; the first call starts the check loop, later calls only return the state; error for a non-http(s) URL |
@@ -772,7 +793,9 @@ signature }`) plus `min_version`. The control plane serves it at
 |---|---|
 | No Steam client identity is available | Show signed-out state and do not open a Backend stream |
 | Local SteamID cannot be read or Steam is not running | Show signed-out/Steam-offline state and retry on process/account change |
-| Sidecar closes with 4001 (address is not the game connection, player left, address changed) | Show `unauthorized` with the same-PC/network hint; retry with backoff |
+| Sidecar closes with 4001 (bad token, address is not the game connection, address changed) | Show `unauthorized` with the same-PC/network hint; retry with backoff |
+| Sidecar closes with 4004 (the roster does not list the player: they left, or are not on it yet) | Status `not-in-game` (home 「等待中」), every feature drops its match (`endsMatch`), poll the route every 5 s; never the same-PC hint. An older sidecar sends 4001 instead |
+| The game process exits (or is not running) | Rust switches the overlay off; the session reports `game-not-running` (features drop their match), reads only the Steam identity and sends no control-plane request until the game starts |
 | Control plane answers `not-in-game` | Expected before the player joins a server, not an error: status `not-in-game`, home shows blue "等待中" with the Chinese hint "等待进入游戏服务器" (never the raw English detail, no retry button); poll the route every 5 s (`retry: "poll"`, `NOT_IN_GAME_POLL_MS`), never backing off, so joining a server is noticed within seconds; the poll resets the failure count. Keep the interval inside the control plane's 30 route requests per minute per address |
 | Any timer-driven retry (`poll`, `backoff`, `reroute`) | Runs `quiet`: its progress steps (`discovering`, `route-pending`, `connecting`) only bump `attempt` and clear `retry`; status, detail and Steam identity keep the last outcome until the attempt reaches a new one, so the home cards never flash every poll. A manual "重试" or an account change is not quiet and shows its progress |
 | Control plane answers `rate-limited`, or is unreachable | Show offline with the reason; retry with backoff; never guess a sidecar endpoint |
@@ -879,6 +902,9 @@ signature }`) plus `min_version`. The control plane serves it at
   per-field recovery, hotkey validation and virtual-key mapping, round trip.
 - `scripts/desktop-adapters-smoke.mjs`: overlay state, game process and the
   session status bridge, including invalid payloads and event routing.
+- Game session lifecycle: `endsMatch` (`scripts/contract-smoke.mjs`), each feature model smoke resets on
+  `not-in-game` and `game-not-running`, the closed-game attempt (no discover, no route, no retry, identity kept) and
+  4004 in a live session (`scripts/backend-connection-smoke.mjs`).
 - `src-tauri/src/settings.rs` unit tests: atomic save, rejection of non-objects,
   and backup of corrupt or non-UTF-8 files.
 - Auto-update: `scripts/contract-smoke.mjs` (manifest fixture and rejections),
