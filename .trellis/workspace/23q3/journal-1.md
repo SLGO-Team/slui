@@ -1168,3 +1168,25 @@ Home Steam status tile now shows the signed-in account's avatar (HUD focus frame
 ### Status
 
 [OK] **Completed**
+
+
+## Session 50: Game exit ends the SLUI game session
+<!-- trellis-session: v=2 fp=44cea23d1c8e396c -->
+
+**Date**: 2026-10-28
+**Task**: Game exit ends the SLUI game session
+**Branch**: `fix/game-exit-lifecycle`
+
+### Summary
+
+Quitting SCP:SL left the last session behind (red 未授权 with the same-PC hint, overlay still enabled, old match in every panel, control-plane polling with no game). One SCPSL.exe run is now one game session: Rust switches the overlay off when the process probe sees the game exit; useGameRunning gates useClientSession, which while the game is closed only reads the Steam identity and reports the new status game-not-running (home: muted 未连接 / 启动游戏后自动连接, no retry, no network). endsMatch() (ended, not-in-game, game-not-running) resets every feature reducer. Protocol: SIDECAR_CLOSE_CODES.notOnServer (4004) for a player the roster no longer lists, mapped to not-in-game + poll instead of unauthorized. Home switch says 进入服务器后自动启用 while off with auto-enable on. Cross-repo: slgo-backend db90672 (hub closes departed/unlisted players with 4004, tests, decision), merged into its local main, not deployed. Live in-game test pending.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `265f7cf` | fix(session): end the game session when the player quits or leaves the server |
+
+### Status
+
+[OK] **Completed**
