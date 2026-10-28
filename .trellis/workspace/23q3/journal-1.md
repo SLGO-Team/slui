@@ -1190,3 +1190,25 @@ Quitting SCP:SL left the last session behind (red 未授权 with the same-PC hin
 ### Status
 
 [OK] **Completed**
+
+
+## Session 51: Overlay shows only while the session is live
+<!-- trellis-session: v=2 fp=34a17963829395ee -->
+
+**Date**: 2026-10-28
+**Task**: Overlay shows only while the session is live
+**Branch**: `fix/game-exit-lifecycle`
+
+### Summary
+
+Follow-up in PR #71 at the user's request: an enabled overlay is shown only while the overlay page's session is live (connected to the sidecar). New command set_overlay_session_live feeds SESSION_LIVE into Rust's overlay_may_show(); the page gates shop availability, scoreboard mode and overlayInteractive on the live session, so a hidden overlay never holds the foreground or the right button. Home: overlaySwitchNote() — off + auto-enable: 进入服务器后自动启用; enabled but not live: 连接服务器后显示; the note line now sits under the button (it ran into the hero art at 820 px) and is always reserved. Spec updated; lint, smokes, clippy and Rust tests pass. No separate Trellis task (same PR).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5a7e9ea` | fix(overlay): show the overlay only while the session is live |
+
+### Status
+
+[OK] **Completed**
