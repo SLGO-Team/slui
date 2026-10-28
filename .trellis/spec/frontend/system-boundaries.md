@@ -607,8 +607,29 @@ by window label (`?window=home` in a browser preview).
   overlay takes every click in its window, transparent pixels included, so a
   click outside the panel closes via the window `pointerdown` and never reaches
   the game. Focus moving inside the page only refocuses the entry.
-  `log_overlay_event(message)` prints overlay diagnostics (close reasons, focus
-  failures) to the `tauri dev` terminal.
+  `log_overlay_event(message)` writes overlay diagnostics (close reasons, focus
+  failures, shop key decisions) to the diagnostics log below.
+- Diagnostics log (`src-tauri/src/diag.rs`, task `10-28-diagnostics-log`): a
+  release build has no console, so every Rust diagnostic goes through `diag!`
+  (never `eprintln!`), which writes a UTC-timestamped line (the server logs'
+  clock) to stderr and to `app_log_dir()/slui.log`
+  (`%LOCALAPPDATA%\com.slui.desktop\logs`). `setup` opens it first; each launch
+  rotates the previous sessions to `slui.1.log` / `slui.2.log`, a second
+  instance exits in the single-instance plugin before that, lines logged
+  earlier are buffered, a session stops at 8 MiB, panics are logged. The tray
+  item 「打开日志文件夹」 selects the file in Explorer for a player's report.
+  It records: the start line (version, Windows build, SLUI elevated), the game
+  process's elevation when a new one first holds the foreground (a keyboard
+  hook in a non-elevated SLUI does not see keys sent to an elevated game),
+  once a minute with the game in the foreground the key and mouse event
+  counts the hooks were called for (zero keys = blind or removed hook), a
+  handled key's press that the async state calls auto-repeat although the
+  key's previous event is older than any auto-repeat interval, the shop key
+  while the overlay is off, and from the page the session status, reported
+  client features, applied hotkeys, shop availability changes and each shop
+  key decision with its inputs. Never log typed text or the codes of keys
+  other than the overlay's hotkeys: the hooks see every key; counts only.
+  Chat keys are not logged while the overlay is off (they are typing).
 - On Windows, overlay visibility and click-through are set with Win32 calls
   only (`SWP_SHOWWINDOW` / `SW_HIDE`, `WS_EX_TRANSPARENT`). `WS_EX_LAYERED`
   stays on in both modes with `SetLayeredWindowAttributes(255, LWA_ALPHA)`;

@@ -172,7 +172,12 @@ function App({ harness }: AppProps) {
   const shopAvailableRef = useRef(false);
   const connectionLiveRef = useRef(false);
   const chatOpenRef = useRef(false);
+  const shopOpenRef = useRef(false);
   const shopVisibleRef = useRef(false);
+  // Diagnostics (desktop log): why a shop key press did not open the shop, and the last logged values.
+  const shopDiagnosticRef = useRef("");
+  const loggedStatusRef = useRef<ConnectionStatus | null>(null);
+  const loggedShopAvailableRef = useRef<boolean | null>(null);
   const teamSelectShownRef = useRef(false);
   // Whether the overlay is over the game: the game or the overlay itself holds the foreground (native, one sample).
   // A menu the plugin opened takes the input only then, so it never takes the foreground from another application,
@@ -201,7 +206,8 @@ function App({ harness }: AppProps) {
     minimapFeature.receiveDiagnostic(diagnostic);
   }, [minimapFeature.receiveDiagnostic]);
   const handleStatus = useCallback((status: ConnectionStatus) => {
-    if ((status === "live") !== connectionLiveRef.current) overlayController.log(`session ${status}`);
+    if (status !== loggedStatusRef.current) overlayController.log(`session ${status}`);
+    loggedStatusRef.current = status;
     dispatchHud({ type: "connection", status });
     dispatchWinPanel({ type: "connection", status });
     dispatchHudMessages({ type: "connection", status });
@@ -267,12 +273,21 @@ function App({ harness }: AppProps) {
   // Hotkeys and sound apply even when minimap URL parameters pin the radar preferences.
   useEffect(() => {
     let active = true;
+    let loggedHotkeys = "";
     const apply = (settings: AppSettings) => {
       if (!active) return;
       setShopVolume(settings.audio.shopVolume);
       setOverlaySettings(settings.overlay);
+      const hotkeys = `shop ${settings.hotkeys.shop}, scoreboard ${settings.hotkeys.scoreboard}`;
       void overlayController.setHotkeys(settings.hotkeys)
-        .catch((error: unknown) => console.error("Unable to apply hotkeys", error));
+        .then(() => {
+          if (hotkeys !== loggedHotkeys) overlayController.log(`hotkeys ${hotkeys}`);
+          loggedHotkeys = hotkeys;
+        })
+        .catch((error: unknown) => {
+          console.error("Unable to apply hotkeys", error);
+          overlayController.log(`hotkeys ${hotkeys} not applied: ${error instanceof Error ? error.message : String(error)}`);
+        });
     };
     void settingsStore.load().then(apply).catch((error: unknown) => console.error("Unable to load settings", error));
     const unsubscribe = settingsStore.subscribe(apply);
@@ -298,7 +313,12 @@ function App({ harness }: AppProps) {
   useEffect(() => {
     let active = true;
     let changed = false;
-    const apply = (state: OverlayState) => connection.setFeatures(state.enabled ? OVERLAY_CLIENT_FEATURES : []);
+    let loggedEnabled: boolean | null = null;
+    const apply = (state: OverlayState) => {
+      connection.setFeatures(state.enabled ? OVERLAY_CLIENT_FEATURES : []);
+      if (state.enabled !== loggedEnabled) overlayController.log(`client features: ${state.enabled ? OVERLAY_CLIENT_FEATURES.join(", ") : "none"}`);
+      loggedEnabled = state.enabled;
+    };
     const unsubscribe = overlayState.subscribe((state) => {
       changed = true;
       apply(state);
@@ -310,7 +330,7 @@ function App({ harness }: AppProps) {
       active = false;
       unsubscribe();
     };
-  }, [connection, overlayState]);
+  }, [connection, overlayController, overlayState]);
 
   // Auto-enable: once per connection (session attempt) when it reaches live. Settings may load after the
   // session is live, so the setting is state and a late load still enables this connection.
@@ -406,6 +426,9 @@ function App({ harness }: AppProps) {
     }
     const gameFocused = (gameForeground ?? true) || (shopVisibleRef.current && document.hasFocus());
     if (shortcut === "shop") {
+      const opens = (gameForeground ?? true) && shopAvailableRef.current;
+      overlayController.log(shopOpenRef.current ? "shop key: close"
+        : opens ? "shop key: open" : `shop key: not opened (game foreground ${gameForeground}, ${shopDiagnosticRef.current})`);
       setShopOpen((current) => current ? false : (gameForeground ?? true) && shopAvailableRef.current);
       return;
     }
@@ -459,6 +482,15 @@ function App({ harness }: AppProps) {
   const displayedShop = debugShop ?? shop;
   const shopAvailable = sessionLive && displayedShop.hasSnapshot && displayedShop.windowOpen;
   shopAvailableRef.current = shopAvailable;
+  shopOpenRef.current = shopOpen;
+  const shopDiagnostic = `session ${session.status}, snapshot ${displayedShop.hasSnapshot}, window open ${displayedShop.windowOpen}`;
+  shopDiagnosticRef.current = shopDiagnostic;
+  // Diagnostics: the shop key opens the shop exactly while it is available; each change is logged with its inputs.
+  useEffect(() => {
+    if (loggedShopAvailableRef.current === shopAvailable) return;
+    loggedShopAvailableRef.current = shopAvailable;
+    overlayController.log(`shop ${shopAvailable ? "available" : "unavailable"} (${shopDiagnostic})`);
+  }, [overlayController, shopAvailable, shopDiagnostic]);
   const chatOpen = chatFeature.state.open;
   chatOpenRef.current = chatOpen;
   shopVisibleRef.current = shopOpen && shopAvailable;

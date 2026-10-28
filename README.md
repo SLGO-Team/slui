@@ -23,6 +23,8 @@ SLUI 会在后台检查并下载新版本（启动时及每 6 小时），校验
 
 SLUI 需要与游戏运行在同一台电脑、同一网络连接上，服务器才会接受连接。
 
+反馈问题时请附上诊断日志：托盘菜单“打开日志文件夹”会选中 `slui.log`（`%LOCALAPPDATA%\com.slui.desktop\logs`），`slui.1.log`、`slui.2.log` 是前两次运行的日志。日志只记录 SLUI 自身的状态和快捷键，不记录输入的文字或其他按键。
+
 分支、PR、提交规范和发版流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 主题包

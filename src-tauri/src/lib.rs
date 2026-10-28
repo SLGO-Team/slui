@@ -1,3 +1,5 @@
+#[macro_use]
+mod diag;
 mod backdrop;
 mod settings;
 mod sidecar_socket;
@@ -235,7 +237,7 @@ fn is_game_foreground(foreground: windows_sys::Win32::Foundation::HWND) -> bool 
 fn publish_game_foreground(app: &tauri::AppHandle, focused: bool, over_game: bool) {
     let state = app.state::<Mutex<GameForegroundState>>();
     let Ok(mut state) = state.lock() else {
-        eprintln!("SLGO: game foreground state unavailable");
+        diag!("SLGO: game foreground state unavailable");
         return;
     };
     if state.focused == focused && state.over_game == over_game {
@@ -246,12 +248,12 @@ fn publish_game_foreground(app: &tauri::AppHandle, focused: bool, over_game: boo
     state.revision += 1;
     let snapshot = *state;
     drop(state);
-    eprintln!(
+    diag!(
         "SLGO: game foreground {focused}, overlay over game {over_game} (revision {})",
         snapshot.revision
     );
     if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-game-foreground", snapshot) {
-        eprintln!("SLGO: failed to emit game foreground state: {error}");
+        diag!("SLGO: failed to emit game foreground state: {error}");
     }
 }
 
@@ -374,11 +376,11 @@ fn publish_overlay_state(app: &AppHandle, snapshot: OverlaySnapshot) {
     if let Some(item) = app.try_state::<TrayOverlayItem>() {
         let label = if snapshot.enabled { "停用 UI" } else { "启用 UI" };
         if let Err(error) = item.0.set_text(label) {
-            eprintln!("SLGO: failed to update tray menu: {error}");
+            diag!("SLGO: failed to update tray menu: {error}");
         }
     }
     if let Err(error) = app.emit("slgo-overlay-state", snapshot) {
-        eprintln!("SLGO: failed to emit overlay state: {error}");
+        diag!("SLGO: failed to emit overlay state: {error}");
     }
 }
 
@@ -424,7 +426,7 @@ fn set_overlay_session_live(app: AppHandle, live: bool) {
     if SESSION_LIVE.swap(live, Ordering::SeqCst) == live {
         return;
     }
-    eprintln!("SLGO: overlay session {}", if live { "live" } else { "not live" });
+    diag!("SLGO: overlay session {}", if live { "live" } else { "not live" });
     #[cfg(windows)]
     sync_overlay_visibility(&app);
     #[cfg(not(windows))]
@@ -516,7 +518,7 @@ fn take_keyboard_focus(overlay: windows_sys::Win32::Foundation::HWND) -> Result<
     if activate() {
         return Ok(());
     }
-    eprintln!("SLGO: SetForegroundWindow refused ({}); retrying", unsafe {
+    diag!("SLGO: SetForegroundWindow refused ({}); retrying", unsafe {
         GetLastError()
     });
 
@@ -529,7 +531,7 @@ fn take_keyboard_focus(overlay: windows_sys::Win32::Foundation::HWND) -> Result<
     if sent == 1 && activate() {
         return Ok(());
     }
-    eprintln!(
+    diag!(
         "SLGO: foreground refused after empty input (sent {sent}, error {}); attaching input",
         unsafe { GetLastError() }
     );
@@ -553,18 +555,18 @@ fn take_keyboard_focus(overlay: windows_sys::Win32::Foundation::HWND) -> Result<
         Ok(())
     } else {
         let error = unsafe { GetLastError() };
-        eprintln!("SLGO: overlay could not take the keyboard (attached {attached}, error {error})");
+        diag!("SLGO: overlay could not take the keyboard (attached {attached}, error {error})");
         Err(format!(
             "Windows refused to give the overlay the keyboard (error {error})"
         ))
     }
 }
 
-// Overlay diagnostics (chat focus and close reasons) go to the process's stderr,
-// which `npm run tauri dev` shows; the webview console is hard to reach in game.
+// Overlay diagnostics (shop key decisions, chat focus and close reasons) go to the log
+// (diag.rs) and stderr; the webview console is hard to reach in game.
 #[tauri::command]
 fn log_overlay_event(message: String) {
-    eprintln!("SLGO overlay: {message}");
+    diag!("SLGO overlay: {message}");
 }
 
 #[cfg(windows)]
@@ -657,9 +659,9 @@ fn start_game_process_tracking(app: AppHandle) {
             .map(|mut state| std::mem::replace(&mut *state, running) != running)
             .unwrap_or(false);
         if changed {
-            eprintln!("SLGO: game {}", if running { "started" } else { "exited" });
+            diag!("SLGO: game {}", if running { "started" } else { "exited" });
             if let Err(error) = app.emit("slgo-game-running", running) {
-                eprintln!("SLGO: failed to emit game process state: {error}");
+                diag!("SLGO: failed to emit game process state: {error}");
             }
         }
         // The game's exit ends its session: the overlay goes off, as from the tray, and the next
@@ -667,7 +669,7 @@ fn start_game_process_tracking(app: AppHandle) {
         if changed && !running {
             let handle = app.clone();
             if let Err(error) = app.run_on_main_thread(move || disable_overlay_after_game(&handle)) {
-                eprintln!("SLGO: failed to schedule disabling the overlay: {error}");
+                diag!("SLGO: failed to schedule disabling the overlay: {error}");
             }
         }
         thread::sleep(Duration::from_secs(2));
@@ -680,8 +682,8 @@ fn disable_overlay_after_game(app: &AppHandle) {
         return;
     }
     match apply_overlay_enabled(app, false) {
-        Ok(_) => eprintln!("SLGO: overlay disabled after the game exited"),
-        Err(error) => eprintln!("SLGO: {error}"),
+        Ok(_) => diag!("SLGO: overlay disabled after the game exited"),
+        Err(error) => diag!("SLGO: {error}"),
     }
 }
 
@@ -699,12 +701,26 @@ fn show_home(app: &AppHandle, request_attention: bool) {
     }
 }
 
+// Selects slui.log in Explorer, so a player can attach it to a report.
+fn reveal_log(app: &AppHandle) {
+    use tauri_plugin_opener::OpenerExt;
+
+    let Some(path) = diag::path() else {
+        diag!("SLGO: no log file to show");
+        return;
+    };
+    if let Err(error) = app.opener().reveal_item_in_dir(path) {
+        diag!("SLGO: cannot show the log file: {error}");
+    }
+}
+
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open-home", "打开主界面", true, None::<&str>)?;
     let toggle = MenuItem::with_id(app, "toggle-overlay", "启用 UI", true, None::<&str>)?;
+    let log = MenuItem::with_id(app, "open-log", "打开日志文件夹", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &toggle, &separator, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &toggle, &log, &separator, &quit])?;
     app.manage(TrayOverlayItem(toggle));
     // Inserted after 「启用 UI」 while an update is ready.
     let update = MenuItem::with_id(app, updater::TRAY_ITEM_ID, "", true, None::<&str>)?;
@@ -719,10 +735,11 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
             "toggle-overlay" => {
                 let enabled = !overlay_snapshot(app).enabled;
                 if let Err(error) = apply_overlay_enabled(app, enabled) {
-                    eprintln!("SLGO: {error}");
+                    diag!("SLGO: {error}");
                 }
             }
             updater::TRAY_ITEM_ID => updater::install_from_tray(app),
+            "open-log" => reveal_log(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -747,9 +764,11 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
 fn start_foreground_tracking(app: tauri::AppHandle) {
     use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
+    let mut diagnostics = InputDiagnostics::new();
     thread::spawn(move || loop {
         let foreground = unsafe { GetForegroundWindow() };
         let game_foreground = is_game_foreground(foreground);
+        diagnostics.sample(foreground, game_foreground);
         // The world blur captures the window the overlay aligns to.
         if game_foreground {
             backdrop::set_game_window(&app, foreground as isize);
@@ -790,12 +809,80 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
             // interactive commands and the tray also run, so they cannot race.
             let handle = app.clone();
             if let Err(error) = app.run_on_main_thread(move || sync_overlay_visibility(&handle)) {
-                eprintln!("SLGO: failed to schedule overlay visibility: {error}");
+                diag!("SLGO: failed to schedule overlay visibility: {error}");
             }
         }
 
         thread::sleep(Duration::from_millis(100));
     });
+}
+
+/// Diagnostics on the foreground thread: whether the game process runs elevated (a keyboard hook in a
+/// non-elevated SLUI does not see keys sent to it), logged when a new game process first holds the foreground;
+/// and once a minute in which the game held the foreground, how many input events the hooks were called for.
+#[cfg(windows)]
+struct InputDiagnostics {
+    game_process: u32,
+    period_start: std::time::Instant,
+    last_sample: std::time::Instant,
+    game_foreground: Duration,
+}
+
+#[cfg(windows)]
+impl InputDiagnostics {
+    const PERIOD: Duration = Duration::from_secs(60);
+
+    fn new() -> Self {
+        let now = std::time::Instant::now();
+        Self { game_process: 0, period_start: now, last_sample: now, game_foreground: Duration::ZERO }
+    }
+
+    fn sample(&mut self, foreground: windows_sys::Win32::Foundation::HWND, game_foreground: bool) {
+        let now = std::time::Instant::now();
+        if game_foreground {
+            self.game_foreground += now - self.last_sample;
+            self.note_game_process(foreground);
+        }
+        self.last_sample = now;
+        if now - self.period_start < Self::PERIOD {
+            return;
+        }
+        let keys = HOOK_KEY_EVENTS.swap(0, Ordering::Relaxed);
+        let mouse = HOOK_MOUSE_EVENTS.swap(0, Ordering::Relaxed);
+        if !self.game_foreground.is_zero() {
+            diag!(
+                "SLGO: input hooks saw {keys} key and {mouse} mouse events in {}s (game foreground {}s)",
+                (now - self.period_start).as_secs(),
+                self.game_foreground.as_secs()
+            );
+        }
+        self.period_start = now;
+        self.game_foreground = Duration::ZERO;
+    }
+
+    fn note_game_process(&mut self, window: windows_sys::Win32::Foundation::HWND) {
+        use windows_sys::Win32::{
+            Foundation::{CloseHandle, GetLastError},
+            System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
+            UI::WindowsAndMessaging::GetWindowThreadProcessId,
+        };
+
+        let mut process_id = 0;
+        unsafe { GetWindowThreadProcessId(window, &mut process_id) };
+        if process_id == 0 || process_id == self.game_process {
+            return;
+        }
+        self.game_process = process_id;
+        let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
+        let elevated = if process.is_null() {
+            Err(unsafe { GetLastError() })
+        } else {
+            let elevated = diag::process_elevated(process);
+            unsafe { CloseHandle(process) };
+            elevated
+        };
+        diag!("SLGO: game process {process_id} holds the foreground; elevated: {}", diag::elevation_text(elevated));
+    }
 }
 
 // Returns whether the overlay moved (its backdrops must follow).
@@ -888,6 +975,10 @@ struct ScoreboardKeyEvent {
 enum HookEvent {
     /// A non-repeat key-down of a key the overlay handles.
     KeyDown(u32),
+    /// Diagnostics: a key-down of a handled key that the asynchronous state reports as auto-repeat although the
+    /// key's previous event lies longer ago than any auto-repeat interval (`None`: the hook saw no earlier event).
+    /// Its press is dropped like an auto-repeat.
+    RepeatAfterGap { vk: u32, gap_ms: Option<u32> },
     /// The scoreboard key went up.
     ScoreboardUp,
     /// A right-click swallowed for the scoreboard's cursor mode.
@@ -900,6 +991,19 @@ static HOOK_EVENTS: OnceLock<mpsc::Sender<HookEvent>> = OnceLock::new();
 #[cfg(windows)]
 static RIGHT_BUTTON_SWALLOWED: AtomicBool = AtomicBool::new(false);
 
+// Diagnostics (logged once a minute while the game is foreground): input events the hooks were called for. A
+// minute of play without any points to a blind hook (an elevated game) or one Windows removed.
+#[cfg(windows)]
+static HOOK_KEY_EVENTS: AtomicU32 = AtomicU32::new(0);
+#[cfg(windows)]
+static HOOK_MOUSE_EVENTS: AtomicU32 = AtomicU32::new(0);
+// Each virtual key's last event time (KBDLLHOOKSTRUCT.time, 0 = none seen), for RepeatAfterGap.
+#[cfg(windows)]
+static KEY_LAST_EVENT_MS: [AtomicU32; 256] = [const { AtomicU32::new(0) }; 256];
+// Windows' longest typematic delay is 1 s (keyboard delay setting 3); later repeats come faster.
+#[cfg(windows)]
+const AUTO_REPEAT_MAX_GAP_MS: u32 = 1_500;
+
 #[cfg(windows)]
 fn send_hook_event(event: HookEvent) {
     if let Some(sender) = HOOK_EVENTS.get() {
@@ -909,9 +1013,9 @@ fn send_hook_event(event: HookEvent) {
 
 #[cfg(windows)]
 fn emit_scoreboard_key(app: &AppHandle, held: bool) {
-    eprintln!("SLGO: scoreboard key {}", if held { "held" } else { "released" });
+    diag!("SLGO: scoreboard key {}", if held { "held" } else { "released" });
     if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-scoreboard-key", ScoreboardKeyEvent { held }) {
-        eprintln!("SLGO: failed to emit scoreboard key: {error}");
+        diag!("SLGO: failed to emit scoreboard key: {error}");
     }
 }
 
@@ -940,7 +1044,13 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
         let is_down = wparam == WM_KEYDOWN as usize || wparam == WM_SYSKEYDOWN as usize;
         let is_up = wparam == WM_KEYUP as usize || wparam == WM_SYSKEYUP as usize;
         if code == HC_ACTION as i32 && (is_down || is_up) && lparam != 0 {
-            let vk = (*(lparam as *const KBDLLHOOKSTRUCT)).vkCode;
+            HOOK_KEY_EVENTS.fetch_add(1, Ordering::Relaxed);
+            let info = &*(lparam as *const KBDLLHOOKSTRUCT);
+            let vk = info.vkCode;
+            // Virtual keys are 1-254; `time` is 0 only right after boot, where a gap is moot.
+            let previous_ms = KEY_LAST_EVENT_MS
+                .get(vk as usize)
+                .map_or(0, |last| last.swap(info.time, Ordering::Relaxed));
             let scoreboard = vk == SCOREBOARD_HOTKEY.load(Ordering::Relaxed);
             if is_down {
                 // Windows calls low-level hooks before it updates the key's asynchronous
@@ -952,6 +1062,12 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                 let handled = scoreboard || overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::Relaxed)).is_some();
                 if !repeat && handled {
                     send_hook_event(HookEvent::KeyDown(vk));
+                } else if handled {
+                    // Diagnostics only: a fresh press the async state calls a repeat would be dropped here.
+                    let gap_ms = (previous_ms != 0).then(|| info.time.wrapping_sub(previous_ms));
+                    if gap_ms.is_none_or(|gap| gap > AUTO_REPEAT_MAX_GAP_MS) {
+                        send_hook_event(HookEvent::RepeatAfterGap { vk, gap_ms });
+                    }
                 }
             } else if scoreboard {
                 send_hook_event(HookEvent::ScoreboardUp);
@@ -964,6 +1080,7 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
     // game holds the foreground; every other mouse event passes untouched.
     unsafe extern "system" fn mouse_proc(code: i32, wparam: usize, lparam: isize) -> isize {
         if code == HC_ACTION as i32 {
+            HOOK_MOUSE_EVENTS.fetch_add(1, Ordering::Relaxed);
             if wparam == WM_RBUTTONDOWN as usize && scoreboard_captures_right_click() {
                 let game = GAME_FOREGROUND_WINDOW.load(Ordering::Relaxed);
                 if game != 0 && GetForegroundWindow() as isize == game {
@@ -980,7 +1097,7 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
 
     #[cfg(debug_assertions)]
     if std::env::var("SLUI_SCOREBOARD_SPIKE").is_ok_and(|value| value == "1") {
-        eprintln!("SLGO: scoreboard spike on: right-click is captured while the scoreboard key is held");
+        diag!("SLGO: scoreboard spike on: right-click is captured while the scoreboard key is held");
         SCOREBOARD_SPIKE.store(true, Ordering::SeqCst);
     }
 
@@ -992,6 +1109,10 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
             match event {
                 HookEvent::KeyDown(vk) => {
                     if !OVERLAY_ENABLED.load(Ordering::SeqCst) {
+                        // The plugin handles its own shop key then; chat keys are not logged (they are typing).
+                        if vk == SHOP_HOTKEY.load(Ordering::SeqCst) {
+                            diag!("SLGO: hotkey shop ignored: overlay disabled");
+                        }
                         continue;
                     }
                     // Read at the press itself: the foreground poll lags up to 100ms, so a
@@ -1010,14 +1131,23 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                     let Some(shortcut) = overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::SeqCst)) else {
                         continue;
                     };
-                    eprintln!("SLGO: hotkey {shortcut} (game foreground {game_foreground})");
+                    diag!("SLGO: hotkey {shortcut} (game foreground {game_foreground})");
                     let event = ShortcutEvent {
                         shortcut,
                         game_foreground,
                     };
                     if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-shortcut", event) {
-                        eprintln!("SLGO: failed to emit shortcut: {error}");
+                        diag!("SLGO: failed to emit shortcut: {error}");
                     }
+                }
+                HookEvent::RepeatAfterGap { vk, gap_ms } => {
+                    let key = if vk == SCOREBOARD_HOTKEY.load(Ordering::SeqCst) {
+                        "scoreboard"
+                    } else {
+                        overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::SeqCst)).unwrap_or("?")
+                    };
+                    let since = gap_ms.map_or("with no earlier event seen".into(), |gap| format!("{gap} ms after its last event"));
+                    diag!("SLGO: hotkey {key} press dropped: the system already reports the key down ({since})");
                 }
                 HookEvent::ScoreboardUp => {
                     if SCOREBOARD_HELD.swap(false, Ordering::SeqCst) {
@@ -1025,9 +1155,9 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                     }
                 }
                 HookEvent::ScoreboardCursor => {
-                    eprintln!("SLGO: scoreboard right-click captured");
+                    diag!("SLGO: scoreboard right-click captured");
                     if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-scoreboard-cursor", ()) {
-                        eprintln!("SLGO: failed to emit scoreboard cursor: {error}");
+                        diag!("SLGO: failed to emit scoreboard cursor: {error}");
                     }
                 }
             }
@@ -1042,22 +1172,25 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
         let module = unsafe { GetModuleHandleW(std::ptr::null()) };
         let keyboard = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), module, 0) };
         if keyboard.is_null() {
-            eprintln!("SLGO: failed to install WH_KEYBOARD_LL hook ({})", unsafe {
+            diag!("SLGO: failed to install WH_KEYBOARD_LL hook ({})", unsafe {
                 GetLastError()
             });
             return;
         }
         let mouse = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), module, 0) };
         if mouse.is_null() {
-            eprintln!(
+            diag!(
                 "SLGO: failed to install WH_MOUSE_LL hook ({}); scoreboard cursor mode unavailable",
                 unsafe { GetLastError() }
             );
+        } else {
+            diag!("SLGO: keyboard and mouse hooks installed");
         }
         let mut message = unsafe { std::mem::zeroed() };
         while unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
             unsafe { DispatchMessageW(&message) };
         }
+        diag!("SLGO: input hook thread stopped");
         unsafe { UnhookWindowsHookEx(keyboard) };
         if !mouse.is_null() {
             unsafe { UnhookWindowsHookEx(mouse) };
@@ -1086,6 +1219,21 @@ pub fn run() {
         .manage(sidecar_socket::SidecarSockets::default())
         .manage(updater)
         .setup(|app| {
+            // First, so the log has the whole session; a second instance has already exited.
+            diag::log_panics();
+            let version = &app.package_info().version;
+            match app.path().app_log_dir().map_err(|error| error.to_string()).and_then(|dir| diag::init(&dir)) {
+                Ok(path) => diag!("SLUI {version} started; log {}", path.display()),
+                Err(error) => diag!("SLUI {version} started without a log file: {error}"),
+            }
+            #[cfg(windows)]
+            diag!(
+                "Windows {}; SLUI elevated: {}",
+                diag::windows_version(),
+                diag::elevation_text(diag::process_elevated(unsafe {
+                    windows_sys::Win32::System::Threading::GetCurrentProcess()
+                }))
+            );
             // The overlay starts disabled on every launch and never takes input on its own.
             if let Some(overlay) = app.get_webview_window(OVERLAY_WINDOW) {
                 #[cfg(windows)]

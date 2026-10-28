@@ -58,7 +58,7 @@ fn read_optional<T>(path: &Path, read: impl FnOnce(&Path) -> io::Result<T>) -> O
         Ok(value) => Some(value),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => {
-            eprintln!("SLGO: unable to read {}: {error}", path.display());
+            diag!("SLGO: unable to read {}: {error}", path.display());
             None
         }
     }
