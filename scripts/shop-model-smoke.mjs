@@ -59,6 +59,11 @@ assert.equal(selectShop(state, 1_000).hasSnapshot, true, "offline keeps last aut
   assert.equal(selectShop(ended, 1_000).hasSnapshot, false, "an ended instance drops the shop");
   assert.equal(selectShop(ended, 1_000).availability, "disconnected");
   assert.equal(ended.serverId, null);
+  for (const status of ["not-in-game", "game-not-running"]) {
+    const over = shopReducer(state, { type: "connection", status });
+    assert.equal(selectShop(over, 1_000).hasSnapshot, false, `${status} ends the match`);
+    assert.equal(selectShop(over, 1_000).availability, "disconnected");
+  }
 }
 
 // Owning an item is display-only: a held but still purchasable item (second flashbang) is buyable

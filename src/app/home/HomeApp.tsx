@@ -23,6 +23,7 @@ import { SystemSettings } from "./SystemSettings";
 import { OverlaySwitch } from "./OverlaySwitch";
 import { RadarSettings } from "./RadarSettings";
 import { StatusBar } from "./StatusBar";
+import { overlaySwitchNote } from "./status";
 import { steamAccount, type LoadedSteamProfile } from "./steamAccount";
 import { TitleBar } from "./TitleBar";
 import { UpdateBanner } from "./UpdateBanner";
@@ -197,7 +198,7 @@ export function HomeApp() {
     <main className={page === "home" ? "home-main" : "home-main home-main--split"} key={page}>
       {page === "home" ? <div className="home-page">
         {banner ? <UpdateBanner banner={banner} onAction={updateAction} /> : null}
-        <OverlaySwitch state={overlay} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
+        <OverlaySwitch state={overlay} note={overlaySwitchNote(overlay.enabled, settings.overlay.autoEnableOnConnect, session)} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
         <StatusBar session={session} steam={steamPreview ?? steamAccount(session, steamProfile)} gameRunning={gameRunning}
           update={update} onRetry={sessionSource.retry} />
         <KeyHints shopKey={settings.hotkeys.shop} scoreboardKey={settings.hotkeys.scoreboard} />

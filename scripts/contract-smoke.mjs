@@ -43,6 +43,7 @@ import {
   parseUpdateManifest,
   compareReleaseVersions,
   UPDATE_PLATFORM,
+  endsMatch,
 } from "../src/contracts/index.ts";
 import { MockSidecarConnection } from "../src/platform/connection.ts";
 import { HUD_SCENES, createHudSceneFrame, hudSceneLoopMs, readHudScene } from "../src/mocks/hudScenes.ts";
@@ -1074,6 +1075,12 @@ await runClientSessionAttempt({
 assert.deepEqual(liveActions.map((action) => action.type), ["discover", "identity-found", "route-resolved", "connection-status", "connection-status", "connection-status", "connected"]);
 assert.deepEqual(liveActions.filter((action) => action.type === "connection-status").map((action) => action.status), ["connecting", "baseline-required", "live"]);
 assert.equal(liveActions.at(-1)?.status, "live");
+
+// The match is over when the instance ended, the player is on no server, or the game is closed; a lost connection keeps it.
+for (const status of ["ended", "not-in-game", "game-not-running"]) assert.equal(endsMatch(status), true, status);
+for (const status of ["live", "stale", "offline", "unauthorized", "incompatible", "signed-out", "connecting", "baseline-required"]) {
+  assert.equal(endsMatch(status), false, status);
+}
 
 console.log("contract smoke: ok");
 

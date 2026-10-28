@@ -46,6 +46,7 @@ const live = run(initialTeamSelectState, { type: "connection", status: "live" },
   assert.equal(run(open, event(baseline())), open, "the same instance keeps it");
   assert.equal(run(open, event(baseline({ instanceId: "instance-2" }))).menu, null, "a new instance clears it");
   assert.equal(run(open, { type: "connection", status: "ended" }).menu, null, "an ended instance clears it");
+  for (const status of ["not-in-game", "game-not-running"]) assert.equal(run(open, { type: "connection", status }).menu, null, `${status} ends the match`);
   const stale = run(open, { type: "connection", status: "stale" });
   assert.equal(stale.menu.session_id, "7", "a lost connection keeps the session for the replay");
   assert.equal(visibleTeamMenu(stale), null, "but nothing is drawn or sent until the stream is live again");

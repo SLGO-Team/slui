@@ -795,12 +795,14 @@ export type SessionOpen = {
 export const SIDECAR_CLOSE_CODES = {
   /** First frame missing, late, not a valid session.open, or a frame was sent before the baseline. */
   invalidHandshake: 4000,
-  /** Session token invalid, expired or not for this sidecar; source address is not the player's game connection; player left or their address changed. */
+  /** Session token invalid, expired or not for this sidecar; source address is not the player's game connection, or their address changed. */
   unauthorized: 4001,
   /** protocol_version or schema_version is not supported. */
   unsupportedProtocol: 4002,
   /** The routed server instance is unknown or has ended; resolve a new route. An `instance.ended` event may precede it with the reason. */
   instanceUnavailable: 4003,
+  /** The server's roster does not list the player: they left it, or are not on it yet. Resolve a new route once they join one. */
+  notOnServer: 4004,
 } as const;
 export type SidecarCloseCode = (typeof SIDECAR_CLOSE_CODES)[keyof typeof SIDECAR_CLOSE_CODES];
 

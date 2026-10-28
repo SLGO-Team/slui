@@ -36,10 +36,16 @@ static OVERLAY_OVER_GAME: AtomicBool = AtomicBool::new(false);
 #[cfg(windows)]
 static GAME_FOREGROUND_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
-// An enabled overlay is visible only over the game.
+// Whether the overlay page's session is live (connected to the sidecar); set by the page.
+static SESSION_LIVE: AtomicBool = AtomicBool::new(false);
+
+// An enabled overlay is visible only over the game, and only while its session is live:
+// without the sidecar it has nothing current to show.
 #[cfg(windows)]
 fn overlay_may_show() -> bool {
-    OVERLAY_ENABLED.load(Ordering::SeqCst) && OVERLAY_OVER_GAME.load(Ordering::SeqCst)
+    OVERLAY_ENABLED.load(Ordering::SeqCst)
+        && OVERLAY_OVER_GAME.load(Ordering::SeqCst)
+        && SESSION_LIVE.load(Ordering::SeqCst)
 }
 
 // Fixed chat keys, as in CS2: Y opens global chat, U opens team chat.
@@ -412,6 +418,19 @@ fn set_overlay_enabled(app: AppHandle, enabled: bool) -> Result<OverlaySnapshot,
     apply_overlay_enabled(&app, enabled)
 }
 
+// A sync command runs on the main thread, as visibility changes must.
+#[tauri::command]
+fn set_overlay_session_live(app: AppHandle, live: bool) {
+    if SESSION_LIVE.swap(live, Ordering::SeqCst) == live {
+        return;
+    }
+    eprintln!("SLGO: overlay session {}", if live { "live" } else { "not live" });
+    #[cfg(windows)]
+    sync_overlay_visibility(&app);
+    #[cfg(not(windows))]
+    let _ = app;
+}
+
 #[tauri::command]
 fn get_overlay_state(app: AppHandle) -> OverlaySnapshot {
     overlay_snapshot(&app)
@@ -638,12 +657,32 @@ fn start_game_process_tracking(app: AppHandle) {
             .map(|mut state| std::mem::replace(&mut *state, running) != running)
             .unwrap_or(false);
         if changed {
+            eprintln!("SLGO: game {}", if running { "started" } else { "exited" });
             if let Err(error) = app.emit("slgo-game-running", running) {
                 eprintln!("SLGO: failed to emit game process state: {error}");
             }
         }
+        // The game's exit ends its session: the overlay goes off, as from the tray, and the next
+        // connection's auto-enable turns it on again.
+        if changed && !running {
+            let handle = app.clone();
+            if let Err(error) = app.run_on_main_thread(move || disable_overlay_after_game(&handle)) {
+                eprintln!("SLGO: failed to schedule disabling the overlay: {error}");
+            }
+        }
         thread::sleep(Duration::from_secs(2));
     });
+}
+
+// Main thread only, where the enable command and the tray also run.
+fn disable_overlay_after_game(app: &AppHandle) {
+    if !overlay_snapshot(app).enabled {
+        return;
+    }
+    match apply_overlay_enabled(app, false) {
+        Ok(_) => eprintln!("SLGO: overlay disabled after the game exited"),
+        Err(error) => eprintln!("SLGO: {error}"),
+    }
 }
 
 fn show_home(app: &AppHandle, request_attention: bool) {
@@ -1075,6 +1114,7 @@ pub fn run() {
             set_overlay_keyboard_focus,
             log_overlay_event,
             set_overlay_enabled,
+            set_overlay_session_live,
             set_hotkeys,
             set_scoreboard_capture,
             get_overlay_state,

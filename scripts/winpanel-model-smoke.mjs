@@ -144,6 +144,7 @@ assert.equal(reduce(restarted, result(panel({ result_id: "result-9" })), 14_100)
 assert.equal(winPanelReducer(state, { type: "connection", status: "offline" }), state);
 assert.equal(winPanelReducer(state, { type: "connection", status: "stale" }), state);
 assert.equal(winPanelReducer(state, { type: "connection", status: "ended" }), initialWinPanelState);
+for (const status of ["not-in-game", "game-not-running"]) assert.equal(winPanelReducer(state, { type: "connection", status }), initialWinPanelState, `${status} ends the match`);
 assert.equal(selectWinPanel(winPanelReducer(state, { type: "connection", status: "ended" }), 14_000, roster), null);
 
 // Colours (parent PRD R2): won / observer = winner colour + team-tinted fill; lost = loss red on a

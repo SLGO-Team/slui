@@ -296,6 +296,7 @@ for (const [code, status, retry] of [
   [4002, "incompatible", "none"],
   [4001, "unauthorized", "backoff"],
   [4003, "ended", "reroute"],
+  [4004, "not-in-game", "poll"],
   [1006, "offline", "backoff"],
   [1000, "offline", "backoff"],
 ]) {
@@ -308,6 +309,7 @@ for (const [code, status, retry] of [
   assert.equal(log.failures[0].retry, retry);
   if (code === 4001) assert.ok(log.failures[0].detail.startsWith(SAME_CONNECTION_HINT), "4001 explains IP binding");
   if (code === 1006) assert.equal(log.failures[0].detail, "Sidecar connection lost");
+  if (code === 4004) assert.equal(log.failures[0].detail, "Player is not on this server", "4004 is waiting, not an IP-binding refusal");
   await assert.rejects(connection.send({ kind: "command.chat.send", command_id: "late", scope: "team", body: "hi" }), /connection-not-live/);
 }
 
@@ -316,6 +318,7 @@ for (const [when, code, status, retry, detail] of [
   ["before-open", 1006, "offline", "backoff", /unreachable/],
   ["after-open", 4001, "unauthorized", "backoff", new RegExp(SAME_CONNECTION_HINT)],
   ["after-open", 4003, "ended", "reroute", /instance/],
+  ["after-open", 4004, "not-in-game", "poll", /not on this server/],
   ["after-open", 4002, "incompatible", "none", /Unsupported/],
 ]) {
   const { connection, log } = harness();
@@ -448,7 +451,7 @@ function tauriHarness(ipc) {
 }
 
 // Close codes from Rust map exactly like browser close codes.
-for (const [code, status, retry] of [[4001, "unauthorized", "backoff"], [4003, "ended", "reroute"], [1006, "offline", "backoff"]]) {
+for (const [code, status, retry] of [[4001, "unauthorized", "backoff"], [4003, "ended", "reroute"], [4004, "not-in-game", "poll"], [1006, "offline", "backoff"]]) {
   const ipc = fakeSidecarIpc();
   const { connection, log } = tauriHarness(ipc);
   sequence = 0;
@@ -505,15 +508,17 @@ const sessionDependencies = (controlPlane, connection) => ({
   controlPlane,
   connection,
 });
-async function attempt(dependencies, drive, { initial = initialClientSessionState, quiet = false } = {}) {
+async function attempt(dependencies, drive, { initial = initialClientSessionState, quiet = false, gameRunning = true } = {}) {
   const actions = [];
+  const statuses = [];
   let state = initial;
   const states = [];
   const running = runClientSessionAttempt(dependencies, initial.attempt + 1, {
     dispatch: (action) => { actions.push(action); state = clientSessionReducer(state, action); states.push(state); },
     onEvent: () => undefined,
+    onStatus: (status) => statuses.push(status),
     isCurrent: () => true,
-  }, quiet);
+  }, quiet, gameRunning);
   if (drive) {
     const sockets = FakeWebSocket.instances.length;
     for (let tick = 0; FakeWebSocket.instances.length === sockets; tick += 1) {
@@ -523,7 +528,27 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
     drive(lastSocket());
   }
   const cleanup = await running;
-  return { actions, cleanup, state: () => state, states };
+  return { actions, cleanup, state: () => state, states, statuses };
+}
+
+// A closed game ends the session: only the local Steam identity is read, nothing is routed or retried.
+{
+  const routed = [];
+  const controlPlane = { resolveActiveServer: async () => { routed.push(true); throw new Error("must not route"); } };
+  const live = { ...initialClientSessionState, status: "live", identity, attempt: 3 };
+  const { actions, state, statuses } = await attempt(sessionDependencies(controlPlane, harness().connection), null, { initial: live, gameRunning: false });
+  assert.deepEqual(actions.map((action) => action.type), ["game-not-running"], "no discover step, so home never flashes");
+  assert.equal(routed.length, 0, "no control-plane request while the game is closed");
+  assert.equal(state().status, "game-not-running");
+  assert.deepEqual(state().identity, identity, "the Steam tile keeps the account");
+  assert.equal(state().retry, null, "nothing is scheduled; the game starting begins the next attempt");
+  assert.deepEqual(statuses, ["game-not-running"], "features hear the end of the match");
+}
+{
+  const failing = { ...sessionDependencies(answer(404, rejection("not-in-game")), harness().connection), identity: { getCurrentUser: async () => { throw new Error("registry"); } } };
+  const { state } = await attempt(failing, null, { gameRunning: false });
+  assert.equal(state().status, "game-not-running", "a closed game wins over an unreadable identity");
+  assert.equal(state().identity, null);
 }
 
 {
@@ -541,6 +566,19 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
   const { state } = await attempt(sessionDependencies(answer(400, rejection("unsupported-protocol")), harness().connection));
   assert.equal(state().status, "incompatible");
   assert.equal(state().retry, "none");
+}
+{
+  // The player left the server: the sidecar closes with 4004 and the session waits for the next one.
+  const { connection } = harness();
+  sequence = 0;
+  const { state, cleanup } = await attempt(sessionDependencies(answer(200, routeBody()), connection), (socket) => {
+    socket.accept();
+    socket.deliver(baselineEvent());
+  });
+  lastSocket().drop(4004, "Player left the server");
+  assert.equal(state().status, "not-in-game", "leaving the server is waiting, not unauthorized");
+  assert.equal(state().retry, "poll");
+  cleanup();
 }
 {
   const { connection } = harness();

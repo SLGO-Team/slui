@@ -1,4 +1,4 @@
-import type { ConnectionStatus, Role, RoundResultOutcome, RoundResultPanel, SlgoEvent } from "../../contracts/index.ts";
+import { endsMatch, type ConnectionStatus, type Role, type RoundResultOutcome, type RoundResultPanel, type SlgoEvent } from "../../contracts/index.ts";
 import { winPanelColors, winPanelMvpAvatar, type WinPanelColors, type WinPanelRoster } from "./presentation.ts";
 
 /** The sidecar instance the panel belongs to; another one clears it. */
@@ -46,7 +46,7 @@ export const WIN_PANEL_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<Slg
 
 export function winPanelReducer(state: WinPanelState, action: WinPanelAction): WinPanelState {
   // Only an ended instance clears the panel; other drops keep it for a reconnect to the same instance.
-  if (action.type === "connection") return action.status === "ended" && state !== initialWinPanelState ? initialWinPanelState : state;
+  if (action.type === "connection") return endsMatch(action.status) && state !== initialWinPanelState ? initialWinPanelState : state;
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     // A reconnect to the same instance keeps the panel until the replayed snapshot arrives.

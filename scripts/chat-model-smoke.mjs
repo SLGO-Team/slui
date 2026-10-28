@@ -108,6 +108,7 @@ assert.equal(lost.lines.at(-1)?.text, "发送失败：连接已断开。");
 assert.equal(lost.draft, "rotate B");
 assert.equal(reduce(state, { type: "connection", status: "stale", nowMs: 1_300 }).pending?.commandId, sent.command_id, "a stale stream may still answer");
 assert.equal(reduce(state, { type: "connection", status: "ended", nowMs: 1_300 }), initialChatInputState, "an ended instance closes chat and drops its history");
+for (const status of ["not-in-game", "game-not-running"]) assert.equal(reduce(state, { type: "connection", status, nowMs: 1_300 }), initialChatInputState, `${status} ends the match`);
 assert.equal(reduce(state, { type: "tick", nowMs: 1_000 + CHAT_COMMAND_TIMEOUT_MS - 1 }).pending?.commandId, sent.command_id);
 assert.equal(reduce(state, { type: "tick", nowMs: 1_000 + CHAT_COMMAND_TIMEOUT_MS }).lines.at(-1)?.text, "发送失败：服务器未响应。");
 

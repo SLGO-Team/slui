@@ -1,4 +1,4 @@
-import { MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, type ConnectionStatus, type MinimapDiagnostic, type MinimapInit,
+import { endsMatch, MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, type ConnectionStatus, type MinimapDiagnostic, type MinimapInit,
   type MinimapBombsite, type MinimapCommanderKeycard, type MinimapPosition, type MinimapPositions, type MinimapPositionsEvent, type SlgoEvent } from "../../contracts";
 import { assertSupportedMap, mapDescriptorKey, type MapGeometry } from "./resolver.ts";
 import { clampToRadar, createRadarCamera, positionMarker, radarShape, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
@@ -144,7 +144,7 @@ function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { ty
   if (action.type === "connection") {
     if (action.status === state.connectionStatus) return state;
     if (action.status === "live") return { ...state, connectionStatus: action.status };
-    if (action.status === "ended") {
+    if (endsMatch(action.status)) {
       return { ...clearInit({ ...state, connectionStatus: action.status, baselineAccepted: false, source: null, sequence: -1 }, "disconnected"),
         ...NO_MAP };
     }

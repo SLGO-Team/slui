@@ -666,9 +666,13 @@ Close codes (`SIDECAR_CLOSE_CODES`):
 | Code | Meaning | Client action |
 |---|---|---|
 | 4000 | invalid handshake, or a frame arrived before the baseline | report `incompatible` |
-| 4001 | token invalid/expired/not for this sidecar; source address does not match the player's game connection; player left the server or their game address changed | report `unauthorized` |
+| 4001 | token invalid/expired/not for this sidecar; source address does not match the player's game connection, or their game address changed | report `unauthorized` |
 | 4002 | unsupported `protocol_version` / `schema_version` | report `incompatible` |
 | 4003 | routed instance unknown or ended; an `instance.ended` event may precede it with the reason | resolve a new route |
+| 4004 | the server's roster does not list the player: they left it, or are not on it yet | report `not-in-game`, drop the match, poll the route |
+
+A sidecar older than 4004 closes a departed player with 4001; a client older than it
+reads 4004 as a lost connection and retries with backoff.
 
 ## Instance end
 
@@ -699,8 +703,8 @@ send player-scoped data or accept commands because of a claimed SteamID alone.
 Player-scoped streams are authorized by **IP binding**: the SLGO plugin reports
 the address of each player's game connection to its sidecar, and the sidecar
 admits a session for SteamID X only if the WebSocket source address equals X's
-game address. It closes the session when X leaves the server or X's address
-changes. Addresses never leave the game host. This stops remote code sharing,
+game address. It closes the session when X leaves the server (4004) or X's address
+changes (4001). Addresses never leave the game host. This stops remote code sharing,
 not people on the same network or a deliberate relay. That is an accepted
 trade-off, since a player can always share their own screen.
 

@@ -21,6 +21,8 @@ export const SERVER_STATUS: Record<ConnectionStatus, ServerStatus> = {
   "ended": { label: "正在重启", tone: "pending", retry: false, hint: "服务器重启后自动重连" },
   "incompatible": { label: "版本不兼容", tone: "error", retry: true },
   "unauthorized": { label: "未授权", tone: "error", retry: true },
+  // The session waits for the game itself; starting it connects without a retry.
+  "game-not-running": { label: "未连接", tone: "muted", retry: false, hint: "启动游戏后自动连接" },
 };
 
 /** `ended` by the reason in the sidecar's `instance.ended`; the session reroutes by itself in every case. */
@@ -34,6 +36,15 @@ export const ENDED_STATUS: Record<InstanceEndReason, ServerStatus> = {
 };
 
 const SERVER_LOADING: ServerStatus = { label: "正在获取…", tone: "muted", retry: false };
+
+/**
+ * The line beside the home UI switch. Off: it turns on by itself at the next connection when auto-enable is on (the
+ * game's exit switches it off). On: the overlay shows only while the session is live, so it says when it will.
+ */
+export function overlaySwitchNote(enabled: boolean, autoEnable: boolean, session: SessionStatusSnapshot | null): string | null {
+  if (!enabled) return autoEnable ? "进入服务器后自动启用" : null;
+  return session?.status === "live" ? null : "连接服务器后显示";
+}
 
 export function serverStatus(session: SessionStatusSnapshot | null): ServerStatus {
   if (!session) return SERVER_LOADING;

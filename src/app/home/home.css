@@ -432,6 +432,10 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
   transition: border-color 250ms, background 250ms, color 250ms;
 }
 .home-hero__state .home-dot { transition: background 250ms, box-shadow 250ms; }
+/* The note's line under the button is always there, so the body keeps its height when the note comes and goes
+   (beside the button it ran into the art at the 820 px minimum width). */
+.home-hero__actions { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.home-hero__note { min-height: 16px; margin: 0; color: var(--home-muted); font-size: 12.5px; line-height: 16px; white-space: nowrap; }
 .home-hero[data-enabled="true"] .home-hero__state {
   border-color: rgba(247, 148, 29, 0.45);
   background: rgba(247, 148, 29, 0.12);

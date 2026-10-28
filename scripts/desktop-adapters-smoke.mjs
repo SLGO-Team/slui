@@ -3,7 +3,7 @@ import {
   createGameProcessSource, createOverlayStateSource, createSessionStatusPublisher, createSessionStatusSubscriber,
   DISABLED_OVERLAY, parseOverlayState, parseSessionStatus,
 } from "../src/platform/desktop.ts";
-import { SERVER_STATUS, serverStatus } from "../src/app/home/status.ts";
+import { overlaySwitchNote, SERVER_STATUS, serverStatus } from "../src/app/home/status.ts";
 import { steamAccount, steamTone } from "../src/app/home/steamAccount.ts";
 import { createSteamProfileSource, EMPTY_STEAM_PROFILE, parseSteamProfile } from "../src/platform/steamProfile.ts";
 
@@ -90,6 +90,16 @@ for (const bad of [null, 1, {}, { enabled: "yes", interactive: false }, { enable
   assert.equal(serverStatus(waiting).tone, "pending", "waiting for a server is blue, not an error");
   assert.equal(serverStatus(waiting).retry, false);
   assert.equal(serverStatus(waiting).hint, "等待进入游戏服务器");
+  // A closed game: muted, says the session connects by itself once the game starts, no retry button.
+  const closed = { ...valid, status: "game-not-running", detail: null };
+  assert.deepEqual(parseSessionStatus(closed), closed, "the home window receives the closed-game state");
+  assert.deepEqual(serverStatus(closed), { label: "未连接", tone: "muted", retry: false, hint: "启动游戏后自动连接" });
+  // The switch note: off says auto-enable turns it on; on says the overlay waits for a live session.
+  assert.equal(overlaySwitchNote(false, true, closed), "进入服务器后自动启用");
+  assert.equal(overlaySwitchNote(false, false, closed), null, "a manual-only switch promises nothing");
+  assert.equal(overlaySwitchNote(true, true, closed), "连接服务器后显示");
+  assert.equal(overlaySwitchNote(true, true, null), "连接服务器后显示", "unknown is not live");
+  assert.equal(overlaySwitchNote(true, false, { ...closed, status: "live" }), null);
   // An ended instance shows its reason; without one it reads as a restart.
   const ended = { ...valid, status: "ended", detail: "Server instance ended", endReason: "server-shutdown" };
   assert.deepEqual(parseSessionStatus(ended), ended);

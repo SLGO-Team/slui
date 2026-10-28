@@ -1,4 +1,4 @@
-import type { ConnectionStatus, ScoreboardSnapshot, SlgoEvent } from "../../contracts/index.ts";
+import { endsMatch, type ConnectionStatus, type ScoreboardSnapshot, type SlgoEvent } from "../../contracts/index.ts";
 
 /** The sidecar instance the scoreboard data belongs to; another one clears it. */
 export type ScoreboardSource = { serverId: string; instanceId: string };
@@ -32,7 +32,7 @@ export const SCOREBOARD_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<Sl
  * replay refreshes it. Only an ended instance clears it on a connection change.
  */
 export function scoreboardReducer(state: ScoreboardState, action: ScoreboardAction): ScoreboardState {
-  if (action.type === "connection") return action.status === "ended" && state !== initialScoreboardState ? initialScoreboardState : state;
+  if (action.type === "connection") return endsMatch(action.status) && state !== initialScoreboardState ? initialScoreboardState : state;
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     if (sameSource(state.source, event.server_id, event.instance_id)) return state;

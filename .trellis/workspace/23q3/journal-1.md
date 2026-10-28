@@ -1168,3 +1168,47 @@ Home Steam status tile now shows the signed-in account's avatar (HUD focus frame
 ### Status
 
 [OK] **Completed**
+
+
+## Session 50: Game exit ends the SLUI game session
+<!-- trellis-session: v=2 fp=44cea23d1c8e396c -->
+
+**Date**: 2026-10-28
+**Task**: Game exit ends the SLUI game session
+**Branch**: `fix/game-exit-lifecycle`
+
+### Summary
+
+Quitting SCP:SL left the last session behind (red 未授权 with the same-PC hint, overlay still enabled, old match in every panel, control-plane polling with no game). One SCPSL.exe run is now one game session: Rust switches the overlay off when the process probe sees the game exit; useGameRunning gates useClientSession, which while the game is closed only reads the Steam identity and reports the new status game-not-running (home: muted 未连接 / 启动游戏后自动连接, no retry, no network). endsMatch() (ended, not-in-game, game-not-running) resets every feature reducer. Protocol: SIDECAR_CLOSE_CODES.notOnServer (4004) for a player the roster no longer lists, mapped to not-in-game + poll instead of unauthorized. Home switch says 进入服务器后自动启用 while off with auto-enable on. Cross-repo: slgo-backend db90672 (hub closes departed/unlisted players with 4004, tests, decision), merged into its local main, not deployed. Live in-game test pending.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `265f7cf` | fix(session): end the game session when the player quits or leaves the server |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 51: Overlay shows only while the session is live
+<!-- trellis-session: v=2 fp=34a17963829395ee -->
+
+**Date**: 2026-10-28
+**Task**: Overlay shows only while the session is live
+**Branch**: `fix/game-exit-lifecycle`
+
+### Summary
+
+Follow-up in PR #71 at the user's request: an enabled overlay is shown only while the overlay page's session is live (connected to the sidecar). New command set_overlay_session_live feeds SESSION_LIVE into Rust's overlay_may_show(); the page gates shop availability, scoreboard mode and overlayInteractive on the live session, so a hidden overlay never holds the foreground or the right button. Home: overlaySwitchNote() — off + auto-enable: 进入服务器后自动启用; enabled but not live: 连接服务器后显示; the note line now sits under the button (it ran into the hero art at 820 px) and is always reserved. Spec updated; lint, smokes, clippy and Rust tests pass. No separate Trellis task (same PR).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5a7e9ea` | fix(overlay): show the overlay only while the session is live |
+
+### Status
+
+[OK] **Completed**

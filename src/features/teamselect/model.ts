@@ -1,4 +1,4 @@
-import { createCommandId } from "../../contracts/index.ts";
+import { createCommandId, endsMatch } from "../../contracts/index.ts";
 import type {
   CommandResult,
   ConnectionStatus,
@@ -105,7 +105,7 @@ export function hasTimedTeamCommand(state: TeamSelectState): boolean {
 export function teamSelectReducer(state: TeamSelectState, action: TeamSelectAction): TeamSelectState {
   switch (action.type) {
     case "connection": {
-      if (action.status === "ended") return { ...initialTeamSelectState, connection: action.status };
+      if (endsMatch(action.status)) return { ...initialTeamSelectState, connection: action.status };
       // A lost connection keeps the session for a reconnect to the same instance (the replay corrects it), but no
       // command can still be answered.
       return action.status === state.connection && state.pending === null

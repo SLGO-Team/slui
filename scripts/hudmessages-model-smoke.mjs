@@ -197,6 +197,7 @@ assert.equal(hudMessagesReducer(state, { type: "connection", status: "offline" }
 const ended = hudMessagesReducer(state, { type: "connection", status: "ended" });
 assert.equal(ended.source, null);
 assert.equal(ended.nextAppearance, state.nextAppearance, "appearance ids stay unique across instances");
+for (const status of ["not-in-game", "game-not-running"]) assert.equal(hudMessagesReducer(state, { type: "connection", status }).source, null, `${status} ends the match`);
 zone = selectMessageZone(ended, 33_000);
 assert.equal(zone.alert, null);
 assert.equal(zone.hintHigh, null);

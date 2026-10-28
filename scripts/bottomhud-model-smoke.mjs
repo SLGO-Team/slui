@@ -42,6 +42,7 @@ const status = { ammo: { clip: 23, clip_max: 30, reserve: 90, reserve_icon: "bul
   assert.equal(hudStatusReducer(state, { type: "event", event: baseline({ instanceId: "instance-2" }) }).status, null, "a new instance clears it");
   assert.equal(hudStatusReducer(state, { type: "connection", status: "offline" }), state, "a lost connection keeps it");
   assert.equal(hudStatusReducer(state, { type: "connection", status: "ended" }), initialHudStatusState, "an ended instance clears it");
+  for (const status of ["not-in-game", "game-not-running"]) assert.equal(hudStatusReducer(state, { type: "connection", status }), initialHudStatusState, `${status} ends the match`);
 
   // hud.spectating rides the same source rules.
   const watching = { target: { player_id: "76561198000000004", money: 200, item_name: "CrossVec", ammo: status.ammo, round_kills: ["default"] } };

@@ -13,10 +13,23 @@ export type ConnectionStatus =
   /** The routed server instance ended (the plugin said goodbye, or never came back): its data is dropped while a new route is resolved. */
   | "ended"
   | "offline"
-  /** The control plane found no SLGO server the player is on (route rejection `not-in-game`); retried in the background. */
+  /**
+   * The player is on no SLGO server: the control plane's route rejection `not-in-game`, or the sidecar's 4004
+   * after they left; retried in the background.
+   */
   | "not-in-game"
   | "incompatible"
-  | "unauthorized";
+  | "unauthorized"
+  /** The game process is not running: the session reads only the Steam identity and waits for the game to start. */
+  | "game-not-running";
+
+/**
+ * Whether the player's match is over: the instance ended, the player is on no server, or the game is closed.
+ * Every feature drops its match state on these; a lost connection (`offline`, `stale`, …) keeps it for a reconnect.
+ */
+export function endsMatch(status: ConnectionStatus): boolean {
+  return status === "ended" || status === "not-in-game" || status === "game-not-running";
+}
 
 export type SteamIdentity = {
   steamId: string;

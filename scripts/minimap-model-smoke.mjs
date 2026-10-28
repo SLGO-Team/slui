@@ -323,6 +323,11 @@ assert.equal(event(incompatible, "minimap.positions", positions, 5).frame, null)
   assert.equal(ended.geometry, null);
   assert.equal(ended.source, null);
   assert.equal(ended.availability, "disconnected");
+  for (const status of ["not-in-game", "game-not-running"]) {
+    const over = minimapReducer(live, { type: "connection", status });
+    assert.equal(over.geometry, null, `${status} ends the match`);
+    assert.equal(over.source, null);
+  }
 }
 const disconnected = minimapReducer(live, { type: "connection", status: "offline" });
 assert.equal(disconnected.frame, null);

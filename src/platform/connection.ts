@@ -98,6 +98,9 @@ export function failureForClose(code: number, reason: string, opened: boolean): 
       return { status: "unauthorized", detail: reason ? `${SAME_CONNECTION_HINT}（${reason}）` : SAME_CONNECTION_HINT, retry: "backoff" };
     case SIDECAR_CLOSE_CODES.instanceUnavailable:
       return { status: "ended", detail: reason || "Server instance ended", retry: "reroute" };
+    // Expected when the player leaves the server: wait for the next one, as when the control plane says so.
+    case SIDECAR_CLOSE_CODES.notOnServer:
+      return { status: "not-in-game", detail: reason || "Player is not on this server", retry: "poll" };
     default:
       return { status: "offline", detail: opened ? "Sidecar connection lost" : "Sidecar is unreachable", retry: "backoff" };
   }

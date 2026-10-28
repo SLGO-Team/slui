@@ -85,6 +85,8 @@ export type OverlayWindowController = {
   subscribeShortcut(listener: OverlayShortcutListener): () => void;
   /** While true and the game holds the foreground, right-click goes to the scoreboard instead of the game. */
   setScoreboardCapture(capture: boolean): Promise<void>;
+  /** Whether the session is live; Rust shows an enabled overlay only while it is. */
+  setSessionLive(live: boolean): Promise<void>;
   subscribeScoreboard(listener: ScoreboardInputListener): () => void;
 };
 
@@ -134,6 +136,11 @@ export function createOverlayWindowController(): OverlayWindowController {
       if (!isTauri) return;
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("set_scoreboard_capture", { capture });
+    },
+    async setSessionLive(live) {
+      if (!isTauri) return;
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("set_overlay_session_live", { live });
     },
     subscribeScoreboard(listener) {
       let active = true;

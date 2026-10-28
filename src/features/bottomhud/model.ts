@@ -1,3 +1,4 @@
+import { endsMatch } from "../../contracts/index.ts";
 import type {
   ConnectionStatus,
   HudAmmo,
@@ -39,7 +40,7 @@ export const HUD_STATUS_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<Sl
  */
 export function hudStatusReducer(state: HudStatusState, action: HudStatusAction): HudStatusState {
   // Only an ended instance drops the status; other drops keep it for a reconnect to the same instance.
-  if (action.type === "connection") return action.status === "ended" && state !== initialHudStatusState ? initialHudStatusState : state;
+  if (action.type === "connection") return endsMatch(action.status) && state !== initialHudStatusState ? initialHudStatusState : state;
   const { event } = action;
   if (event.type === "sidecar.baseline") {
     if (sameSource(state.source, event.server_id, event.instance_id)) return state;
