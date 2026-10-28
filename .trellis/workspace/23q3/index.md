@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 51
+- **Total Sessions**: 52
 - **Last Active**: 2026-10-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1214 | Active |
+| `journal-1.md` | ~1236 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 52 | 2026-10-28 | SLUI diagnostics log for the dead shop key reports | `fffd2f8` | `fix/diagnostics-log` |
 | 51 | 2026-10-28 | Overlay shows only while the session is live | `5a7e9ea` | `fix/game-exit-lifecycle` |
 | 50 | 2026-10-28 | Game exit ends the SLUI game session | `265f7cf` | `fix/game-exit-lifecycle` |
 | 49 | 2026-10-27 | Home Steam tile: avatar and persona name | `2d92010` | `feat/home-steam-profile` |

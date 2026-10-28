@@ -1212,3 +1212,25 @@ Follow-up in PR #71 at the user's request: an enabled overlay is shown only whil
 ### Status
 
 [OK] **Completed**
+
+
+## Session 52: SLUI diagnostics log for the dead shop key reports
+<!-- trellis-session: v=2 fp=c7adbb7f70419842 -->
+
+**Date**: 2026-10-28
+**Task**: SLUI diagnostics log for the dead shop key reports
+**Branch**: `fix/diagnostics-log`
+
+### Summary
+
+Investigated field reports that B does not open the shop while SLUI runs (server logs of the 10-24 competitive match: the reporter closed SLUI during two buy phases). Ruled out clock skew and stale snapshots; remaining causes are on the client key path (elevated game, removed hook, async-state repeat, settings). Added a rotating release log (diag.rs, slui.log in app_log_dir) with game elevation, hook event counts, repeat anomalies and the page's shop key decisions, plus a tray item to reveal it. Verified start lines, second-instance and rotation with a debug build; in-game lines still need a live session.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fffd2f8` | feat(diagnostics): write a session log players can attach to reports |
+
+### Status
+
+[OK] **Completed**

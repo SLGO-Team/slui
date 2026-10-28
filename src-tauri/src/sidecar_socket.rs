@@ -200,7 +200,7 @@ async fn run(
             connected = &mut connecting => match connected {
                 Ok(socket) => break socket,
                 Err(error) => {
-                    eprintln!("SLGO: sidecar {}: {error}", target.url);
+                    diag!("SLGO: sidecar {}: {error}", target.url);
                     return abnormal();
                 }
             },
@@ -216,7 +216,7 @@ async fn run(
     }
     for text in early {
         if let Err(error) = socket.send(Message::text(text)).await {
-            eprintln!("SLGO: sidecar send failed: {error}");
+            diag!("SLGO: sidecar send failed: {error}");
             return abnormal();
         }
     }
@@ -242,7 +242,7 @@ async fn run(
                 Some(Ok(_)) => {}
                 Some(Err(error)) => {
                     if received.is_none() && closing_deadline.is_none() {
-                        eprintln!("SLGO: sidecar connection lost: {error}");
+                        diag!("SLGO: sidecar connection lost: {error}");
                     }
                     return received.unwrap_or_else(abnormal);
                 }
@@ -251,7 +251,7 @@ async fn run(
             command = commands.recv(), if closing_deadline.is_none() => match command {
                 Some(Outgoing::Text(text)) => {
                     if let Err(error) = socket.send(Message::text(text)).await {
-                        eprintln!("SLGO: sidecar send failed: {error}");
+                        diag!("SLGO: sidecar send failed: {error}");
                         return abnormal();
                     }
                 }

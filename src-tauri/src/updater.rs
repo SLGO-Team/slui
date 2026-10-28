@@ -265,7 +265,7 @@ impl TrayItem {
             _ => Ok(()),
         };
         if let Err(error) = result {
-            eprintln!("SLGO: update tray item: {error}");
+            diag!("SLGO: update tray item: {error}");
         }
     }
 }
@@ -285,7 +285,7 @@ fn transition<T>(app: &AppHandle, change: impl FnOnce(&mut Machine) -> T) -> T {
             }
         }
         if let Err(error) = app.emit(STATE_EVENT, &after) {
-            eprintln!("SLGO: failed to emit update state: {error}");
+            diag!("SLGO: failed to emit update state: {error}");
         }
     }
     result
@@ -327,7 +327,7 @@ pub fn updater_start(app: AppHandle, control_plane_url: String) -> Result<Update
             .build()
             .map_err(|error| format!("Updater unavailable: {error}"))?;
         *started = true;
-        eprintln!("SLGO: update checks against {endpoint}");
+        diag!("SLGO: update checks against {endpoint}");
         let handle = app.clone();
         tauri::async_runtime::spawn(async move { run(handle, plugin).await });
     }
@@ -361,7 +361,7 @@ pub fn install_from_tray(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(error) = install(app).await {
-            eprintln!("SLGO: update install: {error}");
+            diag!("SLGO: update install: {error}");
         }
     });
 }
@@ -374,12 +374,12 @@ async fn install(app: AppHandle) -> Result<(), String> {
         .and_then(|result| result);
     match launch {
         Ok(path) => {
-            eprintln!("SLGO: started {} --update; exiting", path.display());
+            diag!("SLGO: started {} --update; exiting", path.display());
             app.exit(0);
             Ok(())
         }
         Err(error) => {
-            eprintln!("SLGO: update installer did not start: {error}");
+            diag!("SLGO: update installer did not start: {error}");
             transition(&app, Machine::install_failed);
             Err(error)
         }
@@ -426,7 +426,7 @@ fn remove_old_installers_in(temp: &Path) {
             continue;
         }
         if let Err(error) = fs::remove_dir_all(entry.path()) {
-            eprintln!("SLGO: cannot remove {} yet: {error}", entry.path().display());
+            diag!("SLGO: cannot remove {} yet: {error}", entry.path().display());
         }
     }
 }
@@ -454,7 +454,7 @@ async fn check(app: &AppHandle, plugin: &tauri_plugin_updater::Updater) {
             return;
         }
         Err(error) => {
-            eprintln!("SLGO: update check failed: {error}");
+            diag!("SLGO: update check failed: {error}");
             transition(app, |machine| machine.check_failed(FailReason::Network, now_ms()));
             return;
         }
@@ -467,11 +467,11 @@ async fn check(app: &AppHandle, plugin: &tauri_plugin_updater::Updater) {
     }
     let expected = installer_file_name(&update.version);
     if signed_file_name(&update.signature).as_deref() != Some(expected.as_str()) {
-        eprintln!("SLGO: update {} is not signed as {expected}", update.version);
+        diag!("SLGO: update {} is not signed as {expected}", update.version);
         transition(app, |machine| machine.check_failed(FailReason::Signature, now_ms()));
         return;
     }
-    eprintln!("SLGO: downloading update {}", update.version);
+    diag!("SLGO: downloading update {}", update.version);
     let mut received = 0_u64;
     let mut last_report = Instant::now();
     let result = update
@@ -488,12 +488,12 @@ async fn check(app: &AppHandle, plugin: &tauri_plugin_updater::Updater) {
         .await;
     match result {
         Ok(bytes) => {
-            eprintln!("SLGO: update {} verified ({} bytes)", update.version, bytes.len());
+            diag!("SLGO: update {} verified ({} bytes)", update.version, bytes.len());
             transition(app, |machine| machine.downloaded(update.version.clone(), notes, bytes));
         }
         Err(error) => {
             let reason = fail_reason(&error);
-            eprintln!("SLGO: update {} download failed ({reason:?}): {error}", update.version);
+            diag!("SLGO: update {} download failed ({reason:?}): {error}", update.version);
             transition(app, |machine| machine.check_failed(reason, now_ms()));
         }
     }

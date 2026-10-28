@@ -247,7 +247,7 @@ pub fn source_box(panel: Rect, margin: i32, frame: (i32, i32)) -> Option<Rect> {
 pub fn refresh(app: &AppHandle) {
     let handle = app.clone();
     if let Err(error) = app.run_on_main_thread(move || platform::apply(&handle)) {
-        eprintln!("SLGO: failed to schedule backdrop update: {error}");
+        diag!("SLGO: failed to schedule backdrop update: {error}");
     }
 }
 
@@ -261,9 +261,9 @@ fn publish_availability(app: &AppHandle) {
         })
     });
     if let Some(now) = change {
-        eprintln!("SLGO: world blur {}", if now { "available" } else { "unavailable" });
+        diag!("SLGO: world blur {}", if now { "available" } else { "unavailable" });
         if let Err(error) = app.emit(AVAILABLE_EVENT, serde_json::json!({ "available": now })) {
-            eprintln!("SLGO: failed to emit backdrop availability: {error}");
+            diag!("SLGO: failed to emit backdrop availability: {error}");
         }
         refresh(app);
     }
@@ -565,7 +565,7 @@ float4 ps(VSOut i) : SV_Target {
             );
             if let Some(errors) = errors {
                 let text = std::slice::from_raw_parts(errors.GetBufferPointer() as *const u8, errors.GetBufferSize());
-                eprintln!("SLGO: backdrop shader: {}", String::from_utf8_lossy(text));
+                diag!("SLGO: backdrop shader: {}", String::from_utf8_lossy(text));
             }
             result?;
             let code = code.unwrap();
@@ -746,7 +746,7 @@ float4 ps(VSOut i) : SV_Target {
                 true
             }
             Err(error) => {
-                eprintln!("SLGO: world blur unavailable: {error}");
+                diag!("SLGO: world blur unavailable: {error}");
                 false
             }
         }
@@ -760,7 +760,7 @@ float4 ps(VSOut i) : SV_Target {
         match status {
             Ok(status) => supported && status == AppCapabilityAccessStatus::Allowed,
             Err(error) => {
-                eprintln!("SLGO: borderless capture unavailable: {error}");
+                diag!("SLGO: borderless capture unavailable: {error}");
                 false
             }
         }
@@ -952,7 +952,7 @@ float4 ps(VSOut i) : SV_Target {
             let access: IDirect3DDxgiInterfaceAccess = frame.Surface()?.cast()?;
             let texture: ID3D11Texture2D = unsafe { access.GetInterface()? };
             if let Err(error) = engine.render(&texture, (content.Width, content.Height)) {
-                eprintln!("SLGO: world blur frame failed: {error}");
+                diag!("SLGO: world blur frame failed: {error}");
                 return Ok(());
             }
             let waiting = !engine.shown && engine.presented < engine.show_after;
@@ -986,13 +986,13 @@ float4 ps(VSOut i) : SV_Target {
         pool.FrameArrived(&TypedEventHandler::<Direct3D11CaptureFramePool, windows::core::IInspectable>::new(|pool, _| {
             if let Some(pool) = pool.as_ref() {
                 if let Err(error) = on_frame(pool) {
-                    eprintln!("SLGO: world blur capture frame: {error}");
+                    diag!("SLGO: world blur capture frame: {error}");
                 }
             }
             Ok(())
         }))?;
         session.StartCapture()?;
-        eprintln!("SLGO: world blur capture started");
+        diag!("SLGO: world blur capture started");
         engine.capture = Some(Capture { game, _item: item, pool, session, size });
         Ok(())
     }
@@ -1000,7 +1000,7 @@ float4 ps(VSOut i) : SV_Target {
     fn close_capture(capture: Capture) {
         let _ = capture.session.Close();
         let _ = capture.pool.Close();
-        eprintln!("SLGO: world blur capture stopped");
+        diag!("SLGO: world blur capture stopped");
     }
 
     pub fn stop_capture() {
@@ -1084,7 +1084,7 @@ float4 ps(VSOut i) : SV_Target {
             }
             if engine.capture.is_none() {
                 if let Err(error) = start_capture(engine, state.game) {
-                    eprintln!("SLGO: world blur capture failed: {error}");
+                    diag!("SLGO: world blur capture failed: {error}");
                     failed = true;
                     hide(engine);
                 }

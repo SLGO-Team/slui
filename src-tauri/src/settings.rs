@@ -27,7 +27,7 @@ fn quarantine(path: &Path) {
         .unwrap_or_default();
     let backup = path.with_file_name(format!("{SETTINGS_FILE}.bad-{stamp}"));
     if let Err(error) = fs::rename(path, &backup) {
-        eprintln!("SLGO: unable to back up unreadable settings: {error}");
+        diag!("SLGO: unable to back up unreadable settings: {error}");
     }
 }
 
