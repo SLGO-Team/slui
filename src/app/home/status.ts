@@ -37,6 +37,15 @@ export const ENDED_STATUS: Record<InstanceEndReason, ServerStatus> = {
 
 const SERVER_LOADING: ServerStatus = { label: "正在获取…", tone: "muted", retry: false };
 
+/**
+ * The line beside the home UI switch. Off: it turns on by itself at the next connection when auto-enable is on (the
+ * game's exit switches it off). On: the overlay shows only while the session is live, so it says when it will.
+ */
+export function overlaySwitchNote(enabled: boolean, autoEnable: boolean, session: SessionStatusSnapshot | null): string | null {
+  if (!enabled) return autoEnable ? "进入服务器后自动启用" : null;
+  return session?.status === "live" ? null : "连接服务器后显示";
+}
+
 export function serverStatus(session: SessionStatusSnapshot | null): ServerStatus {
   if (!session) return SERVER_LOADING;
   if (session.status === "ended" && session.endReason) return ENDED_STATUS[session.endReason];

@@ -500,14 +500,20 @@ by window label (`?window=home` in a browser preview).
   crash included) ends its session: Rust switches an enabled overlay off on
   the main thread through that same path (`disable_overlay_after_game`), so
   the tray label, the home switch and the overlay page follow. While off with
-  `autoEnableOnConnect` on, the home switch says 「进入服务器后自动启用」 beside
-  its button (beside, so the hero keeps its height). While
+  `autoEnableOnConnect` on, the home switch says 「进入服务器后自动启用」 under
+  its button, on a line that is always reserved so the hero keeps its height. While
   disabled, the overlay is hidden, game-window alignment and the `slgo-shortcut`
   keys are skipped, and `set_overlay_interactive(true)` is rejected.
 - An enabled overlay is visible only while the game (`SCPSL.exe`) or the
-  overlay itself (shop / chat holding the foreground) is the foreground window;
-  any other foreground window hides it, and enabling from the home window leaves
-  it hidden until the game comes to the front. It aligns its rect only to the
+  overlay itself (shop / chat holding the foreground) is the foreground window,
+  and only while its session is live (connected to the sidecar; the page reports
+  it with `set_overlay_session_live`, 2026-10-28): without the sidecar nothing on
+  it is current, a short reconnect included. Any other foreground window hides
+  it, and enabling from the home window leaves it hidden until the game comes to
+  the front. No panel takes input without a live session (shop, chat, team menu
+  and scoreboard each need it, and `overlayInteractive` is gated on it), so a
+  hidden overlay never holds the foreground or the right button. Enabled but not
+  live, the home switch says 「连接服务器后显示」 under its button. It aligns its rect only to the
   game window. Show/hide runs on the main thread (`sync_overlay_visibility`),
   serialized with the enable / interactive commands and the tray.
 - `slgo-game-foreground` / `get_game_foreground` carry `{ focused, overGame, revision }` from one foreground
@@ -666,6 +672,7 @@ by window label (`?window=home` in a browser preview).
 | `set_overlay_interactive(interactive)` | overlay | error while disabled; called only from derived UI state |
 | `set_overlay_keyboard_focus(focused)` | overlay | `true` errors unless interactive or when Windows refuses the foreground |
 | `set_hotkeys(shop, scoreboard)` | overlay | virtual-key codes; error for keys outside the bindable sets or one key for both |
+| `set_overlay_session_live(live)` | overlay | `live` = session status `live`; an enabled overlay is shown only while true |
 | `set_scoreboard_capture(capture)` | overlay | right-click goes to the scoreboard while true and the game is foreground |
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
 | `get_game_running()` | home, overlay | `boolean` (SCPSL process present, independent of focus) |

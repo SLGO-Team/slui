@@ -237,6 +237,14 @@ function App({ harness }: AppProps) {
   // The game's exit ends the session (status `game-not-running`, every feature drops its match); its start begins one.
   const gameRunning = useGameRunning();
   const session = useClientSession(dependencies, handleEvent, handleDiagnostic, handleStatus, updateRequired, gameRunning);
+  // Rust shows an enabled overlay only while the session is live: without the sidecar nothing on it is current. No
+  // panel takes input meanwhile (shop, chat, team menu and scoreboard all need a live session), so a hidden overlay
+  // never holds the foreground or the right button.
+  const sessionLive = session.status === "live";
+  useEffect(() => {
+    void overlayController.setSessionLive(sessionLive)
+      .catch((error: unknown) => console.error("Unable to report the session to the overlay window", error));
+  }, [overlayController, sessionLive]);
   const settingsStore = useMemo(() => createSettingsStore(), []);
   const overlayState = useMemo(() => createOverlayStateSource(), []);
   const sessionPublisher = useMemo(() => createSessionStatusPublisher(), []);
@@ -449,7 +457,7 @@ function App({ harness }: AppProps) {
     : selectRoundHudClock(hudState, nowMs), [debugHudFrame, hudState]);
   const shopCountdownAt = useCallback((nowMs: number) => hudClockAt(nowMs)?.phaseClockSeconds ?? null, [hudClockAt]);
   const displayedShop = debugShop ?? shop;
-  const shopAvailable = displayedShop.hasSnapshot && displayedShop.windowOpen;
+  const shopAvailable = sessionLive && displayedShop.hasSnapshot && displayedShop.windowOpen;
   shopAvailableRef.current = shopAvailable;
   const chatOpen = chatFeature.state.open;
   chatOpenRef.current = chatOpen;
@@ -476,10 +484,11 @@ function App({ harness }: AppProps) {
   teamSelectShownRef.current = teamSelectShown;
   // Shown while its key is held over the game, never under the shop, chat or team menu, never without data (an old
   // plugin keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up.
-  const scoreboardMode: ScoreboardMode = !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen || teamSelectShown
-    ? "hidden" : scoreboardCursor ? "cursor" : "passive";
+  const scoreboardMode: ScoreboardMode = !sessionLive || !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen
+    || teamSelectShown ? "hidden" : scoreboardCursor ? "cursor" : "passive";
   scoreboardModeRef.current = scoreboardMode;
-  const overlayInteractive = (shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || (teamSelectShown && overGame);
+  const overlayInteractive = sessionLive
+    && ((shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || (teamSelectShown && overGame));
   const wasChatOpenRef = useRef(false);
   // Diagnostics: every close, including a send and a session change.
   useEffect(() => {
@@ -500,9 +509,9 @@ function App({ harness }: AppProps) {
       if (scoreboardModeRef.current === "passive") setScoreboardCursor(true);
     },
   }), [overlayController]);
-  // The shop or chat opening over the scoreboard drops cursor mode, so it never comes back holding the mouse. A
-  // scoreboard that only lost its data (a waiting state) keeps it while the key stays down.
-  const scoreboardCovered = (shopOpen && shopAvailable) || chatOpen || teamSelectShown;
+  // The shop or chat opening over the scoreboard, or the session dropping, ends cursor mode, so it never comes back
+  // holding the mouse. A scoreboard that only lost its data (a waiting state) keeps it while the key stays down.
+  const scoreboardCovered = !sessionLive || (shopOpen && shopAvailable) || chatOpen || teamSelectShown;
   useEffect(() => {
     if (scoreboardCovered && scoreboardCursor) setScoreboardCursor(false);
   }, [scoreboardCovered, scoreboardCursor]);

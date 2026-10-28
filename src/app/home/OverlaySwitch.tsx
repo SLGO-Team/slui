@@ -25,10 +25,10 @@ function HeroMark({ pulse }: { pulse: number }) {
   </svg>;
 }
 
-export function OverlaySwitch({ state, autoEnable, busy, error, onToggle }: {
+export function OverlaySwitch({ state, note, busy, error, onToggle }: {
   state: OverlayState;
-  /** The `autoEnableOnConnect` setting: an off switch then says it turns on by itself (it goes off when the game exits). */
-  autoEnable: boolean;
+  /** Beside the button: when the overlay turns on or shows by itself (`overlaySwitchNote`). */
+  note: string | null;
   busy: boolean;
   error: string | null;
   onToggle(): void;
@@ -67,7 +67,7 @@ export function OverlaySwitch({ state, autoEnable, busy, error, onToggle }: {
           disabled={busy} aria-pressed={state.enabled} onClick={toggle}>
           {state.enabled ? "停用 UI" : "启用 UI"}
         </button>
-        {!state.enabled && autoEnable ? <p className="home-hero__note">进入服务器后自动启用</p> : null}
+        <p className="home-hero__note">{note}</p>
       </div>
     </div>
   </section>;

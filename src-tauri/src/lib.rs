@@ -36,10 +36,16 @@ static OVERLAY_OVER_GAME: AtomicBool = AtomicBool::new(false);
 #[cfg(windows)]
 static GAME_FOREGROUND_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
-// An enabled overlay is visible only over the game.
+// Whether the overlay page's session is live (connected to the sidecar); set by the page.
+static SESSION_LIVE: AtomicBool = AtomicBool::new(false);
+
+// An enabled overlay is visible only over the game, and only while its session is live:
+// without the sidecar it has nothing current to show.
 #[cfg(windows)]
 fn overlay_may_show() -> bool {
-    OVERLAY_ENABLED.load(Ordering::SeqCst) && OVERLAY_OVER_GAME.load(Ordering::SeqCst)
+    OVERLAY_ENABLED.load(Ordering::SeqCst)
+        && OVERLAY_OVER_GAME.load(Ordering::SeqCst)
+        && SESSION_LIVE.load(Ordering::SeqCst)
 }
 
 // Fixed chat keys, as in CS2: Y opens global chat, U opens team chat.
@@ -410,6 +416,19 @@ fn apply_overlay_enabled(app: &AppHandle, enabled: bool) -> Result<OverlaySnapsh
 #[tauri::command]
 fn set_overlay_enabled(app: AppHandle, enabled: bool) -> Result<OverlaySnapshot, String> {
     apply_overlay_enabled(&app, enabled)
+}
+
+// A sync command runs on the main thread, as visibility changes must.
+#[tauri::command]
+fn set_overlay_session_live(app: AppHandle, live: bool) {
+    if SESSION_LIVE.swap(live, Ordering::SeqCst) == live {
+        return;
+    }
+    eprintln!("SLGO: overlay session {}", if live { "live" } else { "not live" });
+    #[cfg(windows)]
+    sync_overlay_visibility(&app);
+    #[cfg(not(windows))]
+    let _ = app;
 }
 
 #[tauri::command]
@@ -1095,6 +1114,7 @@ pub fn run() {
             set_overlay_keyboard_focus,
             log_overlay_event,
             set_overlay_enabled,
+            set_overlay_session_live,
             set_hotkeys,
             set_scoreboard_capture,
             get_overlay_state,
