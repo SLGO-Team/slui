@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.10.0](https://github.com/SLGO-Team/slui/compare/v0.9.0...v0.10.0) (2026-10-28)
+
+
+### Features
+
+* **diagnostics:** write a session log players can attach to reports ([#72](https://github.com/SLGO-Team/slui/issues/72)) ([4560b0b](https://github.com/SLGO-Team/slui/commit/4560b0b6916a4d0e687a6d4a29268adeeb03629f))
+* **home:** show the Steam avatar and persona name on the status tile ([#70](https://github.com/SLGO-Team/slui/issues/70)) ([c90f677](https://github.com/SLGO-Team/slui/commit/c90f677a3494ed386e429900094d7ffb09d85629))
+* **shop:** play only the three sounds CS2's buy menu uses ([#67](https://github.com/SLGO-Team/slui/issues/67)) ([9da67c8](https://github.com/SLGO-Team/slui/commit/9da67c8be23f67da56ccd870676c00f5d09b4d04))
+* **shop:** purchase refunds from the plugin (CS2 sellback) ([#66](https://github.com/SLGO-Team/slui/issues/66)) ([a873600](https://github.com/SLGO-Team/slui/commit/a873600460ca38ca7c135bd067fe2ea1a065cb0d))
+* **teamselect:** CS2 team select menu from the plugin's team session ([#64](https://github.com/SLGO-Team/slui/issues/64)) ([f9d3382](https://github.com/SLGO-Team/slui/commit/f9d3382053b248c76ad5db024d13984adb79ef14))
+
+
+### Bug Fixes
+
+* **home:** block the web context menu outside text fields and selections ([#69](https://github.com/SLGO-Team/slui/issues/69)) ([28a4a22](https://github.com/SLGO-Team/slui/commit/28a4a224b08a2388745dae06fee315b245606aaa))
+* **overlay:** keep the arrow cursor on unbuyable items and block the web context menu ([#68](https://github.com/SLGO-Team/slui/issues/68)) ([bf54ff0](https://github.com/SLGO-Team/slui/commit/bf54ff035809a2f7b32d5118c30c83c1e2bcb8c4))
+* **session:** end the game session on quit and show the overlay only while connected ([#71](https://github.com/SLGO-Team/slui/issues/71)) ([9b6724a](https://github.com/SLGO-Team/slui/commit/9b6724aa1dc0b5e314d4a6530f52bed65af88d2f))
+
 ## [0.9.0](https://github.com/SLGO-Team/slui/compare/v0.8.0...v0.9.0) (2026-10-24)
 
 
