@@ -4,6 +4,7 @@ import { DEFAULT_AUDIO_SETTINGS } from "../../platform/audioSettings";
 import { useBackdropRef } from "../../platform/backdrop";
 import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
+import type { ShopPanelCloseReason } from "./diagnostics";
 import { createFulfillCommand, createPurchaseCommand, createRefundAllCommand, createRefundCommand, createRequestCommand, isShopItemPurchaseBlocked, type ShopItemView, type ShopRequestView, type ShopViewModel } from "./model";
 import { formatShopMoney, groupShopItems, groupShopRequests, shopIconSource, shopMinMoneyColor, shopOwnerPipColors, shopPreviewSource, shopWashForRole, type ShopColumn } from "./presentation";
 import { useShopAudio } from "./useShopAudio";
@@ -24,7 +25,9 @@ export type ShopPanelProps = {
   countdownAt?: (nowMs: number) => number | null;
   /** Purchases, teammate-request toggles, fulfilments and refunds; the model tracks each until its result. */
   onCommand(command: ShopCommand): void;
-  onClose(): void;
+  onClose(reason: ShopPanelCloseReason): void;
+  /** Diagnostics log (slui.log): the shop drawn and hidden, and the window's focus and blur while it is drawn. */
+  onDiagnostic?(message: string): void;
 };
 
 function formatShopCountdown(seconds: number | null | undefined): string {
@@ -172,6 +175,7 @@ export const ShopPanel = memo(function ShopPanel({
   countdownAt = NO_COUNTDOWN,
   onCommand,
   onClose,
+  onDiagnostic,
 }: ShopPanelProps) {
   const scale = useOverlayScale();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -268,15 +272,25 @@ export const ShopPanel = memo(function ShopPanel({
   useEffect(() => {
     if (!visible) return undefined;
     let hasFocus = document.hasFocus();
-    const handleFocus = () => { hasFocus = true; };
-    const handleBlur = () => { if (hasFocus) onClose(); };
+    const shownAt = performance.now();
+    const since = () => `${Math.round(performance.now() - shownAt)}ms`;
+    onDiagnostic?.(`shop shown (window focused: ${hasFocus})`);
+    const handleFocus = () => {
+      onDiagnostic?.(`shop window focus at ${since()}`);
+      hasFocus = true;
+    };
+    const handleBlur = () => {
+      onDiagnostic?.(`shop window blur at ${since()} (had focus: ${hasFocus})`);
+      if (hasFocus) onClose("blur");
+    };
     window.addEventListener("focus", handleFocus);
     window.addEventListener("blur", handleBlur);
     return () => {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("blur", handleBlur);
+      onDiagnostic?.(`shop hidden after ${since()}`);
     };
-  }, [onClose, visible]);
+  }, [onClose, onDiagnostic, visible]);
   useEffect(() => {
     if (!visible) return undefined;
     const handleWindowKeyDown =(event: globalThis.KeyboardEvent) => {
@@ -288,7 +302,7 @@ export const ShopPanel = memo(function ShopPanel({
         if (selectedCategory !== null) {
           setSelectedCategory(null);
         } else {
-          onClose();
+          onClose("escape");
         }
         return;
       }
@@ -400,7 +414,7 @@ export const ShopPanel = memo(function ShopPanel({
           {canRequest ? <span className="shop-navbar__for-teammate">按<span className="shop-navbar__key">[R]</span>或右键请求队友购买</span> : null}
           {/* buymenu.xml's sellbackall PopupButton, after rebuy / autobuy (not replicated); DEL is CS2's bind. */}
           {shop.refundsSupported ? <button type="button" data-shop-refund-all onClick={handleRefundAll}><span className="shop-navbar__key">[DEL]</span>全部退款</button> : null}
-          <button type="button" onClick={onClose}><span className="shop-navbar__key">[ESCAPE]</span>返回</button>
+          <button type="button" onClick={() => onClose("button")}><span className="shop-navbar__key">[ESCAPE]</span>返回</button>
         </nav>
         </div>
       </section>

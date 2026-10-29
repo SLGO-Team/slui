@@ -3,7 +3,8 @@ import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { HUD_EVENT_TYPES, initialRoundHudState, roundHudReducer, sameRoundHudTime, selectRoundHud, selectRoundHudClock } from "./features/hud/model";
 import { ShopPanel } from "./features/shop/ShopPanel";
-import { sameShopTime, selectShop } from "./features/shop/model";
+import { SHOP_COMMAND_TIMEOUT_MS, sameShopTime, selectShop, shopCommandTarget, type ShopViewModel } from "./features/shop/model";
+import { shopKeyInputs, type ShopCloseReason, type ShopPanelCloseReason } from "./features/shop/diagnostics";
 import { useShopFeature } from "./features/shop/useShopFeature";
 import { ChatInput } from "./features/chat/ChatInput";
 import { createChatCommand, validateChatBody, type ChatCloseReason } from "./features/chat/model";
@@ -174,9 +175,13 @@ function App({ harness }: AppProps) {
   const chatOpenRef = useRef(false);
   const shopOpenRef = useRef(false);
   const shopVisibleRef = useRef(false);
-  // Diagnostics (desktop log): why a shop key press did not open the shop, and the last logged values.
-  const shopDiagnosticRef = useRef("");
+  // Diagnostics (desktop log): the inputs of a shop key decision, read at the press, and the last logged values.
+  const shopViewRef = useRef<ShopViewModel | null>(null);
+  const sessionStatusRef = useRef<ConnectionStatus>("signed-out");
   const loggedStatusRef = useRef<ConnectionStatus | null>(null);
+  const loggedDetailRef = useRef<string | null>(null);
+  // Diagnostics: shop commands sent and not answered yet (label, local send time, whether "no result" was logged).
+  const shopCommandLogRef = useRef(new Map<string, { label: string; sentAtMs: number; overdue: boolean }>());
   const loggedShopAvailableRef = useRef<boolean | null>(null);
   const teamSelectShownRef = useRef(false);
   // Whether the overlay is over the game: the game or the overlay itself holds the foreground (native, one sample).
@@ -185,6 +190,14 @@ function App({ harness }: AppProps) {
   const [overGame, setOverGame] = useState(false);
   const overlayController = useMemo(() => createOverlayWindowController(), []);
   useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurStrength);
+  // Every close of an open shop goes through here, so the log names its reason. The ref follows at once, so a second
+  // close before the next render logs nothing.
+  const closeShopFor = useCallback((reason: ShopCloseReason, detail?: string) => {
+    if (!shopOpenRef.current) return;
+    shopOpenRef.current = false;
+    overlayController.log(`shop closed: ${reason}${detail ? ` (${detail})` : ""}`);
+    setShopOpen(false);
+  }, [overlayController]);
 
   const handleEvent = useCallback((event: SlgoEvent) => {
     const receivedAtMs = Date.now();
@@ -197,11 +210,19 @@ function App({ harness }: AppProps) {
     if (HUD_STATUS_EVENT_TYPES.has(type)) dispatchHudStatus({ type: "event", event });
     if (KILLFEED_EVENT_TYPES.has(type)) dispatchKillfeed({ type: "event", event, receivedAtMs });
     if (SCOREBOARD_EVENT_TYPES.has(type)) dispatchScoreboard({ type: "event", event, receivedAtMs });
+    if (event.type === "command.result") {
+      const sent = shopCommandLogRef.current.get(event.payload.command_id);
+      if (sent) {
+        shopCommandLogRef.current.delete(event.payload.command_id);
+        const { status, reason } = event.payload;
+        overlayController.log(`shop command ${sent.label}: ${status}${reason ? ` (${reason})` : ""} after ${receivedAtMs - sent.sentAtMs}ms`);
+      }
+    }
     shopFeature.receiveEvent(event);
     teamSelectFeature.receiveEvent(event, receivedAtMs);
     chatFeature.receiveEvent(event);
     minimapFeature.receiveEvent(event);
-  }, [shopFeature.receiveEvent, teamSelectFeature.receiveEvent, chatFeature.receiveEvent, minimapFeature.receiveEvent]);
+  }, [overlayController, shopFeature.receiveEvent, teamSelectFeature.receiveEvent, chatFeature.receiveEvent, minimapFeature.receiveEvent]);
   const handleDiagnostic = useCallback((diagnostic: MinimapDiagnostic) => {
     minimapFeature.receiveDiagnostic(diagnostic);
   }, [minimapFeature.receiveDiagnostic]);
@@ -243,6 +264,13 @@ function App({ harness }: AppProps) {
   // The game's exit ends the session (status `game-not-running`, every feature drops its match); its start begins one.
   const gameRunning = useGameRunning();
   const session = useClientSession(dependencies, handleEvent, handleDiagnostic, handleStatus, updateRequired, gameRunning);
+  sessionStatusRef.current = session.status;
+  // Diagnostics: why the session left `live` (the sidecar's close reason, a rejected stream, a route error).
+  useEffect(() => {
+    if (session.detail === loggedDetailRef.current) return;
+    loggedDetailRef.current = session.detail;
+    if (session.detail) overlayController.log(`session detail: ${session.detail}`);
+  }, [overlayController, session.detail]);
   // Rust shows an enabled overlay only while the session is live: without the sidecar nothing on it is current. No
   // panel takes input meanwhile (shop, chat, team menu and scoreboard all need a live session), so a hidden overlay
   // never holds the foreground or the right button.
@@ -301,11 +329,11 @@ function App({ harness }: AppProps) {
   // Rust drops the interaction itself; a panel left open here would come back on enabling without asking for it.
   useEffect(() => overlayState.subscribe((state) => {
     if (state.enabled) return;
-    setShopOpen(false);
+    closeShopFor("overlay-disabled");
     chatFeature.close("unavailable");
     teamSelectFeature.release();
     setMinimapOptions((current) => current.alternateZoomActive ? { ...current, alternateZoomActive: false } : current);
-  }), [overlayState, chatFeature.close, teamSelectFeature.release]);
+  }), [overlayState, closeShopFor, chatFeature.close, teamSelectFeature.release]);
 
   // While the overlay is enabled it owns Y/U and B, so the plugin ignores its own chat-area
   // toggle and no longer opens its in-game shop for this player. A disabled overlay keeps
@@ -426,19 +454,26 @@ function App({ harness }: AppProps) {
     }
     const gameFocused = (gameForeground ?? true) || (shopVisibleRef.current && document.hasFocus());
     if (shortcut === "shop") {
+      if (shopOpenRef.current) {
+        closeShopFor("shop-key");
+        return;
+      }
       const opens = (gameForeground ?? true) && shopAvailableRef.current;
-      overlayController.log(shopOpenRef.current ? "shop key: close"
-        : opens ? "shop key: open" : `shop key: not opened (game foreground ${gameForeground}, ${shopDiagnosticRef.current})`);
-      setShopOpen((current) => current ? false : (gameForeground ?? true) && shopAvailableRef.current);
+      const view = shopViewRef.current;
+      const inputs = view ? shopKeyInputs(sessionStatusRef.current, view, Date.now()) : `session ${sessionStatusRef.current}, no shop view`;
+      overlayController.log(opens ? `shop key: open (${inputs})` : `shop key: not opened (game foreground ${gameForeground}, ${inputs})`);
+      if (!opens) return;
+      shopOpenRef.current = true;
+      setShopOpen(true);
       return;
     }
     if (!gameFocused || !connectionLiveRef.current) {
       overlayController.log(`${shortcut} ignored: game foreground ${gameFocused}, session live ${connectionLiveRef.current}`);
       return;
     }
-    setShopOpen(false);
+    closeShopFor("chat-key");
     chatFeature.open(shortcut === "chat-team" ? "team" : "global");
-  }), [overlayController, chatFeature.close, chatFeature.open]);
+  }), [overlayController, closeShopFor, chatFeature.close, chatFeature.open]);
 
   useEffect(() => {
     if (!debug || !debugOptions) return undefined;
@@ -483,14 +518,13 @@ function App({ harness }: AppProps) {
   const shopAvailable = sessionLive && displayedShop.hasSnapshot && displayedShop.windowOpen;
   shopAvailableRef.current = shopAvailable;
   shopOpenRef.current = shopOpen;
-  const shopDiagnostic = `session ${session.status}, snapshot ${displayedShop.hasSnapshot}, window open ${displayedShop.windowOpen}`;
-  shopDiagnosticRef.current = shopDiagnostic;
+  shopViewRef.current = displayedShop;
   // Diagnostics: the shop key opens the shop exactly while it is available; each change is logged with its inputs.
   useEffect(() => {
     if (loggedShopAvailableRef.current === shopAvailable) return;
     loggedShopAvailableRef.current = shopAvailable;
-    overlayController.log(`shop ${shopAvailable ? "available" : "unavailable"} (${shopDiagnostic})`);
-  }, [overlayController, shopAvailable, shopDiagnostic]);
+    overlayController.log(`shop ${shopAvailable ? "available" : "unavailable"} (${shopKeyInputs(session.status, displayedShop, Date.now())})`);
+  }, [displayedShop, overlayController, session.status, shopAvailable]);
   const chatOpen = chatFeature.state.open;
   chatOpenRef.current = chatOpen;
   shopVisibleRef.current = shopOpen && shopAvailable;
@@ -558,16 +592,16 @@ function App({ harness }: AppProps) {
 
   // The buy window closing also closes the shop, so it does not reopen next round.
   useEffect(() => {
-    if (shopOpen && !shopAvailable) setShopOpen(false);
-  }, [shopAvailable, shopOpen]);
+    if (shopOpen && !shopAvailable) closeShopFor("unavailable", shopKeyInputs(session.status, displayedShop, Date.now()));
+  }, [closeShopFor, displayedShop, session.status, shopAvailable, shopOpen]);
 
   // The team menu opening (the plugin's M key, or a join without a team) closes the shop and chat, like the
   // plugin's own menu does for the in-game shop and chat area.
   useEffect(() => {
     if (!teamSelectShown) return;
-    setShopOpen(false);
+    closeShopFor("team-select");
     if (chatOpenRef.current) chatFeature.close("unavailable");
-  }, [chatFeature.close, teamSelectShown]);
+  }, [chatFeature.close, closeShopFor, teamSelectShown]);
 
   // The keyboard is taken after the mouse and handed back before it; the queue keeps
   // quick open/close sequences in order.
@@ -576,6 +610,7 @@ function App({ harness }: AppProps) {
     if (sentInteractiveRef.current === interactive) return;
     sentInteractiveRef.current = interactive;
     inputQueueRef.current = inputQueueRef.current.then(async () => {
+      const startedAt = performance.now();
       if (interactive) {
         await overlayController.setInteractive(true);
         await overlayController.setKeyboardFocus(true);
@@ -583,6 +618,8 @@ function App({ harness }: AppProps) {
         await overlayController.setKeyboardFocus(false);
         await overlayController.setInteractive(false);
       }
+      // Diagnostics: the switch's outcome next to the panels' window focus and blur lines.
+      overlayController.log(`overlay input ${interactive ? "on" : "off"} in ${Math.round(performance.now() - startedAt)}ms (page focused: ${document.hasFocus()})`);
     }).catch((error: unknown) => {
       console.error("Unable to switch overlay input", error);
       // The UI stays open without the foreground: the mouse is the overlay's, so a
@@ -601,7 +638,7 @@ function App({ harness }: AppProps) {
     ? "scp"
     : hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer")?.role ?? "scp" : "scp";
   const toggleShop = useCallback(() => setShopOpen((current) => !current), []);
-  const closeShop = useCallback(() => setShopOpen(false), []);
+  const closeShop = useCallback((reason: ShopPanelCloseReason) => closeShopFor(reason), [closeShopFor]);
   const localSteamId = session.identity?.steamId ?? null;
   const hudVariant = pinnedHudVariant ?? hudVariantFor(hud, localSteamId);
   // The MVP avatar comes from the displayed roster (the debug HUD's in the mock build).
@@ -638,12 +675,29 @@ function App({ harness }: AppProps) {
     hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
   ), [hud, localSteamId]);
   const handleShopCommand = useCallback((command: ShopCommand) => {
+    // Diagnostics: the command's round trip (sent, result with latency, no result within the timeout, send failure).
+    const label = shopCommandTarget(command);
+    const sentAtMs = Date.now();
+    const pending = shopCommandLogRef.current;
+    // Commands the sidecar never answered (an older one drops unknown kinds) are forgotten after a minute.
+    for (const [id, entry] of pending) if (sentAtMs - entry.sentAtMs > 60_000) pending.delete(id);
+    pending.set(command.command_id, { label, sentAtMs, overdue: false });
+    overlayController.log(`shop command ${label} sent`);
+    window.setTimeout(() => {
+      const entry = pending.get(command.command_id);
+      if (!entry || entry.overdue) return;
+      entry.overdue = true;
+      overlayController.log(`shop command ${label}: no result after ${SHOP_COMMAND_TIMEOUT_MS}ms`);
+    }, SHOP_COMMAND_TIMEOUT_MS);
     shopFeature.beginCommand(command);
     void connection.send(command).catch((error: unknown) => {
       console.error("Unable to send shop command", error);
-      shopFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed", reason: error instanceof Error ? error.message : "Send failed" });
+      const reason = error instanceof Error ? error.message : "Send failed";
+      pending.delete(command.command_id);
+      overlayController.log(`shop command ${label} not sent: ${reason}`);
+      shopFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed", reason });
     });
-  }, [connection, shopFeature.beginCommand, shopFeature.resolveCommand]);
+  }, [connection, overlayController, shopFeature.beginCommand, shopFeature.resolveCommand]);
   const handleTeamCommand = useCallback((command: TeamCommand) => {
     teamSelectFeature.beginCommand(command);
     void connection.send(command).catch((error: unknown) => {
@@ -696,6 +750,7 @@ function App({ harness }: AppProps) {
           countdownAt={shopCountdownAt}
           onCommand={handleShopCommand}
           onClose={closeShop}
+          onDiagnostic={overlayController.log}
         />
         <ChatInput
           chat={chatFeature.state}

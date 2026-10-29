@@ -623,13 +623,26 @@ by window label (`?window=home` in a browser preview).
   hook in a non-elevated SLUI does not see keys sent to an elevated game),
   once a minute with the game in the foreground the key and mouse event
   counts the hooks were called for (zero keys = blind or removed hook), a
-  handled key's press that the async state calls auto-repeat although the
-  key's previous event is older than any auto-repeat interval, the shop key
-  while the overlay is off, and from the page the session status, reported
-  client features, applied hotkeys, shop availability changes and each shop
-  key decision with its inputs. Never log typed text or the codes of keys
-  other than the overlay's hotkeys: the hooks see every key; counts only.
-  Chat keys are not logged while the overlay is off (they are typing).
+  handled key's press that the async state calls auto-repeat although it
+  cannot be one (`repeat_is_suspect`: the hook's own last event of the key
+  was its key-up, it saw none, or the gap exceeds any typematic delay), the
+  shop key while the overlay is off, and the window that takes the
+  foreground from both the game and the overlay as its executable file name
+  and window class (task `10-29-shop-diagnostics`). From the page: the
+  session status and failure detail, reported client features, applied
+  hotkeys, shop availability changes and each shop key decision with its
+  inputs (session, snapshot, window open, availability, snapshot age); every
+  close of an open shop as `shop closed: <reason>` (`ShopCloseReason`, one
+  `closeShopFor` in `App.tsx`; a new close path must go through it), the
+  shop drawn and hidden with the window's focus and blur while it is drawn,
+  each overlay input switch's outcome, each shop command sent, its result
+  and latency, a send failure and no result within the command timeout; and
+  uncaught errors of both windows (window `error`, unhandled rejections,
+  React `onUncaughtError` / `onCaughtError`, `src/platform/pageErrors.ts`,
+  capped per line and per page). Never log typed text, window titles, player
+  names or the codes of keys other than the overlay's hotkeys: the hooks see
+  every key; counts only. Chat keys are not logged while the overlay is off
+  (they are typing).
 - On Windows, overlay visibility and click-through are set with Win32 calls
   only (`SWP_SHOWWINDOW` / `SW_HIDE`, `WS_EX_TRANSPARENT`). `WS_EX_LAYERED`
   stays on in both modes with `SetLayeredWindowAttributes(255, LWA_ALPHA)`;

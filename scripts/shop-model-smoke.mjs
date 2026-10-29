@@ -21,6 +21,7 @@ import {
   readShopDebugOptions,
 } from "../src/mocks/shopDebug.ts";
 import { mockScp079ShopSnapshot, mockScpShopSnapshot, mockShopSnapshotFor } from "../src/mocks/provider.ts";
+import { shopKeyInputs } from "../src/features/shop/diagnostics.ts";
 
 const baseline = { protocol_version: 0, schema_version: 1, event_id: "b", server_id: "s", instance_id: "i", sequence: 1, type: "sidecar.baseline", payload: { baseline: true } };
 const snapshot = {
@@ -311,4 +312,14 @@ console.log("shop model smoke: ok");
   assert.deepEqual(shopOwnerPipColors({ owned_quantity: 1 }, colors, null), [SHOP_PIP_FALLBACK_COLOR], "unknown viewer draws white");
   const owned = mockScpShopSnapshot.items.find((item) => item.item_id === "Scp173");
   assert.deepEqual(owned?.owner_player_ids, ["76561198000000006"], "mock owners come from the mock loadouts");
+}
+
+// Diagnostics: the shop key's inputs name the session, snapshot, window, availability and the snapshot's age.
+{
+  const frame = { receivedAtMs: 10_000 };
+  assert.equal(shopKeyInputs("live", { hasSnapshot: true, windowOpen: false, availability: "live", frame }, 12_340),
+    "session live, snapshot true, window open false, availability live, snapshot age 2.3s");
+  assert.equal(shopKeyInputs("connecting", { hasSnapshot: false, windowOpen: false, availability: "baseline-required", frame: null }, 0),
+    "session connecting, snapshot false, window open false, availability baseline-required, snapshot age none");
+  assert.match(shopKeyInputs("live", { hasSnapshot: true, windowOpen: true, availability: "live", frame }, 9_000), /snapshot age 0\.0s$/, "a clock step back never shows a negative age");
 }
