@@ -1234,3 +1234,25 @@ Investigated field reports that B does not open the shop while SLUI runs (server
 ### Status
 
 [OK] **Completed**
+
+
+## Session 53: Shop and shop-key diagnostics (slui.log round 2)
+<!-- trellis-session: v=2 fp=e4ab9176f870743c -->
+
+**Date**: 2026-10-29
+**Task**: Shop and shop-key diagnostics (slui.log round 2)
+**Branch**: `fix/shop-diagnostics`
+
+### Summary
+
+Reviewed the shop chain for the dead-B and close-on-purchase reports. Reporter answers plus the game host's plugin logs ruled out buy-zone silence, SSS rebinds, the Tauri Channel stall, hook removal and the plugin/sidecar side, leaving a Rust-side drop of B or a shop that opens and vanishes. Added diagnostics without behaviour change: shop close reasons, shop key inputs with snapshot age, shop drawn/hidden with window focus/blur, overlay input switch outcomes, shop command round trips, session failure detail, uncaught page/render errors, the window taking the foreground (exe + class), and auto-repeat drops after a seen key-up.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `168c1a0` | fix(diagnostics): log why the shop closes and what the shop key saw |
+
+### Status
+
+[OK] **Completed**
