@@ -195,13 +195,7 @@ static FOREGROUND_PROCESS: Mutex<ForegroundProcessCache> = Mutex::new(Foreground
 
 #[cfg(windows)]
 fn is_game_foreground(foreground: windows_sys::Win32::Foundation::HWND) -> bool {
-    use windows_sys::Win32::{
-        Foundation::CloseHandle,
-        System::Threading::{
-            OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
-        },
-        UI::WindowsAndMessaging::GetWindowThreadProcessId,
-    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
 
     if foreground.is_null() {
         return false;
@@ -211,26 +205,59 @@ fn is_game_foreground(foreground: windows_sys::Win32::Foundation::HWND) -> bool 
     if process_id == 0 {
         return false;
     }
-    let query = || {
-        // Only query the executable path; no process memory or game input is accessed.
-        let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
-        if process.is_null() {
-            return None;
-        }
-        let mut path = vec![0_u16; 32_768];
-        let mut length = path.len() as u32;
-        let queried = unsafe { QueryFullProcessImageNameW(process, 0, path.as_mut_ptr(), &mut length) };
-        unsafe { CloseHandle(process) };
-        if queried == 0 {
-            return None;
-        }
-        Some(String::from_utf16(&path[..length as usize]).is_ok_and(|path| is_game_executable(&path)))
-    };
+    let query = || process_image_path(process_id).map(|path| is_game_executable(&path));
     match FOREGROUND_PROCESS.lock() {
         Ok(mut cache) => cache.check(foreground as isize, process_id, query),
         // A poisoned lock only loses the cache; the answer is still read.
         Err(_) => query().unwrap_or(false),
     }
+}
+
+/// The executable path of a process, or None when it cannot be read. Only the path is queried: no process memory or
+/// input is accessed.
+#[cfg(windows)]
+fn process_image_path(process_id: u32) -> Option<String> {
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION},
+    };
+
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
+    if process.is_null() {
+        return None;
+    }
+    let mut path = vec![0_u16; 32_768];
+    let mut length = path.len() as u32;
+    let queried = unsafe { QueryFullProcessImageNameW(process, 0, path.as_mut_ptr(), &mut length) };
+    unsafe { CloseHandle(process) };
+    if queried == 0 {
+        return None;
+    }
+    // A path that is not valid UTF-16 is never the game's; it is still a readable answer.
+    Some(String::from_utf16_lossy(&path[..length as usize]))
+}
+
+/// Diagnostics: a window as its executable file name and window class, never its title (which can hold anything the
+/// player has open).
+#[cfg(windows)]
+fn describe_foreground(window: windows_sys::Win32::Foundation::HWND) -> String {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetWindowThreadProcessId};
+
+    let mut process_id = 0;
+    unsafe { GetWindowThreadProcessId(window, &mut process_id) };
+    let executable = (process_id != 0)
+        .then(|| process_image_path(process_id))
+        .flatten()
+        .and_then(|path| path.rsplit(['\\', '/']).next().map(str::to_owned))
+        .unwrap_or_else(|| "unknown executable".into());
+    let mut class = [0_u16; 256];
+    let length = unsafe { GetClassNameW(window, class.as_mut_ptr(), class.len() as i32) };
+    let class = if length > 0 {
+        String::from_utf16_lossy(&class[..length as usize])
+    } else {
+        "unknown class".into()
+    };
+    format!("{executable} (class {class})")
 }
 
 #[cfg(windows)]
@@ -805,6 +832,11 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
         if !foreground.is_null()
             && OVERLAY_OVER_GAME.swap(over_game, Ordering::SeqCst) != over_game
         {
+            // Diagnostics: what took the foreground from the game and the overlay (an open shop or chat closes on
+            // that blur, and the overlay hides).
+            if !over_game {
+                diag!("SLGO: foreground left the game and the overlay: {}", describe_foreground(foreground));
+            }
             // Visibility changes run on the main thread, where the enable and
             // interactive commands and the tray also run, so they cannot race.
             let handle = app.clone();
@@ -975,10 +1007,10 @@ struct ScoreboardKeyEvent {
 enum HookEvent {
     /// A non-repeat key-down of a key the overlay handles.
     KeyDown(u32),
-    /// Diagnostics: a key-down of a handled key that the asynchronous state reports as auto-repeat although the
-    /// key's previous event lies longer ago than any auto-repeat interval (`None`: the hook saw no earlier event).
-    /// Its press is dropped like an auto-repeat.
-    RepeatAfterGap { vk: u32, gap_ms: Option<u32> },
+    /// Diagnostics: a key-down of a handled key that the asynchronous state reports as auto-repeat although it cannot
+    /// be one (`repeat_is_suspect`). Its press is dropped like an auto-repeat. `gap_ms`: time since the key's previous
+    /// event the hook saw (`None`: none seen); `after_up`: that event was the key's key-up.
+    SuspectRepeat { vk: u32, gap_ms: Option<u32>, after_up: bool },
     /// The scoreboard key went up.
     ScoreboardUp,
     /// A right-click swallowed for the scoreboard's cursor mode.
@@ -997,12 +1029,23 @@ static RIGHT_BUTTON_SWALLOWED: AtomicBool = AtomicBool::new(false);
 static HOOK_KEY_EVENTS: AtomicU32 = AtomicU32::new(0);
 #[cfg(windows)]
 static HOOK_MOUSE_EVENTS: AtomicU32 = AtomicU32::new(0);
-// Each virtual key's last event time (KBDLLHOOKSTRUCT.time, 0 = none seen), for RepeatAfterGap.
+// Each virtual key's last event time (KBDLLHOOKSTRUCT.time, 0 = none seen) and whether that event was a key-down,
+// for SuspectRepeat.
 #[cfg(windows)]
 static KEY_LAST_EVENT_MS: [AtomicU32; 256] = [const { AtomicU32::new(0) }; 256];
-// Windows' longest typematic delay is 1 s (keyboard delay setting 3); later repeats come faster.
 #[cfg(windows)]
+static KEY_LAST_WAS_DOWN: [AtomicBool; 256] = [const { AtomicBool::new(false) }; 256];
+// Windows' longest typematic delay is 1 s (keyboard delay setting 3); later repeats come faster.
+#[cfg_attr(not(windows), allow(dead_code))]
 const AUTO_REPEAT_MAX_GAP_MS: u32 = 1_500;
+
+/// Diagnostics: whether a key-down that the asynchronous state calls auto-repeat cannot be one. Auto-repeat follows
+/// the hook's own key-down of that key within the typematic interval. After its key-up, with no earlier event or after
+/// a longer gap, the system's record and the hook's disagree and a fresh press is lost.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn repeat_is_suspect(last_was_down: bool, gap_ms: Option<u32>) -> bool {
+    !last_was_down || gap_ms.is_none_or(|gap| gap > AUTO_REPEAT_MAX_GAP_MS)
+}
 
 #[cfg(windows)]
 fn send_hook_event(event: HookEvent) {
@@ -1051,6 +1094,9 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
             let previous_ms = KEY_LAST_EVENT_MS
                 .get(vk as usize)
                 .map_or(0, |last| last.swap(info.time, Ordering::Relaxed));
+            let last_was_down = KEY_LAST_WAS_DOWN
+                .get(vk as usize)
+                .is_some_and(|last| last.swap(is_down, Ordering::Relaxed));
             let scoreboard = vk == SCOREBOARD_HOTKEY.load(Ordering::Relaxed);
             if is_down {
                 // Windows calls low-level hooks before it updates the key's asynchronous
@@ -1065,8 +1111,9 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                 } else if handled {
                     // Diagnostics only: a fresh press the async state calls a repeat would be dropped here.
                     let gap_ms = (previous_ms != 0).then(|| info.time.wrapping_sub(previous_ms));
-                    if gap_ms.is_none_or(|gap| gap > AUTO_REPEAT_MAX_GAP_MS) {
-                        send_hook_event(HookEvent::RepeatAfterGap { vk, gap_ms });
+                    if repeat_is_suspect(last_was_down, gap_ms) {
+                        let after_up = previous_ms != 0 && !last_was_down;
+                        send_hook_event(HookEvent::SuspectRepeat { vk, gap_ms, after_up });
                     }
                 }
             } else if scoreboard {
@@ -1140,13 +1187,15 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                         diag!("SLGO: failed to emit shortcut: {error}");
                     }
                 }
-                HookEvent::RepeatAfterGap { vk, gap_ms } => {
+                HookEvent::SuspectRepeat { vk, gap_ms, after_up } => {
                     let key = if vk == SCOREBOARD_HOTKEY.load(Ordering::SeqCst) {
                         "scoreboard"
                     } else {
                         overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::SeqCst)).unwrap_or("?")
                     };
-                    let since = gap_ms.map_or("with no earlier event seen".into(), |gap| format!("{gap} ms after its last event"));
+                    let since = gap_ms.map_or("the hook saw no earlier event".into(), |gap| {
+                        format!("the hook's last event of the key was its key-{} {gap} ms ago", if after_up { "up" } else { "down" })
+                    });
                     diag!("SLGO: hotkey {key} press dropped: the system already reports the key down ({since})");
                 }
                 HookEvent::ScoreboardUp => {
@@ -1326,7 +1375,16 @@ mod foreground_process_cache_tests {
 
 #[cfg(test)]
 mod hotkey_tests {
-    use super::{is_bindable_scoreboard_hotkey, is_bindable_shop_hotkey, overlay_shortcut, validate_hotkeys};
+    use super::{is_bindable_scoreboard_hotkey, is_bindable_shop_hotkey, overlay_shortcut, repeat_is_suspect, validate_hotkeys};
+
+    #[test]
+    fn a_repeat_after_the_key_up_or_with_no_earlier_event_is_suspect() {
+        assert!(repeat_is_suspect(false, Some(120)), "the hook saw the key go up");
+        assert!(repeat_is_suspect(false, None), "the hook saw no earlier event");
+        assert!(repeat_is_suspect(true, Some(2_000)), "longer than any typematic delay");
+        assert!(!repeat_is_suspect(true, Some(33)), "auto-repeat after the hook's own key-down");
+        assert!(!repeat_is_suspect(true, Some(1_000)), "the longest typematic delay");
+    }
 
     #[test]
     fn overlay_shortcuts_map_the_chat_keys_and_the_configured_shop_key() {

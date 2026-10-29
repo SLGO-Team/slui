@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "desktop platform contract: hook, foreground, log_overlay_event, diagnostics log contents and privacy rules"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "code standards, clocks, effects"}

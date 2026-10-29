@@ -6,6 +6,7 @@ import {
 import { overlaySwitchNote, SERVER_STATUS, serverStatus } from "../src/app/home/status.ts";
 import { steamAccount, steamTone } from "../src/app/home/steamAccount.ts";
 import { createSteamProfileSource, EMPTY_STEAM_PROFILE, parseSteamProfile } from "../src/platform/steamProfile.ts";
+import { createPageErrorLog, describeComponentStack, describePageError, MAX_PAGE_ERROR_LENGTH } from "../src/platform/pageErrors.ts";
 
 // In-process bus that records emits and delivers to listeners, like two windows sharing app events.
 function createFakeBus() {
@@ -167,6 +168,21 @@ for (const bad of [null, 1, {}, { enabled: "yes", interactive: false }, { enable
   assert.equal(steamTone(steamAccount(session, null)), "ok");
   assert.equal(steamTone(steamAccount({ ...session, steamId: null }, null)), "muted");
   assert.equal(steamTone(steamAccount(null, null)), "muted");
+}
+
+// Page errors: one line per error with the first frames, capped in length and in count.
+{
+  const error = new TypeError("boom");
+  error.stack = ["TypeError: boom", "    at a (x.js:1:1)", "    at b (x.js:2:2)", "    at c", "    at d", "    at e", "    at f"].join("\n");
+  assert.equal(describePageError(error), "TypeError: boom | at a (x.js:1:1) | at b (x.js:2:2) | at c | at d", "four frames on one line");
+  assert.equal(describePageError("plain\nreason"), "plain reason", "a non-Error value is its text on one line");
+  assert.equal(describePageError(new Error("x".repeat(2_000))).length, MAX_PAGE_ERROR_LENGTH, "long messages are cut");
+  assert.equal(describeComponentStack("\n    at ShopPanel\n    at App\n"), " | components: at ShopPanel < at App");
+  assert.equal(describeComponentStack(undefined), "");
+  const lines = [];
+  const log = createPageErrorLog((message) => lines.push(message), 2);
+  for (let index = 0; index < 5; index += 1) log(`error ${index}`);
+  assert.deepEqual(lines, ["error 0", "error 1", "page errors: more than 2, later ones not logged"], "a repeating error stops after the limit");
 }
 
 console.log("desktop adapters smoke: overlay state, game process, session status bridge and Steam profile ok");

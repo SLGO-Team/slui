@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { suppressPageContextMenu } from "./platform/contextMenu";
 import { currentWindowLabel, isTauri } from "./platform/desktop";
+import { installPageErrorLog } from "./platform/pageErrors";
 import { loadThemePack } from "./platform/themePack";
 import { registerFontFaces } from "./shared/fonts";
 import { setThemePack } from "./shared/themePack";
@@ -14,10 +15,15 @@ if (import.meta.env.DEV && typeof performance.clearMeasures === "function") {
   window.setInterval(() => performance.clearMeasures(), 10_000);
 }
 
+// Uncaught errors reach slui.log from the first line on; the window label joins them once known.
+let windowLabel = "page";
+const rootErrorOptions = installPageErrorLog(() => windowLabel);
+
 // One bundle serves both windows; the Tauri window label (or ?window=home in a
 // browser) selects the root. Each root is loaded on demand so the overlay's
 // transparent page CSS never reaches the home window.
 void Promise.all([currentWindowLabel(), loadThemePack()]).then(async ([label, themePack]) => {
+  windowLabel = label;
   // Theme-pack fonts and sounds must be resolved before any feature mounts.
   setThemePack(themePack);
   registerFontFaces(themePack);
@@ -33,7 +39,7 @@ void Promise.all([currentWindowLabel(), loadThemePack()]).then(async ([label, th
     const { default: App } = await import("./App");
     root = <App harness={harness} />;
   }
-  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement, rootErrorOptions).render(
     <React.StrictMode>
       {root}
     </React.StrictMode>,
