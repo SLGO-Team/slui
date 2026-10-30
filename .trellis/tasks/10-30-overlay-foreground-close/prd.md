@@ -29,11 +29,12 @@ The foreground never leaves SLUI, so the 100 ms foreground poll sees nothing. Th
 
 ## Acceptance Criteria
 
-- [ ] With NVIDIA's Alt+R overlay on, the shop and chat stay open until closed by the player (in-game, dev PC).
-- [ ] Alt+Tab away with the shop or chat open closes it; returning to the game does not reopen it.
-- [ ] A smoke test covers the foreground-loss rule (held since opening, lost to the game, lost to another window,
+- [x] With NVIDIA's Alt+R overlay on, the shop and chat stay open until closed by the player (in-game, dev PC).
+- [ ] Alt+Tab away with the shop or chat open closes it; returning to the game does not reopen it. (Covered by the
+      smoke test; not exercised in game on 10-30.)
+- [x] A smoke test covers the foreground-loss rule (held since opening, lost to the game, lost to another window,
       never held).
-- [ ] `npm run lint` and `npm test` pass; spec system-boundaries updated (close-on-foreground rule, the NVIDIA bounce).
+- [x] `npm run lint` and `npm test` pass; spec system-boundaries updated (close-on-foreground rule, the NVIDIA bounce).
 
 ## Out of Scope
 
