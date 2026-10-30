@@ -1,0 +1,8 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "type": "session.challenge",
+  "method": "game-log",
+  "challenge_id": "q8Zc1rT0aXw",
+  "expires_in_ms": 15000
+}

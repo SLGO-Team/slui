@@ -60,6 +60,8 @@ Payload schemas:
 - [command.schema.json](./command.schema.json)
 - [command-result.schema.json](./command-result.schema.json)
 - [session-open.schema.json](./session-open.schema.json)
+- [session-challenge.schema.json](./session-challenge.schema.json)
+- [session-proof.schema.json](./session-proof.schema.json)
 - [client-features.schema.json](./client-features.schema.json)
 - [route-request.schema.json](./route-request.schema.json)
 - [route-rejected.schema.json](./route-rejected.schema.json)
@@ -72,6 +74,8 @@ Payload schemas:
 | control -> client | `control.route.resolved` | Select the active sidecar |
 | control -> client | `control.route.rejected` | Unauthorized, invalid, or player not in game |
 | client -> sidecar | `session.open` | First WebSocket frame: session token + capabilities |
+| sidecar -> client | `session.challenge` | Before the baseline, address mismatch only: prove via the game log |
+| client -> sidecar | `session.proof` | Answer to `session.challenge`: the nonce from the game log |
 | sidecar -> client | `sidecar.baseline` | Validated synchronization barrier after connect/restart |
 | sidecar -> client | `match.snapshot` | Round, score, teams, players, timer |
 | sidecar -> client | `minimap.init` | Actual room layout and bombsites of a map generation |
@@ -614,6 +618,40 @@ expiry. After the baseline, each client text frame is one
 [`client.features`](./client-features.schema.json) frame (discriminated by
 `type`). Every command gets exactly one `command.result`.
 
+### Game-log proof
+
+`session.open` may carry `proofs`, the ways this client can prove it runs on
+the game's PC (lowercase kebab-case, at most 8, no duplicates; absent = none).
+The only method is `game-log`. A sidecar that predates the field refuses such a
+`session.open` with 4000, so a deployment updates its sidecars before it ships
+a client that sends it.
+
+When the WebSocket source address equals the player's game address, the
+sidecar sends the baseline as usual and never challenges. When it does not
+(typically a game accelerator: the game goes through the accelerator's node,
+SLUI connects directly), the client offered `game-log`, and the plugin supports
+it, the sidecar instead:
+
+1. asks the plugin to print `SLGO-PROOF <challenge_id> <nonce>`
+   (`formatGameLogProof`) to that player's game console. Only the player's game
+   client receives it, over the game connection, and writes it to the local
+   `%USERPROFILE%\AppData\LocalLow\Northwood\SCPSL\Player.log` as
+   `[FROM SERVER] SLGO-PROOF ...`;
+2. sends [`session.challenge`](./session-challenge.schema.json)
+   (`parseSessionChallenge`) with the `challenge_id` and `expires_in_ms`. The
+   nonce is never sent over the WebSocket.
+
+The client reads the game log (from where it stood before `session.open`, since
+the line may arrive before the frame), finds the nonce with `findGameLogProof`,
+and answers once with [`session.proof`](./session-proof.schema.json)
+(`parseSessionProof`). A correct answer within the time limit gets the
+baseline. A wrong, late or repeated answer, any other frame while the challenge
+is open, or no answer closes the session (4001, or 4000 for a wrong frame). A
+challenge is valid once and only on the connection that received it. The
+sidecar keeps no record of passed proofs: every mismatched connection proves
+again. Without `game-log` support on both the client and the plugin, a
+mismatch is refused with 4001 as before.
+
 `client.features` lists the plugin features this connection currently takes
 over, always as the full list (lowercase kebab-case, at most 16, no
 duplicates; `[]` = none, which is also the state before the first frame). The
@@ -666,7 +704,7 @@ Close codes (`SIDECAR_CLOSE_CODES`):
 | Code | Meaning | Client action |
 |---|---|---|
 | 4000 | invalid handshake, or a frame arrived before the baseline | report `incompatible` |
-| 4001 | token invalid/expired/not for this sidecar; source address does not match the player's game connection, or their game address changed | report `unauthorized` |
+| 4001 | token invalid/expired/not for this sidecar; source address does not match the player's game connection and no game-log proof passed; or their game address changed | report `unauthorized` |
 | 4002 | unsupported `protocol_version` / `schema_version` | report `incompatible` |
 | 4003 | routed instance unknown or ended; an `instance.ended` event may precede it with the reason | resolve a new route |
 | 4004 | the server's roster does not list the player: they left it, or are not on it yet | report `not-in-game`, drop the match, poll the route |
@@ -703,18 +741,21 @@ send player-scoped data or accept commands because of a claimed SteamID alone.
 Player-scoped streams are authorized by **IP binding**: the SLGO plugin reports
 the address of each player's game connection to its sidecar, and the sidecar
 admits a session for SteamID X only if the WebSocket source address equals X's
-game address. It closes the session when X leaves the server (4004) or X's address
-changes (4001). Addresses never leave the game host. This stops remote code sharing,
-not people on the same network or a deliberate relay. That is an accepted
-trade-off, since a player can always share their own screen.
+game address, or if the client passes the game-log proof (see "Game-log proof"):
+only X's game client receives the challenge line, so only X's PC can read it.
+It closes the session when X leaves the server (4004) or X's game address
+changes (4001). Addresses never leave the game host. This stops impersonation
+from another PC, not people on the same public address, a deliberate relay or
+log sync by the player themselves, or someone who can read the game connection.
+That is an accepted trade-off, since a player can always share their own
+screen.
 
 Client-side consequence: SLUI opens the sidecar session with a `local-steamid`
 route, and `canOpenPlayerScopedStream` accepts it. The client does not gate
 player-scoped data or commands by identity mode; the sidecar does. The other
-identity modes remain reserved for stronger proofs. Because the check compares
-addresses, SLUI must run on the same PC (and network connection) as the game,
-and must reach the sidecar over the same address family as the game. A 4001
-close is how a mismatch shows up.
+identity modes remain reserved for stronger proofs. SLUI must run on the same
+PC as the game: either its address matches the game's, or it reads the game
+log. A 4001 close is how a failed check shows up.
 
 Client rejection mapping: `not-in-game` and `rate-limited` map to the
 `ParseErrorCode`s of the same name and are retried with backoff;

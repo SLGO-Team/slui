@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/session-proof.schema.json",
+  "title": "SLUI sidecar session proof (client answer to session.challenge)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "challenge_id", "response"],
+  "properties": {
+    "type": { "const": "session.proof" },
+    "challenge_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" },
+    "response": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" }
+  }
+}

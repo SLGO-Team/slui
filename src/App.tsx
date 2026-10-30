@@ -36,6 +36,7 @@ import type { TeamSelectDebugOptions } from "./mocks/teamSelectDebug";
 import { HttpControlPlane, MockControlPlane } from "./platform/route";
 import { WebSocketSidecarConnection } from "./platform/connection";
 import { createTauriSidecarSocket } from "./platform/sidecarSocket";
+import { createGameLogProofReader, tauriGameLogSource } from "./platform/gameLog";
 import { readBackendConfig } from "./platform/backend";
 import { createIdentityProofProvider, LocalSteamIdentity } from "./platform/identity";
 import { useClientSession } from "./app/useClientSession";
@@ -51,7 +52,7 @@ import { useWorldBlur } from "./platform/backdrop";
 import { useClockSelector } from "./shared/clock";
 import type { HudSceneSelf } from "./mocks/hudScenes";
 import { DEFAULT_RADAR_PREFERENCES, type RadarPreferences } from "./features/minimap/preferences";
-import { createOverlayStateSource, createSessionStatusPublisher, isTauri, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
+import { createOverlayStateSource, createSessionStatusPublisher, isTauri, tauriInvoke, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
 import { createUpdateSource } from "./platform/updater";
 import { requiredUpdate } from "./app/updateModel";
 import "./App.css";
@@ -141,6 +142,8 @@ function App({ harness }: AppProps) {
     // Tauri connects from Rust so the TLS handshake carries no SNI; browser previews keep WebSocket.
     createSocket: isTauri() ? createTauriSidecarSocket : undefined,
     endpointOverride: BACKEND.kind === "real" ? BACKEND.sidecarEndpointOverride : null,
+    // Only the desktop app can read the game's Player.log for the game-log proof.
+    gameLogProof: isTauri() ? createGameLogProofReader(tauriGameLogSource(tauriInvoke)) : null,
   }), [mockConnection]);
   const controlPlane = useMemo(() => BACKEND.kind === "real" ? new HttpControlPlane(BACKEND.controlPlaneUrl) : new MockControlPlane(), []);
   const identity = useMemo(() => new LocalSteamIdentity(), []);
