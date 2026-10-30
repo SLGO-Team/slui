@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/SLGO-Team/slui/compare/v0.10.2...v0.11.0) (2026-10-30)
+
+
+### Features
+
+* **home:** tell the player when the installed theme pack is incomplete ([#77](https://github.com/SLGO-Team/slui/issues/77)) ([dda9c7d](https://github.com/SLGO-Team/slui/commit/dda9c7d43013d42fab8b50f4781458ca87d83b2f))
+* **sidecar:** prove the game's PC through the game log when the address differs ([#79](https://github.com/SLGO-Team/slui/issues/79)) ([9bdd520](https://github.com/SLGO-Team/slui/commit/9bdd520c6e8de4b9082d363a05b7aad0d0ec0d15))
+
+
+### Bug Fixes
+
+* **overlay:** hand input back to the game when SLUI cannot take it ([#80](https://github.com/SLGO-Team/slui/issues/80)) ([bf54dc5](https://github.com/SLGO-Team/slui/commit/bf54dc5c4d66c9718cc067d5cc752a9d3b4ce319))
+
 ## [0.10.2](https://github.com/SLGO-Team/slui/compare/v0.10.1...v0.10.2) (2026-10-30)
 
 
