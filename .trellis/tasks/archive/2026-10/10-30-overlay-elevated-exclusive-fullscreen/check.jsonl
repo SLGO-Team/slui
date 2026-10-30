@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "verify standards and smoke-test coverage of the pure models"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "verify feature claims and event contracts stay consistent"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "verify the hint and banners follow the visual rules (no text-shadow)"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "client.features contract and Rust/page boundary for the new game-conditions state"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "code standards and forbidden patterns for App.tsx and the new models"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "in-game hint reuses the CS2 hud-hint slot; home banner style rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "detection in Rust, hand-back in the overlay page, banners in home"}

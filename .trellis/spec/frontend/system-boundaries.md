@@ -380,6 +380,8 @@ request", "Sidecar session handshake", "Security boundary").
   keeps the session live, so it must withdraw the features explicitly or the plugin keeps
   ignoring Y, keeps refusing to open its in-game shop from B and keeps its own
   chat feed, top HUD, win panel, message zone (alerts, hints, progress) and balance hidden.
+  The list also carries `team-select`; while input is blocked (3.1 "Game conditions") it drops `chat-input`,
+  `shop-menu` and `team-select` (`claimedFeatures`, `src/app/gameConditionsModel.ts`).
 - Sidecar socket transport: Tauri builds pass `createSocket = createTauriSidecarSocket`
   (`src/platform/sidecarSocket.ts`), so the WebSocket runs in Rust
   (`src-tauri/src/sidecar_socket.rs`, tokio-tungstenite over rustls with ring and
@@ -638,7 +640,12 @@ by window label (`?window=home` in a browser preview).
   was its key-up, it saw none, or the gap exceeds any typematic delay), the
   shop key while the overlay is off, and the window that takes the
   foreground from both the game and the overlay as its executable file name
-  and window class (task `10-29-shop-diagnostics`). From the page: the
+  and window class (task `10-29-shop-diagnostics`); each keyboard release's
+  outcome (handed back, or why not: the overlay no longer in front and what
+  is, no return window, window gone, `SetForegroundWindow` error), the game
+  window being minimized or restored, each display-mode verdict, each game
+  condition change, and why SLUI exits (tray quit, update install, elevated
+  relaunch; no exit line means a crash or a kill). From the page: the
   session status and failure detail, reported client features, applied
   hotkeys, shop availability changes and each shop key decision with its
   inputs (session, snapshot, window open, availability, snapshot age); every
@@ -672,6 +679,31 @@ by window label (`?window=home` in a browser preview).
   fullscreen game and DWM draws a 1px border there.
 - A second launch exits through `tauri-plugin-single-instance` and surfaces
   the running home window, flashing its taskbar button.
+- Game conditions (task `10-30-overlay-elevated-exclusive-fullscreen`): `slgo-game-conditions` (both windows) /
+  `get_game_conditions` carry `{ elevatedGame, exclusiveFullscreen, revision }` (`src-tauri/src/game_conditions.rs`,
+  page `src/platform/gameConditions.ts`, listen-then-query like the foreground state). `elevatedGame`: the game
+  process runs elevated and SLUI does not (UIPI: the hook sees no keys sent to it, `SetForegroundWindow` is refused).
+  `exclusiveFullscreen`: `SHQueryUserNotificationState` reads `QUNS_RUNNING_D3D_FULL_SCREEN`, sampled every 300 ms
+  only while the game holds the foreground and is not minimized, adopted after 1 s of continuous agreement
+  (`DisplayModeLatch`; transients of other states last <= ~0.25 s, borderless reads a steady `QUNS_BUSY`); such a
+  game minimizes itself whenever it loses the foreground. Both reset to false (unknown) on a new game process and on
+  the game's exit. Rust only detects; while either holds ("input blocked", `inputBlockedBy`) the overlay stops
+  claiming `chat-input`, `shop-menu` and `team-select` (`claimedFeatures`), closes an open shop, chat and team menu,
+  ignores the shop key and Y/U, keeps the scoreboard passive without right-click capture and never turns
+  `interactive` on; the plugin's own UI takes those keys again on the presence change. The passive features stay.
+  Home shows one warn banner per condition (`gameConditionBanners`); the elevated one's 「以管理员身份重启 SLUI」 calls
+  `relaunch_elevated` (`ShellExecuteExW` `runas` on the running exe with `--after-pid <pid>`, `Err("cancelled")` on
+  a declined UAC prompt; on success SLUI logs and exits). A relaunched instance waits up to 10 s for that pid before
+  the single-instance plugin is registered. The overlay shows one passive in-game notice per condition per run in
+  the message zone's high-hint slot (`withConditionHint`, 6 s, only while the plugin's high hint is empty). Home is
+  never brought to the front for a condition: that alone minimizes an exclusive-fullscreen game. Browser preview:
+  `?gameConditions=elevated|exclusive|both&relaunch=busy|cancelled|failed` (home, DEV only).
+  Triage: a report that "looks like" the NVIDIA focus bounce (shop or chat closing, keys not opening anything) is
+  first checked against `game process … elevated:` (UIPI: every `hotkey` line says `game foreground false`,
+  `SetForegroundWindow refused (5)`) and `game display mode` / `game window minimized` (exclusive fullscreen: the
+  foreground jumps to the next window in z-order, often `slui.exe (class Tauri Window)`, without input). Players do not
+  know their game is elevated (inherited from Steam or a launcher). An elevated retry while a non-elevated SLUI still
+  sits in the tray only hands off to it and exits without a log line: quit from the tray first.
 - Settings live in `app_config_dir()/settings.json` as
   `{ "version": 1, "overlay": { "autoEnableOnConnect": boolean }, "radar": RadarPreferences, "hotkeys": { "shop": KeyboardEvent.code, "scoreboard": KeyboardEvent.code }, "audio": { "shopVolume": number } }`.
   A block missing from an older version-1 file falls back to its defaults.

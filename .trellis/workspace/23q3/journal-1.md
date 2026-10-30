@@ -1301,3 +1301,25 @@ Root-caused the dead-B / shop-closes-after-2s / chat reports: NVIDIA App's Alt+R
 ### Status
 
 [OK] **Completed**
+
+
+## Session 56: Elevated game and exclusive fullscreen hand-back
+<!-- trellis-session: v=2 fp=d58cf2cde8cdbdb5 -->
+
+**Date**: 2026-10-31
+**Task**: Elevated game and exclusive fullscreen hand-back
+**Branch**: `fix/overlay-elevated-and-exclusive-fullscreen`
+
+### Summary
+
+Two 0.10.2 reports were an elevated game (UIPI) and SL exclusive fullscreen (game minimizes on foreground loss), not the NVIDIA bounce. SLUI now detects both, hands chat/shop/team menu back to the plugin, shows home banners and an in-game hint, offers an elevated relaunch, and logs focus hand-back, minimize, display mode and exit reasons. Live-tested exclusive, borderless and elevated.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a98a620` | fix(overlay): hand input back to the game when SLUI cannot take it |
+
+### Status
+
+[OK] **Completed**

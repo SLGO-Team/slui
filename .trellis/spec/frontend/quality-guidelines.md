@@ -29,8 +29,9 @@ values.
   preview art (`src/mocks/preview`, not `public/`). A static import would ship
   them: a CSS import and module side effects survive tree-shaking even when the
   JS is unused. Type-only imports are fine. `mock-boundary-check` (in `npm test`)
-  enforces it; HomeApp's `import.meta.env.DEV` update and Steam tile previews
-  (`?update=`, `?steam=`) are the one allowed exception.
+  enforces it; HomeApp's `import.meta.env.DEV` update, Steam tile and
+  game-condition banner previews (`?update=`, `?steam=`, `?gameConditions=`)
+  are the one allowed exception.
 - Do not silently swallow connection or command errors with an empty catch.
   Expose a recoverable status to the UI and log enough context to diagnose it.
 - Do not use game-process injection or memory reads as an implicit data source.

@@ -55,6 +55,8 @@ import { DEFAULT_RADAR_PREFERENCES, type RadarPreferences } from "./features/min
 import { createOverlayStateSource, createSessionStatusPublisher, isTauri, tauriInvoke, type OverlayState, type SessionStatusSnapshot } from "./platform/desktop";
 import { createUpdateSource } from "./platform/updater";
 import { requiredUpdate } from "./app/updateModel";
+import { claimedFeatures, nextConditionHint, startConditionHint, withConditionHint, type ConditionHint, type GameConditionKey } from "./app/gameConditionsModel";
+import { inputBlockedBy, NO_GAME_CONDITIONS, subscribeGameConditions, type GameConditions } from "./platform/gameConditions";
 import "./App.css";
 
 /** Plugin features the enabled overlay takes over (reported via client.features). */
@@ -195,6 +197,13 @@ function App({ harness }: AppProps) {
   const [foreground, setForeground] = useState<Pick<GameForegroundState, "focused" | "overGame">>({ focused: false, overGame: false });
   const shopHeldForegroundRef = useRef(false);
   const chatHeldForegroundRef = useRef(false);
+  // An elevated game (SLUI not elevated) or exclusive fullscreen: SLUI cannot take input over the game, so the shop,
+  // chat and team menu go back to the plugin's in-game UI and no panel takes the foreground (native detection).
+  const [gameConditions, setGameConditions] = useState<GameConditions>(NO_GAME_CONDITIONS);
+  const inputBlocked = inputBlockedBy(gameConditions);
+  const inputBlockedRef = useRef(inputBlocked);
+  inputBlockedRef.current = inputBlocked;
+  useEffect(() => subscribeGameConditions(setGameConditions), []);
   const overlayController = useMemo(() => createOverlayWindowController(), []);
   useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurStrength);
   // Every close of an open shop goes through here, so the log names its reason. The ref follows at once, so a second
@@ -342,30 +351,38 @@ function App({ harness }: AppProps) {
     setMinimapOptions((current) => current.alternateZoomActive ? { ...current, alternateZoomActive: false } : current);
   }), [overlayState, closeShopFor, chatFeature.close, teamSelectFeature.release]);
 
-  // While the overlay is enabled it owns Y/U and B, so the plugin ignores its own chat-area
-  // toggle and no longer opens its in-game shop for this player. A disabled overlay keeps
-  // the session live, so it must say so.
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
   useEffect(() => {
     let active = true;
     let changed = false;
-    let loggedEnabled: boolean | null = null;
-    const apply = (state: OverlayState) => {
-      connection.setFeatures(state.enabled ? OVERLAY_CLIENT_FEATURES : []);
-      if (state.enabled !== loggedEnabled) overlayController.log(`client features: ${state.enabled ? OVERLAY_CLIENT_FEATURES.join(", ") : "none"}`);
-      loggedEnabled = state.enabled;
-    };
-    const unsubscribe = overlayState.subscribe((state) => {
+    const unsubscribe = overlayState.subscribe((state: OverlayState) => {
       changed = true;
-      apply(state);
+      setOverlayEnabled(state.enabled);
     });
     void overlayState.get().then((state) => {
-      if (active && !changed) apply(state);
+      if (active && !changed) setOverlayEnabled(state.enabled);
     }).catch((error: unknown) => console.error("Unable to read overlay state", error));
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [connection, overlayController, overlayState]);
+  }, [overlayState]);
+
+  // While the overlay is enabled it owns Y/U and B, so the plugin ignores its own chat-area
+  // toggle and no longer opens its in-game shop for this player. A disabled overlay keeps
+  // the session live, so it must say so. While input is blocked the overlay hands chat, the
+  // shop and the team menu back: the plugin redraws its own on the presence change.
+  const clientFeatures = useMemo(() => claimedFeatures(OVERLAY_CLIENT_FEATURES, overlayEnabled, inputBlocked), [inputBlocked, overlayEnabled]);
+  const loggedFeaturesRef = useRef<string | null>(null);
+  useEffect(() => {
+    connection.setFeatures(clientFeatures);
+    const logged = clientFeatures.length > 0 ? clientFeatures.join(", ") : "none";
+    if (logged !== loggedFeaturesRef.current) {
+      const handedBack = overlayEnabled && inputBlocked ? " (input blocked: chat, shop and team menu handed back to the game)" : "";
+      overlayController.log(`client features: ${logged}${handedBack}`);
+    }
+    loggedFeaturesRef.current = logged;
+  }, [clientFeatures, connection, inputBlocked, overlayController, overlayEnabled]);
 
   // Auto-enable: once per connection (session attempt) when it reaches live. Settings may load after the
   // session is live, so the setting is state and a late load still enables this connection.
@@ -444,6 +461,11 @@ function App({ harness }: AppProps) {
   // the hook, so both paths must be idempotent: the shop key only opens the shop when
   // the game itself had the foreground, and a second close or chat open is a no-op.
   useEffect(() => overlayController.subscribeShortcut((shortcut, gameForeground) => {
+    // Handed back to the game: the plugin's own shop key and chat area take these keys.
+    if (inputBlockedRef.current) {
+      overlayController.log(`${shortcut} ignored: input blocked (the game's own UI handles it)`);
+      return;
+    }
     // The team select menu is modal, as in CS2: the shop and chat keys wait until it closes.
     if (teamSelectShownRef.current) {
       overlayController.log(`${shortcut} ignored: team select open`);
@@ -553,15 +575,19 @@ function App({ harness }: AppProps) {
     : scoreboardHud.hasSnapshot ? scoreboardHud.teams : null, [debug, scoreboardHud, teamSelectDebug]);
   const teamSelect = useMemo(() => selectTeamSelect(teamSelectFeature.state, teamSelectTeams), [teamSelectFeature.state, teamSelectTeams]);
   // Drawn while the session is open; the overlay window itself is shown only over the game, so a menu that stays open
-  // while the player is in another application is not seen and does not replay its opening fade on return.
-  const teamSelectShown = teamSelect !== null;
+  // while the player is in another application is not seen and does not replay its opening fade on return. Never while
+  // input is blocked: the plugin draws its own menu then.
+  const teamSelectShown = teamSelect !== null && !inputBlocked;
   teamSelectShownRef.current = teamSelectShown;
   // Shown while its key is held over the game, never under the shop, chat or team menu, never without data (an old
-  // plugin keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up.
+  // plugin keeps its hint board). Right-click in passive mode turns the cursor on until the key goes up; while input is
+  // blocked it stays passive and the right button stays the game's.
   const scoreboardMode: ScoreboardMode = !sessionLive || !scoreboardHeld || scoreboard === null || (shopOpen && shopAvailable) || chatOpen
-    || teamSelectShown ? "hidden" : scoreboardCursor ? "cursor" : "passive";
+    || teamSelectShown ? "hidden" : scoreboardCursor && !inputBlocked ? "cursor" : "passive";
   scoreboardModeRef.current = scoreboardMode;
-  const overlayInteractive = sessionLive
+  // No panel takes the foreground while input is blocked, even one left open for a moment: an exclusive-fullscreen game
+  // minimizes as soon as it loses it.
+  const overlayInteractive = sessionLive && !inputBlocked
     && ((shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || (teamSelectShown && overGame));
   const wasChatOpenRef = useRef(false);
   // Diagnostics: every close, including a send and a session change.
@@ -571,21 +597,22 @@ function App({ harness }: AppProps) {
   }, [chatOpen, overlayController]);
   // Right-click goes to the scoreboard only while the passive panel is on screen.
   useEffect(() => {
-    void overlayController.setScoreboardCapture(scoreboardMode === "passive")
+    void overlayController.setScoreboardCapture(scoreboardMode === "passive" && !inputBlocked)
       .catch((error: unknown) => console.error("Unable to switch scoreboard capture", error));
-  }, [overlayController, scoreboardMode]);
+  }, [inputBlocked, overlayController, scoreboardMode]);
   useEffect(() => overlayController.subscribeScoreboard({
     held(held) {
       setScoreboardHeld(held);
       if (!held) setScoreboardCursor(false);
     },
     cursor() {
-      if (scoreboardModeRef.current === "passive") setScoreboardCursor(true);
+      if (scoreboardModeRef.current === "passive" && !inputBlockedRef.current) setScoreboardCursor(true);
     },
   }), [overlayController]);
   // The shop or chat opening over the scoreboard, or the session dropping, ends cursor mode, so it never comes back
-  // holding the mouse. A scoreboard that only lost its data (a waiting state) keeps it while the key stays down.
-  const scoreboardCovered = !sessionLive || (shopOpen && shopAvailable) || chatOpen || teamSelectShown;
+  // holding the mouse. A scoreboard that only lost its data (a waiting state) keeps it while the key stays down. Input
+  // being blocked ends it too.
+  const scoreboardCovered = !sessionLive || (shopOpen && shopAvailable) || chatOpen || teamSelectShown || inputBlocked;
   useEffect(() => {
     if (scoreboardCovered && scoreboardCursor) setScoreboardCursor(false);
   }, [scoreboardCovered, scoreboardCursor]);
@@ -639,6 +666,19 @@ function App({ harness }: AppProps) {
     overlayController.log(`chat closed: ${reason}${detail ? ` (${detail})` : ""}`);
     chatFeature.close(reason);
   }, [chatFeature.close, overlayController]);
+  // Input being blocked closes every panel that takes the foreground; the plugin's own UI takes over (see the features).
+  useEffect(() => {
+    if (!inputBlocked) return;
+    closeShopFor("input-blocked");
+    if (chatOpenRef.current) handleChatClose("unavailable", "input blocked");
+    teamSelectFeature.release();
+  }, [closeShopFor, handleChatClose, inputBlocked, teamSelectFeature.release]);
+  // A team.menu that arrived before the plugin saw the smaller feature list is dropped too, so reclaiming the feature
+  // never shows a stale session: the plugin sends the current one when `team-select` is declared again.
+  const teamMenuHeld = teamSelectFeature.state.menu !== null;
+  useEffect(() => {
+    if (inputBlocked && teamMenuHeld) teamSelectFeature.release();
+  }, [inputBlocked, teamMenuHeld, teamSelectFeature.release]);
   // The shop and chat hold the foreground and close once it leaves the overlay (Alt+Tab, another window, the game
   // taking it back): the game locks its cursor again. Read from the native foreground, never the page's blur: another
   // application's overlay showing its own window (NVIDIA's Alt+R statistics) bounces focus inside the overlay window
@@ -675,7 +715,28 @@ function App({ harness }: AppProps) {
   const winPanelRoster = useMemo(() => winPanelRosterFromHud(hud), [hud]);
   const winPanelAt = useCallback((nowMs: number) => selectWinPanel(winPanelState, nowMs, winPanelRoster), [winPanelRoster, winPanelState]);
   const hudSceneStill = debugOptions !== null && debugOptions.hudSceneAt !== null;
-  const messageZoneAt = useCallback((nowMs: number) => selectMessageZone(hudMessagesState, nowMs), [hudMessagesState]);
+  // The in-game hint of a game condition: once per condition per SLUI run, started the first time the overlay shows over
+  // the game while the plugin's own high hint is empty (that slot is read on the overlay clock only while one waits).
+  const [conditionHint, setConditionHint] = useState<ConditionHint | null>(null);
+  const [shownConditionHints, setShownConditionHints] = useState<ReadonlySet<GameConditionKey>>(() => new Set());
+  const pendingConditionHint = conditionHint === null ? nextConditionHint(gameConditions, shownConditionHints) : null;
+  const selectHintSlotFree = useCallback((nowMs: number) => pendingConditionHint === null
+    || selectMessageZone(hudMessagesState, nowMs).hintHigh === null, [hudMessagesState, pendingConditionHint]);
+  const hintSlotFree = useClockSelector(selectHintSlotFree);
+  const overlayShown = overlayEnabled && sessionLive && overGame;
+  useEffect(() => {
+    if (pendingConditionHint === null || !overlayShown || !hintSlotFree) return;
+    setConditionHint(startConditionHint(pendingConditionHint, Date.now()));
+    setShownConditionHints((shown) => new Set(shown).add(pendingConditionHint));
+    overlayController.log(`game condition hint shown: ${pendingConditionHint}`);
+  }, [hintSlotFree, overlayController, overlayShown, pendingConditionHint]);
+  useEffect(() => {
+    if (conditionHint === null) return undefined;
+    const timer = window.setTimeout(() => setConditionHint(null), Math.max(0, conditionHint.expiresAtMs - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [conditionHint]);
+  const messageZoneAt = useCallback((nowMs: number) => withConditionHint(selectMessageZone(hudMessagesState, nowMs), conditionHint, nowMs),
+    [conditionHint, hudMessagesState]);
   const killfeedAt = useCallback((nowMs: number) => selectKillfeed(killfeedState, nowMs), [killfeedState]);
   // The mock identity is a team-a player; the debug build reads team-b's loadout from its first player.
   const progressPlayerId = HUD_DEBUG_ENABLED && hud.hasSnapshot
