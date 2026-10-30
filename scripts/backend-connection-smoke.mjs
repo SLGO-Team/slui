@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { parseRouteRequest, parseSessionOpen } from "../src/contracts/index.ts";
 import { readBackendConfig } from "../src/platform/backend.ts";
 import { SAME_CONNECTION_HINT, SidecarConnectionError, WebSocketSidecarConnection } from "../src/platform/connection.ts";
+import { createGameLogProofReader } from "../src/platform/gameLog.ts";
 import { TauriSidecarSocket } from "../src/platform/sidecarSocket.ts";
 import { HttpControlPlane, toWireProof } from "../src/platform/route.ts";
 import {
@@ -185,6 +186,76 @@ async function live(options) {
   socket.deliver(baselineEvent());
   await connecting;
   return { connection, log, socket };
+}
+
+// Game-log proof: offered only with a reader; a challenge is answered from the log after the mark.
+const challengeFrame = { protocol_version: 0, schema_version: 1, type: "session.challenge", method: "game-log", challenge_id: "q8Zc1rT0aXw", expires_in_ms: 15000 };
+{
+  const { connection } = harness();
+  const connecting = connection.connect(route, identity);
+  const socket = lastSocket();
+  socket.accept();
+  assert.equal(parseSessionOpen(socket.sent[0]).value.proofs, undefined, "without a reader no proof is offered");
+  socket.deliver(baselineEvent());
+  await connecting;
+}
+{
+  const calls = [];
+  const gameLogProof = {
+    mark: async () => { calls.push("mark"); return 1234; },
+    find: async (mark, challengeId, timeoutMs) => { calls.push({ mark, challengeId, timeoutMs }); return "Vb3kN9sQ2LmP7xYt0cRw4e"; },
+  };
+  const { connection, log } = harness({ gameLogProof });
+  sequence = 0;
+  const connecting = connection.connect(route, identity);
+  assert.deepEqual(calls, ["mark"], "the log is marked before the socket opens, so before session.open");
+  const socket = lastSocket();
+  socket.accept();
+  assert.deepEqual(parseSessionOpen(socket.sent[0]).value.proofs, ["game-log"]);
+  socket.deliver(challengeFrame);
+  await flush();
+  await flush();
+  assert.deepEqual(calls[1], { mark: 1234, challengeId: "q8Zc1rT0aXw", timeoutMs: 15000 });
+  assert.deepEqual(JSON.parse(socket.sent[1]), { type: "session.proof", challenge_id: "q8Zc1rT0aXw", response: "Vb3kN9sQ2LmP7xYt0cRw4e" });
+  assert.deepEqual(log.events, [], "the challenge is a handshake frame, not an event");
+  socket.deliver(baselineEvent());
+  await connecting;
+  assert.equal(connection.getStatus(), "live");
+}
+{
+  const { connection } = harness({ gameLogProof: { mark: async () => 0, find: async () => null } });
+  const connecting = connection.connect(route, identity);
+  const socket = lastSocket();
+  socket.accept();
+  socket.deliver(challengeFrame);
+  await flush();
+  await flush();
+  assert.equal(socket.sent.length, 1, "nothing to answer when the line never appears");
+  socket.drop(4001, "Game log proof timed out");
+  await assert.rejects(connecting, (error) => error instanceof SidecarConnectionError && error.failure.status === "unauthorized" && error.failure.detail.startsWith(SAME_CONNECTION_HINT));
+}
+{
+  let gameLog = "[FROM SERVER] SLGO-PROOF q8Zc1rT0aXw OLDOLDOLDOLDOLDOLDOLD00\n";
+  // Like game_log_read: complete lines only, a rewritten (shorter) log from the start.
+  const source = {
+    size: async () => gameLog.length,
+    read: async (offset) => {
+      const start = offset > gameLog.length ? 0 : offset;
+      const end = gameLog.lastIndexOf("\n") + 1;
+      return end > start ? { offset: end, text: gameLog.slice(start, end) } : { offset: start, text: "" };
+    },
+  };
+  let clock = 0;
+  const reader = createGameLogProofReader(source, {
+    now: () => clock,
+    sleep: async (ms) => {
+      clock += ms;
+      if (clock === 200) gameLog += "[FROM SERVER] 初始资金 +$800\r\n[FROM SERVER] SLGO-PROOF q8Zc1rT0aXw Vb3kN9sQ2LmP7xYt0cRw4e\r\n";
+    },
+  });
+  const mark = await reader.mark();
+  assert.equal(await reader.find(mark, "q8Zc1rT0aXw", 1000), "Vb3kN9sQ2LmP7xYt0cRw4e", "lines before the mark are not searched");
+  assert.equal(await reader.find(gameLog.length, "q8Zc1rT0aXw", 300), null, "nothing new within the time limit");
 }
 
 // Handshake, events, diagnostics and commands.

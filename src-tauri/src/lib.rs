@@ -1,6 +1,7 @@
 #[macro_use]
 mod diag;
 mod backdrop;
+mod game_log;
 mod settings;
 mod sidecar_socket;
 mod steam_profile;
@@ -1320,6 +1321,8 @@ pub fn run() {
             get_game_running,
             get_current_steam_identity,
             steam_profile::get_steam_profile,
+            game_log::game_log_size,
+            game_log::game_log_read,
             get_game_foreground,
             backdrop::set_backdrop_regions,
             backdrop::set_backdrop_options,

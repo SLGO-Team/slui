@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/session-challenge.schema.json",
+  "title": "SLUI sidecar session challenge (sidecar frame before the baseline)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "schema_version", "type", "method", "challenge_id", "expires_in_ms"],
+  "properties": {
+    "protocol_version": { "const": 0 },
+    "schema_version": { "const": 1 },
+    "type": { "const": "session.challenge" },
+    "method": { "const": "game-log" },
+    "challenge_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" },
+    "expires_in_ms": { "type": "integer", "minimum": 1 }
+  }
+}

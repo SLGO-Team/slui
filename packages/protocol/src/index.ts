@@ -789,13 +789,21 @@ export type SessionOpen = {
   session_token: string;
   /** Minimap payload versions the client can render; the sidecar sends minimap events only if it shares one. */
   minimap_schema_versions: number[];
+  /**
+   * Ways this client can prove it runs on the game's PC when its address does not match the game
+   * connection (`SESSION_PROOF_GAME_LOG`). Absent = none. Sidecars older than the field refuse it (4000).
+   */
+  proofs?: string[];
 };
 
 /** WebSocket close codes a sidecar uses to end or refuse a client session. */
 export const SIDECAR_CLOSE_CODES = {
   /** First frame missing, late, not a valid session.open, or a frame was sent before the baseline. */
   invalidHandshake: 4000,
-  /** Session token invalid, expired or not for this sidecar; source address is not the player's game connection, or their address changed. */
+  /**
+   * Session token invalid, expired or not for this sidecar; or the source address is not the player's game
+   * connection and no game-log proof succeeded; or the game address changed.
+   */
   unauthorized: 4001,
   /** protocol_version or schema_version is not supported. */
   unsupportedProtocol: 4002,
@@ -806,7 +814,8 @@ export const SIDECAR_CLOSE_CODES = {
 } as const;
 export type SidecarCloseCode = (typeof SIDECAR_CLOSE_CODES)[keyof typeof SIDECAR_CLOSE_CODES];
 
-const SESSION_OPEN_KEYS = new Set(["protocol_version", "schema_version", "type", "session_token", "minimap_schema_versions"]);
+const SESSION_OPEN_KEYS = new Set(["protocol_version", "schema_version", "type", "session_token", "minimap_schema_versions", "proofs"]);
+const MAX_SESSION_PROOFS = 8;
 
 export function parseSessionOpen(raw: unknown): ParseResult<SessionOpen> {
   let value: unknown = raw;
@@ -826,7 +835,81 @@ export function parseSessionOpen(raw: unknown): ParseResult<SessionOpen> {
   if (!Array.isArray(versions) || !versions.every((version) => Number.isInteger(version) && version >= 1) || new Set(versions).size !== versions.length) {
     return error("invalid-envelope", "Minimap schema versions must be unique positive integers");
   }
+  const proofs = value.proofs;
+  if (proofs !== undefined && (!Array.isArray(proofs) || proofs.length > MAX_SESSION_PROOFS || !proofs.every(isKebabName) || new Set(proofs).size !== proofs.length)) {
+    return error("invalid-envelope", `Proofs must be at most ${MAX_SESSION_PROOFS} unique lowercase kebab-case names`);
+  }
   return { ok: true, value: value as unknown as SessionOpen };
+}
+
+/** Proof method: the plugin prints a one-time challenge into the player's own game log (`Player.log`), which only their PC can read. */
+export const SESSION_PROOF_GAME_LOG = "game-log";
+
+/**
+ * Sidecar frame before the baseline, at most once per connection, only to a client that offered the method:
+ * the source address does not match the game connection, so the client must answer with `session.proof`
+ * within `expires_in_ms`. The challenge line reaches the game log through the game connection.
+ */
+export type SessionChallenge = {
+  protocol_version: typeof PROTOCOL_VERSION;
+  schema_version: typeof SUPPORTED_SCHEMA_VERSION;
+  type: "session.challenge";
+  method: typeof SESSION_PROOF_GAME_LOG;
+  challenge_id: string;
+  expires_in_ms: number;
+};
+
+/** Client answer to `session.challenge`, sent once and before the baseline: the nonce found in the game log. */
+export type SessionProof = { type: "session.proof"; challenge_id: string; response: string };
+
+/** Challenge ids and nonces: base64url text, so they survive the game console and log unchanged. */
+const PROOF_TOKEN = /^[A-Za-z0-9_-]{8,64}$/;
+const SESSION_CHALLENGE_KEYS = new Set(["protocol_version", "schema_version", "type", "method", "challenge_id", "expires_in_ms"]);
+
+export function parseSessionChallenge(raw: unknown): ParseResult<SessionChallenge> {
+  const value = parseJsonFrame(raw);
+  if (!isRecord(value) || value.type !== "session.challenge") return error("invalid-envelope", "Frame must be session.challenge");
+  if (Object.keys(value).some((key) => !SESSION_CHALLENGE_KEYS.has(key))) return error("invalid-envelope", "session.challenge contains unsupported fields");
+  if (value.protocol_version !== PROTOCOL_VERSION) return error("unsupported-protocol", "Unsupported protocol version");
+  if (value.schema_version !== SUPPORTED_SCHEMA_VERSION) return error("unsupported-schema", "Unsupported schema version");
+  if (value.method !== SESSION_PROOF_GAME_LOG) return error("invalid-payload", "Unsupported proof method");
+  if (typeof value.challenge_id !== "string" || !PROOF_TOKEN.test(value.challenge_id)) return error("invalid-payload", "Challenge id must be base64url text");
+  if (!Number.isSafeInteger(value.expires_in_ms) || Number(value.expires_in_ms) <= 0) return error("invalid-payload", "expires_in_ms must be a positive integer");
+  return { ok: true, value: value as unknown as SessionChallenge };
+}
+
+export function parseSessionProof(raw: unknown): ParseResult<SessionProof> {
+  const value = parseJsonFrame(raw);
+  if (!isRecord(value) || value.type !== "session.proof") return error("invalid-envelope", "Frame must be session.proof");
+  if (Object.keys(value).some((key) => key !== "type" && key !== "challenge_id" && key !== "response")) return error("invalid-envelope", "session.proof contains unsupported fields");
+  if (typeof value.challenge_id !== "string" || !PROOF_TOKEN.test(value.challenge_id)) return error("invalid-payload", "Challenge id must be base64url text");
+  if (typeof value.response !== "string" || !PROOF_TOKEN.test(value.response)) return error("invalid-payload", "Response must be base64url text");
+  return { ok: true, value: value as unknown as SessionProof };
+}
+
+const GAME_LOG_PROOF_PREFIX = "SLGO-PROOF";
+const GAME_LOG_PROOF_LINE = /SLGO-PROOF ([A-Za-z0-9_-]{8,64}) ([A-Za-z0-9_-]{8,64})/g;
+
+/** The text the plugin prints to the player's game console; the game client writes it to `Player.log` as `[FROM SERVER] <text>`. */
+export function formatGameLogProof(challengeId: string, nonce: string): string {
+  return `${GAME_LOG_PROOF_PREFIX} ${challengeId} ${nonce}`;
+}
+
+/** The nonce of `challengeId` in game log text, or null. Other challenges' lines are skipped. */
+export function findGameLogProof(text: string, challengeId: string): string | null {
+  for (const match of text.matchAll(GAME_LOG_PROOF_LINE)) {
+    if (match[1] === challengeId) return match[2]!;
+  }
+  return null;
+}
+
+function parseJsonFrame(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -859,13 +942,15 @@ export const CLIENT_FEATURE_TEAM_SELECT = "team-select";
 export const MAX_CLIENT_FEATURES = 16;
 const MAX_CLIENT_FEATURE_LENGTH = 64;
 const CLIENT_FEATURE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const isKebabName = (value: unknown): value is string =>
+  typeof value === "string" && value.length <= MAX_CLIENT_FEATURE_LENGTH && CLIENT_FEATURE_NAME.test(value);
 
 export function parseClientFeatures(raw: unknown): ParseResult<ClientFeatures> {
   if (!isRecord(raw) || raw.type !== "client.features") return error("invalid-payload", "Frame must be client.features");
   if (Object.keys(raw).some((key) => key !== "type" && key !== "features")) return error("invalid-payload", "client.features contains unsupported fields");
   const features = raw.features;
   if (!Array.isArray(features) || features.length > MAX_CLIENT_FEATURES) return error("invalid-payload", `Features must be an array of at most ${MAX_CLIENT_FEATURES}`);
-  if (!features.every((item) => typeof item === "string" && item.length <= MAX_CLIENT_FEATURE_LENGTH && CLIENT_FEATURE_NAME.test(item))) {
+  if (!features.every(isKebabName)) {
     return error("invalid-payload", "Features must be lowercase kebab-case names");
   }
   if (new Set(features).size !== features.length) return error("invalid-payload", "Features contain duplicates");

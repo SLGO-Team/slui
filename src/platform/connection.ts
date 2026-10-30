@@ -1,4 +1,5 @@
-import { knownInstanceEndReason, MINIMAP_SCHEMA_VERSION, parseClientFeatures, parseCommand, PROTOCOL_VERSION, SIDECAR_CLOSE_CODES, SUPPORTED_SCHEMA_VERSION, type ConnectionFailure, type ConnectionStatus, type InstanceEndReason, type MinimapDiagnostic, type ParseErrorCode, type ParseResult, type ServerRoute, type ClientFeatures, type SessionOpen, type SlgoCommand, type SlgoEvent, type SteamIdentity } from "../contracts/index.ts";
+import { knownInstanceEndReason, MINIMAP_SCHEMA_VERSION, parseClientFeatures, parseCommand, parseSessionChallenge, PROTOCOL_VERSION, SESSION_PROOF_GAME_LOG, SIDECAR_CLOSE_CODES, SUPPORTED_SCHEMA_VERSION, type ConnectionFailure, type ConnectionStatus, type InstanceEndReason, type MinimapDiagnostic, type ParseErrorCode, type ParseResult, type ServerRoute, type ClientFeatures, type SessionChallenge, type SessionOpen, type SessionProof, type SlgoCommand, type SlgoEvent, type SteamIdentity } from "../contracts/index.ts";
+import type { GameLogProofReader } from "./gameLog.ts";
 import type { SlgoConnection } from "./index.ts";
 import { admitRoute, SidecarEventIntake } from "./sidecarIntake.ts";
 
@@ -71,13 +72,20 @@ export type WebSocketSidecarOptions = {
   now?: () => number;
   openTimeoutMs?: number;
   baselineTimeoutMs?: number;
+  /**
+   * Reads the game's Player.log for the game-log proof. Without it the client offers no proof, and an
+   * address that does not match the game connection is refused (4001).
+   */
+  gameLogProof?: GameLogProofReader | null;
 };
 
 const SOCKET_CONNECTING = 0;
 const SOCKET_OPEN = 1;
 
-/** Shown when the sidecar refuses the session (4001): IP binding needs SLUI next to the game. */
-export const SAME_CONNECTION_HINT = "请在运行游戏的同一台电脑、同一网络连接上运行 SLUI";
+/** Shown when the sidecar refuses the session (4001): IP binding or the game-log proof needs SLUI on the game's PC. */
+export const SAME_CONNECTION_HINT = "请在运行游戏的同一台电脑上运行 SLUI";
+/** The baseline timer after a challenge: the sidecar's limit plus time for its own 4001 to arrive. */
+const CHALLENGE_GRACE_MS = 5_000;
 
 export class SidecarConnectionError extends Error {
   readonly failure: ConnectionFailure;
@@ -119,6 +127,7 @@ export class WebSocketSidecarConnection implements SlgoConnection {
   private readonly endpointOverride: string | null;
   private readonly openTimeoutMs: number;
   private readonly baselineTimeoutMs: number;
+  private readonly gameLogProof: GameLogProofReader | null;
   private socket: WebSocketLike | null = null;
   private features: ClientFeatures = { type: "client.features", features: [] };
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -132,6 +141,7 @@ export class WebSocketSidecarConnection implements SlgoConnection {
     this.endpointOverride = options.endpointOverride ?? null;
     this.openTimeoutMs = options.openTimeoutMs ?? 10_000;
     this.baselineTimeoutMs = options.baselineTimeoutMs ?? 10_000;
+    this.gameLogProof = options.gameLogProof ?? null;
   }
 
   async connect(route: ServerRoute, identity: SteamIdentity) {
@@ -145,6 +155,8 @@ export class WebSocketSidecarConnection implements SlgoConnection {
       throw new SidecarConnectionError({ status: admission.status, detail: admission.reason, retry: admission.status === "stale" ? "reroute" : "none" });
     }
     this.endReason = null;
+    // Before session.open: the challenge line can only be written after the sidecar has it.
+    const logMark = this.gameLogProof ? this.gameLogProof.mark().catch(() => null) : null;
     let socket: WebSocketLike;
     try {
       socket = this.createSocket(this.endpointOverride ?? route.sidecarEndpoint);
@@ -166,12 +178,21 @@ export class WebSocketSidecarConnection implements SlgoConnection {
           type: "session.open",
           session_token: route.sessionToken,
           minimap_schema_versions: [MINIMAP_SCHEMA_VERSION],
+          ...(logMark ? { proofs: [SESSION_PROOF_GAME_LOG] } : {}),
         };
         socket.send(JSON.stringify(open));
         this.intake.begin(route);
         this.startTimer(this.baselineTimeoutMs, () => this.fail({ status: "offline", detail: "Sidecar sent no baseline", retry: "backoff" }));
       };
       socket.onmessage = (event) => {
+        // Only a client that offered the proof gets a challenge, and only before the baseline.
+        if (logMark && this.pending && typeof event.data === "string" && event.data.includes("session.challenge")) {
+          const challenge = parseSessionChallenge(event.data);
+          if (challenge.ok) {
+            void this.answerChallenge(socket, challenge.value, logMark);
+            return;
+          }
+        }
         const received = this.intake.receive(event.data);
         if (received.ok && received.value.type === "instance.ended") this.endReason = knownInstanceEndReason(received.value.payload.reason);
         if (this.pending && this.intake.getStatus() === "live") {
@@ -234,6 +255,17 @@ export class WebSocketSidecarConnection implements SlgoConnection {
     const status = this.intake.getStatus();
     const terminal = status === "incompatible" || status === "unauthorized";
     this.fail({ status: terminal ? status : "stale", detail: `Sidecar stream rejected: ${code}`, retry: terminal ? "none" : "reroute" });
+  }
+
+  /** Answers from the game log; with no answer the sidecar refuses the session (4001) when the challenge expires. */
+  private async answerChallenge(socket: WebSocketLike, challenge: SessionChallenge, logMark: Promise<number | null>) {
+    this.startTimer(challenge.expires_in_ms + CHALLENGE_GRACE_MS, () => this.fail({ status: "offline", detail: "Sidecar sent no baseline", retry: "backoff" }));
+    const mark = await logMark;
+    const reader = this.gameLogProof;
+    const nonce = mark === null || !reader ? null : await reader.find(mark, challenge.challenge_id, challenge.expires_in_ms).catch(() => null);
+    if (nonce === null || this.socket !== socket || socket.readyState !== SOCKET_OPEN) return;
+    const proof: SessionProof = { type: "session.proof", challenge_id: challenge.challenge_id, response: nonce };
+    socket.send(JSON.stringify(proof));
   }
 
   /** Ends the current socket after a remote or protocol failure. */

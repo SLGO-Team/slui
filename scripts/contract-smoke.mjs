@@ -25,6 +25,12 @@ import {
   canUsePlayerScopedFeatures,
   canOpenPlayerScopedStream,
   parseClientFeatures,
+  parseSessionOpen,
+  parseSessionChallenge,
+  parseSessionProof,
+  formatGameLogProof,
+  findGameLogProof,
+  SESSION_PROOF_GAME_LOG,
   parseCommand,
   parseEvent,
   parseEnvelope,
@@ -466,6 +472,40 @@ assert.equal(parseClientFeatures({ type: "client.features", features: Array.from
 assert.equal(parseClientFeatures({ type: "client.features", features: ["chat-input"], extra: true }).ok, false);
 assert.equal(parseClientFeatures({ type: "client.features" }).ok, false);
 assert.equal(parseCommand(clientFeaturesFixture).ok, false, "a features frame is never a command");
+
+// Handshake: session.open proofs and the game-log challenge.
+const protocolFixture = (name) => JSON.parse(readFileSync(new URL(`../packages/protocol/v0/${name}.example.json`, import.meta.url), "utf8"));
+const sessionOpenFixture = protocolFixture("session-open");
+assert.equal(parseSessionOpen(sessionOpenFixture).ok, true, "proofs is optional");
+assert.equal(parseSessionOpen({ ...sessionOpenFixture, proofs: [SESSION_PROOF_GAME_LOG] }).ok, true);
+assert.equal(parseSessionOpen(JSON.stringify({ ...sessionOpenFixture, proofs: [] })).ok, true);
+assert.equal(parseSessionOpen({ ...sessionOpenFixture, proofs: ["game-log", "game-log"] }).ok, false);
+assert.equal(parseSessionOpen({ ...sessionOpenFixture, proofs: ["Game-Log"] }).ok, false);
+assert.equal(parseSessionOpen({ ...sessionOpenFixture, proofs: "game-log" }).ok, false);
+assert.equal(parseSessionOpen({ ...sessionOpenFixture, proofs: Array.from({ length: 9 }, (_, i) => `p${i}`) }).ok, false);
+const challengeFixture = protocolFixture("session-challenge");
+assert.deepEqual(parseSessionChallenge(JSON.stringify(challengeFixture)).value, challengeFixture);
+assert.equal(parseSessionChallenge({ ...challengeFixture, method: "openid" }).ok, false, "an unknown method cannot be answered");
+assert.equal(parseSessionChallenge({ ...challengeFixture, expires_in_ms: 0 }).ok, false);
+assert.equal(parseSessionChallenge({ ...challengeFixture, challenge_id: "short" }).ok, false);
+assert.equal(parseSessionChallenge({ ...challengeFixture, nonce: "never-on-the-socket" }).ok, false);
+assert.equal(parseSessionChallenge("not json").ok, false);
+const proofFixture = protocolFixture("session-proof");
+assert.deepEqual(parseSessionProof(proofFixture).value, proofFixture);
+assert.equal(parseSessionProof({ ...proofFixture, response: "has space in it" }).ok, false);
+assert.equal(parseSessionProof({ ...proofFixture, extra: 1 }).ok, false);
+assert.equal(parseSessionProof(sessionOpenFixture).ok, false);
+const proofLine = formatGameLogProof(proofFixture.challenge_id, proofFixture.response);
+assert.equal(proofLine, "SLGO-PROOF q8Zc1rT0aXw Vb3kN9sQ2LmP7xYt0cRw4e");
+const gameLog = [
+  "[FROM SERVER] 初始资金 +$800",
+  `[FROM SERVER] ${formatGameLogProof("oldChallenge1", "AAAAAAAAAAAAAAAAAAAAAA")}`,
+  `[FROM SERVER] ${proofLine}`,
+  "Unloading 3 Unused Serialized files",
+].join("\r\n");
+assert.equal(findGameLogProof(gameLog, proofFixture.challenge_id), proofFixture.response, "the line of this challenge, not an older one");
+assert.equal(findGameLogProof(gameLog, "unknownChall"), null);
+assert.equal(findGameLogProof(gameLog, proofFixture.challenge_id), proofFixture.response, "repeatable: the pattern keeps no state between calls");
 
 // Chat history events.
 const chatEnvelope = (type, payload) => ({ protocol_version: 0, schema_version: 1, event_id: "evt-chat", server_id: "s", instance_id: "i", sequence: 3, type, sent_at: "2026-09-29T08:00:00Z", payload });
