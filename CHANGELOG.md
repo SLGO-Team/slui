@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/SLGO-Team/slui/compare/v0.10.1...v0.10.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **overlay:** close the shop and chat when the overlay loses the foreground ([#75](https://github.com/SLGO-Team/slui/issues/75)) ([164c6a5](https://github.com/SLGO-Team/slui/commit/164c6a55ead5840666c903a369550283aa3ad400))
+
 ## [0.10.1](https://github.com/SLGO-Team/slui/compare/v0.10.0...v0.10.1) (2026-10-29)
 
 
