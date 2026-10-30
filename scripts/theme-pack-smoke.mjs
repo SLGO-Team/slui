@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
+import { missingThemePackFiles, THEME_PACK_FILES, themePackLogLine, themePackNotice } from "../src/app/themePackStatus.ts";
 import { BUILTIN_SHOP_SOUND_SOURCES, resolveShopSoundSources, THEME_PACK_SHOP_SOUNDS } from "../src/features/shop/audio.ts";
 import { FONT_FACES, resolveFontFaces } from "../src/shared/fonts.ts";
 import { EMPTY_THEME_PACK, themePackUrl } from "../src/shared/themePack.ts";
@@ -57,5 +58,28 @@ assert.deepEqual(resolveShopSoundSources(olderPack), {
   ...BUILTIN_SHOP_SOUND_SOURCES,
   purchase: "http://theme.localhost/sounds/radial_menu_buy_03.wav",
 });
+
+// The required list is every face's pack file plus the shop sounds, once each.
+const fontFiles = [...new Set(FONT_FACES.map((face) => face.pack.file))];
+assert.equal(THEME_PACK_FILES.length, fontFiles.length + 3);
+assert.deepEqual(missingThemePackFiles(fullPack), []);
+// No pack is not an incomplete pack: no notice, and the log says so.
+assert.deepEqual(missingThemePackFiles(EMPTY_THEME_PACK), []);
+assert.equal(themePackNotice(missingThemePackFiles(EMPTY_THEME_PACK)), null);
+assert.equal(themePackLogLine(EMPTY_THEME_PACK), "theme pack: none");
+assert.equal(themePackLogLine(fullPack), `theme pack: ${fullPack.files.size} files, complete`);
+// Extra files in the pack do not matter.
+assert.deepEqual(missingThemePackFiles(pack([...fullPack.files, "sounds/radial_menu_buy_01.wav"])), []);
+
+// A pack installed before the shop switched to the buy-menu sounds: all fonts, the radial sounds only.
+const packedBeforeShopSounds = pack([...fontFiles, ...olderPack.files]);
+const missingSounds = missingThemePackFiles(packedBeforeShopSounds);
+assert.deepEqual(missingSounds, ["sounds/inventory_item_select_01.wav", "sounds/itemtile_rollover_09.wav"]);
+assert.deepEqual(themePackNotice(missingSounds), { title: "主题包不完整", detail: "缺少 2 个文件，部分音效暂用内置版本，请更新主题包。" });
+assert.equal(themePackLogLine(packedBeforeShopSounds),
+  `theme pack: ${fontFiles.length + 5} files, missing 2: sounds/inventory_item_select_01.wav, sounds/itemtile_rollover_09.wav`);
+assert.equal(themePackNotice(["fonts/stratum2-bold.otf"]).detail, "缺少 1 个文件，部分字体暂用内置版本，请更新主题包。");
+assert.equal(themePackNotice(missingThemePackFiles(partial)).detail,
+  `缺少 ${THEME_PACK_FILES.length - 2} 个文件，部分字体和音效暂用内置版本，请更新主题包。`);
 
 console.log("theme pack smoke passed");

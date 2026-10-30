@@ -32,7 +32,8 @@ export function createPageErrorLog(write: (message: string) => void, limit = MAX
   };
 }
 
-async function writeDiagnostic(message: string): Promise<void> {
+/** One line to the diagnostics log (slui.log); the browser preview prints it to the console. */
+export async function writeDiagnostic(message: string): Promise<void> {
   if (!("__TAURI_INTERNALS__" in window)) {
     console.info(`SLGO page: ${message}`);
     return;

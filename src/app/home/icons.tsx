@@ -32,7 +32,11 @@ export const UpdateIcon = (props: IconProps) => <Icon {...props}>
   <path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5" /><path d="M4 14.5v6h16v-6" />
 </Icon>;
 
-export const ResetIcon = (props: IconProps) => <Icon size={14} {...props}>
+export const WarningIcon = (props: IconProps) => <Icon {...props}>
+  <path d="M12 3.5 21.5 20h-19Z" /><path d="M12 10v4.5M12 17.25h.01" />
+</Icon>;
+
+export const ResetIcon =(props: IconProps) => <Icon size={14} {...props}>
   <path d="M4 12a8 8 0 1 0 2.4-5.7" /><path d="M4 4v4.5h4.5" />
 </Icon>;
 
