@@ -1,7 +1,9 @@
 #[macro_use]
 mod diag;
 mod backdrop;
+mod game_conditions;
 mod game_log;
+mod relaunch;
 mod settings;
 mod sidecar_socket;
 mod steam_profile;
@@ -41,6 +43,13 @@ static GAME_FOREGROUND_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
 // Whether the overlay page's session is live (connected to the sidecar); set by the page.
 static SESSION_LIVE: AtomicBool = AtomicBool::new(false);
+
+// Whether SLUI itself runs elevated; read once at startup, before the foreground thread starts.
+#[cfg(windows)]
+static SLUI_ELEVATED: AtomicBool = AtomicBool::new(false);
+// Counts the game's exits (process tracking thread); the foreground thread then forgets the game process.
+#[cfg_attr(not(windows), allow(dead_code))]
+static GAME_EXITS: AtomicU32 = AtomicU32::new(0);
 
 // An enabled overlay is visible only over the game, and only while its session is live:
 // without the sidecar it has nothing current to show.
@@ -597,20 +606,39 @@ fn log_overlay_event(message: String) {
     diag!("SLGO overlay: {message}");
 }
 
+// Every outcome is logged: a panel that closed without the game getting the keyboard back must be explainable.
 #[cfg(windows)]
 fn release_keyboard_focus(overlay: windows_sys::Win32::Foundation::HWND) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, IsWindow, SetForegroundWindow,
+    use windows_sys::Win32::{
+        Foundation::GetLastError,
+        UI::WindowsAndMessaging::{GetForegroundWindow, IsWindow, SetForegroundWindow},
     };
 
     let previous =
         KEYBOARD_RETURN_WINDOW.swap(0, Ordering::SeqCst) as windows_sys::Win32::Foundation::HWND;
+    let foreground = unsafe { GetForegroundWindow() };
     // If the player already switched elsewhere, leave the foreground alone.
-    if unsafe { GetForegroundWindow() } != overlay || previous.is_null() {
+    if foreground != overlay {
+        let holder = if foreground.is_null() { "no window".into() } else { describe_foreground(foreground) };
+        diag!("SLGO: keyboard release: the overlay no longer holds the foreground ({holder}); left alone");
         return;
     }
-    if unsafe { IsWindow(previous) } != 0 {
-        unsafe { SetForegroundWindow(previous) };
+    if previous.is_null() {
+        diag!("SLGO: keyboard release: no window to hand the foreground back to");
+        return;
+    }
+    if unsafe { IsWindow(previous) } == 0 {
+        diag!("SLGO: keyboard release: the window to hand back to is gone");
+        return;
+    }
+    if unsafe { SetForegroundWindow(previous) } != 0 {
+        diag!("SLGO: keyboard handed back to {}", describe_foreground(previous));
+    } else {
+        diag!(
+            "SLGO: keyboard release: SetForegroundWindow to {} failed (error {})",
+            describe_foreground(previous),
+            unsafe { GetLastError() }
+        );
     }
 }
 
@@ -688,6 +716,9 @@ fn start_game_process_tracking(app: AppHandle) {
             .unwrap_or(false);
         if changed {
             diag!("SLGO: game {}", if running { "started" } else { "exited" });
+            if !running {
+                GAME_EXITS.fetch_add(1, Ordering::SeqCst);
+            }
             if let Err(error) = app.emit("slgo-game-running", running) {
                 diag!("SLGO: failed to emit game process state: {error}");
             }
@@ -768,7 +799,10 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
             }
             updater::TRAY_ITEM_ID => updater::install_from_tray(app),
             "open-log" => reveal_log(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                diag!("SLGO: quit from the tray; exiting");
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -793,10 +827,27 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
     use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
     let mut diagnostics = InputDiagnostics::new();
+    let mut game_window = game_conditions::GameWindowWatch::new();
+    let mut game_elevated = false;
+    let mut game_exits = GAME_EXITS.load(Ordering::SeqCst);
+    let slui_elevated = SLUI_ELEVATED.load(Ordering::SeqCst);
     thread::spawn(move || loop {
         let foreground = unsafe { GetForegroundWindow() };
         let game_foreground = is_game_foreground(foreground);
-        diagnostics.sample(foreground, game_foreground);
+        // The game's exit or a new game process makes both conditions unknown again.
+        let exits = GAME_EXITS.load(Ordering::SeqCst);
+        if exits != game_exits {
+            game_exits = exits;
+            diagnostics.forget_game_process();
+            game_window.reset();
+            game_elevated = false;
+        }
+        if let Some(elevated) = diagnostics.sample(foreground, game_foreground) {
+            game_window.reset();
+            game_elevated = elevated == Ok(true);
+        }
+        game_window.tick(if game_foreground { foreground } else { std::ptr::null_mut() }, std::time::Instant::now());
+        game_conditions::publish(&app, game_elevated && !slui_elevated, game_window.exclusive());
         // The world blur captures the window the overlay aligns to.
         if game_foreground {
             backdrop::set_game_window(&app, foreground as isize);
@@ -870,15 +921,17 @@ impl InputDiagnostics {
         Self { game_process: 0, period_start: now, last_sample: now, game_foreground: Duration::ZERO }
     }
 
-    fn sample(&mut self, foreground: windows_sys::Win32::Foundation::HWND, game_foreground: bool) {
+    /// Returns the elevation of a game process that holds the foreground for the first time.
+    fn sample(&mut self, foreground: windows_sys::Win32::Foundation::HWND, game_foreground: bool) -> Option<Result<bool, u32>> {
         let now = std::time::Instant::now();
+        let mut new_process = None;
         if game_foreground {
             self.game_foreground += now - self.last_sample;
-            self.note_game_process(foreground);
+            new_process = self.note_game_process(foreground);
         }
         self.last_sample = now;
         if now - self.period_start < Self::PERIOD {
-            return;
+            return new_process;
         }
         let keys = HOOK_KEY_EVENTS.swap(0, Ordering::Relaxed);
         let mouse = HOOK_MOUSE_EVENTS.swap(0, Ordering::Relaxed);
@@ -891,9 +944,15 @@ impl InputDiagnostics {
         }
         self.period_start = now;
         self.game_foreground = Duration::ZERO;
+        new_process
     }
 
-    fn note_game_process(&mut self, window: windows_sys::Win32::Foundation::HWND) {
+    /// The game exited: its next process, even one with a reused id, is new.
+    fn forget_game_process(&mut self) {
+        self.game_process = 0;
+    }
+
+    fn note_game_process(&mut self, window: windows_sys::Win32::Foundation::HWND) -> Option<Result<bool, u32>> {
         use windows_sys::Win32::{
             Foundation::{CloseHandle, GetLastError},
             System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
@@ -903,7 +962,7 @@ impl InputDiagnostics {
         let mut process_id = 0;
         unsafe { GetWindowThreadProcessId(window, &mut process_id) };
         if process_id == 0 || process_id == self.game_process {
-            return;
+            return None;
         }
         self.game_process = process_id;
         let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
@@ -915,6 +974,7 @@ impl InputDiagnostics {
             elevated
         };
         diag!("SLGO: game process {process_id} holds the foreground; elevated: {}", diag::elevation_text(elevated));
+        Some(elevated)
     }
 }
 
@@ -1257,6 +1317,8 @@ pub fn run() {
     // Managed on the builder, not in `setup`: Tauri builds the config windows before `setup` runs,
     // and the home window can invoke `updater_start` while the overlay window is still being built.
     let updater = updater::Updater::new(context.package_info().version.to_string());
+    // An elevated relaunch waits for the instance that started it, which would otherwise take this launch over below.
+    let previous_instance = relaunch::wait_for_previous_instance();
     tauri::Builder::default()
         // Must be registered first: a second launch exits here and surfaces the running app.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -1264,11 +1326,12 @@ pub fn run() {
         }))
         .register_uri_scheme_protocol(theme_pack::SCHEME, theme_pack::handle)
         .manage(Mutex::new(GameForegroundState::default()))
+        .manage(Mutex::new(game_conditions::GameConditions::default()))
         .manage(Mutex::new(OverlaySnapshot::default()))
         .manage(GameRunningState::default())
         .manage(sidecar_socket::SidecarSockets::default())
         .manage(updater)
-        .setup(|app| {
+        .setup(move |app| {
             // First, so the log has the whole session; a second instance has already exited.
             diag::log_panics();
             let version = &app.package_info().version;
@@ -1276,14 +1339,16 @@ pub fn run() {
                 Ok(path) => diag!("SLUI {version} started; log {}", path.display()),
                 Err(error) => diag!("SLUI {version} started without a log file: {error}"),
             }
+            if let Some(previous) = previous_instance {
+                previous.log();
+            }
             #[cfg(windows)]
-            diag!(
-                "Windows {}; SLUI elevated: {}",
-                diag::windows_version(),
-                diag::elevation_text(diag::process_elevated(unsafe {
-                    windows_sys::Win32::System::Threading::GetCurrentProcess()
-                }))
-            );
+            {
+                let elevated =
+                    diag::process_elevated(unsafe { windows_sys::Win32::System::Threading::GetCurrentProcess() });
+                diag!("Windows {}; SLUI elevated: {}", diag::windows_version(), diag::elevation_text(elevated));
+                SLUI_ELEVATED.store(elevated == Ok(true), Ordering::SeqCst);
+            }
             // The overlay starts disabled on every launch and never takes input on its own.
             if let Some(overlay) = app.get_webview_window(OVERLAY_WINDOW) {
                 #[cfg(windows)]
@@ -1324,6 +1389,8 @@ pub fn run() {
             game_log::game_log_size,
             game_log::game_log_read,
             get_game_foreground,
+            game_conditions::get_game_conditions,
+            relaunch::relaunch_elevated,
             backdrop::set_backdrop_regions,
             backdrop::set_backdrop_options,
             backdrop::get_backdrop_available,

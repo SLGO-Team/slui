@@ -212,8 +212,8 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
   user-select: text;
 }
 
-/* Page-level banners above everything else on the home page: the required update (an alert, error tone) and an
-   incomplete theme pack (a notice, warn tone). */
+/* Page-level banners above everything else on the home page: the required update (an alert, error tone), a game
+   condition that hands SLUI's input panels back to the game (warn tone) and an incomplete theme pack (warn tone). */
 .home-banner {
   display: flex;
   align-items: center;

@@ -11,8 +11,11 @@ import { createSettingsStore, DEFAULT_APP_SETTINGS, type AppSettings } from "../
 import { readBackendConfig } from "../../platform/backend";
 import { createUpdateSource, type UpdateState } from "../../platform/updater";
 import { createSteamProfileSource, EMPTY_STEAM_PROFILE } from "../../platform/steamProfile";
+import { NO_GAME_CONDITIONS, relaunchElevated, subscribeGameConditions, type GameConditions } from "../../platform/gameConditions";
+import { gameConditionBanners, RELAUNCH_IDLE, type RelaunchState } from "../gameConditionsModel";
 import { readSteamPreview } from "../../mocks/steamPreview";
 import { readUpdatePreview } from "../../mocks/updatePreview";
+import { readGameConditionsPreview } from "../../mocks/gameConditionsPreview";
 import { currentThemePack } from "../../shared/themePack";
 import { missingThemePackFiles, themePackNotice } from "../themePackStatus";
 import { aboutUpdate, homeServerStatus, requiredBanner, titleBarUpdate, type UpdateAction } from "../updateModel";
@@ -27,6 +30,7 @@ import { RadarSettings } from "./RadarSettings";
 import { StatusBar } from "./StatusBar";
 import { overlaySwitchNote } from "./status";
 import { steamAccount, type LoadedSteamProfile } from "./steamAccount";
+import { GameConditionBanner } from "./GameConditionBanner";
 import { ThemePackBanner } from "./ThemePackBanner";
 import { TitleBar } from "./TitleBar";
 import { UpdateBanner } from "./UpdateBanner";
@@ -58,6 +62,7 @@ export function HomeApp() {
     import.meta.env.DEV ? readUpdatePreview(window.location.search) : null), []);
   const steamProfiles = useMemo(() => createSteamProfileSource(), []);
   const steamPreview = useMemo(() => import.meta.env.DEV ? readSteamPreview(window.location.search) : null, []);
+  const conditionsPreview = useMemo(() => import.meta.env.DEV ? readGameConditionsPreview(window.location.search) : null, []);
   // main.tsx loads the pack before this mounts, and it does not change while SLUI runs.
   const packNotice = useMemo(() => themePackNotice(missingThemePackFiles(currentThemePack())), []);
 
@@ -71,6 +76,8 @@ export function HomeApp() {
   const [session, setSession] = useState<SessionStatusSnapshot | null>(null);
   const [steamProfile, setSteamProfile] = useState<LoadedSteamProfile | null>(null);
   const [update, setUpdate] = useState<UpdateState | null>(null);
+  const [gameConditions, setGameConditions] = useState<GameConditions>(NO_GAME_CONDITIONS);
+  const [relaunch, setRelaunch] = useState<RelaunchState>(RELAUNCH_IDLE);
   const saveTimer = useRef<number | null>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -103,6 +110,25 @@ export function HomeApp() {
       unsubscribe();
     };
   }, [gameSource]);
+
+  // A banner per condition that keeps SLUI's shop, chat and team menu out of the game. Home is never brought to the
+  // front for it: taking the foreground alone minimizes a game in exclusive fullscreen.
+  useEffect(() => subscribeGameConditions(setGameConditions), []);
+  // A declined or failed relaunch is forgotten once the game no longer runs elevated.
+  // An answer that arrives after that (the prompt was still up when the game exited) is dropped too.
+  const elevatedGameRef = useRef(gameConditions.elevatedGame);
+  elevatedGameRef.current = gameConditions.elevatedGame;
+  useEffect(() => {
+    if (!gameConditions.elevatedGame) setRelaunch(RELAUNCH_IDLE);
+  }, [gameConditions.elevatedGame]);
+  const relaunchAsAdmin = useCallback(() => {
+    setRelaunch({ phase: "busy" });
+    const settle = (state: RelaunchState) => setRelaunch(elevatedGameRef.current ? state : RELAUNCH_IDLE);
+    // On success this instance exits; only a declined prompt or a failure comes back.
+    void relaunchElevated().then((outcome) => {
+      if (outcome === "cancelled") settle({ phase: "cancelled" });
+    }).catch((error: unknown) => settle({ phase: "failed", reason: errorText(error) }));
+  }, []);
 
   // Ask the overlay for a fresh snapshot on load and whenever home is shown again.
   useEffect(() => {
@@ -197,12 +223,16 @@ export function HomeApp() {
   }, [overlay.enabled, overlaySource]);
 
   const banner = requiredBanner(update);
+  const conditionBanners = gameConditionBanners(conditionsPreview?.conditions ?? gameConditions,
+    conditionsPreview?.relaunch ?? relaunch);
   return <div className="home">
     <TitleBar controls={windowControls} update={titleBarUpdate(update)} onUpdate={() => updateAction("install")} />
     <NavRail page={page} onNavigate={setPage} overlay={overlay} server={homeServerStatus(session, update)} />
     <main className={page === "home" ? "home-main" : "home-main home-main--split"} key={page}>
       {page === "home" ? <div className="home-page">
         {banner ? <UpdateBanner banner={banner} onAction={updateAction} /> : null}
+        {conditionBanners.map((conditionBanner) => <GameConditionBanner key={conditionBanner.condition}
+          banner={conditionBanner} onAction={relaunchAsAdmin} />)}
         {packNotice ? <ThemePackBanner notice={packNotice} /> : null}
         <OverlaySwitch state={overlay} note={overlaySwitchNote(overlay.enabled, settings.overlay.autoEnableOnConnect, session)} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
         <StatusBar session={session} steam={steamPreview ?? steamAccount(session, steamProfile)} gameRunning={gameRunning}
