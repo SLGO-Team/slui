@@ -55,10 +55,10 @@ state = reduce(state, { type: "toggle-scope" });
 assert.equal(state.scope, "global");
 assert.equal(reduce(initialChatInputState, { type: "draft", text: "x" }).draft, "", "a closed input ignores typing");
 
-// Esc discards; blur and unavailability keep the draft.
+// Esc discards; losing the foreground, a click outside and unavailability keep the draft.
 state = reduce(state, { type: "draft", text: "rotate B" });
 assert.equal(reduce(state, { type: "close", reason: "escape" }).draft, "");
-const blurred = reduce(state, { type: "close", reason: "blur" });
+const blurred = reduce(state, { type: "close", reason: "foreground" });
 assert.equal(blurred.open, false);
 assert.equal(blurred.draft, "rotate B");
 assert.equal(reduce(blurred, { type: "open", scope: "team" }).draft, "rotate B", "reopening restores the draft");
