@@ -112,7 +112,8 @@ export const initialChatInputState: ChatInputState = {
   open: false, scope: "global", draft: "", pending: null, lines: [], source: null, seen: [], roster: [],
 };
 
-export type ChatCloseReason = "escape" | "blur" | "unavailable";
+/** Escape, a click outside the panel, the overlay losing the system foreground it held, chat no longer available. */
+export type ChatCloseReason = "escape" | "outside" | "foreground" | "unavailable";
 
 export type ChatInputAction =
   | { type: "open"; scope: ChatInputScope }

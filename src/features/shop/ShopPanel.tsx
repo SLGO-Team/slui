@@ -266,9 +266,9 @@ export const ShopPanel = memo(function ShopPanel({
     setDenial(null);
     onCommand(createFulfillCommand(request.request_id));
   }, [audio, deny, onCommand]);
-  // The open shop holds the foreground. Losing it (Alt+Tab, a click in another window)
-  // gives the game back its locked cursor, so the shop closes, as chat does. Blurs
-  // before the window first has focus belong to the foreground switch itself.
+  // Diagnostics only: the window's focus and blur while the shop is drawn. The shop closes when the overlay loses the
+  // system foreground (App, from the native state), never on blur: another application's overlay showing its window
+  // (NVIDIA's Alt+R statistics) bounces focus inside the overlay window while the overlay keeps the foreground.
   useEffect(() => {
     if (!visible) return undefined;
     let hasFocus = document.hasFocus();
@@ -281,7 +281,6 @@ export const ShopPanel = memo(function ShopPanel({
     };
     const handleBlur = () => {
       onDiagnostic?.(`shop window blur at ${since()} (had focus: ${hasFocus})`);
-      if (hasFocus) onClose("blur");
     };
     window.addEventListener("focus", handleFocus);
     window.addEventListener("blur", handleBlur);
@@ -290,7 +289,7 @@ export const ShopPanel = memo(function ShopPanel({
       window.removeEventListener("blur", handleBlur);
       onDiagnostic?.(`shop hidden after ${since()}`);
     };
-  }, [onClose, onDiagnostic, visible]);
+  }, [onDiagnostic, visible]);
   useEffect(() => {
     if (!visible) return undefined;
     const handleWindowKeyDown =(event: globalThis.KeyboardEvent) => {

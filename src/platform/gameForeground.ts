@@ -6,6 +6,24 @@
 export type GameForegroundState = Readonly<{ focused: boolean; overGame: boolean; revision: number }>;
 type GameForegroundListener = (state: GameForegroundState) => void;
 
+/** The overlay itself holds the foreground: it is over the game and the game does not hold it. */
+export function overlayHoldsForeground(state: Pick<GameForegroundState, "focused" | "overGame">): boolean {
+  return state.overGame && !state.focused;
+}
+
+/**
+ * A panel that takes the foreground (shop, chat) and the native foreground state: `held` whether the overlay has held
+ * the foreground since the panel opened, `lost` whether it has now gone to the game (`toGame`) or another window. A
+ * focus bounce inside the overlay window (another application's overlay showing its own window) changes neither.
+ */
+export function foregroundLoss(
+  heldSinceOpen: boolean,
+  state: Pick<GameForegroundState, "focused" | "overGame">,
+): Readonly<{ held: boolean; lost: boolean; toGame: boolean }> {
+  const holds = overlayHoldsForeground(state);
+  return { held: heldSinceOpen || holds, lost: heldSinceOpen && !holds, toGame: state.focused };
+}
+
 export interface GameForegroundSource {
   subscribeGameForeground(listener: GameForegroundListener): () => void;
 }

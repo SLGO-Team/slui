@@ -43,7 +43,7 @@ import { useGameRunning } from "./app/useGameRunning";
 import { LiveMinimapRadar } from "./features/minimap/MinimapRadar";
 import { useMinimapFeature } from "./features/minimap/useMinimapFeature";
 import type { MinimapPreviewOptions } from "./mocks/minimapFixtures";
-import { createPreviewGameForegroundSource, subscribeGameForeground } from "./platform/gameForeground";
+import { createPreviewGameForegroundSource, foregroundLoss, subscribeGameForeground, type GameForegroundState } from "./platform/gameForeground";
 import { DEFAULT_AUDIO_SETTINGS } from "./platform/audioSettings";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "./platform/overlaySettings";
 import { createSettingsStore, type AppSettings } from "./platform/settings";
@@ -188,6 +188,10 @@ function App({ harness }: AppProps) {
   // A menu the plugin opened takes the input only then, so it never takes the foreground from another application,
   // and taking it from the game keeps it (the game alone loses the foreground at that moment).
   const [overGame, setOverGame] = useState(false);
+  // The native foreground sample itself: the shop and chat close when the overlay stops holding it.
+  const [foreground, setForeground] = useState<Pick<GameForegroundState, "focused" | "overGame">>({ focused: false, overGame: false });
+  const shopHeldForegroundRef = useRef(false);
+  const chatHeldForegroundRef = useRef(false);
   const overlayController = useMemo(() => createOverlayWindowController(), []);
   useWorldBlur(overlaySettings.worldBlur, overlaySettings.worldBlurStrength);
   // Every close of an open shop goes through here, so the log names its reason. The ref follows at once, so a second
@@ -393,6 +397,7 @@ function App({ harness }: AppProps) {
     return subscribe((state) => {
       minimapFeature.setGameForeground(state);
       setOverGame(state.overGame);
+      setForeground({ focused: state.focused, overGame: state.overGame });
     });
   }, [previewFocus, minimapFeature.setGameForeground]);
 
@@ -627,10 +632,32 @@ function App({ harness }: AppProps) {
       overlayController.log(`overlay input switch failed: ${error instanceof Error ? error.message : String(error)}`);
     });
   }, [overlayController, overlayInteractive]);
-  const handleChatClose = useCallback((reason: ChatCloseReason) => {
-    overlayController.log(`chat closed: ${reason}`);
+  const handleChatClose = useCallback((reason: ChatCloseReason, detail?: string) => {
+    overlayController.log(`chat closed: ${reason}${detail ? ` (${detail})` : ""}`);
     chatFeature.close(reason);
   }, [chatFeature.close, overlayController]);
+  // The shop and chat hold the foreground and close once it leaves the overlay (Alt+Tab, another window, the game
+  // taking it back): the game locks its cursor again. Read from the native foreground, never the page's blur: another
+  // application's overlay showing its own window (NVIDIA's Alt+R statistics) bounces focus inside the overlay window
+  // while the overlay keeps the foreground. Until the overlay first holds it, the switch is under way (or was refused).
+  useEffect(() => {
+    if (!shopOpen) {
+      shopHeldForegroundRef.current = false;
+      return;
+    }
+    const { held, lost, toGame } = foregroundLoss(shopHeldForegroundRef.current, foreground);
+    shopHeldForegroundRef.current = held;
+    if (lost) closeShopFor("foreground", toGame ? "game" : "another window");
+  }, [closeShopFor, foreground, shopOpen]);
+  useEffect(() => {
+    if (!chatOpen) {
+      chatHeldForegroundRef.current = false;
+      return;
+    }
+    const { held, lost, toGame } = foregroundLoss(chatHeldForegroundRef.current, foreground);
+    chatHeldForegroundRef.current = held;
+    if (lost) handleChatClose("foreground", toGame ? "game" : "another window");
+  }, [chatOpen, foreground, handleChatClose]);
   const hud = debugHud ?? liveHud;
   // Equipment comes from the snapshot loadout (viewer team only), for the mock stream too.
   const playerMeta = useMemo(() => topHudPlayerMetaForHud(hud), [hud]);

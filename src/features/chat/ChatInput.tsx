@@ -71,9 +71,9 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
   useEffect(() => {
     if (!chat.open) return undefined;
     openingKeyHeldRef.current = true;
-    // The desktop overlay becomes the foreground window only after this renders. Until
-    // the window has had focus, a blur is part of taking the keyboard, not the player
-    // leaving.
+    // Diagnostics only: the window's focus and blur. Chat closes when the overlay loses the system foreground (App, from
+    // the native state), never on blur: another application's overlay showing its window (NVIDIA's Alt+R statistics)
+    // bounces focus inside the overlay window, and the entry takes the keyboard back on the next focus.
     let hasKeyboard = document.hasFocus();
     const openedAt = performance.now();
     const since = () => `${Math.round(performance.now() - openedAt)}ms`;
@@ -84,15 +84,13 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
       hasKeyboard = true;
       focusInput();
     };
-    // Switching windows hands the keyboard back at once; the draft stays.
     const onWindowBlur = () => {
       onDiagnostic?.(`chat window blur at ${since()} (had keyboard: ${hasKeyboard})`);
-      if (hasKeyboard) onClose("blur");
     };
     // The interactive overlay takes every click in its window, so a click outside the
-    // panel closes it here.
+    // panel closes it here; the draft stays.
     const onPointerDown = (event: PointerEvent) => {
-      if (!(event.target instanceof Node && mainRef.current?.contains(event.target))) onClose("blur");
+      if (!(event.target instanceof Node && mainRef.current?.contains(event.target))) onClose("outside");
     };
     focusInput();
     window.addEventListener("focus", onWindowFocus);

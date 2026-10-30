@@ -1256,3 +1256,26 @@ Reviewed the shop chain for the dead-B and close-on-purchase reports. Reporter a
 ### Status
 
 [OK] **Completed**
+
+
+## Session 54: Shop and chat close on foreground loss, not page blur (NVIDIA Alt+R overlay)
+<!-- trellis-session: v=2 fp=38e7030149cde11c -->
+
+**Date**: 2026-10-30
+**Task**: Shop and chat close on foreground loss, not page blur (NVIDIA Alt+R overlay)
+**Branch**: `fix/overlay-foreground-close`
+
+### Summary
+
+Root-caused the dead-B / shop-closes-after-2s / chat reports: NVIDIA App's Alt+R statistics overlay re-shows its window after every foreground switch, which bounces focus inside the overlay window (Tauri window, then the WebView child) without changing the foreground; the page's blur closed the shop and chat and SLUI handed the game the foreground. Reproduced on the dev PC with a SetWinEventHook recorder (EVENT_SYSTEM_FOREGROUND, EVENT_OBJECT_FOCUS) next to slui.log; an earlier detour blamed SCP:SL's 'hide when unfocused' display mode (its FullscreenWindowManager does ShowWindow(SW_SHOWMINIMIZED) on focus loss), ruled out by a report on 'always visible'. Fix: foregroundLoss() over the native slgo-game-foreground sample (overlay holds it while overGame && !focused) closes shop/chat only when the overlay loses the foreground it held; blur only logs. Verified in game with Alt+R on; Alt+Tab close covered by smoke test only. Separate open item: SLUI 0.10.0 aborted (ucrtbase abort, no panic) during a display-mode switch; local symbolized diagnostic build parked in a stash.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cdf3582` | fix(overlay): close the shop and chat when the overlay loses the foreground, not on page blur |
+| `7426c14` | docs(task): record the in-game check of the foreground close |
+
+### Status
+
+[OK] **Completed**

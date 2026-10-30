@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   createNativeGameForegroundSource,
   createPreviewGameForegroundSource,
+  foregroundLoss,
+  overlayHoldsForeground,
   subscribeGameForeground,
 } from "../src/platform/gameForeground.ts";
 
@@ -147,4 +149,21 @@ assert.deepEqual(previewStates, [
 stopPreview();
 preview.setFocused(false);
 assert.equal(previewStates.length, 3);
+{
+  // Shop and chat close on the system foreground leaving the overlay they put in front, never before it held it.
+  const game = { focused: true, overGame: true };
+  const overlay = { focused: false, overGame: true };
+  const elsewhere = { focused: false, overGame: false };
+  assert.equal(overlayHoldsForeground(overlay), true);
+  assert.equal(overlayHoldsForeground(game), false);
+  assert.equal(overlayHoldsForeground(elsewhere), false);
+  assert.deepEqual(foregroundLoss(false, game), { held: false, lost: false, toGame: true }, "opened over the game: the switch is under way");
+  assert.deepEqual(foregroundLoss(false, elsewhere), { held: false, lost: false, toGame: false }, "never held: a refused switch keeps the panel");
+  const holding = foregroundLoss(false, overlay);
+  assert.deepEqual(holding, { held: true, lost: false, toGame: false }, "the overlay took it");
+  assert.deepEqual(foregroundLoss(holding.held, overlay), holding, "a focus bounce inside the overlay changes nothing");
+  assert.deepEqual(foregroundLoss(holding.held, game), { held: true, lost: true, toGame: true }, "the game took it back");
+  assert.deepEqual(foregroundLoss(holding.held, elsewhere), { held: true, lost: true, toGame: false }, "Alt+Tab to another window");
+}
+
 console.log("Game foreground subscription smoke checks passed.");

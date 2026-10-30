@@ -593,20 +593,30 @@ by window label (`?window=home` in a browser preview).
   movement: this process becomes the last input source, as in PowerToys), then
   under `AttachThreadInput`. Never synthesize keys: the game would get them.
   wry moves focus into WebView2 on `WM_SETFOCUS`; do not also call the
-  webview's `set_focus()`, which bounces window focus (blur, focus) and breaks
-  the close-on-blur rule below. Order: interactive on, then keyboard; keyboard
+  webview's `set_focus()`, which bounces window focus (blur, focus). Order: interactive on, then keyboard; keyboard
   off, then interactive off, queued in the overlay. If the keyboard cannot be
   taken, the UI stays open (the mouse is the overlay's, a click focuses it);
   the shop hotkey closes the shop and the next Y/U closes chat.
-- The shop, like chat, closes on the overlay window's `blur` once the window
-  has had focus since opening: once the game is foreground again its cursor is
-  locked, so an open shop would be unusable.
-- Chat closes on the overlay window's `blur` once the window has had focus
-  since opening (earlier blurs belong to the foreground switch), never on
-  game-foreground loss (the overlay itself is foreground). An interactive
-  overlay takes every click in its window, transparent pixels included, so a
-  click outside the panel closes via the window `pointerdown` and never reaches
-  the game. Focus moving inside the page only refocuses the entry.
+- The shop and chat close when the overlay loses the system foreground it has
+  held since they opened (`foregroundLoss` in `src/platform/gameForeground.ts`
+  over the native `slgo-game-foreground` sample: the overlay holds it while
+  `overGame && !focused`): Alt+Tab or another window (`overGame` false), or the
+  game taking it back (its cursor is locked again, so the panel would be
+  unusable). Before the overlay first holds it the switch is under way (or was
+  refused), so nothing closes. Never close on the page's window `blur`: another
+  application's overlay showing its own window bounces focus inside the overlay
+  window (Tauri window, then the WebView child) without any foreground change.
+  NVIDIA App's Alt+R statistics overlay does this 0.1-0.5 s after every
+  foreground switch; closing on that blur, and then handing the foreground back
+  to the game, was the "B does nothing / shop closes after ~2 s" field bug
+  (task `10-30-overlay-foreground-close`). The 100 ms foreground poll cannot
+  see such a bounce; a `SetWinEventHook` recorder of `EVENT_SYSTEM_FOREGROUND`
+  and `EVENT_OBJECT_FOCUS` can. Chat refocuses its entry on the window's next
+  `focus`.
+- An interactive overlay takes every click in its window, transparent pixels
+  included, so a click outside the chat panel closes it via the window
+  `pointerdown` (reason `outside`) and never reaches the game. Focus moving
+  inside the page only refocuses the entry.
   `log_overlay_event(message)` writes overlay diagnostics (close reasons, focus
   failures, shop key decisions) to the diagnostics log below.
 - Diagnostics log (`src-tauri/src/diag.rs`, task `10-28-diagnostics-log`): a

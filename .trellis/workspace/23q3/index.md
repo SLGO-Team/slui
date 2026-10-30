@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 53
-- **Last Active**: 2026-10-29
+- **Total Sessions**: 54
+- **Last Active**: 2026-10-30
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1258 | Active |
+| `journal-1.md` | ~1281 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 54 | 2026-10-30 | Shop and chat close on foreground loss, not page blur (NVIDIA Alt+R overlay) | `cdf3582`, `7426c14` | `fix/overlay-foreground-close` |
 | 53 | 2026-10-29 | Shop and shop-key diagnostics (slui.log round 2) | `168c1a0` | `fix/shop-diagnostics` |
 | 52 | 2026-10-28 | SLUI diagnostics log for the dead shop key reports | `fffd2f8` | `fix/diagnostics-log` |
 | 51 | 2026-10-28 | Overlay shows only while the session is live | `5a7e9ea` | `fix/game-exit-lifecycle` |
