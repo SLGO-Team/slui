@@ -2,7 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { suppressPageContextMenu } from "./platform/contextMenu";
 import { currentWindowLabel, isTauri } from "./platform/desktop";
-import { installPageErrorLog } from "./platform/pageErrors";
+import { themePackLogLine } from "./app/themePackStatus";
+import { installPageErrorLog, writeDiagnostic } from "./platform/pageErrors";
 import { loadThemePack } from "./platform/themePack";
 import { registerFontFaces } from "./shared/fonts";
 import { setThemePack } from "./shared/themePack";
@@ -27,6 +28,10 @@ void Promise.all([currentWindowLabel(), loadThemePack()]).then(async ([label, th
   // Theme-pack fonts and sounds must be resolved before any feature mounts.
   setThemePack(themePack);
   registerFontFaces(themePack);
+  // Both windows load the same pack; only home logs it, once per run.
+  if (label === "home") {
+    void writeDiagnostic(`home ${themePackLogLine(themePack)}`).catch((error: unknown) => console.error("Unable to log the theme pack", error));
+  }
   // The browser preview keeps its menu for DevTools.
   if (isTauri()) suppressPageContextMenu(label);
   let root: React.ReactNode;

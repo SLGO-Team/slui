@@ -1279,3 +1279,25 @@ Root-caused the dead-B / shop-closes-after-2s / chat reports: NVIDIA App's Alt+R
 ### Status
 
 [OK] **Completed**
+
+
+## Session 55: 主题包不完整提示
+<!-- trellis-session: v=2 fp=89a6529f5b4d3876 -->
+
+**Date**: 2026-10-30
+**Task**: 主题包不完整提示
+**Branch**: `feat/theme-pack-stale-notice`
+
+### Summary
+
+自动更新不碰 <install>/theme-pack，旧主题包缺新版要读的文件时对应字体/音效静默回落。新增 src/app/themePackStatus.ts：所需文件从 FONT_FACES 与 THEME_PACK_SHOP_SOUNDS 派生；主题包非空但有缺失时首页显示警告色横幅「主题包不完整 / 缺少 N 个文件，部分音效暂用内置版本，请更新主题包。」，主窗口每次启动写一行 theme pack 状态到诊断日志。theme-pack-smoke 覆盖判断与文案；浏览器预览用只有 radial 音效的旧包验证了横幅（含与需要更新横幅并排）和日志，?themePack=0 无提示。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dc8cab6` | feat(home): tell the player when the installed theme pack is incomplete |
+
+### Status
+
+[OK] **Completed**

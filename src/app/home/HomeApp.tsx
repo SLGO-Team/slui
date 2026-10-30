@@ -13,6 +13,8 @@ import { createUpdateSource, type UpdateState } from "../../platform/updater";
 import { createSteamProfileSource, EMPTY_STEAM_PROFILE } from "../../platform/steamProfile";
 import { readSteamPreview } from "../../mocks/steamPreview";
 import { readUpdatePreview } from "../../mocks/updatePreview";
+import { currentThemePack } from "../../shared/themePack";
+import { missingThemePackFiles, themePackNotice } from "../themePackStatus";
 import { aboutUpdate, homeServerStatus, requiredBanner, titleBarUpdate, type UpdateAction } from "../updateModel";
 import { AboutSettings } from "./AboutSettings";
 import { AudioSettings } from "./AudioSettings";
@@ -25,6 +27,7 @@ import { RadarSettings } from "./RadarSettings";
 import { StatusBar } from "./StatusBar";
 import { overlaySwitchNote } from "./status";
 import { steamAccount, type LoadedSteamProfile } from "./steamAccount";
+import { ThemePackBanner } from "./ThemePackBanner";
 import { TitleBar } from "./TitleBar";
 import { UpdateBanner } from "./UpdateBanner";
 import "./home.css";
@@ -55,6 +58,8 @@ export function HomeApp() {
     import.meta.env.DEV ? readUpdatePreview(window.location.search) : null), []);
   const steamProfiles = useMemo(() => createSteamProfileSource(), []);
   const steamPreview = useMemo(() => import.meta.env.DEV ? readSteamPreview(window.location.search) : null, []);
+  // main.tsx loads the pack before this mounts, and it does not change while SLUI runs.
+  const packNotice = useMemo(() => themePackNotice(missingThemePackFiles(currentThemePack())), []);
 
   const [page, setPage] = useState<HomePage>("home");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -198,6 +203,7 @@ export function HomeApp() {
     <main className={page === "home" ? "home-main" : "home-main home-main--split"} key={page}>
       {page === "home" ? <div className="home-page">
         {banner ? <UpdateBanner banner={banner} onAction={updateAction} /> : null}
+        {packNotice ? <ThemePackBanner notice={packNotice} /> : null}
         <OverlaySwitch state={overlay} note={overlaySwitchNote(overlay.enabled, settings.overlay.autoEnableOnConnect, session)} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
         <StatusBar session={session} steam={steamPreview ?? steamAccount(session, steamProfile)} gameRunning={gameRunning}
           update={update} onRetry={sessionSource.retry} />

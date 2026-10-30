@@ -116,6 +116,14 @@ When static source and observed output disagree, the in-game screenshot wins.
   (`<install>/theme-pack/fonts|sounds/<original file name>`, read via
   the `theme` URI scheme in Tauri and `/theme-pack/*` in Vite dev). Missing
   files fall back one by one to bundled OFL fonts and synthesized sounds.
+- Updates replace the app, never `<install>/theme-pack/`, so renaming or adding a
+  pack file leaves installed packs incomplete. `src/app/themePackStatus.ts`
+  derives the required list from `FONT_FACES` and `THEME_PACK_SHOP_SOUNDS` (never
+  a hand-kept list); a non-empty pack missing any of them shows the home notice
+  `主题包不完整 … 请更新主题包。` (no pack shows nothing), and the home window
+  logs one `theme pack:` line per run naming the missing files. Its wording stays
+  neutral: no source game, distribution channel or "reinstall SLUI". After such a
+  change, a new theme-pack installer has to reach players separately.
 - The shop plays only the three sounds CS2's buy menu references
   (`src/features/shop/audio.ts`): hover (`buymenu_mouseover`, on every card,
   buyable or not), category select (`buymenu_select`, also the request key) and

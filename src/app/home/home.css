@@ -212,7 +212,8 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
   user-select: text;
 }
 
-/* Required update: the only page-level alert, above everything else on the home page. */
+/* Page-level banners above everything else on the home page: the required update (an alert, error tone) and an
+   incomplete theme pack (a notice, warn tone). */
 .home-banner {
   display: flex;
   align-items: center;
@@ -226,6 +227,13 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 .home-banner__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
 .home-banner__title { font-size: 14px; font-weight: 600; color: var(--home-text); }
 .home-banner__detail { color: #ff8a8a; font-size: 12px; }
+.home-banner[data-tone="warn"] {
+  border-color: rgba(242, 201, 76, 0.3);
+  border-left-color: var(--home-warn);
+  background: rgba(242, 201, 76, 0.07);
+}
+.home-banner[data-tone="warn"] .home-banner__icon { color: var(--home-warn); }
+.home-banner[data-tone="warn"] .home-banner__detail { color: var(--home-text-2); }
 
 .home-about__status[data-tone="ok"] { color: var(--home-ok); }
 .home-about__status[data-tone="pending"] { color: var(--home-pending); }

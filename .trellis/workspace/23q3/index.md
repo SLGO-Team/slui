@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 54
+- **Total Sessions**: 55
 - **Last Active**: 2026-10-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1281 | Active |
+| `journal-1.md` | ~1303 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 55 | 2026-10-30 | 主题包不完整提示 | `dc8cab6` | `feat/theme-pack-stale-notice` |
 | 54 | 2026-10-30 | Shop and chat close on foreground loss, not page blur (NVIDIA Alt+R overlay) | `cdf3582`, `7426c14` | `fix/overlay-foreground-close` |
 | 53 | 2026-10-29 | Shop and shop-key diagnostics (slui.log round 2) | `168c1a0` | `fix/shop-diagnostics` |
 | 52 | 2026-10-28 | SLUI diagnostics log for the dead shop key reports | `fffd2f8` | `fix/diagnostics-log` |
