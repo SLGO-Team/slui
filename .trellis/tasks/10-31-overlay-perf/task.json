@@ -2,7 +2,7 @@
   "id": "overlay-perf",
   "name": "overlay-perf",
   "title": "覆盖层性能优化",
-  "description": "按 2026-10-31 重测结论降低覆盖层开销：雷达相机缓存、隐藏时暂停逐帧循环、雷达滤镜按区域、商店图片瘦身",
+  "description": "按 2026-10-31 重测结论降低覆盖层开销：雷达相机缓存、隐藏时暂停逐帧循环、雷达滤镜按区域、商店图片瘦身、backdrop 测量循环瘦身",
   "status": "planning",
   "dev_type": null,
   "scope": null,
@@ -24,7 +24,8 @@
     "10-31-perf-strip-mocks",
     "10-31-perf-hidden-pause",
     "10-31-perf-radar-zone-filters",
-    "10-31-perf-shop-images"
+    "10-31-perf-shop-images",
+    "10-31-perf-backdrop-measure"
   ],
   "parent": null,
   "relatedFiles": [],

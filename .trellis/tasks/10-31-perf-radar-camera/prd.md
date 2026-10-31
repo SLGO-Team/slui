@@ -3,7 +3,11 @@
 ## Goal
 
 消除「非居中」相机、「全图」相机和「动态缩放」下每次渲染的重复计算，使最坏雷达配置（动态缩放 + 朝向向上 + 非居中）
-每次渲染的模型计算从 1.3–1.6 ms 降到 0.4 ms 以内，相机输出与现在逐位一致。
+每次渲染的模型计算从约 250–270 µs 降到 50 µs 以内，相机输出与现在逐位一致。
+
+> 数字更正（实施中发现）：首版基线用 `vm.runInNewContext` 运行打包结果，全局查找（`Math.*`）经过沙箱拦截，热循环被放大约 5 倍
+> （当时测得最坏配置 1.30 / 1.59 ms、非居中相机 123–146 µs、全图相机 63–72 µs，验收线定为 ≤ 0.4 ms / ≤ 10 µs）。
+> 基准脚本改为在本 realm 中 `import()` 打包结果后重测，本 PRD 的数字和验收线按更正后的基线收紧。
 
 父任务：`10-31-overlay-perf`（基线与基准脚本见其 `research/`，2026-10-31 在 `fb3f5ce` 上重测）。
 
@@ -13,8 +17,8 @@
   每次渲染 reducer 与 `selectMinimap` 各算一遍相机与动态缩放（`src/features/minimap/model.ts:287`、`model.ts:400`）。
 - `createRadarCamera`（`src/features/minimap/camera.ts:36-69`）：
   - 非居中（`alwaysCentered=false`，`camera.ts:49-60`）每次都 `filter` 出视点所在区域的房间、`flatMap` 出全部角点、为每个点分配旋转结果，
-    再对 x/y 各做 `Math.min/max(...展开)`。实测 123–146 µs/次（v6 布局 60–70 个房间，各 4 个角点）。
-  - 全图（overview，`camera.ts:63-68`）每次遍历全部房间角点求 `farthest`，63–72 µs/次；它只取决于地图几何和雷达形状。
+    再对 x/y 各做 `Math.min/max(...展开)`。实测 18.5–25.5 µs/次（v6 布局 60–70 个房间，各 4 个角点）。
+  - 全图（overview，`camera.ts:63-68`）每次遍历全部房间角点求 `farthest`，24–30 µs/次；它只取决于地图几何和雷达形状。
   - 每次调用开头都执行 `normalizeRadarPreferences(preferences)`（`camera.ts:38`）。
 - `dynamicZoomTarget`（`src/features/minimap/dynamicZoom.ts:14-34`）每次最多调用 `createRadarCamera` 22 次（选定比例 1 次、0.25 一次、二分 20 次），
   每次都重新归一化同一份偏好；每帧在 reducer 和 selector 中各算一遍。
@@ -22,10 +26,12 @@
 
   | 配置 | 布局 0 | 布局 1 |
   |---|---|---|
-  | 默认（居中、固定朝向、无动态缩放） | 42 µs | 45 µs |
-  | 朝向向上、非居中 | 220 µs | 173 µs |
-  | 动态缩放、居中 | 284–372 µs | 286 µs |
-  | 动态缩放 + 朝向向上 + 非居中 | 1.30 ms | 1.59 ms |
+  | 默认（居中、固定朝向、无动态缩放） | 17–27 µs | 17–22 µs |
+  | 朝向向上、非居中 | 47 µs | 35 µs |
+  | 动态缩放、居中 | 39–48 µs | 36–45 µs |
+  | 动态缩放 + 朝向向上 + 非居中 | 272 µs | 249 µs |
+
+  最坏配置在 60 Hz 下约 19–20 ms CPU/s，144 Hz 下约 41 ms/s。
 
   最坏配置的 CPU 剖析：`rotatePoint` 占 61%，其余主要是非居中钳制里的展开求最值和数组回调。居中的动态缩放场景主要花在
   每次试探时的 `normalizeRadarPreferences` 和目标投影上。
@@ -52,12 +58,14 @@
 
 ## Acceptance Criteria
 
-- [ ] `research/bench-minimap.mjs`（布局 0 和布局 1）：最坏配置每次渲染 ≤ 0.4 ms（基线 1.30 / 1.59 ms）；
-      `createRadarCamera` 非居中和全图都 ≤ 10 µs/次（基线 123–146 / 63–72 µs）；其余配置不变慢（容差 10%）。
-- [ ] R7 的等价性测试加入 `npm test` 并通过。
-- [ ] `npm run lint`、`npm test`、`npm run build:local` 通过。
-- [ ] `dev:mock` 下 `?minimapAlwaysCentered=0&minimapOrientation=heading-up&minimapDynamicZoom=1&minimapDynamicTargets=far`：
-      雷达正常跟随、缩放，与改动前截图一致；`npm run minimap-visual-audit` 在本环境的结论与改动前一致。
+- [x] `research/bench-minimap.mjs`（布局 0 和布局 1）：最坏配置每次渲染 ≤ 50 µs（基线 272 / 249 µs，结果 30 / 24 µs）；
+      `createRadarCamera` 非居中和全图都 ≤ 5 µs/次（基线 25.5 / 18.5 和 30.1 / 23.9 µs，结果 1.9 / 1.5 和 0.8 / 0.7 µs）；
+      其余配置不变慢（三次运行的范围与基线重叠，单次噪声约 ±30%）。
+- [x] R7 的等价性测试加入 `npm test` 并通过（5 个几何对象 × 2 轮，19 280 次相机、2 560 次动态缩放比对；
+      变异检验：共享缓存、改写角度乘法顺序都会使测试失败）。
+- [x] `npm run lint`、`npm test`、`npm run build:local` 通过。
+- [x] `dev:mock` 下 8 个代表性状态（含 `?minimapAlwaysCentered=0&minimapOrientation=heading-up&minimapDynamicZoom=1&minimapDynamicTargets=far`、
+      全图、方形、`cs2-reference`）的相机变换字符串与雷达截图和改动前逐像素一致；`npm run minimap-visual-audit` 通过（72 张截图）。
 
 ## Out of Scope
 

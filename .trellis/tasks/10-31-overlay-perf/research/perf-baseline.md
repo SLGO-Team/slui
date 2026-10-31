@@ -79,29 +79,53 @@ mode on purpose); serve the output with `python3 -m http.server 1430 --bind 127.
 
 ### Minimap model cost (`bench-minimap.mjs`, 10 s simulated, 15 Hz positions + 60 Hz clock = 75 renders/s)
 
+> Corrected 2026-10-31 (child `10-31-perf-radar-camera`). The first run of this script evaluated the bundle with
+> `vm.runInNewContext`, where every global lookup (`Math.min`, `Math.cos`, …) goes through the sandbox's
+> interceptor; hot loops ran ~5× slower than in a browser (it reported 1.30 / 1.59 ms for the worst configuration).
+> The script now `import()`s the bundle in its own realm. The production-React profile above is consistent with
+> the corrected numbers: its default and worst (non-bisecting) runs differ by ~4 ms/s of script.
+
 | Configuration | per render, layout 0 (70 rooms) | layout 1 (60 rooms) | CPU at 75 renders/s |
 |---|---|---|---|
-| default (centered, fixed, no dynamic zoom) | 42 µs | 45 µs | ~3 ms/s |
-| heading-up, centered | 39 µs | 41 µs | ~3 ms/s |
-| heading-up, not centered | 220 µs | 173 µs | 13–17 ms/s |
-| dynamic zoom, centered | 284–372 µs | 286 µs | 21–28 ms/s |
-| **dynamic zoom + heading-up + not centered** | **1.30 ms** | **1.59 ms** | **97–120 ms/s** |
+| default (centered, fixed, no dynamic zoom) | 17–27 µs | 17–22 µs | ~1.5 ms/s |
+| heading-up, centered | 16–21 µs | 12–17 µs | ~1.3 ms/s |
+| heading-up, not centered | 47 µs | 35 µs | 2.6–3.5 ms/s |
+| dynamic zoom, centered | 39–48 µs | 36–45 µs | ~3 ms/s |
+| **dynamic zoom + heading-up + not centered** | **272 µs** | **249 µs** | **19–20 ms/s** (41 ms/s at 144 Hz) |
+
+Ranges are three runs; run-to-run noise is about ±30% for the cheap configurations.
 
 | Micro (layout 0 / layout 1) | Value |
 |---|---|
-| `createRadarCamera` follow, not centered | 146 / 123 µs per call |
-| `createRadarCamera` follow, centered | 0.8 µs per call |
-| `createRadarCamera` overview | 72 / 63 µs per call |
-| `dynamicZoomTarget` heading-up, not centered | 154 µs (selected scale fits) – 1125 µs (bisects) per call |
+| `createRadarCamera` follow, not centered | 25.5 / 18.5 µs per call |
+| `createRadarCamera` follow, centered | 0.7 / 0.6 µs per call |
+| `createRadarCamera` overview | 30.1 / 23.9 µs per call |
+| `dynamicZoomTarget` heading-up, not centered | 22 µs (selected scale fits) – 184 µs (bisects) per call |
 | `resolveMinimapSync` cold | 0.1–0.9 ms |
 | rooms per map | layout 0: 70 (HCZ 49, Entrance 21); layout 1: 60 (HCZ 38, Entrance 22); 4 footprint points each |
 
-Profile of the worst configuration: `rotatePoint` 61%, the non-centered clamp's spread `Math.min/max`
-and array callbacks most of the rest (`camera.ts:49-60`). The overview branch rebuilds `farthest` from
-every room corner on each call (`camera.ts:64-67`). `dynamicZoomTarget` (`dynamicZoom.ts:14-33`) calls
-`createRadarCamera` up to 22 times, and both the reducer (`model.ts:287`) and `selectMinimap`
+Where the time goes (CPU profile of the worst configuration): `rotatePoint` and the non-centered clamp's
+spread `Math.min/max` and array callbacks (`camera.ts:49-60` before the change). The overview branch rebuilt
+`farthest` from every room corner on each call (`camera.ts:64-67`). `dynamicZoomTarget` (`dynamicZoom.ts:14-33`)
+calls `createRadarCamera` up to 22 times, and both the reducer (`model.ts:287`) and `selectMinimap`
 (`model.ts:400`) run it every render. In the centered dynamic-zoom case the cost is
 `normalizeRadarPreferences` inside each of those `createRadarCamera` calls plus target projection.
+
+#### After `10-31-perf-radar-camera` (per-geometry corner / extent caches, preferences normalized once per fit)
+
+| Configuration | per render, layout 0 | layout 1 |
+|---|---|---|
+| default | 18–21 µs | 19–28 µs |
+| heading-up, centered | 15–18 µs | 14–22 µs |
+| heading-up, not centered | 12 µs | 11 µs |
+| dynamic zoom, centered | 26–30 µs | 26–38 µs |
+| **dynamic zoom + heading-up + not centered** | **30 µs** | **24 µs** (33 µs, 5 ms/s at 144 Hz) |
+
+| Micro (layout 0 / layout 1) | Value |
+|---|---|
+| `createRadarCamera` follow, not centered | 1.9 / 1.5 µs per call |
+| `createRadarCamera` overview | 0.8 / 0.7 µs per call |
+| `dynamicZoomTarget` heading-up, not centered | 2.4 / 8.0 µs per call |
 
 ### Production bundle (`VITE_CONTROL_PLANE_URL=https://control.example.invalid npx vite build`)
 

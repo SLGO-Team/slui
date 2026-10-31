@@ -3,7 +3,6 @@
 // Simulates the store as `useMinimapFeature` drives it: positions at the init's rate (15 Hz), a clock tick on every
 // displayed frame (requestAnimationFrame, --hz), and one `selectMinimap` per store change (one radar render each).
 import { resolve } from "node:path";
-import { runInNewContext } from "node:vm";
 import { performance } from "node:perf_hooks";
 import { createRequire } from "node:module";
 
@@ -24,12 +23,12 @@ const result = await build({
       export * from "./mocks/minimapFixtures.ts"; export { parseEvent } from "./contracts/index.ts";`,
     resolveDir: resolve(repo, "src"),
   },
-  bundle: true, write: false, platform: "browser", format: "iife", globalName: "m", target: "es2020",
+  bundle: true, write: false, platform: "browser", format: "esm", target: "es2020",
   alias: { "@slgo/protocol": resolve(repo, "packages/protocol/src/index.ts") },
 });
-const ctx = { atob, performance, console, window: { location: { search: "" } }, URLSearchParams };
-runInNewContext(result.outputFiles[0].text, ctx);
-const m = ctx.m;
+// Imported as a module in this realm, not run through `vm.runInNewContext`: there every global lookup (`Math`, …)
+// goes through the sandbox's interceptor, which inflated hot loops several-fold compared with a browser.
+const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);
 
 let seq = 1;
 const envelope = (type, payload) => {

@@ -107,6 +107,26 @@ values.
 - Tauri window behavior requires a Windows smoke check for click-through,
   global hotkey switching, foreground-window tracking, and high-DPI sizing.
 
+### Common Mistake: timing code inside `vm.runInNewContext`
+
+**Symptom**: a Node benchmark reports hot model code several times slower than the
+browser does (the overlay-perf baseline first read the worst radar configuration
+as 1.3-1.6 ms per render; the same code costs ~0.25 ms).
+
+**Cause**: in a `vm` context every global lookup (`Math.min`, `Math.cos`, ...) goes
+through the sandbox object's interceptor instead of an inline-cached global.
+
+**Fix**: for timing, bundle with esbuild `format: "esm"` and `import()` it in the
+current realm, as `.trellis/tasks/10-31-overlay-perf/research/bench-minimap.mjs` does:
+
+```js
+const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);
+```
+
+Smoke tests that only assert correctness may keep `runInNewContext`; objects from
+it live in another realm, so compare them through `plain()` or primitive field
+lists rather than `deepStrictEqual` on the objects themselves.
+
 ---
 
 ## Code Review Checklist
