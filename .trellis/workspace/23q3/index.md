@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 56
+- **Total Sessions**: 57
 - **Last Active**: 2026-10-31
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1325 | Active |
+| `journal-1.md` | ~1350 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 57 | 2026-10-31 | 覆盖层性能：重测基线与雷达相机缓存 | `5a1cced`, `8f680c5`, `deab773`, `80fca58` | `claude/admiring-hamilton-38bwyp` |
 | 56 | 2026-10-31 | Elevated game and exclusive fullscreen hand-back | `a98a620` | `fix/overlay-elevated-and-exclusive-fullscreen` |
 | 55 | 2026-10-30 | 主题包不完整提示 | `dc8cab6` | `feat/theme-pack-stale-notice` |
 | 54 | 2026-10-30 | Shop and chat close on foreground loss, not page blur (NVIDIA Alt+R overlay) | `cdf3582`, `7426c14` | `fix/overlay-foreground-close` |

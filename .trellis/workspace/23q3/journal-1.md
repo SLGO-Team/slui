@@ -1323,3 +1323,28 @@ Two 0.10.2 reports were an elevated game (UIPI) and SL exclusive fullscreen (gam
 ### Status
 
 [OK] **Completed**
+
+
+## Session 57: 覆盖层性能：重测基线与雷达相机缓存
+<!-- trellis-session: v=2 fp=019317ac788e18e0 -->
+
+**Date**: 2026-10-31
+**Task**: 覆盖层性能：重测基线与雷达相机缓存
+**Branch**: `claude/admiring-hamilton-38bwyp`
+
+### Summary
+
+从交接页恢复 overlay-perf 规划（5a1cced），发现它基于过时的 23q3/slui 快照（10-03）：memo 面板、剥离 mock 已由 #53/#55 完成，归档未实施；在 fb3f5ce 上重测并收窄其余子任务。剖析脚本改为按新 props/hook state 计数（旧法在被跳过的子树里误计）。实施 perf-radar-camera：camera.ts 按 MapGeometry 用 WeakMap 缓存区域角点（Float64Array）与全图范围，dynamicZoom 每次只归一化一次偏好；最坏雷达配置每次渲染 249–272 → 24–30 µs，相机输出与旧算法逐位一致（smoke 中 19 280 次相机 + 2 560 次缩放比对，变异检验通过），8 个预览状态截图逐像素一致，minimap-visual-audit 通过。发现首版基准在 vm.runInNewContext 中计时被放大约 5 倍，已改为 import() 并更正基线与验收线，写入 quality-guidelines。新增子任务 perf-backdrop-measure；高刷限帧暂不立项（理由见父 PRD）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5a1cced` | chore(task): plan overlay-perf and its six child tasks |
+| `8f680c5` | chore(task): re-baseline overlay-perf on current main and narrow its children |
+| `deab773` | perf(minimap): cache the radar camera's per-map geometry |
+| `80fca58` | chore(task): correct the overlay-perf model baseline and plan the backdrop child |
+
+### Status
+
+[OK] **Completed**
