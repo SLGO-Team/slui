@@ -4,8 +4,9 @@
 // transparent window and cannot blur the game itself, so each such panel registers its element
 // here; one animation-frame loop measures what the page actually renders (box, turn, corner
 // radius, opacity, `inset()` clip) and sends the list to Rust, which captures the game, blurs those
-// regions on the GPU and shows them under the overlay. The list is sent only when it changes, so a
-// still panel costs a layout read per frame and no IPC.
+// regions on the GPU and shows them under the overlay. The list is sent only when it changes, and a
+// frame measures only when something that can change it happened (see `needsMeasure`), so a still
+// panel costs one box read per frame and no IPC.
 //
 // `<html data-world-blur="on|off">` tells panel CSS which fill to draw: the CS2 fill over the blur,
 // or the dense stand-in when no blur is available (switched off, Windows 10, capture failure).
@@ -234,21 +235,92 @@ let sent: readonly BackdropRegion[] = [];
 let frame: number | null = null;
 let flushQueued = false;
 
-function send() {
+// Measuring reads computed styles up every registered panel's ancestor chain; done every frame it was about a
+// quarter of the overlay's script time while nothing moved (task 10-31-perf-backdrop-measure). A frame measures
+// only after a signal that can change a region: an attribute change on a panel or an ancestor (class, style,
+// data-*), an animation or transition on one of them, a panel's box moving or resizing, or a panel registering.
+// The frame after a signal measures too, so a transition's end state is sent. Descendant changes (the radar's
+// markers) are no signal unless they move the panel's box. A full measure every SAFETY_MEASURE_MS bounds what
+// the signals cannot see, such as a rule keyed on `:hover`, a sibling or `:has()` changing a property read here.
+const SAFETY_MEASURE_MS = 500;
+type PanelBox = Readonly<{ left: number; top: number; width: number; height: number; offsetWidth: number; offsetHeight: number }>;
+const boxes = new Map<HTMLElement, PanelBox>();
+let observer: MutationObserver | null = null;
+let dirtyFrames = 0;
+let lastMeasureMs = -Infinity;
+
+function panelBox(element: HTMLElement): PanelBox {
+  const { left, top, width, height } = element.getBoundingClientRect();
+  return { left, top, width, height, offsetWidth: element.offsetWidth, offsetHeight: element.offsetHeight };
+}
+
+function sameBox(a: PanelBox | undefined, b: PanelBox): boolean {
+  return a !== undefined && a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height
+    && a.offsetWidth === b.offsetWidth && a.offsetHeight === b.offsetHeight;
+}
+
+/** Watches attributes on every registered panel and its ancestors; rebuilt whenever the registry changes. */
+function observeChains() {
+  if (typeof MutationObserver === "undefined") return;
+  observer ??= new MutationObserver(() => { dirtyFrames = 2; });
+  observer.disconnect();
+  for (const element of registry.keys()) {
+    for (let node: Element | null = element; node; node = node.parentElement) observer.observe(node, { attributes: true });
+  }
+}
+
+/** Whether an animation or transition runs on a registered panel or one of its ancestors. */
+function panelAnimating(): boolean {
+  if (typeof document.getAnimations !== "function") return true;
+  for (const animation of document.getAnimations()) {
+    const effect = animation.effect;
+    if (!(effect instanceof KeyframeEffect)) return true;
+    const target = effect.target;
+    if (!target) continue;
+    for (const element of registry.keys()) if (target === element || target.contains(element)) return true;
+  }
+  return false;
+}
+
+function needsMeasure(now: number): boolean {
+  if (observer?.takeRecords().length || panelAnimating()) dirtyFrames = 2;
+  if (dirtyFrames > 0) {
+    dirtyFrames--;
+    return true;
+  }
+  if (now - lastMeasureMs >= SAFETY_MEASURE_MS) return true;
+  for (const element of registry.keys()) if (!sameBox(boxes.get(element), panelBox(element))) return true;
+  return false;
+}
+
+function measureAll(): BackdropRegion[] {
   const regions: BackdropRegion[] = [];
   for (const [element, options] of registry) {
     const region = measure(element, options);
     if (region) regions.push(region);
   }
+  return regions;
+}
+
+function send(now: number) {
+  const regions = measureAll();
+  boxes.clear();
+  for (const element of registry.keys()) boxes.set(element, panelBox(element));
+  lastMeasureMs = now;
+  if (debug) debug.measured++;
   if (!sameRegions(regions, sent)) {
     sent = regions;
     sink?.(regions);
   }
 }
 
-function tick() {
+function tick(now: number) {
   frame = null;
-  send();
+  if (needsMeasure(now)) send(now);
+  else if (debug) {
+    debug.skipped++;
+    if (debug.check && !sameRegions(measureAll(), sent)) debug.stale++;
+  }
   if (registry.size > 0) frame = requestAnimationFrame(tick);
 }
 
@@ -256,12 +328,25 @@ function tick() {
 // React commit, so a panel remounted under a new key in the same commit keeps the blur up.
 function flush() {
   flushQueued = false;
-  send();
+  observeChains();
+  send(performance.now());
   if (registry.size === 0 && frame !== null) {
     cancelAnimationFrame(frame);
     frame = null;
   }
 }
+
+/**
+ * Mock preview only (`MOCK_STANDIN` is a build-time constant, so packages drop this): counts measured and skipped
+ * frames. With `check` set, every skipped frame is measured anyway; `stale` counts those whose regions differ from
+ * the last sent list, i.e. frames the per-frame loop would have re-sent. Audits expect 0.
+ */
+type BackdropDebug = { measured: number; skipped: number; stale: number; check: boolean };
+declare global {
+  interface Window { __SLUI_BACKDROP_DEBUG__?: BackdropDebug }
+}
+const debug: BackdropDebug | null = MOCK_STANDIN && typeof window !== "undefined"
+  ? (window.__SLUI_BACKDROP_DEBUG__ ??= { measured: 0, skipped: 0, stale: 0, check: false }) : null;
 
 function backdropSink(): Sink | null {
   if (isTauri()) return tauriSink();
@@ -272,6 +357,8 @@ function backdropSink(): Sink | null {
 export function registerBackdrop(element: HTMLElement, options: BackdropRegionOptions = {}): () => void {
   sink ??= backdropSink();
   registry.set(element, options);
+  observeChains();
+  dirtyFrames = 2;
   frame ??= requestAnimationFrame(tick);
   return () => {
     registry.delete(element);

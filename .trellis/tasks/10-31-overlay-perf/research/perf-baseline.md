@@ -26,6 +26,7 @@ npm run dev:mock -- --port 1420 --strictPort        # in another shell
 node .trellis/tasks/10-31-overlay-perf/research/profile-overlay.cjs
 #   OVERLAY_URL=http://127.0.0.1:1430/ points it at a static build instead (see "Production React" below)
 node .trellis/tasks/10-31-overlay-perf/research/raster-trace.cjs "<extra query>" 8   # raster/paint proxy from a Chromium trace
+node .trellis/tasks/10-31-overlay-perf/research/backdrop-check.cjs                 # backdrop loop: measured/skipped frames, stale must be 0
 ```
 
 `profile-overlay.cjs` installs a fake `__REACT_DEVTOOLS_GLOBAL_HOOK__` and counts a watched component
@@ -135,6 +136,17 @@ calls `createRadarCamera` up to 22 times, and both the reducer (`model.ts:287`) 
 - `dist` 19 MB: fonts 13 MB (WOFF2 since #54), shop item PNGs 4.3 MB (31 files, up to 837×930;
   previews draw at 420×470 CSS px). Pillow estimate for the shop PNGs: lossless WebP 2.85 MB,
   WebP q90 0.87 MB.
+
+### Backdrop measure loop (production-React mock build, 10 s, three runs each)
+
+| Main thread Script | ms/s |
+|---|---|
+| per-frame measurement (before `10-31-perf-backdrop-measure`) | 44.2–47.5 |
+| measurement skipped entirely (instrumented, for reference) | 32.2–34.4 |
+| measurement on signals (after) | 37.7–39.9 |
+
+Idle default mock: 7 registered panels; full measurements 60/s before, 2/s after. `backdrop-check.cjs` checks
+that no skipped frame would have changed the regions.
 
 ### Raster proxy (`raster-trace.cjs`, dev server, 8 s)
 
