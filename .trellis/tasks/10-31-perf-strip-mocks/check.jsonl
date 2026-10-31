@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Forbidden patterns and review checklist"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Verify module placement of the harness and mapGeometry module"}
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Verify Node test path and preview interface unchanged"}
+{"file": ".trellis/tasks/10-31-overlay-perf/research/perf-baseline.md", "reason": "Before/after bundle comparison"}

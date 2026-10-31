@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates, presentation clock rule, spec note to update"}
+{"file": ".trellis/tasks/10-31-overlay-perf/research/perf-baseline.md", "reason": "Before/after metric for acceptance (profile-overlay.cjs)"}
