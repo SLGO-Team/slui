@@ -127,6 +127,24 @@ Smoke tests that only assert correctness may keep `runInNewContext`; objects fro
 it live in another realm, so compare them through `plain()` or primitive field
 lists rather than `deepStrictEqual` on the objects themselves.
 
+### Common Mistake: re-encoding a bundled image drops its colour chunks
+
+**Symptom**: a "lossless" PNG to WebP conversion keeps every decoded RGBA byte, yet
+the overlay shows the image up to 9/255 different (shop portraits `Scp079`,
+`Scp096`, `Scp939`, task `10-31-perf-shop-images`).
+
+**Cause**: Chromium colour-manages PNGs. A PNG with `gAMA`/`cHRM` and no `sRGB` or
+`iCCP` chunk is converted from a 2.2 gamma to sRGB on decode; Pillow does not
+carry `gAMA`/`cHRM` into WebP, so the WebP is shown unconverted. A PNG with an `sRGB`
+chunk, an ICC profile (pass `icc_profile=` through) or no colour chunk converts safely.
+
+**Fix**: check `Image.open(png).info` for `gamma`/`chromaticity` without `srgb` and keep
+those files as they are. Verify a conversion in Chromium, not only with Pillow: draw
+both files onto canvases over opaque backdrops and compare. Comparing raw
+`getImageData` of transparent images is misleading, because PNG and WebP decoders
+round premultiplied alpha differently (edge pixels differ by 1/255 when composited,
+by up to 255 after the canvas un-premultiplies them).
+
 ---
 
 ## Code Review Checklist
