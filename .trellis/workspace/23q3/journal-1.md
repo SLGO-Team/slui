@@ -1348,3 +1348,28 @@ Two 0.10.2 reports were an elevated game (UIPI) and SL exclusive fullscreen (gam
 ### Status
 
 [OK] **Completed**
+
+
+## Session 58: 覆盖层性能：区域滤镜试验、商店图片 WebP、backdrop 按信号测量
+<!-- trellis-session: v=2 fp=7e14087d9182812b -->
+
+**Date**: 2026-10-31
+**Task**: 覆盖层性能：区域滤镜试验、商店图片 WebP、backdrop 按信号测量
+**Branch**: `claude/admiring-hamilton-38bwyp`
+
+### Summary
+
+perf-hidden-pause 按用户决定留待本地 Windows。perf-radar-zone-filters 试做两种按区域分组：滤镜组放在相机组内时软件光栅化 RasterTask 208–215 → 273 ms/s；每区域一个相机组、滤镜区域限定为可视范围时固定朝向 −68%、朝向向上 +15%，且需两处相机变换；WebView2 走 GPU，未合入，补丁留在任务 research 中待 Windows 实测（新增 research/raster-trace.cjs）。perf-shop-images：28 张商店图转无损 WebP（exact、保留 ICC），4.39 → 3.24 MB；Scp079/096/939 带 gAMA/cHRM 无 sRGB 块，Chromium 对其做 2.2 伽马转换，转 WebP 会差到 9/255，保留 PNG；Chromium 合成比对不透明像素一致、半透明边缘 ≤1；shop-model-smoke 新增预览图存在性断言；规范记录色彩块与预乘比较的坑。perf-backdrop-measure：backdrop.ts 改为按信号测量（祖先链属性 MutationObserver、getAnimations、面板盒子变化、登记；信号后一帧也测，500 ms 兜底），静止时完整测量 60 → 2 次/秒，生产 React mock 构建主线程 Script 44–48 → 38–40 ms/s；mock 自检 __SLUI_BACKDROP_DEBUG__ + research/backdrop-check.cjs 覆盖商店、记分板、缩放、雷达模糊与 6 个 HUD 场景，stale 0；system-boundaries 3.1 已更新。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b5ab8b2` | chore(task): park perf-hidden-pause until it can be checked on Windows |
+| `0a30256` | chore(task): record the radar zone-filter experiment and park it |
+| `1edb4f1` | perf(shop): ship 28 shop item images as lossless WebP |
+| `6aee981` | perf(backdrop): measure world-blur panels only when they can have changed |
+
+### Status
+
+[OK] **Completed**
