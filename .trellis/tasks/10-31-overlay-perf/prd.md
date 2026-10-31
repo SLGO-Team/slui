@@ -29,8 +29,8 @@
 | — | `10-31-perf-memo-panels` | HUD/商店/聊天 memo | 已被 #53 替代，已归档（未实施） |
 | — | `10-31-perf-strip-mocks` | 正式包剥离 mock、模板懒加载 | 已被 #55 / #33 替代，已归档（未实施） |
 | 1 | `10-31-perf-radar-camera` | 相机区域角点缓存、全图范围缓存、动态缩放试探不重复归一化偏好 | 已完成：最坏配置每次渲染 249–272 → 24–30 µs，相机输出逐位不变 |
-| 2 | `10-31-perf-hidden-pause` | 覆盖层隐藏时停止雷达时钟与 backdrop 测量循环 | 待规划（含待决事项） |
-| 3 | `10-31-perf-radar-zone-filters` | 雷达颜色滤镜从逐房间改为按区域 | 待规划（含待决事项） |
+| 2 | `10-31-perf-hidden-pause` | 覆盖层隐藏时停止雷达时钟与 backdrop 测量循环 | 暂缓：留待本地 Windows 环境 |
+| 3 | `10-31-perf-radar-zone-filters` | 雷达颜色滤镜从逐房间改为按区域 | 暂缓：两种分组在软件光栅化下结果相反（固定朝向 −68% / 朝向向上 +15%），留待 Windows GPU 实测 |
 | 4 | `10-31-perf-shop-images` | 商店物品图片转 WebP | 待规划（含待决事项） |
 | 5 | `10-31-perf-backdrop-measure` | backdrop 测量循环在画面静止时跳过逐帧的样式与布局读取 | 待规划（含待决事项） |
 

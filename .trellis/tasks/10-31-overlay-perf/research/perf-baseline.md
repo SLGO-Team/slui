@@ -25,6 +25,7 @@ node .trellis/tasks/10-31-overlay-perf/research/bench-minimap.mjs . --layout=1
 npm run dev:mock -- --port 1420 --strictPort        # in another shell
 node .trellis/tasks/10-31-overlay-perf/research/profile-overlay.cjs
 #   OVERLAY_URL=http://127.0.0.1:1430/ points it at a static build instead (see "Production React" below)
+node .trellis/tasks/10-31-overlay-perf/research/raster-trace.cjs "<extra query>" 8   # raster/paint proxy from a Chromium trace
 ```
 
 `profile-overlay.cjs` installs a fake `__REACT_DEVTOOLS_GLOBAL_HOOK__` and counts a watched component
@@ -134,6 +135,13 @@ calls `createRadarCamera` up to 22 times, and both the reducer (`model.ts:287`) 
 - `dist` 19 MB: fonts 13 MB (WOFF2 since #54), shop item PNGs 4.3 MB (31 files, up to 837×930;
   previews draw at 420×470 CSS px). Pillow estimate for the shop PNGs: lossless WebP 2.85 MB,
   WebP q90 0.87 MB.
+
+### Raster proxy (`raster-trace.cjs`, dev server, 8 s)
+
+Headless Chromium rasterizes in software, so `RasterTask` time on its raster threads stands in for GPU raster work
+here; it does not predict WebView2's GPU raster. Current radar (one `filter` per room, 70 rooms): `RasterTask`
+208–215 ms/s with the default fixed orientation, 134–138 ms/s heading-up; main-thread `Paint` 34–47 ms/s.
+The zone-filter experiments built on it are in `10-31-perf-radar-zone-filters/prd.md`.
 
 ## Not measured here
 
