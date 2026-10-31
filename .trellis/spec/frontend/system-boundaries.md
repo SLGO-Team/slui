@@ -817,7 +817,24 @@ while mounted, so conditionally rendered elements work); one animation-frame loo
 each element's box and turn (its transforms down from the root), CSS corner radius,
 effective opacity and `inset()` clip-path, so motion, turns, reveals and fades are
 followed. Unregistering re-sends at the end of the commit (microtask): a leaving panel
-takes its blur at once, and one remounted under a new key keeps it. `<html data-world-blur="on|off">` (setting × availability) picks each
+takes its blur at once, and one remounted under a new key keeps it.
+
+The loop measures a frame only after a signal (`needsMeasure` in `backdrop.ts`): an
+attribute change on a registered panel or any ancestor (`MutationObserver`, attributes
+only, rebuilt on every register/unregister), a running animation or transition whose
+target is a panel or an ancestor (`document.getAnimations()`), a panel's
+`getBoundingClientRect`/`offsetWidth`/`offsetHeight` differing from the last measured
+frame, or a registration. The signalled frame and the next one measure (a transition's
+end state); a full measure runs at least every 500 ms for anything the signals cannot
+see. Descendant DOM writes (the radar's markers every frame) are no signal by design.
+A new way for a panel's region to change must raise one of these signals; a style rule
+keyed on `:hover`, a sibling or `:has()` that changes a property `measure` reads would
+lag up to 500 ms. In the mock preview, `window.__SLUI_BACKDROP_DEBUG__ = { measured,
+skipped, stale, check }` (build-time `MODE === "mock"` only): with `check: true` every
+skipped frame is measured anyway and `stale` counts frames whose regions differed from
+the last sent list. `.trellis/tasks/10-31-overlay-perf/research/backdrop-check.cjs`
+drives panels through opening, scenes, scoreboard, resize and radar blur and requires
+`stale === 0`; run it after changing panel animations or the loop. `<html data-world-blur="on|off">` (setting × availability) picks each
 panel's fill.
 
 State a command reads with `state::<T>()` is registered on the `tauri::Builder`

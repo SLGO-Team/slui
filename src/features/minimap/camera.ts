@@ -33,9 +33,68 @@ function rotatePoint(point: { x: number; y: number }, degrees: number): { x: num
     y: point.x * Math.sin(angle) + point.y * Math.cos(angle) };
 }
 
+/**
+ * What a camera needs from the map alone. The radar builds a camera on every displayed frame (and dynamic zoom up to
+ * 22 per fit), so the zone corners and the overview extent are computed once per geometry. `MapGeometry` is treated
+ * as immutable once `resolveMinimapSync` built it (it is cached and shared by descriptor): the cache is keyed by the
+ * object itself, so a new layout gets its own entry and a dropped geometry can still be collected.
+ */
+type GeometryCameraCache = { zonePoints: Map<MinimapZone, Float64Array>; farthest: Partial<Record<RadarShape, number>> };
+const cameraCaches = new WeakMap<MapGeometry, GeometryCameraCache>();
+
+function cameraCache(geometry: MapGeometry): GeometryCameraCache {
+  let cache = cameraCaches.get(geometry);
+  if (!cache) {
+    cache = { zonePoints: new Map(), farthest: {} };
+    cameraCaches.set(geometry, cache);
+  }
+  return cache;
+}
+
+/** The zone's room corners in projected world space `(x, -z)`, interleaved `x0, y0, x1, y1, …`. */
+function zonePoints(geometry: MapGeometry, zone: MinimapZone): Float64Array {
+  const cache = cameraCache(geometry);
+  const cached = cache.zonePoints.get(zone);
+  if (cached) return cached;
+  const corners = geometry.rooms.filter((room) => room.zone === zone).flatMap((room) => room.footprint.flat());
+  const points = new Float64Array(corners.length * 2);
+  corners.forEach((point, index) => {
+    points[index * 2] = point.x;
+    points[index * 2 + 1] = -point.z;
+  });
+  cache.zonePoints.set(zone, points);
+  return points;
+}
+
+function overviewCenter(geometry: MapGeometry): WorldPoint {
+  const { bounds } = geometry;
+  return { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
+}
+
+/** The farthest room corner from the overview center, by the radar shape's metric. */
+function overviewFarthest(geometry: MapGeometry, shape: RadarShape): number {
+  const cache = cameraCache(geometry);
+  const cached = cache.farthest[shape];
+  if (cached !== undefined) return cached;
+  const center = overviewCenter(geometry);
+  const farthest = Math.max(1, ...geometry.rooms.flatMap((room) => room.footprint.flat())
+    .map((point) => shape === "circle" ? Math.hypot(point.x - center.x, point.z - center.z)
+      : Math.max(Math.abs(point.x - center.x), Math.abs(point.z - center.z))));
+  cache.farthest[shape] = farthest;
+  return farthest;
+}
+
 export function createRadarCamera(geometry: MapGeometry, viewpoint: MinimapViewpoint | null,
   preferences: Partial<RadarPreferences>, fullMap: boolean, activeMapScale?: number): RadarCamera {
-  const settings = normalizeRadarPreferences(preferences);
+  return radarCameraFor(geometry, viewpoint, normalizeRadarPreferences(preferences), fullMap, activeMapScale);
+}
+
+/**
+ * `createRadarCamera` for preferences that already went through `normalizeRadarPreferences`, for callers that build
+ * many cameras from one preference set (dynamic zoom tries up to 22 scales per fit).
+ */
+export function radarCameraFor(geometry: MapGeometry, viewpoint: MinimapViewpoint | null,
+  settings: RadarPreferences, fullMap: boolean, activeMapScale?: number): RadarCamera {
   const shape = radarShape(settings, fullMap);
   const viewSize = shape === "square" ? 290 : 250;
   const radius = viewSize / 2;
@@ -46,26 +105,30 @@ export function createRadarCamera(geometry: MapGeometry, viewpoint: MinimapViewp
     let center = { x: viewpoint.x, z: viewpoint.z };
     // Clamp in camera axes, so heading-up uses the rotated zone's actual extent. A layout may lack the viewpoint's
     // zone (the protocol needs only one room); then there is nothing to clamp to.
-    const points = settings.alwaysCentered ? [] : geometry.rooms.filter((room) => room.zone === viewpoint.zone)
-      .flatMap((room) => room.footprint.flat()).map((point) => rotatePoint({ x: point.x, y: -point.z }, -yaw));
-    if (points.length) {
+    const points = settings.alwaysCentered ? null : zonePoints(geometry, viewpoint.zone);
+    if (points && points.length) {
+      // `rotatePoint(corner, -yaw)` over every corner in one pass without allocating: the same products in the same
+      // order, and folding Math.min/max gives what the spread form gave (-0 included), so the camera is bit-identical.
+      const angle = -yaw * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (let index = 0; index < points.length; index += 2) {
+        const x = points[index] * cos - points[index + 1] * sin;
+        const y = points[index] * sin + points[index + 1] * cos;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
       const projected = rotatePoint({ x: center.x, y: -center.z }, -yaw);
-      const clamp = (value: number, values: number[]): number => {
-        const min = Math.min(...values), max = Math.max(...values), half = radius / scale;
-        return max - min <= half * 2 ? (min + max) / 2 : Math.max(min + half, Math.min(max - half, value));
-      };
-      const world = rotatePoint({ x: clamp(projected.x, points.map((p) => p.x)),
-        y: clamp(projected.y, points.map((p) => p.y)) }, yaw);
+      const half = radius / scale;
+      const clamp = (value: number, min: number, max: number): number =>
+        max - min <= half * 2 ? (min + max) / 2 : Math.max(min + half, Math.min(max - half, value));
+      const world = rotatePoint({ x: clamp(projected.x, minX, maxX), y: clamp(projected.y, minY, maxY) }, yaw);
       center = { x: world.x, z: -world.y };
     }
     return { center, yaw, scale, mode: "follow", zone: viewpoint.zone, shape, viewSize };
   }
-  const { bounds } = geometry;
-  const center = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
-  const farthest = Math.max(1, ...geometry.rooms.flatMap((room) => room.footprint.flat())
-    .map((point) => shape === "circle" ? Math.hypot(point.x - center.x, point.z - center.z)
-      : Math.max(Math.abs(point.x - center.x), Math.abs(point.z - center.z))));
-  return { center, yaw: 0, scale: (radius - RADAR_EDGE_PADDING) / farthest, mode: "overview", zone: null, shape, viewSize };
+  const center = overviewCenter(geometry);
+  return { center, yaw: 0, scale: (radius - RADAR_EDGE_PADDING) / overviewFarthest(geometry, shape), mode: "overview",
+    zone: null, shape, viewSize };
 }
 
 export function worldToRadar(point: WorldPoint, camera: RadarCamera): { x: number; y: number } {

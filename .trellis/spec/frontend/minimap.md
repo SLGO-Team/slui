@@ -256,6 +256,18 @@ last batched status can miss a connecting/baseline-required reset.
   fitting; an unrelated off-zone change must not postpone local recovery.
   Fit the displayed interpolated poses shared by the camera and markers, not
   the raw latest pose alone, so new targets enter immediately during movement.
+- Camera cost: `createRadarCamera` runs on every displayed frame, and dynamic zoom
+  builds up to 22 cameras per fit in both the reducer and `selectMinimap`. So
+  `camera.ts` caches, per `MapGeometry` object (`WeakMap`), each zone's corners in
+  projected `(x, -z)` (`Float64Array`) and the overview `farthest` per shape.
+  `MapGeometry` is immutable once `resolveMinimapSync` built it: derive a new
+  object instead of mutating `rooms`, `footprint` or `bounds`, or the cache serves
+  the old extent. Key caches by the geometry object only, never by descriptor
+  string. A caller building many cameras from one preference set normalizes once
+  and calls `radarCameraFor(geometry, viewpoint, normalizedSettings, fullMap, scale)`;
+  `createRadarCamera` keeps normalizing its `Partial` input. Camera output stays
+  bit-identical to the uncached algorithm (same rotation products and order;
+  min/max folded with `Math.min`/`Math.max`, so `-0` matches the spread form).
 - The radar blur is SLUI's world blur (cs2-visual-replication "World blur",
   system-boundaries 3.1): with `blurBackground` on, the viewport (circle or
   square, its own corner radius) registers through `useBackdropRef`, and the
@@ -352,6 +364,11 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
 - Configuration regressions cover all numeric bounds/invalid inputs, partial
   compatibility, circle/square projection and fitting, non-centered rotated
   cameras, base/alternate/dynamic precedence and focus/stale/permission resets.
+  `minimap-model-smoke` also compares every camera mode and `dynamicZoomTarget`
+  bit-exactly (`deepStrictEqual`, i.e. `Object.is`) with an in-test copy of the
+  uncached algorithm over all four layouts plus a single-zone layout, twice so
+  warm caches of other geometries are read; include a yaw (13.7) where angle
+  products round differently, so a reordered formula fails.
   Browser audits assert no room-label layer, a correct bottom location title,
   independently scaled radar HUD, and actual pixel changes for blur/blend/alpha
   switches under a fixed page background (the radar crop counts once two

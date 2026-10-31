@@ -6,7 +6,7 @@ license; the rest of the repository is covered by the project license
 
 ## SCP: Secret Laboratory / SCP Foundation — CC BY-SA 3.0
 
-- `public/assets/shop-items/*.png`
+- `public/assets/shop-items/*.webp`, `public/assets/shop-items/*.png`
 - `public/assets/slui-svg/*.svg`
 - `public/assets/hud/avatar-terrorist.png` (Nine-Tailed Fox emblem)
 - `public/assets/hud/avatar-ct.svg` (SCP Foundation emblem)

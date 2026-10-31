@@ -1323,3 +1323,53 @@ Two 0.10.2 reports were an elevated game (UIPI) and SL exclusive fullscreen (gam
 ### Status
 
 [OK] **Completed**
+
+
+## Session 57: 覆盖层性能：重测基线与雷达相机缓存
+<!-- trellis-session: v=2 fp=019317ac788e18e0 -->
+
+**Date**: 2026-10-31
+**Task**: 覆盖层性能：重测基线与雷达相机缓存
+**Branch**: `claude/admiring-hamilton-38bwyp`
+
+### Summary
+
+从交接页恢复 overlay-perf 规划（5a1cced），发现它基于过时的 23q3/slui 快照（10-03）：memo 面板、剥离 mock 已由 #53/#55 完成，归档未实施；在 fb3f5ce 上重测并收窄其余子任务。剖析脚本改为按新 props/hook state 计数（旧法在被跳过的子树里误计）。实施 perf-radar-camera：camera.ts 按 MapGeometry 用 WeakMap 缓存区域角点（Float64Array）与全图范围，dynamicZoom 每次只归一化一次偏好；最坏雷达配置每次渲染 249–272 → 24–30 µs，相机输出与旧算法逐位一致（smoke 中 19 280 次相机 + 2 560 次缩放比对，变异检验通过），8 个预览状态截图逐像素一致，minimap-visual-audit 通过。发现首版基准在 vm.runInNewContext 中计时被放大约 5 倍，已改为 import() 并更正基线与验收线，写入 quality-guidelines。新增子任务 perf-backdrop-measure；高刷限帧暂不立项（理由见父 PRD）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5a1cced` | chore(task): plan overlay-perf and its six child tasks |
+| `8f680c5` | chore(task): re-baseline overlay-perf on current main and narrow its children |
+| `deab773` | perf(minimap): cache the radar camera's per-map geometry |
+| `80fca58` | chore(task): correct the overlay-perf model baseline and plan the backdrop child |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 58: 覆盖层性能：区域滤镜试验、商店图片 WebP、backdrop 按信号测量
+<!-- trellis-session: v=2 fp=7e14087d9182812b -->
+
+**Date**: 2026-10-31
+**Task**: 覆盖层性能：区域滤镜试验、商店图片 WebP、backdrop 按信号测量
+**Branch**: `claude/admiring-hamilton-38bwyp`
+
+### Summary
+
+perf-hidden-pause 按用户决定留待本地 Windows。perf-radar-zone-filters 试做两种按区域分组：滤镜组放在相机组内时软件光栅化 RasterTask 208–215 → 273 ms/s；每区域一个相机组、滤镜区域限定为可视范围时固定朝向 −68%、朝向向上 +15%，且需两处相机变换；WebView2 走 GPU，未合入，补丁留在任务 research 中待 Windows 实测（新增 research/raster-trace.cjs）。perf-shop-images：28 张商店图转无损 WebP（exact、保留 ICC），4.39 → 3.24 MB；Scp079/096/939 带 gAMA/cHRM 无 sRGB 块，Chromium 对其做 2.2 伽马转换，转 WebP 会差到 9/255，保留 PNG；Chromium 合成比对不透明像素一致、半透明边缘 ≤1；shop-model-smoke 新增预览图存在性断言；规范记录色彩块与预乘比较的坑。perf-backdrop-measure：backdrop.ts 改为按信号测量（祖先链属性 MutationObserver、getAnimations、面板盒子变化、登记；信号后一帧也测，500 ms 兜底），静止时完整测量 60 → 2 次/秒，生产 React mock 构建主线程 Script 44–48 → 38–40 ms/s；mock 自检 __SLUI_BACKDROP_DEBUG__ + research/backdrop-check.cjs 覆盖商店、记分板、缩放、雷达模糊与 6 个 HUD 场景，stale 0；system-boundaries 3.1 已更新。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b5ab8b2` | chore(task): park perf-hidden-pause until it can be checked on Windows |
+| `0a30256` | chore(task): record the radar zone-filter experiment and park it |
+| `1edb4f1` | perf(shop): ship 28 shop item images as lossless WebP |
+| `6aee981` | perf(backdrop): measure world-blur panels only when they can have changed |
+
+### Status
+
+[OK] **Completed**

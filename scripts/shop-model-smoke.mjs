@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync, readdirSync } from "node:fs";
 import {
   SHOP_COMMAND_TIMEOUT_MS,
   SHOP_STALE_AFTER_MS,
@@ -14,7 +15,7 @@ import {
   hasTimedShopCommand,
   sameShopTime,
 } from "../src/features/shop/model.ts";
-import { SHOP_PIP_FALLBACK_COLOR, allocateShopColumnWidths, groupShopItems, groupShopRequests, shopOwnerPipColors, shopWashForRole } from "../src/features/shop/presentation.ts";
+import { SHOP_PIP_FALLBACK_COLOR, SHOP_PREVIEW_IMAGES, allocateShopColumnWidths, groupShopItems, groupShopRequests, shopOwnerPipColors, shopWashForRole } from "../src/features/shop/presentation.ts";
 import {
   DEFAULT_SHOP_DEBUG_OPTIONS,
   createShopDebugState,
@@ -298,6 +299,16 @@ for (const skewMs of [60_000, -60_000]) {
   const rejected = selectShop(createShopDebugState({ ...DEFAULT_SHOP_DEBUG_OPTIONS, refunds: "rejected" }, 1_000), 1_000);
   assert.equal(rejected.failureReason, "退款后背包将超出容量");
 }
+// Preview images resolve to bundled files, and the bundled folder holds no image the shop never shows
+// (they ship inside slui.exe; a renamed or re-encoded file must update SHOP_PREVIEW_IMAGES with it).
+{
+  const previews = Object.values(SHOP_PREVIEW_IMAGES);
+  for (const href of previews) assert.ok(existsSync(new URL(`../public${href}`, import.meta.url)), `${href} is bundled`);
+  const bundled = readdirSync(new URL("../public/assets/shop-items/", import.meta.url)).filter((name) => !name.endsWith(".md"))
+    .map((name) => `/assets/shop-items/${name}`).sort();
+  assert.deepEqual(bundled, [...new Set(previews)].sort(), "every bundled shop image is a preview image");
+}
+
 console.log("shop model smoke: ok");
 
 // Teammate-inventory pips: one per holder in team slot order, coloured by the HUD slot colour.
