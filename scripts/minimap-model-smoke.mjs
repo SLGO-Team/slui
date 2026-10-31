@@ -437,6 +437,115 @@ for (const yaw of [0, 37, 90, 180, 270]) for (const forceSquare of [false, true]
     assert.ok(Math.abs(actual[axis] - expected) < 1e-8, "camera clamp follows current rotated zone bounds");
   }
 }
+
+// The camera caches each geometry's zone corners and overview extent (10-31-perf-radar-camera). It must return
+// exactly what the uncached algorithm returned: the reference below is that algorithm, and the comparison is
+// bit-exact (deepStrictEqual on numbers is Object.is, so even a -0 for 0 fails).
+{
+  const { RADAR_RADIUS, RADAR_NORMAL_WORLD_RADIUS, RADAR_EDGE_PADDING } = context.minimapTest;
+  const rotate = (point, degrees) => {
+    const angle = degrees * Math.PI / 180;
+    return { x: point.x * Math.cos(angle) - point.y * Math.sin(angle), y: point.x * Math.sin(angle) + point.y * Math.cos(angle) };
+  };
+  const referenceCamera = (geometry, viewpoint, preferences, fullMap, activeMapScale) => {
+    const settings = normalizeRadarPreferences(preferences);
+    const shape = settings.forceSquare || (fullMap && settings.squareWithScoreboard) ? "square" : "circle";
+    const viewSize = shape === "square" ? 290 : 250;
+    const radius = viewSize / 2;
+    if (viewpoint && !fullMap) {
+      const yaw = settings.orientation === "heading-up" ? viewpoint.yaw_degrees : 0;
+      const scale = RADAR_RADIUS / (RADAR_NORMAL_WORLD_RADIUS * 0.70 / (activeMapScale ?? settings.mapScale));
+      let center = { x: viewpoint.x, z: viewpoint.z };
+      const points = settings.alwaysCentered ? [] : geometry.rooms.filter((room) => room.zone === viewpoint.zone)
+        .flatMap((room) => room.footprint.flat()).map((point) => rotate({ x: point.x, y: -point.z }, -yaw));
+      if (points.length) {
+        const projected = rotate({ x: center.x, y: -center.z }, -yaw);
+        const clamp = (value, values) => {
+          const min = Math.min(...values), max = Math.max(...values), half = radius / scale;
+          return max - min <= half * 2 ? (min + max) / 2 : Math.max(min + half, Math.min(max - half, value));
+        };
+        const world = rotate({ x: clamp(projected.x, points.map((p) => p.x)), y: clamp(projected.y, points.map((p) => p.y)) }, yaw);
+        center = { x: world.x, z: -world.y };
+      }
+      return { center, yaw, scale, mode: "follow", zone: viewpoint.zone, shape, viewSize };
+    }
+    const { bounds } = geometry;
+    const center = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
+    const farthest = Math.max(1, ...geometry.rooms.flatMap((room) => room.footprint.flat())
+      .map((point) => shape === "circle" ? Math.hypot(point.x - center.x, point.z - center.z)
+        : Math.max(Math.abs(point.x - center.x), Math.abs(point.z - center.z))));
+    return { center, yaw: 0, scale: (radius - RADAR_EDGE_PADDING) / farthest, mode: "overview", zone: null, shape, viewSize };
+  };
+  const referenceZoomTarget = (geometry, viewpoint, positions, preferences, selectedScale) => {
+    const targets = positions.filter((position) => position.status === "live" && position.zone === viewpoint.zone);
+    const fits = (scale) => {
+      const camera = referenceCamera(geometry, viewpoint, preferences, false, scale);
+      const radius = camera.viewSize / 2;
+      return targets.every((position) => {
+        const point = worldToRadar(position, camera);
+        const x = Math.abs(point.x - radius), y = Math.abs(point.y - radius);
+        return (camera.shape === "circle" ? Math.hypot(x, y) : Math.max(x, y)) <= radius - RADAR_EDGE_PADDING;
+      });
+    };
+    if (fits(selectedScale)) return selectedScale;
+    if (!fits(0.25)) return 0.25;
+    let lower = 0.25, upper = selectedScale;
+    for (let step = 0; step < 20; step++) {
+      const middle = (lower + upper) / 2;
+      if (fits(middle)) lower = middle; else upper = middle;
+    }
+    return lower;
+  };
+  // Realm-independent field list: the bundle's objects live in another vm context.
+  const fields = (camera) => [Object.keys(camera).sort().join(), camera.center.x, camera.center.z, camera.yaw, camera.scale,
+    camera.mode, camera.zone, camera.shape, camera.viewSize];
+  // All four layouts, plus one without an Entrance zone (a viewpoint there has nothing to clamp to). Two passes, so
+  // the second reads every geometry's cache after the others filled theirs.
+  const geometries = [...layouts.map((layout) => resolveMinimapSync({ ...init, grid: layout.grid, rooms: layout.rooms })),
+    resolveMinimapSync({ ...init, rooms: layouts[0].rooms.filter((room) => room.zone === "HeavyContainment") })];
+  let cameras = 0, fits = 0;
+  for (const pass of [1, 2]) for (const [index, geometry] of geometries.entries()) {
+    const label = `pass ${pass}, geometry ${index}`;
+    for (const fullMap of [false, true]) for (const forceSquare of [false, true]) for (const squareWithScoreboard of [false, true]) {
+      const preferences = { forceSquare, squareWithScoreboard };
+      assert.deepStrictEqual(fields(createRadarCamera(geometry, null, preferences, fullMap)),
+        fields(referenceCamera(geometry, null, preferences, fullMap)), `${label}: overview camera`);
+      cameras++;
+    }
+    for (const zone of ["HeavyContainment", "Entrance"]) {
+      const own = geometry.rooms.filter((room) => room.zone === zone);
+      const zoneRooms = own.length ? own : geometries[0].rooms.filter((room) => room.zone === zone);
+      const anchors = [zoneRooms[0], zoneRooms[Math.floor(zoneRooms.length / 2)], zoneRooms.at(-1)];
+      const viewpoints = [...anchors.map((room, i) => ({ ...room.position, x: room.position.x + i * 3.7, zone, room_id: room.id })),
+        { x: -1000, y: 0, z: 1000, zone, room_id: anchors[0].id }];
+      // 13.7: `-yaw * Math.PI / 180` and `Math.PI / 180 * -yaw` round differently there, so a reordered angle fails.
+      for (const base of viewpoints) for (const yaw of [0, 13.7, 37.5, 180, 271.3]) {
+        const viewpoint = { ...base, player_id: "76561198000000001", yaw_degrees: yaw };
+        for (const orientation of ["fixed", "heading-up"]) for (const alwaysCentered of [true, false])
+          for (const forceSquare of [false, true]) for (const mapScale of [0.25, 0.7, 1]) for (const activeMapScale of [undefined, 0.4]) {
+            const preferences = { orientation, alwaysCentered, forceSquare, mapScale };
+            assert.deepStrictEqual(fields(createRadarCamera(geometry, viewpoint, preferences, false, activeMapScale)),
+              fields(referenceCamera(geometry, viewpoint, preferences, false, activeMapScale)),
+              `${label}: follow camera ${JSON.stringify({ zone, yaw, ...preferences, activeMapScale })}`);
+            cameras++;
+          }
+        // Dynamic zoom over targets spread across the zone: some fit at once, some make it bisect, some hit 0.25.
+        if (pass === 2 || (yaw !== 0 && yaw !== 271.3)) continue;
+        const targets = zoneRooms.filter((_, i) => i % 5 === 0).map((room, i) => ({ ...room.position, zone, status: i % 4 === 3 ? "dead" : "live" }));
+        for (const count of [2, targets.length]) for (const orientation of ["fixed", "heading-up"]) for (const alwaysCentered of [true, false])
+          for (const forceSquare of [false, true]) for (const selectedScale of [0.7, 1]) {
+            const preferences = normalizeRadarPreferences({ orientation, alwaysCentered, forceSquare });
+            const positions = targets.slice(0, count);
+            assert.strictEqual(dynamicZoomTarget(geometry, viewpoint, positions, preferences, selectedScale),
+              referenceZoomTarget(geometry, viewpoint, positions, preferences, selectedScale),
+              `${label}: dynamic zoom ${JSON.stringify({ zone, yaw, count, orientation, alwaysCentered, forceSquare, selectedScale })}`);
+            fits++;
+          }
+      }
+    }
+  }
+  assert.ok(cameras > 5000 && fits > 2000, `camera equivalence covered ${cameras} cameras and ${fits} zoom fits`);
+}
 // The radar's blur is the world blur (src/platform/backdrop.ts): the preference alone decides whether it registers.
 for (const blurBackground of [true, false]) for (const mapBlend of [true, false]) {
   const view = selectMinimap(live, 150, { blurBackground, mapBlend });
