@@ -1,5 +1,10 @@
 # HUD/商店/聊天组件 memo
 
+> **已被替代，未在本任务实施（2026-10-31 重测后归档）。** 本 PRD 依据的是过时快照（`23q3/slui` main，2026-10-03）。
+> 目标已由 #53「panels select their own time from a shared clock」（归档任务 `10-23-overlay-clock`）交付：
+> `HudTeamCounter`、`ShopPanel`、`ChatInput` 已是 `memo` 组件，`App` 不再持有时钟状态，小地图状态在 store 中。
+> 重测（父任务 `research/perf-baseline.md`）：默认雷达下三者 0 次/秒，`App` 1.1 次/秒。以下为原规划，仅作记录。
+
 ## Goal
 
 小地图时钟（32 ms）和位置帧（15 Hz）每次更新 `App` 状态时，`HudTeamCounter`、`ShopPanel`、`ChatInput` 不再跟着重渲染；

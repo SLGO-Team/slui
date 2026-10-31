@@ -3,7 +3,7 @@
   "name": "perf-strip-mocks",
   "title": "正式包剥离 mock 与地图模板懒加载",
   "description": "mock/调试面板只在 mock 模式按需加载，地图生成模板在首次 minimap.init 时懒加载",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "23q3",
   "assignee": "23q3",
   "createdAt": "2026-10-31",
-  "completedAt": null,
+  "completedAt": "2026-10-31",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -22,5 +22,7 @@
   "parent": "10-31-overlay-perf",
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {
+    "superseded_by": "#55 (10-23-release-without-mocks), #33 (v6 layout); not implemented here"
+  }
 }

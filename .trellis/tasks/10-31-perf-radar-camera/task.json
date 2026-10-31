@@ -2,7 +2,7 @@
   "id": "perf-radar-camera",
   "name": "perf-radar-camera",
   "title": "雷达相机与动态缩放计算缓存",
-  "description": "缓存区域顶点、单遍求范围、复用动态缩放目标，消除非居中/动态缩放下每帧毫秒级计算",
+  "description": "缓存区域角点与全图范围、动态缩放试探复用已归一化偏好，消除非居中/全图/动态缩放下每次渲染的重复计算",
   "status": "planning",
   "dev_type": null,
   "scope": null,

@@ -3,7 +3,7 @@
   "name": "perf-memo-panels",
   "title": "HUD/商店/聊天组件 memo",
   "description": "给 HudTeamCounter、ShopPanel、ChatInput 加 React.memo，使小地图时钟不再带动它们重渲染",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "23q3",
   "assignee": "23q3",
   "createdAt": "2026-10-31",
-  "completedAt": null,
+  "completedAt": "2026-10-31",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -22,5 +22,7 @@
   "parent": "10-31-overlay-perf",
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {
+    "superseded_by": "#53 (10-23-overlay-clock); not implemented here"
+  }
 }

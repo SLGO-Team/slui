@@ -1,5 +1,11 @@
 # 正式包剥离 mock 与地图模板懒加载
 
+> **已被替代，未在本任务实施（2026-10-31 重测后归档）。** 本 PRD 依据的是过时快照（`23q3/slui` main，2026-10-03）。
+> mock 剥离已由 #55「packages carry no mock code, debug panels or preview art」（归档任务 `10-23-release-without-mocks`）交付：
+> `src/mocks/harness.ts` 由 `main.tsx` 仅在 mock 模式动态导入，`mock-boundary-check` 在 `npm test` 中守护。
+> 地图模板懒加载的前提已不存在：自 #33（v6）起地图来自插件发送的房间布局，没有 345 KB 生成模板和生成器。
+> 重测：正式包 `App-*.js` 199 KB，不含 mock 字符串。`design.md`、`implement.md` 一并作废。以下为原规划，仅作记录。
+
 ## Goal
 
 正式（非 mock）构建的覆盖层不再包含、也不再执行任何 mock 数据与调试面板代码；345 KB 的地图生成模板和生成器不进入覆盖层主包，

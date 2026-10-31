@@ -2,7 +2,7 @@
   "id": "overlay-perf",
   "name": "overlay-perf",
   "title": "覆盖层性能优化",
-  "description": "按性能分析结论分阶段降低覆盖层主线程与渲染开销：组件 memo、相机缓存、mock 剥离、小地图隔离、SVG 变换、CSS/字体",
+  "description": "按 2026-10-31 重测结论降低覆盖层开销：雷达相机缓存、隐藏时暂停逐帧循环、雷达滤镜按区域、商店图片瘦身",
   "status": "planning",
   "dev_type": null,
   "scope": null,
@@ -22,9 +22,9 @@
     "10-31-perf-memo-panels",
     "10-31-perf-radar-camera",
     "10-31-perf-strip-mocks",
-    "10-31-perf-minimap-isolation",
-    "10-31-perf-radar-svg-transform",
-    "10-31-perf-css-fonts"
+    "10-31-perf-hidden-pause",
+    "10-31-perf-radar-zone-filters",
+    "10-31-perf-shop-images"
   ],
   "parent": null,
   "relatedFiles": [],

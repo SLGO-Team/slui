@@ -1,8 +1,8 @@
 {
-  "id": "perf-minimap-isolation",
-  "name": "perf-minimap-isolation",
-  "title": "小地图状态下沉与隐藏暂停",
-  "description": "小地图状态与时钟移出 App，时钟改 rAF 节流，覆盖层隐藏时暂停",
+  "id": "perf-shop-images",
+  "name": "perf-shop-images",
+  "title": "商店物品图片瘦身",
+  "description": "商店物品 PNG 转 WebP（无损或有损待定），同步映射与第三方声明",
   "status": "planning",
   "dev_type": null,
   "scope": null,
