@@ -219,7 +219,14 @@ last batched status can miss a connecting/baseline-required reset.
   image transform is `translate(x,-z) rotate(rotationY) scale(15/256)` with
   image origin `(-128,-128)`. That transform is static (`roomArtworkToWorld`);
   the camera is one `cameraToRadar` transform on the `.minimap-map__camera`
-  group above the memoized rooms, so a camera move rewrites one attribute. Do not add the artwork's native 180-degree
+  group above the memoized rooms, so a camera move rewrites one attribute. Inside
+  it the rooms sit in one `.minimap-map__zone` group per zone, which carries the
+  zone's colour wash (`filter`); rooms carry none. Each filtered element is
+  re-rasterized on every camera move: on WebView2's GPU path two zone groups cost
+  16-22% less GPU time than a wash per room, while one camera group per zone
+  (viewport-sized filter regions) doubled the camera writes and the GPU process's
+  CPU (task `10-31-perf-radar-zone-filters`; headless software raster ranks them
+  the other way, so measure filters in WebView2). Do not add the artwork's native 180-degree
   correction after changing projections or stretch the drawn area to the
   grid. Full-map bounds
   must include rotated full-canvas corners, not the former chamber squares.
@@ -275,8 +282,12 @@ last batched status can miss a connecting/baseline-required reset.
   same `hudWorldBlur` as every HUD panel). Never a page `backdrop-filter` (the
   transparent WebView cannot sample the game); the mock preview shows the
   world-blur stand-in. The blur sits under the whole viewport, so the artwork and
-  markers stay sharp. `mapBlend` can blend artwork with the radar's own
-  background, with source opacity detail preserved. Do not globally fade
+  markers stay sharp. `mapBlend` sets `mix-blend-mode: screen` on the map, which
+  blends only within the radar's stacking context: the radar's own black
+  background is all that lies under the map there, and screen over black is the
+  map itself, so the setting changes no pixels beyond 1/255 rounding. The page
+  cannot blend with the game (measured 2026-11-03, task
+  `10-31-perf-radar-zone-filters`). Do not globally fade
   markers/text for background alpha. Background alpha remains independently
   configurable.
 - Freshness uses local `performance.now()` and
@@ -370,8 +381,9 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
   warm caches of other geometries are read; include a yaw (13.7) where angle
   products round differently, so a reordered formula fails.
   Browser audits assert no room-label layer, a correct bottom location title,
-  independently scaled radar HUD, and actual pixel changes for blur/blend/alpha
-  switches under a fixed page background (the radar crop counts once two
+  independently scaled radar HUD, actual pixel changes for the blur and alpha
+  switches and the applied `mix-blend-mode` for blend (it changes no pixels, see
+  the radar background rule) under a fixed page background (the radar crop counts once two
   consecutive shots agree: the stand-in layer coming or going re-rasterises the
   turned room art once). The mock stand-in does not constitute real game-window
   blur acceptance.

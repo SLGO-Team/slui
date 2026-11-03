@@ -47,7 +47,7 @@ const recording = evaluate(`(async () => {
   return buckets;
 })()`);
 await new Promise((r) => setTimeout(r, 1500));
-spawn(fileURLToPath(new URL("./SCPSL.exe", import.meta.url)), [fakeSeconds], { detached: true, stdio: "ignore" }).unref();
+spawn(fileURLToPath(new URL("./SCPSL.exe", import.meta.url)), [fakeSeconds, "960", "540"], { detached: true, stdio: "ignore" }).unref();
 const buckets = await recording;
 await evaluate("window.__TAURI_INTERNALS__.invoke('set_overlay_enabled', { enabled: false })");
 for (const b of buckets) console.log(JSON.stringify(b));
