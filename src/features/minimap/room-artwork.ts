@@ -13,6 +13,8 @@ export type RoomArtwork = {
   generic: boolean;
   /** The artwork washed in its room's zone colour (a data URL), set by `resolveMinimap`; the radar draws it. */
   washedHref?: string;
+  /** The artwork in `BLEND_WASH` (brightest channel 255), set with `washedHref`; the `mapBlend` layers draw it. */
+  blendHref?: string;
 };
 
 const byPrefabName: Readonly<Record<string, string>> = manifest.byPrefabName;

@@ -49,7 +49,8 @@
 
 /* The radar's blur is SLUI's world blur under the viewport (src/platform/backdrop.ts), never a page
    backdrop-filter: the transparent WebView cannot sample the game. */
-.minimap-radar__background, .minimap-radar__map, .minimap-radar__markers, .minimap-radar__border {
+.minimap-radar__base, .minimap-radar__background, .minimap-radar__map, .minimap-radar__dim, .minimap-radar__lift,
+.minimap-radar__markers, .minimap-radar__border {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -57,7 +58,13 @@
   border-radius: inherit;
 }
 .minimap-radar__background { background: rgb(0 0 0 / var(--radar-background-alpha, 0.63)); }
-.minimap-radar[data-map-blend="true"] .minimap-radar__map { mix-blend-mode: screen; }
+/* CS2 cl_hud_radar_map_additive. The page cannot blend with the game under it, only be composited over it
+   (C + (1 - α)·W): the base keeps α at the background alpha everywhere and the BLEND_WASH rooms, dimmed as one
+   picture by the black layer over them, carry the map's colour, which DWM then adds to the (blurred) game.
+   See mapBlendLayers in roomWash.ts. */
+.minimap-radar[data-map-blend="true"] .minimap-radar__base { opacity: var(--radar-background-alpha, 0.63); }
+.minimap-radar[data-map-blend="true"] .minimap-radar__background { background: #000; }
+.minimap-radar__dim { background: rgb(0 0 0 / calc(1 - var(--radar-room-opacity, 1))); }
 .minimap-map__room[data-active="false"] { opacity: 0.82; }
 .minimap-radar__markers { overflow: hidden; }
 .minimap-radar__border { box-sizing: border-box; border: 1px solid var(--radar-accent); }

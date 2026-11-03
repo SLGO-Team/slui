@@ -1,7 +1,7 @@
 import { MINIMAP_SCHEMA_VERSION, type MinimapInit, type MinimapZone } from "../../contracts/index.ts";
 import labels from "./special-room-labels.json" with { type: "json" };
 import { createRoomArtwork, roomCorners, type RoomArtwork } from "./room-artwork.ts";
-import { svgDataUrl, washSvg, ZONE_WASH } from "./roomWash.ts";
+import { BLEND_WASH, svgDataUrl, washSvg, ZONE_WASH } from "./roomWash.ts";
 
 export type WorldPoint = { x: number; z: number };
 export type MapBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -106,18 +106,18 @@ function loadArtwork(href: string, load: ArtworkLoader): Promise<string | null> 
 async function washRooms(geometry: MapGeometry, load: ArtworkLoader): Promise<MapGeometry> {
   const hrefs = [...new Set(geometry.rooms.flatMap((room) => room.artwork ? [room.artwork.href] : []))];
   const texts = new Map(await Promise.all(hrefs.map(async (href) => [href, await loadArtwork(href, load)] as const)));
-  // One URL per artwork and zone, so rooms that share both share the decoded image.
-  const washed = new Map<string, string>();
+  // One URL pair per artwork and zone, so rooms that share both share the decoded images.
+  const washed = new Map<string, { washedHref: string; blendHref: string }>();
   const rooms = geometry.rooms.map((room) => {
     const text = room.artwork ? texts.get(room.artwork.href) : null;
     if (!room.artwork || !text) return room;
     const key = `${room.zone}\n${room.artwork.href}`;
-    let washedHref = washed.get(key);
-    if (!washedHref) {
-      washedHref = svgDataUrl(washSvg(text, ZONE_WASH[room.zone]));
-      washed.set(key, washedHref);
+    let hrefs = washed.get(key);
+    if (!hrefs) {
+      hrefs = { washedHref: svgDataUrl(washSvg(text, ZONE_WASH[room.zone])), blendHref: svgDataUrl(washSvg(text, BLEND_WASH[room.zone])) };
+      washed.set(key, hrefs);
     }
-    return { ...room, artwork: { ...room.artwork, washedHref } };
+    return { ...room, artwork: { ...room.artwork, ...hrefs } };
   });
   return { ...geometry, rooms, roomById: new Map(rooms.map((room) => [room.id, room])) };
 }
