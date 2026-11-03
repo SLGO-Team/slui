@@ -10,7 +10,7 @@ renderer's CPU (development React). Variants are the patches in `../../10-31-per
 `runs.jsonl` holds every run. Two runs did not have the variant on the page yet (`filtered` 70 under label A or B) and
 are excluded from the PRD table; the rest ran interleaved (current, A, B per round).
 
-`radar-shot.mjs` captures the radar crop from the shown overlay; `webview2-seams.png` is current (left) and A (right) at
-the densest difference: the seams between rooms come out fainter with A. `audit-before-after.png` is the visual audit's
-1080p radar crop (headless software raster), current / A / difference x6: the current per-room filters draw diagonal
-hairlines along each room's filter region on a turned map; A draws one along its zone group's region.
+`radar-shot.mjs` captures the radar crop from the shown overlay. Compared at the densest difference, the seams between
+rooms come out fainter with A (max 15/255). In the visual audit's 1080p radar crop (headless software raster) the current
+per-room filters draw diagonal hairlines along each room's filter region across a turned map; A draws one, along its zone
+group's region (max 60/255). The comparison images are not kept: the repository allows no media under `.trellis/`.
