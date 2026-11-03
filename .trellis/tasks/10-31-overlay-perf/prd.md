@@ -54,9 +54,13 @@
 
 ## Acceptance Criteria（父任务集成验收）
 
-- [ ] 表中子任务 1–4 均已完成并归档（或经用户同意取消），各自验收项全部勾选。
-- [ ] 全部完成后重跑 `research/` 脚本：最坏雷达配置每次渲染的模型计算 ≤ 50 µs，其余配置不变慢；`App` 与非雷达面板的重渲染不回退（`App` ≤ 2 次/秒，其他面板 0 次/秒）。
-- [ ] 集成后的 `npm run lint`、`npm test`、生产构建通过。
+- [x] 表中子任务 1–4 均已完成并归档（或经用户同意取消），各自验收项全部勾选。
+- [x] 全部完成后重跑 `research/` 脚本：最坏雷达配置每次渲染的模型计算 ≤ 50 µs，其余配置不变慢；`App` 与非雷达面板的重渲染不回退（`App` ≤ 2 次/秒，其他面板 0 次/秒）。
+- [x] 集成后的 `npm run lint`、`npm test`、生产构建通过。
+
+集成验收结果（2026-11-03，本地 Windows，最终分支）：`bench-minimap.mjs` 最坏配置（动态缩放 + 朝向向上 + 非居中）每次渲染 14 µs，其余配置 9–16 µs；
+`profile-overlay.cjs` 的 React 钩子（本机无 Playwright，改用 CDP 驱动无头 Chrome，同一钩子）：`App` 1.1 次/秒，`PlayerSlot` 10 次/秒（HUD 秒钟，与基线相同），
+其他面板与 `MapRooms` 0 次/秒，雷达地图层每次渲染 1 处 DOM 改写；`npm run lint`、`npm test`、生产构建通过。
 
 ## Out of Scope
 
