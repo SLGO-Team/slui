@@ -219,7 +219,20 @@ last batched status can miss a connecting/baseline-required reset.
   image transform is `translate(x,-z) rotate(rotationY) scale(15/256)` with
   image origin `(-128,-128)`. That transform is static (`roomArtworkToWorld`);
   the camera is one `cameraToRadar` transform on the `.minimap-map__camera`
-  group above the memoized rooms, so a camera move rewrites one attribute. Do not add the artwork's native 180-degree
+  group above the memoized rooms, so a camera move rewrites one attribute. The
+  zone colour wash is baked into the image, never an SVG `filter`:
+  `resolveMinimap` loads each artwork file once and gives every room
+  `artwork.washedHref`, the file with each `fill="#rrggbb"` multiplied by
+  `ZONE_WASH[zone]` as a data URL (`roomWash.ts`; the room keeps the file path in
+  `artwork.href` / `data-artwork`, and draws the file itself if its load failed).
+  The artwork paints with flat 6-digit fills only (`minimap-wash-smoke` checks it),
+  so this gives an sRGB colour-matrix filter's pixels. Measured on WebView2's GPU
+  path (task `10-31-perf-radar-zone-filters`): a filter per room is re-rasterized
+  on every camera move (GPU 6.5-7.2% vs 5.3-5.4% baked); one filtered group per
+  zone costs the same as baked but drew hairlines in game, along each group's
+  filter-region edge and where the two layers meet at the Entrance / Heavy
+  Containment border; headless software raster ranks these structures
+  differently, so measure such changes in WebView2. Do not add the artwork's native 180-degree
   correction after changing projections or stretch the drawn area to the
   grid. Full-map bounds
   must include rotated full-canvas corners, not the former chamber squares.
@@ -256,6 +269,18 @@ last batched status can miss a connecting/baseline-required reset.
   fitting; an unrelated off-zone change must not postpone local recovery.
   Fit the displayed interpolated poses shared by the camera and markers, not
   the raw latest pose alone, so new targets enter immediately during movement.
+- Camera cost: `createRadarCamera` runs on every displayed frame, and dynamic zoom
+  builds up to 22 cameras per fit in both the reducer and `selectMinimap`. So
+  `camera.ts` caches, per `MapGeometry` object (`WeakMap`), each zone's corners in
+  projected `(x, -z)` (`Float64Array`) and the overview `farthest` per shape.
+  `MapGeometry` is immutable once `resolveMinimapSync` built it: derive a new
+  object instead of mutating `rooms`, `footprint` or `bounds`, or the cache serves
+  the old extent. Key caches by the geometry object only, never by descriptor
+  string. A caller building many cameras from one preference set normalizes once
+  and calls `radarCameraFor(geometry, viewpoint, normalizedSettings, fullMap, scale)`;
+  `createRadarCamera` keeps normalizing its `Partial` input. Camera output stays
+  bit-identical to the uncached algorithm (same rotation products and order;
+  min/max folded with `Math.min`/`Math.max`, so `-0` matches the spread form).
 - The radar blur is SLUI's world blur (cs2-visual-replication "World blur",
   system-boundaries 3.1): with `blurBackground` on, the viewport (circle or
   square, its own corner radius) registers through `useBackdropRef`, and the
@@ -263,8 +288,12 @@ last batched status can miss a connecting/baseline-required reset.
   same `hudWorldBlur` as every HUD panel). Never a page `backdrop-filter` (the
   transparent WebView cannot sample the game); the mock preview shows the
   world-blur stand-in. The blur sits under the whole viewport, so the artwork and
-  markers stay sharp. `mapBlend` can blend artwork with the radar's own
-  background, with source opacity detail preserved. Do not globally fade
+  markers stay sharp. `mapBlend` sets `mix-blend-mode: screen` on the map, which
+  blends only within the radar's stacking context: the radar's own black
+  background is all that lies under the map there, and screen over black is the
+  map itself, so the setting changes no pixels beyond 1/255 rounding. The page
+  cannot blend with the game (measured 2026-11-03, task
+  `10-31-perf-radar-zone-filters`). Do not globally fade
   markers/text for background alpha. Background alpha remains independently
   configurable.
 - Freshness uses local `performance.now()` and
@@ -340,7 +369,9 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
   clamp, heading-up, full map, retention through stale / invalid / offline and
   replacement by a new init; the
   visual audit asserts the labels per state, both size/opacity tiers, aspect
-  (upright), centring, wash filter and layer order beneath markers.
+  (upright), centring, washed artwork (rooms draw `data:` SVGs and name their
+  file in `data-artwork`) and layer order beneath markers; `minimap-wash-smoke`
+  covers the artwork's paint, the wash and its load fallback.
 - `resolver.ts` is also loaded directly by Node's `--experimental-strip-types`
   through the full smoke suite. New runtime TypeScript imports on that path
   must use explicit `.ts` extensions (allowed by the existing tsconfig).
@@ -352,9 +383,15 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
 - Configuration regressions cover all numeric bounds/invalid inputs, partial
   compatibility, circle/square projection and fitting, non-centered rotated
   cameras, base/alternate/dynamic precedence and focus/stale/permission resets.
+  `minimap-model-smoke` also compares every camera mode and `dynamicZoomTarget`
+  bit-exactly (`deepStrictEqual`, i.e. `Object.is`) with an in-test copy of the
+  uncached algorithm over all four layouts plus a single-zone layout, twice so
+  warm caches of other geometries are read; include a yaw (13.7) where angle
+  products round differently, so a reordered formula fails.
   Browser audits assert no room-label layer, a correct bottom location title,
-  independently scaled radar HUD, and actual pixel changes for blur/blend/alpha
-  switches under a fixed page background (the radar crop counts once two
+  independently scaled radar HUD, actual pixel changes for the blur and alpha
+  switches and the applied `mix-blend-mode` for blend (it changes no pixels, see
+  the radar background rule) under a fixed page background (the radar crop counts once two
   consecutive shots agree: the stand-in layer coming or going re-rasterises the
   turned room art once). The mock stand-in does not constitute real game-window
   blur acceptance.

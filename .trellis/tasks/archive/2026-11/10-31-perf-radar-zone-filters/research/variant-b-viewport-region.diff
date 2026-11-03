@@ -1,0 +1,61 @@
+diff --git a/src/features/minimap/MinimapRadar.tsx b/src/features/minimap/MinimapRadar.tsx
+index 48ca256..8813f11 100644
+--- a/src/features/minimap/MinimapRadar.tsx
++++ b/src/features/minimap/MinimapRadar.tsx
+@@ -18,9 +18,10 @@ const rgbOf = (color: string): [number, number, number] => {
+   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+ };
+ 
+-function ColorWash({ id, rgb }: { id: string; rgb: readonly [number, number, number] }) {
++function ColorWash({ id, rgb, region }: { id: string; rgb: readonly [number, number, number]; region?: number }) {
+   // Multiplying source RGB preserves black outlines and the artwork's alpha layers.
+-  return <filter id={id} colorInterpolationFilters="sRGB">
++  return <filter id={id} colorInterpolationFilters="sRGB"
++    {...(region ? { filterUnits: "userSpaceOnUse", x: 0, y: 0, width: region, height: region } : {})}>
+     <feColorMatrix type="matrix" values={`${rgb[0] / 255} 0 0 0 0  0 ${rgb[1] / 255} 0 0 0  0 0 ${rgb[2] / 255} 0 0  0 0 0 1 0`} />
+   </filter>;
+ }
+@@ -29,8 +30,8 @@ function ColorWash({ id, rgb }: { id: string; rgb: readonly [number, number, num
+ // update re-renders neither: it rewrites the one camera transform above the rooms.
+ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
+   return <svg className="minimap-radar__filters" width="0" height="0" aria-hidden="true"><defs>
+-    <ColorWash id={`${id}-hcz`} rgb={[80, 92, 91]} />
+-    <ColorWash id={`${id}-entrance`} rgb={[90, 96, 80]} />
++    <ColorWash id={`${id}-hcz`} rgb={[80, 92, 91]} region={290} />
++    <ColorWash id={`${id}-entrance`} rgb={[90, 96, 80]} region={290} />
+     <ColorWash id={`${id}-ntf`} rgb={[30, 210, 255]} />
+     <ColorWash id={`${id}-scp`} rgb={[236, 105, 114]} />
+     <ColorWash id={`${id}-enemy`} rgb={[255, 25, 25]} />
+@@ -40,12 +41,11 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
+   </defs></svg>;
+ });
+ 
+-const MapRooms = memo(function MapRooms({ geometry, activeZone, filterPrefix }: {
+-  geometry: MapGeometry; activeZone: RadarCamera["zone"]; filterPrefix: string }) {
+-  // A room of an unknown shape has no artwork and is not drawn; it still names a place for the location title.
+-  return geometry.rooms.flatMap(({ artwork, ...room }) => artwork ? [<g key={room.id} className="minimap-map__room" data-room-id={room.id}
+-    data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-active={activeZone === null || activeZone === room.zone}
+-    filter={`url(#${filterPrefix}-${room.zone === "Entrance" ? "entrance" : "hcz"})`}>
++const MapRooms = memo(function MapRooms({ geometry, activeZone, zone }: {
++  geometry: MapGeometry; activeZone: RadarCamera["zone"]; zone: MapGeometry["rooms"][number]["zone"] }) {
++  return geometry.rooms.flatMap(({ artwork, ...room }) => artwork && room.zone === zone ? [<g key={room.id} className="minimap-map__room"
++    data-room-id={room.id} data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic}
++    data-active={activeZone === null || activeZone === room.zone}>
+     <image href={artwork.href} width={artwork.width} height={artwork.height}
+       transform={roomArtworkToWorld(artwork)} preserveAspectRatio="xMidYMid meet" />
+   </g>] : []);
+@@ -155,9 +155,11 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
+                 : <circle cx={viewSize / 2} cy={viewSize / 2} r={viewSize / 2 - 1} />}
+             </clipPath></defs>
+             <g clipPath={`url(#${id}-clip)`}>
+-              {geometry && camera ? <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
+-                <MapRooms geometry={geometry} activeZone={camera.zone} filterPrefix={id} />
+-              </g> : null}
++              {geometry && camera ? [...new Set(geometry.rooms.map((room) => room.zone))].map((zone) =>
++                <g key={zone} filter={`url(#${id}-${zone === "Entrance" ? "entrance" : "hcz"})`}>
++                  <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
++                    <MapRooms geometry={geometry} activeZone={camera.zone} zone={zone} />
++                  </g></g>) : null}
+             </g>
+           </svg>
+           <div className="minimap-radar__markers" aria-hidden="true">

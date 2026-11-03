@@ -524,6 +524,17 @@ by window label (`?window=home` in a browser preview).
   taking the foreground drops `focused`, and a panel that then hides and hands the foreground back loops (the
   team menu did: black flicker from its opening fade, 2026-10-25). Do not rebuild `overGame` in the page from
   `document.hasFocus()`; the webview focus event and the native event race.
+- `slgo-overlay-visibility` / `get_overlay_visibility` carry `{ visible, revision }`: whether the overlay window is
+  shown, read with `IsWindowVisible` right after each native show (`apply_overlay_input_mode`) and hide
+  (`hide_overlay_window`); created hidden at revision 0 (task `10-31-perf-hidden-pause`). WebView2 never learns of
+  the native hide: the page stays `visibilityState: "visible"` and its rAF keeps the display rate (measured on
+  Windows 2026-11-03: 166/s at 165 Hz, never shown or after `SW_HIDE` alike). So per-frame work must pause on
+  this state itself (`src/platform/overlayVisibility.ts`, `useOverlayVisible` / `subscribeOverlayVisible`; a browser
+  preview and a failed source count as shown): the radar neither follows the minimap store nor runs its clock while
+  hidden (the store still reduces every event), and `backdrop.ts` stops its loop (registrations and removals still
+  send at once; showing measures at once and resumes). Do not hide the page through the WebView2 controller's
+  `IsVisible` instead: the overlay is also hidden whenever its session is not live, and a hidden page's timers are
+  throttled (chained timers to once a minute after five minutes), which would delay the session's connect and retry.
 - `interactive` is derived in the overlay, not toggled by the player:
   `interactive = (shopOpen && window_open) || chatOpen || scoreboard cursor mode`. The shop
   hotkey (default `B`, `settings.hotkeys.shop`) always closes the shop and
@@ -817,7 +828,24 @@ while mounted, so conditionally rendered elements work); one animation-frame loo
 each element's box and turn (its transforms down from the root), CSS corner radius,
 effective opacity and `inset()` clip-path, so motion, turns, reveals and fades are
 followed. Unregistering re-sends at the end of the commit (microtask): a leaving panel
-takes its blur at once, and one remounted under a new key keeps it. `<html data-world-blur="on|off">` (setting × availability) picks each
+takes its blur at once, and one remounted under a new key keeps it.
+
+The loop measures a frame only after a signal (`needsMeasure` in `backdrop.ts`): an
+attribute change on a registered panel or any ancestor (`MutationObserver`, attributes
+only, rebuilt on every register/unregister), a running animation or transition whose
+target is a panel or an ancestor (`document.getAnimations()`), a panel's
+`getBoundingClientRect`/`offsetWidth`/`offsetHeight` differing from the last measured
+frame, or a registration. The signalled frame and the next one measure (a transition's
+end state); a full measure runs at least every 500 ms for anything the signals cannot
+see. Descendant DOM writes (the radar's markers every frame) are no signal by design.
+A new way for a panel's region to change must raise one of these signals; a style rule
+keyed on `:hover`, a sibling or `:has()` that changes a property `measure` reads would
+lag up to 500 ms. In the mock preview, `window.__SLUI_BACKDROP_DEBUG__ = { measured,
+skipped, stale, check }` (build-time `MODE === "mock"` only): with `check: true` every
+skipped frame is measured anyway and `stale` counts frames whose regions differed from
+the last sent list. `.trellis/tasks/10-31-overlay-perf/research/backdrop-check.cjs`
+drives panels through opening, scenes, scoreboard, resize and radar blur and requires
+`stale === 0`; run it after changing panel animations or the loop. `<html data-world-blur="on|off">` (setting × availability) picks each
 panel's fill.
 
 State a command reads with `state::<T>()` is registered on the `tauri::Builder`

@@ -81,7 +81,9 @@ values.
 - The minimap's state is an external store (`useMinimapFeature` in `App` only
   dispatches) and `LiveMinimapRadar` subscribes with `useSyncExternalStore`, so
   its `requestAnimationFrame` clock re-renders only the radar, and only while a
-  position frame (`frame` / `pendingFrame`) exists.
+  position frame (`frame` / `pendingFrame`) exists and the overlay window is shown
+  (`useOverlayVisible`; a hidden window's page keeps rAF at the display rate, see
+  system-boundaries 3.1). Any new per-frame loop in the overlay pauses the same way.
 - Motion that is interpolated between network frames is sampled on
   `requestAnimationFrame`, never a fixed `setInterval`: a 32 ms interval beat
   against the display and the 15 Hz position rate, so heading-up map rotation
@@ -106,6 +108,44 @@ values.
   stale data, plus its primary success path.
 - Tauri window behavior requires a Windows smoke check for click-through,
   global hotkey switching, foreground-window tracking, and high-DPI sizing.
+
+### Common Mistake: timing code inside `vm.runInNewContext`
+
+**Symptom**: a Node benchmark reports hot model code several times slower than the
+browser does (the overlay-perf baseline first read the worst radar configuration
+as 1.3-1.6 ms per render; the same code costs ~0.25 ms).
+
+**Cause**: in a `vm` context every global lookup (`Math.min`, `Math.cos`, ...) goes
+through the sandbox object's interceptor instead of an inline-cached global.
+
+**Fix**: for timing, bundle with esbuild `format: "esm"` and `import()` it in the
+current realm, as `.trellis/tasks/10-31-overlay-perf/research/bench-minimap.mjs` does:
+
+```js
+const m = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);
+```
+
+Smoke tests that only assert correctness may keep `runInNewContext`; objects from
+it live in another realm, so compare them through `plain()` or primitive field
+lists rather than `deepStrictEqual` on the objects themselves.
+
+### Common Mistake: re-encoding a bundled image drops its colour chunks
+
+**Symptom**: a "lossless" PNG to WebP conversion keeps every decoded RGBA byte, yet
+the overlay shows the image up to 9/255 different (shop portraits `Scp079`,
+`Scp096`, `Scp939`, task `10-31-perf-shop-images`).
+
+**Cause**: Chromium colour-manages PNGs. A PNG with `gAMA`/`cHRM` and no `sRGB` or
+`iCCP` chunk is converted from a 2.2 gamma to sRGB on decode; Pillow does not
+carry `gAMA`/`cHRM` into WebP, so the WebP is shown unconverted. A PNG with an `sRGB`
+chunk, an ICC profile (pass `icc_profile=` through) or no colour chunk converts safely.
+
+**Fix**: check `Image.open(png).info` for `gamma`/`chromaticity` without `srgb` and keep
+those files as they are. Verify a conversion in Chromium, not only with Pillow: draw
+both files onto canvases over opaque backdrops and compare. Comparing raw
+`getImageData` of transparent images is misleading, because PNG and WebP decoders
+round premultiplied alpha differently (edge pixels differ by 1/255 when composited,
+by up to 255 after the canvas un-premultiplies them).
 
 ---
 

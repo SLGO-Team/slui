@@ -11,6 +11,8 @@ export type RoomArtwork = {
   corners: RoomCorners;
   /** The zone + shape fallback stands in for a prefab without its own artwork (e.g. added by a game update). */
   generic: boolean;
+  /** The artwork washed in its room's zone colour (a data URL), set by `resolveMinimap`; the radar draws it. */
+  washedHref?: string;
 };
 
 const byPrefabName: Readonly<Record<string, string>> = manifest.byPrefabName;

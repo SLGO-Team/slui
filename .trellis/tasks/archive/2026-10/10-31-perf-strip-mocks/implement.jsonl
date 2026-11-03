@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "src/mocks vs src/features boundaries and module organization"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Mock providers replaceable without feature branches; test-loadable module rules"}
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "resolver.ts Node strip-types path, preview/debug interface that must keep working"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Backend config modes (mock vs real) and client boundaries"}
+{"file": ".trellis/tasks/10-31-overlay-perf/research/perf-baseline.md", "reason": "Baseline bundle facts (mock strings, top-level mock map generation, chunk sizes)"}

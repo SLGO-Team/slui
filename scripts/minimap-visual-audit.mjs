@@ -178,7 +178,7 @@ try {
           }
           return { source, width: image.width, height: image.height, painted, translucent };
         }));
-        return { count: elements.length, decoded,
+        return { count: elements.length, decoded, files: elements.map(e => e.parentElement.dataset.artwork),
           invalidTransforms: elements.filter(e => {
             const m = e.getCTM();
             return !m || ![m.a,m.b,m.c,m.d,m.e,m.f].every(Number.isFinite) || m.a*m.d-m.b*m.c <= 0;
@@ -225,8 +225,10 @@ try {
       assert.equal(artwork.invalidTransforms, 0, `${name}: nonempty, unmirrored image transforms`);
       assert.equal(artwork.polygons, 0, `${name}: simplified chambers are replaced`);
       assert.equal(artwork.connectionLines, 0, `${name}: center lines cannot cover room details`);
+      // Each room names its artwork file and draws it washed in the zone colour (roomWash.ts), not through a filter.
+      for (const file of artwork.files) assert.match(file, /^\/assets\/minimap\/rooms\/[^/]+\.svg$/);
       for (const source of artwork.decoded) {
-        assert.match(source.source, /^\/assets\/minimap\/rooms\/[^/]+\.svg$/);
+        assert.match(source.source, /^data:image\/svg\+xml;charset=utf-8,/, `${name}: rooms draw washed artwork`);
         assert.equal(source.width, 256);
         assert.equal(source.height, 256);
         assert.ok(source.painted > 0 && source.painted < 256 * 256, `${name}: visible artwork and transparent canvas`);
@@ -459,7 +461,17 @@ try {
     await comparePixels("background-alpha", { backgroundAlpha: 0 }, { backgroundAlpha: 1 });
     await configure({ backgroundAlpha: 0.63 });
     await comparePixels("background-blur", { blurBackground: false }, { blurBackground: true });
-    await comparePixels("map-blend", { mapBlend: false }, { mapBlend: true });
+    // mix-blend-mode blends within the radar's stacking context, where only the radar's own black background lies
+    // under the map: screen over black is the map itself, so the setting changes no pixels beyond 1/255 rounding (task
+    // 10-31-perf-radar-zone-filters). The page cannot blend with the game; check the blend mode it applies instead.
+    await configure({ mapBlend: false });
+    const unblended = await capture("map-blend-off");
+    await configure({ mapBlend: true });
+    const blended = await capture("map-blend-on");
+    assert.equal(unblended.blendMode, "normal", "map-blend off draws the map normally");
+    assert.equal(blended.blendMode, "screen", "map-blend on screens the map over the radar background");
+    assert.deepEqual(unblended.mapTransforms, blended.mapTransforms, "map-blend: camera and artwork do not change");
+    assert.deepEqual(unblended.markers, blended.markers, "map-blend: authorized marker positions do not change");
     await configure({ hudScale: 0.8 });
     const smallHud = await capture("hud-small", { hudScale: "0.8" });
     await configure({ hudScale: 1.3 });

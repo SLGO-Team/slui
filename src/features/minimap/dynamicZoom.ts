@@ -1,7 +1,7 @@
 import type { MinimapPosition, MinimapViewpoint } from "../../contracts";
 import type { MapGeometry } from "./resolver";
-import { createRadarCamera, RADAR_EDGE_PADDING, worldToRadar } from "./camera.ts";
-import type { RadarPreferences } from "./preferences.ts";
+import { radarCameraFor, RADAR_EDGE_PADDING, worldToRadar } from "./camera.ts";
+import { normalizeRadarPreferences, type RadarPreferences } from "./preferences.ts";
 
 export type DynamicZoomState = {
   identity: string; targets: string; scale: number; recoverAtMs: number | null; updatedAtMs: number;
@@ -14,8 +14,10 @@ export function dynamicZoomTargets(positions: MinimapPosition[], viewpoint: Mini
 export function dynamicZoomTarget(geometry: MapGeometry, viewpoint: MinimapViewpoint,
   positions: MinimapPosition[], preferences: RadarPreferences, selectedScale: number): number {
   const targets = dynamicZoomTargets(positions, viewpoint);
+  // Every trial below builds its camera from the same preferences: normalize them once.
+  const settings = normalizeRadarPreferences(preferences);
   const fits = (scale: number): boolean => {
-    const camera = createRadarCamera(geometry, viewpoint, preferences, false, scale);
+    const camera = radarCameraFor(geometry, viewpoint, settings, false, scale);
     const radius = camera.viewSize / 2;
     return targets.every((position) => {
       const point = worldToRadar(position, camera);
