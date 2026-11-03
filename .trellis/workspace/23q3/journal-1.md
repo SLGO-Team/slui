@@ -1397,3 +1397,25 @@ Continued PR #81 locally on Windows. Measured that WebView2 keeps a hidden overl
 ### Status
 
 [OK] **Completed**
+
+
+## Session 60: Radar zone wash: bake into artwork after in-game hairline
+<!-- trellis-session: v=2 fp=7ba5ddee0a29c4df -->
+
+**Date**: 2026-11-03
+**Task**: Radar zone wash: bake into artwork after in-game hairline
+**Branch**: `claude/admiring-hamilton-38bwyp`
+
+### Summary
+
+In-game check of the PR #81 test build showed a hairline where Entrance meets Heavy Containment. WebView2 pixel comparison at that junction (main / per-zone filter groups / no filters) traced it to the per-zone SVG filters: the two filtered layers meeting at the border plus each group's filter-region edge. Replaced filters with the wash multiplied into the artwork's flat fills (roomWash.ts, data URLs from resolveMinimap); same GPU cost as the zone groups, no line. Added minimap-wash-smoke, updated the visual audit and minimap spec, rebuilt the production test build for re-check.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0de6729` | fix(minimap): bake the zone wash into the room artwork instead of filtering |
+
+### Status
+
+[OK] **Completed**
