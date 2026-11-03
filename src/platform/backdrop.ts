@@ -6,12 +6,13 @@
 // radius, opacity, `inset()` clip) and sends the list to Rust, which captures the game, blurs those
 // regions on the GPU and shows them under the overlay. The list is sent only when it changes, and a
 // frame measures only when something that can change it happened (see `needsMeasure`), so a still
-// panel costs one box read per frame and no IPC.
+// panel costs one box read per frame and no IPC. The loop stops while the overlay window is hidden.
 //
 // `<html data-world-blur="on|off">` tells panel CSS which fill to draw: the CS2 fill over the blur,
 // or the dense stand-in when no blur is available (switched off, Windows 10, capture failure).
 
 import { useCallback, useEffect } from "react";
+import { overlayShown, subscribeOverlayVisible } from "./overlayVisibility.ts";
 
 /** Opacity samples evenly spaced from `offset` to `offset + length`: CSS px from the box's top edge, in its own frame. */
 export type BackdropFade = Readonly<{ offset: number; length: number; stops: readonly number[] }>;
@@ -321,7 +322,7 @@ function tick(now: number) {
     debug.skipped++;
     if (debug.check && !sameRegions(measureAll(), sent)) debug.stale++;
   }
-  if (registry.size > 0) frame = requestAnimationFrame(tick);
+  if (registry.size > 0 && !paused) frame = requestAnimationFrame(tick);
 }
 
 // A panel leaving takes its blur away at once instead of on the next frame. Deferred to the end of the
@@ -334,6 +335,34 @@ function flush() {
     cancelAnimationFrame(frame);
     frame = null;
   }
+}
+
+function queueFlush() {
+  if (flushQueued) return;
+  flushQueued = true;
+  queueMicrotask(flush);
+}
+
+// While the overlay window is hidden the loop stops (its page would otherwise check every displayed frame). A panel
+// registering or leaving is still measured and sent at once, so the native blur never shows a closed panel's region
+// with the overlay; showing measures at once, as the blur shows with the window, and resumes the loop.
+let paused = false;
+let visibilityWatched = false;
+
+function watchVisibility() {
+  if (visibilityWatched || !isTauri()) return;
+  visibilityWatched = true;
+  paused = !overlayShown();
+  subscribeOverlayVisible((shown) => {
+    paused = !shown;
+    if (paused) {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    } else if (registry.size > 0) {
+      send(performance.now());
+      frame ??= requestAnimationFrame(tick);
+    }
+  });
 }
 
 /**
@@ -356,16 +385,15 @@ function backdropSink(): Sink | null {
 /** Puts a world blur under `element` while it is in the document; returns the unregister. */
 export function registerBackdrop(element: HTMLElement, options: BackdropRegionOptions = {}): () => void {
   sink ??= backdropSink();
+  watchVisibility();
   registry.set(element, options);
   observeChains();
   dirtyFrames = 2;
-  frame ??= requestAnimationFrame(tick);
+  if (paused) queueFlush();
+  else frame ??= requestAnimationFrame(tick);
   return () => {
     registry.delete(element);
-    if (!flushQueued) {
-      flushQueued = true;
-      queueMicrotask(flush);
-    }
+    queueFlush();
   };
 }
 

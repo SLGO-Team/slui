@@ -146,6 +146,41 @@ struct GameForegroundState {
     revision: u64,
 }
 
+/// Whether the overlay window is shown, as Win32 has it after each native show and hide. WebView2 keeps the page of
+/// a hidden window visible to Chromium (its rAF keeps the display rate), so the page pauses its per-frame work on
+/// this (task 10-31-perf-hidden-pause). Created hidden.
+#[derive(Clone, Copy, Default, serde::Serialize)]
+struct OverlayVisibility {
+    visible: bool,
+    revision: u64,
+}
+
+#[tauri::command]
+fn get_overlay_visibility(state: tauri::State<'_, Mutex<OverlayVisibility>>) -> Result<OverlayVisibility, String> {
+    state
+        .lock()
+        .map(|state| *state)
+        .map_err(|_| "Overlay visibility unavailable".into())
+}
+
+fn publish_overlay_visibility(app: &AppHandle, visible: bool) {
+    let state = app.state::<Mutex<OverlayVisibility>>();
+    let Ok(mut state) = state.lock() else {
+        diag!("SLGO: overlay visibility unavailable");
+        return;
+    };
+    if state.visible == visible {
+        return;
+    }
+    state.visible = visible;
+    state.revision += 1;
+    let snapshot = *state;
+    drop(state);
+    if let Err(error) = app.emit_to(OVERLAY_WINDOW, "slgo-overlay-visibility", snapshot) {
+        diag!("SLGO: failed to emit overlay visibility: {error}");
+    }
+}
+
 #[tauri::command]
 fn get_game_foreground(
     state: tauri::State<'_, Mutex<GameForegroundState>>,
@@ -348,9 +383,10 @@ fn get_current_steam_identity() -> Result<Option<SteamIdentityResponse>, String>
 #[cfg(windows)]
 fn apply_overlay_input_mode(window: &tauri::WebviewWindow, interactive: bool) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos,
-        GWL_EXSTYLE, HWND_TOPMOST, LWA_ALPHA, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_SHOWWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+        GetWindowLongPtrW, IsWindowVisible, SetLayeredWindowAttributes, SetWindowLongPtrW,
+        SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, LWA_ALPHA, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOSIZE, SWP_SHOWWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        WS_EX_TRANSPARENT,
     };
 
     let Ok(hwnd) = window.hwnd() else {
@@ -383,6 +419,7 @@ fn apply_overlay_input_mode(window: &tauri::WebviewWindow, interactive: bool) {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | show,
         );
     }
+    publish_overlay_visibility(window.app_handle(), unsafe { IsWindowVisible(hwnd.0 as _) } != 0);
     // Re-asserting the overlay's topmost place lifts it away from the backdrops under it.
     backdrop::refresh(window.app_handle());
     // WS_EX_TRANSPARENT above already makes the window click-through. Do not also call
@@ -394,10 +431,11 @@ fn apply_overlay_input_mode(window: &tauri::WebviewWindow, interactive: bool) {
 // cached visibility still says hidden.
 #[cfg(windows)]
 fn hide_overlay_window(window: &tauri::WebviewWindow) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{IsWindowVisible, ShowWindow, SW_HIDE};
 
     if let Ok(hwnd) = window.hwnd() {
         unsafe { ShowWindow(hwnd.0 as _, SW_HIDE) };
+        publish_overlay_visibility(window.app_handle(), unsafe { IsWindowVisible(hwnd.0 as _) } != 0);
     }
     backdrop::refresh(window.app_handle());
 }
@@ -447,6 +485,7 @@ fn apply_overlay_enabled(app: &AppHandle, enabled: bool) -> Result<OverlaySnapsh
     {
         let result = if enabled { overlay.show() } else { overlay.hide() };
         result.map_err(|error| format!("Unable to switch overlay window: {error}"))?;
+        publish_overlay_visibility(app, enabled);
     }
     publish_overlay_state(app, snapshot);
     Ok(snapshot)
@@ -1326,6 +1365,7 @@ pub fn run() {
         }))
         .register_uri_scheme_protocol(theme_pack::SCHEME, theme_pack::handle)
         .manage(Mutex::new(GameForegroundState::default()))
+        .manage(Mutex::new(OverlayVisibility::default()))
         .manage(Mutex::new(game_conditions::GameConditions::default()))
         .manage(Mutex::new(OverlaySnapshot::default()))
         .manage(GameRunningState::default())
@@ -1381,6 +1421,7 @@ pub fn run() {
             set_hotkeys,
             set_scoreboard_capture,
             get_overlay_state,
+            get_overlay_visibility,
             load_settings,
             save_settings,
             get_game_running,

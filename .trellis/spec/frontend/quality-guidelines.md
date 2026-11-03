@@ -81,7 +81,9 @@ values.
 - The minimap's state is an external store (`useMinimapFeature` in `App` only
   dispatches) and `LiveMinimapRadar` subscribes with `useSyncExternalStore`, so
   its `requestAnimationFrame` clock re-renders only the radar, and only while a
-  position frame (`frame` / `pendingFrame`) exists.
+  position frame (`frame` / `pendingFrame`) exists and the overlay window is shown
+  (`useOverlayVisible`; a hidden window's page keeps rAF at the display rate, see
+  system-boundaries 3.1). Any new per-frame loop in the overlay pauses the same way.
 - Motion that is interpolated between network frames is sampled on
   `requestAnimationFrame`, never a fixed `setInterval`: a 32 ms interval beat
   against the display and the 15 Hz position rate, so heading-up map rotation

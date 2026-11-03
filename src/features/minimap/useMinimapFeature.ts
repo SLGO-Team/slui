@@ -3,8 +3,10 @@ import type { ConnectionStatus, MinimapDiagnostic, SlgoEvent } from "../../contr
 import { initialMinimapState, minimapReducer, selectMinimap, type MinimapAction, type MinimapState, type MinimapViewModel } from "./model";
 import { mapDescriptorKey, resolveMinimap } from "./resolver";
 import { normalizeRadarPreferences, type RadarPreferences, type RadarControls } from "./preferences";
+import { useOverlayVisible } from "../../platform/overlayVisibility";
 
 const monotonicNow = () => performance.now();
+const subscribeNothing = () => () => undefined;
 export type { RadarPreferences, RadarControls } from "./preferences";
 
 /** The reducer state plus the presentation time the radar is sampled at. */
@@ -59,7 +61,10 @@ export function useMinimapFeature(options: { now?: () => number } = {}) {
 /** Subscribes the radar to the store and drives everything time- and option-dependent from there. */
 export function useMinimapView(store: MinimapStore, options: { preferences?: Partial<RadarPreferences>;
   controls?: Partial<RadarControls> } = {}): MinimapViewModel {
-  const { state, nowMs } = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  // A hidden overlay window draws nothing, yet its page keeps rendering: the radar neither follows the store (which
+  // still reduces every event) nor runs its clock until the window shows, then renders the latest snapshot at once.
+  const shown = useOverlayVisible();
+  const { state, nowMs } = useSyncExternalStore(shown ? store.subscribe : subscribeNothing, store.getSnapshot);
   const { now } = store;
   const preferences = normalizeRadarPreferences(options.preferences);
   const alternateZoomActive = options.controls?.alternateZoomActive === true;
@@ -85,7 +90,7 @@ export function useMinimapView(store: MinimapStore, options: { preferences?: Par
 
   // Only a received frame changes with time (interpolation, fades, dynamic zoom, stale expiry);
   // without one the radar is static, so the clock stops instead of re-rendering the radar.
-  const clockRunning = state.frame !== null || state.pendingFrame !== null;
+  const clockRunning = shown && (state.frame !== null || state.pendingFrame !== null);
   useEffect(() => {
     if (!clockRunning) return undefined;
     // Sample the interpolated poses once per displayed frame at its vsync time. A fixed

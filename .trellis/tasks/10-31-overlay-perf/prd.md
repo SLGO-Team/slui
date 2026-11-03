@@ -21,6 +21,7 @@
 - 正式包已不含 mock（`App-*.js` 199 KB）。资源体积：字体 13 MB（已是 WOFF2），商店物品 PNG 4.3 MB（无损 WebP 约 2.85 MB，q90 约 0.87 MB）。
 - 其他测到的开销：`backdrop.ts` 的 rAF 测量循环每帧对每个登记面板沿祖先链调用 `getComputedStyle`，开发版约 12–15 ms/s，画面静止时也在跑。
 - 未测：70 个逐房间 SVG 滤镜在相机每帧移动时的 GPU 光栅化开销；覆盖层被 `ShowWindow(SW_HIDE)` 隐藏后 WebView2 是否仍在执行 rAF。两项都需要 Windows/GPU 环境。
+  （2026-11-03 Windows 实测：隐藏后仍以 166 次/秒执行 rAF，见 `research/hidden-pause/`。）
 
 ## Task Map
 
@@ -29,7 +30,7 @@
 | — | `10-31-perf-memo-panels` | HUD/商店/聊天 memo | 已被 #53 替代，已归档（未实施） |
 | — | `10-31-perf-strip-mocks` | 正式包剥离 mock、模板懒加载 | 已被 #55 / #33 替代，已归档（未实施） |
 | 1 | `10-31-perf-radar-camera` | 相机区域角点缓存、全图范围缓存、动态缩放试探不重复归一化偏好 | 已完成：最坏配置每次渲染 249–272 → 24–30 µs，相机输出逐位不变 |
-| 2 | `10-31-perf-hidden-pause` | 覆盖层隐藏时停止雷达时钟与 backdrop 测量循环 | 暂缓：留待本地 Windows 环境 |
+| 2 | `10-31-perf-hidden-pause` | 覆盖层隐藏时停止雷达时钟与 backdrop 测量循环 | 已完成（2026-11-03 Windows 实测）：隐藏的页面仍以显示刷新率跑 rAF；Rust 发可见性事件，隐藏时雷达相机改写 180 → ~1 次/秒、backdrop 检查 165 → 0，GPU 进程 ~484 → 0 ms/s（mock） |
 | 3 | `10-31-perf-radar-zone-filters` | 雷达颜色滤镜从逐房间改为按区域 | 暂缓：两种分组在软件光栅化下结果相反（固定朝向 −68% / 朝向向上 +15%），留待 Windows GPU 实测 |
 | 4 | `10-31-perf-shop-images` | 商店物品图片转 WebP | 已完成：28 张无损 WebP，商店图片 4.39 → 3.24 MB，画面不变；3 张带 gAMA/cHRM 的保留 PNG |
 | 5 | `10-31-perf-backdrop-measure` | backdrop 测量循环在画面静止时跳过逐帧的样式与布局读取 | 已完成：静止时完整测量 60 → 2 次/秒，主线程 Script 44–48 → 38–40 ms/s，`stale` 0 |

@@ -524,6 +524,17 @@ by window label (`?window=home` in a browser preview).
   taking the foreground drops `focused`, and a panel that then hides and hands the foreground back loops (the
   team menu did: black flicker from its opening fade, 2026-10-25). Do not rebuild `overGame` in the page from
   `document.hasFocus()`; the webview focus event and the native event race.
+- `slgo-overlay-visibility` / `get_overlay_visibility` carry `{ visible, revision }`: whether the overlay window is
+  shown, read with `IsWindowVisible` right after each native show (`apply_overlay_input_mode`) and hide
+  (`hide_overlay_window`); created hidden at revision 0 (task `10-31-perf-hidden-pause`). WebView2 never learns of
+  the native hide: the page stays `visibilityState: "visible"` and its rAF keeps the display rate (measured on
+  Windows 2026-11-03: 166/s at 165 Hz, never shown or after `SW_HIDE` alike). So per-frame work must pause on
+  this state itself (`src/platform/overlayVisibility.ts`, `useOverlayVisible` / `subscribeOverlayVisible`; a browser
+  preview and a failed source count as shown): the radar neither follows the minimap store nor runs its clock while
+  hidden (the store still reduces every event), and `backdrop.ts` stops its loop (registrations and removals still
+  send at once; showing measures at once and resumes). Do not hide the page through the WebView2 controller's
+  `IsVisible` instead: the overlay is also hidden whenever its session is not live, and a hidden page's timers are
+  throttled (chained timers to once a minute after five minutes), which would delay the session's connect and retry.
 - `interactive` is derived in the overlay, not toggled by the player:
   `interactive = (shopOpen && window_open) || chatOpen || scoreboard cursor mode`. The shop
   hotkey (default `B`, `settings.hotkeys.shop`) always closes the shop and
