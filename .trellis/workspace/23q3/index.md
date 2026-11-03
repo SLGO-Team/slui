@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 60
+- **Total Sessions**: 61
 - **Last Active**: 2026-11-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1421 | Active |
+| `journal-1.md` | ~1444 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 61 | 2026-11-03 | Radar map blend: CS2 additive through DWM compositing | `a2cd331`, `e7b1b05` | `fix/radar-map-blend` |
 | 60 | 2026-11-03 | Radar zone wash: bake into artwork after in-game hairline | `0de6729` | `claude/admiring-hamilton-38bwyp` |
 | 59 | 2026-11-03 | Overlay perf: hidden pause and per-zone radar wash on Windows | `518d512`, `2b1a2bf`, `1494513` | `claude/admiring-hamilton-38bwyp` |
 | 58 | 2026-10-31 | 覆盖层性能：区域滤镜试验、商店图片 WebP、backdrop 按信号测量 | `b5ab8b2`, `0a30256`, `1edb4f1`, `6aee981` | `claude/admiring-hamilton-38bwyp` |
