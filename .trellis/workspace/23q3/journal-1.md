@@ -1419,3 +1419,26 @@ In-game check of the PR #81 test build showed a hairline where Entrance meets He
 ### Status
 
 [OK] **Completed**
+
+
+## Session 61: Radar map blend: CS2 additive through DWM compositing
+<!-- trellis-session: v=2 fp=3b556a3210008f9b -->
+
+**Date**: 2026-11-03
+**Task**: Radar map blend: CS2 additive through DWM compositing
+**Branch**: `fix/radar-map-blend`
+
+### Summary
+
+Fixed the no-op mapBlend radar setting. Root cause: mix-blend-mode screen only blends inside the radar's stacking context, over its own black fill (screen over black = the map), and the page cannot see the game. CS2's cl_hud_radar_map_additive is M + (1 - a)W; the page reaches the game only through DWM premultiplied over compositing (C + (1 - alpha)W), so the radar now keeps alpha = background alpha and colour = map: peak-normalized BLEND_WASH rooms over an opaque black fill, dimmed as one picture by a black layer (per-room opacity misdrew AA seams by 4/255), the base at opacity a; below the wash peak (96/255) a lift layer keeps the colour and raises alpha in rooms only to the peak. Wash smoke checks the layer math; the visual audit measures on - off over a flat page colour at a = 1/0.63/0.2/0 (exact, no out-of-range or off-hue pixels). PR is visual: waits for the user's in-game check.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a2cd331` | fix(minimap): blend the radar map with the background like CS2's additive map |
+| `e7b1b05` | docs(minimap): record the dim layer in the map-blend design |
+
+### Status
+
+[OK] **Completed**

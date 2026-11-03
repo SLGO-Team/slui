@@ -23,12 +23,12 @@ const browser = spawn(browserPath, ["--headless=new", "--no-first-run", "--disab
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 let socket;
 let auditError;
-const report = [], cameraMotion = [], pixelComparisons = [], backdropContrast = [], runtimeErrors = [];
+const report = [], cameraMotion = [], pixelComparisons = [], backdropContrast = [], mapBlendSamples = [], runtimeErrors = [];
 const bombsiteTiers = new Set();
 async function saveReport(status, error) {
   await writeFile(join(outputDir, "audit.json"), JSON.stringify({ previewUrl, browserPath, status,
     error: error ? error.stack ?? String(error) : null,
-    results: report, cameraMotion, pixelComparisons, backdropContrast, runtimeErrors }, null, 2));
+    results: report, cameraMotion, pixelComparisons, backdropContrast, mapBlendSamples, runtimeErrors }, null, 2));
 }
 try {
   const endpoint = await new Promise((done, reject) => {
@@ -149,7 +149,7 @@ try {
     }
     async function auditMapTransform() {
       const result = await evaluate(`(() => {
-        const rooms = [...document.querySelectorAll('.minimap-map__room')].map(room => {
+        const rooms = [...document.querySelectorAll('.minimap-radar__map .minimap-map__room')].map(room => {
           const image = room.querySelector('image');
           // The CTM chains the room's static artwork transform with the camera group's.
           const matrix = image.getCTM();
@@ -164,7 +164,7 @@ try {
     }
     async function capture(name, expected = {}) {
       const artwork = await evaluate(`(async () => {
-        const elements = [...document.querySelectorAll('.minimap-map__room image')];
+        const elements = [...document.querySelectorAll('.minimap-radar__map .minimap-map__room image')];
         const sources = [...new Set(elements.map(e => e.getAttribute('href')))];
         const decoded = await Promise.all(sources.map(async source => {
           const image = new Image(); image.src = source; await image.decode();
@@ -183,7 +183,7 @@ try {
             const m = e.getCTM();
             return !m || ![m.a,m.b,m.c,m.d,m.e,m.f].every(Number.isFinite) || m.a*m.d-m.b*m.c <= 0;
           }).length,
-          polygons: document.querySelectorAll('.minimap-map__room polygon').length,
+          polygons: document.querySelectorAll('.minimap-radar__map .minimap-map__room polygon').length,
           connectionLines: document.querySelectorAll('.minimap-radar__map line').length };
       })()`);
       const details = await evaluate(`(() => {
@@ -207,12 +207,11 @@ try {
           }),
           layerOrder:[...(document.querySelector('.minimap-radar__markers')?.children??[])].map(e=>e.classList.contains('minimap-bombsite')?'bombsite':'other'),
           markerImages:[...root.querySelectorAll('.minimap-marker img')].map(e=>({source:e.getAttribute('src'),loaded:e.complete&&e.naturalWidth>0,mask:getComputedStyle(e).maskImage})),
-          roomCount:document.querySelectorAll('.minimap-map__room').length,
-          zones:[...new Set([...document.querySelectorAll('.minimap-map__room')].map(e=>e.dataset.zone))].sort(),
+          roomCount:document.querySelectorAll('.minimap-radar__map .minimap-map__room').length,
+          zones:[...new Set([...document.querySelectorAll('.minimap-radar__map .minimap-map__room')].map(e=>e.dataset.zone))].sort(),
           location:location.textContent, locationBox:{x:l.x,y:l.y,width:l.width,height:l.height},
           status:root.querySelector('.minimap-radar__status')?.textContent??null,
           background:background.backgroundColor,backdropFilter:getComputedStyle(viewport).backdropFilter,
-          blendMode:getComputedStyle(root.querySelector('.minimap-radar__map')).mixBlendMode,
           borderWidth:getComputedStyle(root.querySelector('.minimap-radar__border')).borderTopWidth,
           hudWidth:hud?.getBoundingClientRect().width??null,
           labels:document.querySelectorAll('.minimap-radar__labels, .minimap-radar__map text').length,
@@ -355,7 +354,7 @@ try {
     const reference = await capture("cs2-reference", { shape: "circle", orientation: "heading-up", mapScale: "0.25", mapBlend: "true", blurBackground: "true" });
     assert.ok(reference.location.length > 0 && !["两区概览", "办公区", "重收容区"].includes(reference.location), "fixture named room appears in the dashboard");
     const referenceTransform = reference.mapTransforms;
-    // Measure a known page background through the real, screen-blended radar.
+    // Measure a known page background through the real radar.
     // Hash changes alone also passed on browsers that never composited blur.
     const sceneStyle = await evaluate(`(() => {
       const scene = document.querySelector('#SlgoOverlayRoot');
@@ -406,7 +405,6 @@ try {
             return { id: box.id, coloredPixels, peakChroma };
           });
           return { enabled: ${enabled}, contrast: sum/pairs, pairs, markers,
-            blend: getComputedStyle(document.querySelector('.minimap-radar__map')).mixBlendMode,
             foregroundFilters: ['.minimap-overlay', '.minimap-design-canvas', '.minimap-radar',
               '.minimap-radar__viewport', '.minimap-radar__map', '.minimap-radar__markers'].map(s => getComputedStyle(document.querySelector(s)).filter) };
         })()`));
@@ -422,7 +420,6 @@ try {
     assert.ok(sharp.pairs > 100 && sharp.contrast > 30, "stripe baseline has measurable high-frequency background detail");
     assert.ok(blurred.contrast < sharp.contrast * 0.25,
       `Backdrop blur must remove at least 75% of stripe contrast with mapBlend=true (off=${sharp.contrast.toFixed(2)}, on=${blurred.contrast.toFixed(2)}). Use a browser that actually composites backdrop filters; CSS support alone is insufficient.`);
-    assert.equal(blurred.blend, "screen");
     assert.ok(blurred.foregroundFilters.every(value => value === "none"), "blur must not filter the foreground layers");
     const coloredMarkers = sharp.markers.filter(marker => marker.coloredPixels >= 2);
     assert.ok(coloredMarkers.length > 0, "the actual foreground has visible colored player markers");
@@ -461,17 +458,90 @@ try {
     await comparePixels("background-alpha", { backgroundAlpha: 0 }, { backgroundAlpha: 1 });
     await configure({ backgroundAlpha: 0.63 });
     await comparePixels("background-blur", { blurBackground: false }, { blurBackground: true });
-    // mix-blend-mode blends within the radar's stacking context, where only the radar's own black background lies
-    // under the map: screen over black is the map itself, so the setting changes no pixels beyond 1/255 rounding (task
-    // 10-31-perf-radar-zone-filters). The page cannot blend with the game; check the blend mode it applies instead.
-    await configure({ mapBlend: false });
-    const unblended = await capture("map-blend-off");
-    await configure({ mapBlend: true });
-    const blended = await capture("map-blend-on");
-    assert.equal(unblended.blendMode, "normal", "map-blend off draws the map normally");
-    assert.equal(blended.blendMode, "screen", "map-blend on screens the map over the radar background");
-    assert.deepEqual(unblended.mapTransforms, blended.mapTransforms, "map-blend: camera and artwork do not change");
-    assert.deepEqual(unblended.markers, blended.markers, "map-blend: authorized marker positions do not change");
+    // mapBlend is CS2's additive map (roomWash.ts mapBlendLayers). The radar is composited over a known flat page
+    // colour W just as over the game: turning it on keeps the fill outside rooms and adds W·(1 - max(a, peak)) under
+    // whole room pixels (the map colour itself stays), a share of that under partly covered ones and over translucent
+    // markers. Rendering the same setting twice must agree first: a changed room href decodes asynchronously.
+    async function settledShot(shotClip) {
+      let previous = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        await wait(120);
+        const { data } = await request("Page.captureScreenshot", { format: "png", clip: shotClip });
+        if (data === previous) return data;
+        previous = data;
+      }
+      throw new Error("map-blend: radar pixels never settle");
+    }
+    const world = [60, 140, 220];
+    const blendScene = await evaluate(`(() => {
+      const scene = document.querySelector('#SlgoOverlayRoot');
+      const original = scene.getAttribute('style');
+      scene.style.background = 'rgb(${world.join(",")})';
+      return original;
+    })()`);
+    try {
+      for (const alpha of [1, 0.63, 0.2, 0]) {
+        const shots = [];
+        for (const mapBlend of [false, true]) {
+          await configure({ mapBlend, backgroundAlpha: alpha, blurBackground: false });
+          shots.push(await settledShot(clip));
+          await writeFile(join(outputDir, `${width}x${height}-map-blend-a${alpha}-${mapBlend ? "on" : "off"}.png`), Buffer.from(shots.at(-1), "base64"));
+        }
+        const added = world.map((channel) => channel * (1 - Math.max(alpha, 96 / 255)));
+        const measured = await evaluate(`(async () => {
+          const decode = async (data) => {
+            const image = new Image(); image.src = 'data:image/png;base64,' + data; await image.decode();
+            const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+            const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+            return { width: image.width, height: image.height, rgba: context.getImageData(0, 0, image.width, image.height).data };
+          };
+          const [off, on] = await Promise.all(${JSON.stringify(shots)}.map(decode));
+          const origin = ${JSON.stringify(clip)}, circle = ${JSON.stringify(reference.circle)}, added = ${JSON.stringify(added)};
+          const boxes = [...document.querySelectorAll('.minimap-marker:not(.minimap-marker--edge) .minimap-marker__dot')].map(dot => {
+            const r = dot.getBoundingClientRect();
+            return { x: r.x - origin.x, y: r.y - origin.y, width: r.width, height: r.height };
+          });
+          const cx = circle.x - origin.x + circle.width / 2, cy = circle.y - origin.y + circle.height / 2;
+          const usable = (x, y) => Math.hypot(x-cx, y-cy) < circle.width * .36
+            && !boxes.some(b => x >= b.x-5 && x < b.x+b.width+5 && y >= b.y-5 && y < b.y+b.height+5);
+          const corner = [...on.rgba.slice(0, 3)];
+          let pixels = 0, whole = 0, unchanged = 0, outOfRange = 0, offHue = 0, worst = null;
+          const shares = new Array(11).fill(0);
+          for (let y = 0; y < on.height; y++) for (let x = 0; x < on.width; x++) {
+            if (!usable(x, y)) continue;
+            pixels++;
+            const i = (y * on.width + x) * 4;
+            const diff = [0, 1, 2].map(c => on.rgba[i+c] - off.rgba[i+c]);
+            const share = added[2] > 0 ? diff[2] / added[2] : 0;
+            shares[Math.max(0, Math.min(10, Math.round(share * 10)))]++;
+            if (diff.every((d, c) => Math.abs(d - added[c]) <= 3)) whole++;
+            if (diff.every(d => Math.abs(d) <= 2)) unchanged++;
+            if (diff.some((d, c) => d < -3 || d > added[c] + 3)) { outOfRange++; worst ??= { x, y, diff }; }
+            if (diff.some((d, c) => Math.abs(d - share * added[c]) > 4)) { offHue++; worst ??= { x, y, diff, share }; }
+          }
+          return { pixels, whole: whole / pixels, unchanged: unchanged / pixels, outOfRange, offHue, worst, corner,
+            shares: shares.map(count => +(count / pixels).toFixed(3)) };
+        })()`);
+        const label = `map-blend a=${alpha}`;
+        assert.ok(measured.pixels > 1000, `${label}: enough radar pixels away from markers`);
+        assert.ok(measured.corner.every((value, c) => Math.abs(value - world[c]) <= 1), `${label}: the page shows ${world} outside the viewport`);
+        assert.equal(measured.outOfRange, 0, `${label}: on - off stays within 0..W·(1 - max(a, peak)) (${JSON.stringify(measured.worst)})`);
+        assert.equal(measured.offHue, 0, `${label}: the blend adds the world's colour, not the map's (${JSON.stringify(measured.worst)})`);
+        if (alpha === 1) assert.equal(measured.unchanged, 1, `${label}: an opaque fill leaves nothing to blend`);
+        else {
+          // The cs2-reference map covers about a tenth of the radar.
+          assert.ok(measured.whole > 0.03, `${label}: whole room pixels gain W·(1 - max(a, peak)) (${measured.whole}, shares ${measured.shares})`);
+          assert.ok(measured.unchanged > 0.5, `${label}: the fill outside rooms is untouched (${measured.unchanged})`);
+        }
+        mapBlendSamples.push({ viewport: [width, height], alpha, ...measured });
+      }
+    } finally {
+      await evaluate(`(() => {
+        const scene = document.querySelector('#SlgoOverlayRoot'), original = ${JSON.stringify(blendScene)};
+        if (original === null) scene.removeAttribute('style'); else scene.setAttribute('style', original);
+      })()`);
+      await configure({ mapBlend: true, backgroundAlpha: 0.63, blurBackground: true });
+    }
     await configure({ hudScale: 0.8 });
     const smallHud = await capture("hud-small", { hudScale: "0.8" });
     await configure({ hudScale: 1.3 });

@@ -2,6 +2,7 @@ import { memo, useId, type CSSProperties } from "react";
 import { useOverlayScale } from "../../shared/overlay";
 import type { MinimapViewModel, RadarBombsite, RadarKeycard } from "./model";
 import type { MapGeometry } from "./resolver";
+import { mapBlendLayers } from "./roomWash";
 import { cameraToRadar, roomArtworkToWorld, type RadarCamera, type RadarMarker } from "./camera";
 import { useMinimapView, type MinimapStore, type RadarControls, type RadarPreferences } from "./useMinimapFeature";
 import { useBackdropRef } from "../../platform/backdrop";
@@ -38,16 +39,33 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
   </defs></svg>;
 });
 
-const MapRooms = memo(function MapRooms({ geometry, activeZone }: { geometry: MapGeometry; activeZone: RadarCamera["zone"] }) {
+const MapRooms = memo(function MapRooms({ geometry, activeZone, blend }: { geometry: MapGeometry; activeZone: RadarCamera["zone"];
+  blend: boolean }) {
   // A room of an unknown shape has no artwork and is not drawn; it still names a place for the location title. The
   // image is the artwork already washed in its zone colour (roomWash.ts): no filter to re-rasterize per camera move.
   return geometry.rooms.flatMap(({ artwork, ...room }) => artwork ? [<g key={room.id} className="minimap-map__room" data-room-id={room.id}
     data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-artwork={artwork.href}
     data-active={activeZone === null || activeZone === room.zone}>
-    <image href={artwork.washedHref ?? artwork.href} width={artwork.width} height={artwork.height}
+    <image href={(blend ? artwork.blendHref : artwork.washedHref) ?? artwork.href} width={artwork.width} height={artwork.height}
       transform={roomArtworkToWorld(artwork)} preserveAspectRatio="xMidYMid meet" />
   </g>] : []);
 });
+
+function RadarMap({ className, clipId, radar, blend, style }: { className: string; clipId: string; radar: MinimapViewModel;
+  blend: boolean; style?: CSSProperties }) {
+  const { geometry, camera, viewSize } = radar;
+  return <svg className={className} width={viewSize} height={viewSize} viewBox={`0 0 ${viewSize} ${viewSize}`} aria-hidden="true" style={style}>
+    <defs><clipPath id={clipId}>
+      {radar.shape === "square" ? <rect x="1" y="1" width={viewSize - 2} height={viewSize - 2} />
+        : <circle cx={viewSize / 2} cy={viewSize / 2} r={viewSize / 2 - 1} />}
+    </clipPath></defs>
+    <g clipPath={`url(#${clipId})`}>
+      {geometry && camera ? <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
+        <MapRooms geometry={geometry} activeZone={camera.zone} blend={blend} />
+      </g> : null}
+    </g>
+  </svg>;
+}
 
 function FrozenMarker({ marker, className, wash }: { marker: RadarMarker; className: string; wash: string }) {
   // CS2 PI_Ghost / PI_Death: frozen pose, no heading, alpha fades out; the ghost uses the offmap arrow at the edge,
@@ -131,6 +149,8 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
   const showStatus = radar.availability !== "live" || radar.viewerAlive === false;
   // #Radar__Round--Inner / #Radar__Square--Inner have `world-blur: hudWorldBlur`; the "模糊背景" preference turns it off.
   const viewport = useBackdropRef({ enabled: radar.effects.blurBackground });
+  const blend = radar.effects.mapBlend;
+  const layers = blend ? mapBlendLayers(radar.preferences.backgroundAlpha) : null;
   // No radar area at all until a server instance is connected (user decision 2026-10-19).
   if (!radar.connected) return null;
   return <div className="minimap-overlay" aria-label="战术雷达">
@@ -142,22 +162,19 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
         data-map-scale={radar.activeMapScale} data-alternate-zoom={radar.alternateZoomActive} data-dynamic-zoom={radar.dynamicZoomActive}
         style={{ "--radar-hud-scale": radar.preferences.hudScale, "--radar-view-size": `${viewSize}px`,
           "--radar-background-alpha": radar.preferences.backgroundAlpha,
+          ...(layers ? { "--radar-room-opacity": layers.roomOpacity } : {}),
           // The frame and title wear the viewer's SLGO team colour like the bottom HUD; a team-less observer keeps the CSS default.
           ...(role ? { "--radar-accent": ROLE_COLORS[role] } : {}) } as CSSProperties}>
         <RadarFilters id={id} />
         <div ref={viewport} className="minimap-radar__viewport">
-          <div className="minimap-radar__background" />
-          <svg className="minimap-radar__map" width={viewSize} height={viewSize} viewBox={`0 0 ${viewSize} ${viewSize}`} aria-hidden="true">
-            <defs><clipPath id={`${id}-clip`}>
-              {radar.shape === "square" ? <rect x="1" y="1" width={viewSize - 2} height={viewSize - 2} />
-                : <circle cx={viewSize / 2} cy={viewSize / 2} r={viewSize / 2 - 1} />}
-            </clipPath></defs>
-            <g clipPath={`url(#${id}-clip)`}>
-              {geometry && camera ? <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
-                <MapRooms geometry={geometry} activeZone={camera.zone} />
-              </g> : null}
-            </g>
-          </svg>
+          {/* With mapBlend the base is one group at the background alpha over an opaque fill (roomWash.ts mapBlendLayers). */}
+          <div className="minimap-radar__base">
+            <div className="minimap-radar__background" />
+            <RadarMap className="minimap-radar__map" clipId={`${id}-clip`} radar={radar} blend={blend} />
+            {layers && layers.roomOpacity < 1 ? <div className="minimap-radar__dim" /> : null}
+          </div>
+          {layers && layers.liftOpacity > 0 ? <RadarMap className="minimap-radar__lift" clipId={`${id}-lift-clip`} radar={radar}
+            blend style={{ opacity: layers.liftOpacity }} /> : null}
           <div className="minimap-radar__markers" aria-hidden="true">
             {radar.bombsites.map((site) => <BombsiteIcon key={site.label} site={site} filterPrefix={id} />)}
             {radar.keycard ? <KeycardItem keycard={radar.keycard} filterPrefix={id} /> : null}

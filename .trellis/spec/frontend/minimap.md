@@ -225,6 +225,9 @@ last batched status can miss a connecting/baseline-required reset.
   `artwork.washedHref`, the file with each `fill="#rrggbb"` multiplied by
   `ZONE_WASH[zone]` as a data URL (`roomWash.ts`; the room keeps the file path in
   `artwork.href` / `data-artwork`, and draws the file itself if its load failed).
+  Each room also gets `artwork.blendHref`, washed with `BLEND_WASH` (the zone wash
+  divided by `ZONE_WASH_PEAK` = 96/255, so its brightest channel is 255) for the
+  `mapBlend` layers below.
   The artwork paints with flat 6-digit fills only (`minimap-wash-smoke` checks it),
   so this gives an sRGB colour-matrix filter's pixels. Measured on WebView2's GPU
   path (task `10-31-perf-radar-zone-filters`): a filter per room is re-rasterized
@@ -288,13 +291,24 @@ last batched status can miss a connecting/baseline-required reset.
   same `hudWorldBlur` as every HUD panel). Never a page `backdrop-filter` (the
   transparent WebView cannot sample the game); the mock preview shows the
   world-blur stand-in. The blur sits under the whole viewport, so the artwork and
-  markers stay sharp. `mapBlend` sets `mix-blend-mode: screen` on the map, which
-  blends only within the radar's stacking context: the radar's own black
-  background is all that lies under the map there, and screen over black is the
-  map itself, so the setting changes no pixels beyond 1/255 rounding. The page
-  cannot blend with the game (measured 2026-11-03, task
-  `10-31-perf-radar-zone-filters`). Do not globally fade
-  markers/text for background alpha. Background alpha remains independently
+  markers stay sharp.
+- `mapBlend` is CS2 `cl_hud_radar_map_additive` (Panorama `-s2-mix-blend-mode:
+  additive` on `Radar__*--InnerTransform`): the map adds to the blurred world
+  under the black fill, M + (1 - a)·W. The page can never blend with the game (a
+  `mix-blend-mode` only sees the radar's own layers; screen over the black fill was
+  a no-op until 2026-11-03); DWM composites the page over it as C + (1 - α)·W
+  (premultiplied). So the radar outputs α = a and C = M (`mapBlendLayers` in
+  `roomWash.ts`): `.minimap-radar__base` (opacity a) holds an opaque black fill,
+  the `blendHref` rooms, and `.minimap-radar__dim`, black at `1 - roomOpacity`
+  over the rooms, which scales the map as one picture (per-room opacity misdrew the
+  antialiased seams between rooms). Exact while the wash fits under a (a >=
+  `ZONE_WASH_PEAK`, default 0.63). Below that no premultiplied pixel can carry it
+  (C <= α): `.minimap-radar__lift` draws the rooms once more at `liftOpacity`,
+  keeping C = M and raising α inside rooms only to the peak; a partly covered pixel
+  comes out at most 3/255 brighter. Outside rooms the fill stays a either way.
+  With `mapBlend` off the rooms cover the fill opaquely as before. No filters (task
+  `11-03-radar-map-blend`).
+- Do not globally fade markers/text for background alpha. Background alpha remains independently
   configurable.
 - Freshness uses local `performance.now()` and
   `max(1000, 3000 / position_update_hz)` milliseconds. Other feature events do
@@ -371,7 +385,11 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
   visual audit asserts the labels per state, both size/opacity tiers, aspect
   (upright), centring, washed artwork (rooms draw `data:` SVGs and name their
   file in `data-artwork`) and layer order beneath markers; `minimap-wash-smoke`
-  covers the artwork's paint, the wash and its load fallback.
+  covers the artwork's paint, the wash and its load fallback, and the
+  `mapBlendLayers` compositing over 0 <= a <= 1. The visual audit measures
+  `mapBlend` over a flat page colour W at a = 1 / 0.63 / 0.2 / 0: on minus off
+  is 0 outside rooms, W·(1 - max(a, peak)) under whole room pixels and a share of
+  it elsewhere, never another hue.
 - `resolver.ts` is also loaded directly by Node's `--experimental-strip-types`
   through the full smoke suite. New runtime TypeScript imports on that path
   must use explicit `.ts` extensions (allowed by the existing tsconfig).
