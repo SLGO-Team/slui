@@ -1373,3 +1373,27 @@ perf-hidden-pause 按用户决定留待本地 Windows。perf-radar-zone-filters 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 59: Overlay perf: hidden pause and per-zone radar wash on Windows
+<!-- trellis-session: v=2 fp=8d553f278c895b06 -->
+
+**Date**: 2026-11-03
+**Task**: Overlay perf: hidden pause and per-zone radar wash on Windows
+**Branch**: `claude/admiring-hamilton-38bwyp`
+
+### Summary
+
+Continued PR #81 locally on Windows. Measured that WebView2 keeps a hidden overlay page visible with rAF at the display rate (166/s at 165 Hz); Rust now sends slgo-overlay-visibility after each native show/hide and the radar and backdrop loops pause while hidden (mock: GPU process ~484 -> 0 ms/s). Measured the radar colour-wash structures on WebView2's GPU path with a stand-in SCPSL.exe: per-zone groups inside the one camera group cut GPU utilization 16-22% without more CPU (software raster had ranked it worst); shipped it, fixed the visual audit's map-blend check (mapBlend changes no pixels in-page). Archived both children and the parent task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `518d512` | perf(overlay): pause the radar and world-blur loops while the overlay is hidden |
+| `2b1a2bf` | perf(minimap): wash the radar map per zone instead of per room |
+| `1494513` | chore(task): record the overlay-perf integration check |
+
+### Status
+
+[OK] **Completed**
