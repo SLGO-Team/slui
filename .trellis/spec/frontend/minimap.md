@@ -219,14 +219,20 @@ last batched status can miss a connecting/baseline-required reset.
   image transform is `translate(x,-z) rotate(rotationY) scale(15/256)` with
   image origin `(-128,-128)`. That transform is static (`roomArtworkToWorld`);
   the camera is one `cameraToRadar` transform on the `.minimap-map__camera`
-  group above the memoized rooms, so a camera move rewrites one attribute. Inside
-  it the rooms sit in one `.minimap-map__zone` group per zone, which carries the
-  zone's colour wash (`filter`); rooms carry none. Each filtered element is
-  re-rasterized on every camera move: on WebView2's GPU path two zone groups cost
-  16-22% less GPU time than a wash per room, while one camera group per zone
-  (viewport-sized filter regions) doubled the camera writes and the GPU process's
-  CPU (task `10-31-perf-radar-zone-filters`; headless software raster ranks them
-  the other way, so measure filters in WebView2). Do not add the artwork's native 180-degree
+  group above the memoized rooms, so a camera move rewrites one attribute. The
+  zone colour wash is baked into the image, never an SVG `filter`:
+  `resolveMinimap` loads each artwork file once and gives every room
+  `artwork.washedHref`, the file with each `fill="#rrggbb"` multiplied by
+  `ZONE_WASH[zone]` as a data URL (`roomWash.ts`; the room keeps the file path in
+  `artwork.href` / `data-artwork`, and draws the file itself if its load failed).
+  The artwork paints with flat 6-digit fills only (`minimap-wash-smoke` checks it),
+  so this gives an sRGB colour-matrix filter's pixels. Measured on WebView2's GPU
+  path (task `10-31-perf-radar-zone-filters`): a filter per room is re-rasterized
+  on every camera move (GPU 6.5-7.2% vs 5.3-5.4% baked); one filtered group per
+  zone costs the same as baked but drew hairlines in game, along each group's
+  filter-region edge and where the two layers meet at the Entrance / Heavy
+  Containment border; headless software raster ranks these structures
+  differently, so measure such changes in WebView2. Do not add the artwork's native 180-degree
   correction after changing projections or stretch the drawn area to the
   grid. Full-map bounds
   must include rotated full-canvas corners, not the former chamber squares.
@@ -363,7 +369,9 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
   clamp, heading-up, full map, retention through stale / invalid / offline and
   replacement by a new init; the
   visual audit asserts the labels per state, both size/opacity tiers, aspect
-  (upright), centring, wash filter and layer order beneath markers.
+  (upright), centring, washed artwork (rooms draw `data:` SVGs and name their
+  file in `data-artwork`) and layer order beneath markers; `minimap-wash-smoke`
+  covers the artwork's paint, the wash and its load fallback.
 - `resolver.ts` is also loaded directly by Node's `--experimental-strip-types`
   through the full smoke suite. New runtime TypeScript imports on that path
   must use explicit `.ts` extensions (allowed by the existing tsconfig).

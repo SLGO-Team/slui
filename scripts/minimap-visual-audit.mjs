@@ -178,7 +178,7 @@ try {
           }
           return { source, width: image.width, height: image.height, painted, translucent };
         }));
-        return { count: elements.length, decoded,
+        return { count: elements.length, decoded, files: elements.map(e => e.parentElement.dataset.artwork),
           invalidTransforms: elements.filter(e => {
             const m = e.getCTM();
             return !m || ![m.a,m.b,m.c,m.d,m.e,m.f].every(Number.isFinite) || m.a*m.d-m.b*m.c <= 0;
@@ -225,8 +225,10 @@ try {
       assert.equal(artwork.invalidTransforms, 0, `${name}: nonempty, unmirrored image transforms`);
       assert.equal(artwork.polygons, 0, `${name}: simplified chambers are replaced`);
       assert.equal(artwork.connectionLines, 0, `${name}: center lines cannot cover room details`);
+      // Each room names its artwork file and draws it washed in the zone colour (roomWash.ts), not through a filter.
+      for (const file of artwork.files) assert.match(file, /^\/assets\/minimap\/rooms\/[^/]+\.svg$/);
       for (const source of artwork.decoded) {
-        assert.match(source.source, /^\/assets\/minimap\/rooms\/[^/]+\.svg$/);
+        assert.match(source.source, /^data:image\/svg\+xml;charset=utf-8,/, `${name}: rooms draw washed artwork`);
         assert.equal(source.width, 256);
         assert.equal(source.height, 256);
         assert.ok(source.painted > 0 && source.painted < 256 * 256, `${name}: visible artwork and transparent canvas`);

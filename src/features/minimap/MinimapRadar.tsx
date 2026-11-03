@@ -25,12 +25,10 @@ function ColorWash({ id, rgb }: { id: string; rgb: readonly [number, number, num
   </filter>;
 }
 
-// The filters and the room layer depend only on the map, not the camera, so a per-frame camera
+// The marker filters and the room layer depend only on the map, not the camera, so a per-frame camera
 // update re-renders neither: it rewrites the one camera transform above the rooms.
 const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
   return <svg className="minimap-radar__filters" width="0" height="0" aria-hidden="true"><defs>
-    <ColorWash id={`${id}-hcz`} rgb={[80, 92, 91]} />
-    <ColorWash id={`${id}-entrance`} rgb={[90, 96, 80]} />
     <ColorWash id={`${id}-ntf`} rgb={[30, 210, 255]} />
     <ColorWash id={`${id}-scp`} rgb={[236, 105, 114]} />
     <ColorWash id={`${id}-enemy`} rgb={[255, 25, 25]} />
@@ -40,23 +38,15 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
   </defs></svg>;
 });
 
-const MapRooms = memo(function MapRooms({ geometry, activeZone, filterPrefix }: {
-  geometry: MapGeometry; activeZone: RadarCamera["zone"]; filterPrefix: string }) {
-  // One colour wash per zone group, not one per room: every camera move re-rasterizes each filtered element, and on
-  // WebView2's GPU path the two groups cost 16-22% less GPU time than ~70 rooms (task 10-31-perf-radar-zone-filters).
-  // The wash multiplies RGB and keeps alpha, so washing the composited zone draws the rooms the same; only the seams
-  // between rooms come out fainter.
-  const zones = [...new Set(geometry.rooms.map((room) => room.zone))];
-  return zones.map((zone) => <g key={zone} className="minimap-map__zone" data-zone={zone}
-    filter={`url(#${filterPrefix}-${zone === "Entrance" ? "entrance" : "hcz"})`}>
-    {/* A room of an unknown shape has no artwork and is not drawn; it still names a place for the location title. */}
-    {geometry.rooms.flatMap(({ artwork, ...room }) => artwork && room.zone === zone ? [<g key={room.id} className="minimap-map__room"
-      data-room-id={room.id} data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic}
-      data-active={activeZone === null || activeZone === room.zone}>
-      <image href={artwork.href} width={artwork.width} height={artwork.height}
-        transform={roomArtworkToWorld(artwork)} preserveAspectRatio="xMidYMid meet" />
-    </g>] : [])}
-  </g>);
+const MapRooms = memo(function MapRooms({ geometry, activeZone }: { geometry: MapGeometry; activeZone: RadarCamera["zone"] }) {
+  // A room of an unknown shape has no artwork and is not drawn; it still names a place for the location title. The
+  // image is the artwork already washed in its zone colour (roomWash.ts): no filter to re-rasterize per camera move.
+  return geometry.rooms.flatMap(({ artwork, ...room }) => artwork ? [<g key={room.id} className="minimap-map__room" data-room-id={room.id}
+    data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-artwork={artwork.href}
+    data-active={activeZone === null || activeZone === room.zone}>
+    <image href={artwork.washedHref ?? artwork.href} width={artwork.width} height={artwork.height}
+      transform={roomArtworkToWorld(artwork)} preserveAspectRatio="xMidYMid meet" />
+  </g>] : []);
 });
 
 function FrozenMarker({ marker, className, wash }: { marker: RadarMarker; className: string; wash: string }) {
@@ -164,7 +154,7 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
             </clipPath></defs>
             <g clipPath={`url(#${id}-clip)`}>
               {geometry && camera ? <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
-                <MapRooms geometry={geometry} activeZone={camera.zone} filterPrefix={id} />
+                <MapRooms geometry={geometry} activeZone={camera.zone} />
               </g> : null}
             </g>
           </svg>

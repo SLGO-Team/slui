@@ -1,6 +1,7 @@
 import { MINIMAP_SCHEMA_VERSION, type MinimapInit, type MinimapZone } from "../../contracts/index.ts";
 import labels from "./special-room-labels.json" with { type: "json" };
 import { createRoomArtwork, roomCorners, type RoomArtwork } from "./room-artwork.ts";
+import { svgDataUrl, washSvg, ZONE_WASH } from "./roomWash.ts";
 
 export type WorldPoint = { x: number; z: number };
 export type MapBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -75,6 +76,60 @@ export function resolveMinimapSync(init: MinimapInit): MapGeometry {
   return geometry;
 }
 
-export async function resolveMinimap(init: MinimapInit): Promise<MapGeometry> {
-  return resolveMinimapSync(init);
+export type ArtworkLoader = (href: string) => Promise<string>;
+
+const fetchArtwork: ArtworkLoader = async (href) => {
+  const response = await fetch(href);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.text();
+};
+// The artwork files are static: each is fetched once per page; a failed fetch is retried by the next resolve.
+const artworkTexts = new Map<string, Promise<string>>();
+const washedGeometries = new WeakMap<MapGeometry, Promise<MapGeometry>>();
+
+function loadArtwork(href: string, load: ArtworkLoader): Promise<string | null> {
+  let text = load === fetchArtwork ? artworkTexts.get(href) : undefined;
+  if (!text) {
+    text = load(href);
+    if (load === fetchArtwork) {
+      artworkTexts.set(href, text);
+      text.catch(() => artworkTexts.delete(href));
+    }
+  }
+  return text.catch((error: unknown) => {
+    // The radar then draws the file itself, white instead of the zone colour.
+    console.error(`Unable to load radar artwork ${href}`, error);
+    return null;
+  });
+}
+
+async function washRooms(geometry: MapGeometry, load: ArtworkLoader): Promise<MapGeometry> {
+  const hrefs = [...new Set(geometry.rooms.flatMap((room) => room.artwork ? [room.artwork.href] : []))];
+  const texts = new Map(await Promise.all(hrefs.map(async (href) => [href, await loadArtwork(href, load)] as const)));
+  // One URL per artwork and zone, so rooms that share both share the decoded image.
+  const washed = new Map<string, string>();
+  const rooms = geometry.rooms.map((room) => {
+    const text = room.artwork ? texts.get(room.artwork.href) : null;
+    if (!room.artwork || !text) return room;
+    const key = `${room.zone}\n${room.artwork.href}`;
+    let washedHref = washed.get(key);
+    if (!washedHref) {
+      washedHref = svgDataUrl(washSvg(text, ZONE_WASH[room.zone]));
+      washed.set(key, washedHref);
+    }
+    return { ...room, artwork: { ...room.artwork, washedHref } };
+  });
+  return { ...geometry, rooms, roomById: new Map(rooms.map((room) => [room.id, room])) };
+}
+
+/** The geometry with every room's artwork washed in its zone colour: it resolves once the radar can draw each room. */
+export async function resolveMinimap(init: MinimapInit, load: ArtworkLoader = fetchArtwork): Promise<MapGeometry> {
+  const geometry = resolveMinimapSync(init);
+  if (load !== fetchArtwork) return washRooms(geometry, load);
+  let washed = washedGeometries.get(geometry);
+  if (!washed) {
+    washed = washRooms(geometry, load);
+    washedGeometries.set(geometry, washed);
+  }
+  return washed;
 }
