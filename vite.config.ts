@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { readBackendConfig } from "./src/platform/backend.ts";
+import { buildInfo } from "./scripts/vite-build-info.mjs";
 import { contentSecurityPolicy } from "./scripts/vite-csp.mjs";
 import { themePackDevServer } from "./scripts/vite-theme-pack.mjs";
 
@@ -25,7 +26,8 @@ function controlPlaneUrl(command: "build" | "serve", mode: string): string | nul
 
 // https://vite.dev/config/
 export default defineConfig(async ({ command, mode }) => {
-  const plugins = [react(), themePackDevServer(), contentSecurityPolicy({ controlPlaneUrl: controlPlaneUrl(command, mode) })];
+  const url = controlPlaneUrl(command, mode);
+  const plugins = [react(), themePackDevServer(), contentSecurityPolicy({ controlPlaneUrl: url }), buildInfo({ controlPlaneUrl: url })];
   return {
   plugins,
 

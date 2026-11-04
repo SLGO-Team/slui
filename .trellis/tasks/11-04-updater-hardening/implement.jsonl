@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates, Tauri/installer contracts, test commands"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Updater and control plane boundaries"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Updater state shown in HomeApp"}

@@ -181,7 +181,7 @@ export function HomeApp() {
       changed = true;
       setUpdate(state);
     });
-    const initial = BACKEND.kind === "real" ? updateSource.start(BACKEND.controlPlaneUrl) : updateSource.get();
+    const initial = BACKEND.kind === "real" ? updateSource.start() : updateSource.get();
     void initial.catch((error: unknown) => {
       console.error("Unable to start update checks", error);
       return updateSource.get();

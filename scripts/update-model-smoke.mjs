@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { aboutUpdate, homeServerStatus, requiredBanner, requiredUpdate, titleBarUpdate, updateRequiredDetail } from "../src/app/updateModel.ts";
 import { createUpdateSource, parseUpdateState, UPDATE_STATE_EVENT } from "../src/platform/updater.ts";
 import { readUpdatePreview, UPDATE_PREVIEWS } from "../src/mocks/updatePreview.ts";
+import { BUILD_INFO_FILE, buildInfo } from "./vite-build-info.mjs";
 
 const state = (phase, extra = {}) => ({ current: "0.7.0", phase, required: null, lastChecked: 1, ...extra });
 
@@ -15,7 +16,7 @@ const fromRust = {
 assert.deepEqual(parseUpdateState(fromRust), fromRust);
 for (const phase of [{ kind: "idle" }, { kind: "checking" }, { kind: "ready", version: "0.8.0", notes: "text" },
   { kind: "ready", version: "0.8.0", notes: null }, { kind: "installing", version: "0.8.0" },
-  { kind: "failed", reason: "network" }, { kind: "failed", reason: "signature" }, { kind: "failed", reason: "launch" }]) {
+  { kind: "failed", reason: "network" }, { kind: "failed", reason: "signature" }, { kind: "failed", reason: "launch" }, { kind: "failed", reason: "unavailable" }]) {
   assert.deepEqual(parseUpdateState(state(phase)).phase, phase);
 }
 for (const bad of [null, "x", { ...fromRust, current: 7 }, { ...fromRust, required: 8 }, { ...fromRust, lastChecked: "1" },
@@ -54,6 +55,7 @@ assert.deepEqual(aboutUpdate(state({ kind: "failed", reason: "network" })),
   { version: "0.7.0", tone: "muted", status: "检查更新失败", action: "check", busy: false });
 assert.equal(aboutUpdate(state({ kind: "failed", reason: "signature" })).status, "更新文件校验失败");
 assert.equal(aboutUpdate(state({ kind: "failed", reason: "launch" })).status, "无法启动安装程序");
+assert.equal(aboutUpdate(state({ kind: "failed", reason: "unavailable" })).status, "无法检查更新", "checks that never started");
 
 // Required banner: only while required; the install action as soon as the update is ready.
 assert.equal(requiredBanner(null), null);
@@ -79,6 +81,17 @@ assert.equal(requiredUpdate(null), null, "unknown is not required (fail-open)");
 assert.equal(requiredUpdate(state({ kind: "failed", reason: "network" }, { required: "0.8.0" })), "0.8.0");
 assert.match(updateRequiredDetail("0.8.0"), /0\.8\.0/);
 
+// slui-build.json: the address the updater reads from the embedded frontend (src-tauri/src/updater.rs).
+{
+  const emitted = [];
+  const plugin = buildInfo({ controlPlaneUrl: "https://cp.example.test" });
+  assert.equal(plugin.apply, "build", "only builds embed it; the dev server never writes it");
+  plugin.generateBundle.call({ emitFile: (file) => emitted.push(file) });
+  assert.deepEqual(emitted, [{ type: "asset", fileName: BUILD_INFO_FILE, source: `${JSON.stringify({ controlPlaneUrl: "https://cp.example.test" })}\n` }]);
+  assert.equal(BUILD_INFO_FILE, "slui-build.json");
+  assert.throws(() => buildInfo({ controlPlaneUrl: null }).generateBundle.call({ emitFile() {} }), /control-plane URL/);
+}
+
 // Adapter: Tauri commands and the Rust event; the browser preview reports its fixed state.
 const calls = [];
 const listeners = new Map();
@@ -88,11 +101,12 @@ const invoke = async (command, args) => {
   return command === "updater_start" || command === "get_update_state" ? fromRust : undefined;
 };
 const source = createUpdateSource(bus, invoke);
-assert.deepEqual(await source.start("https://cp.example.test"), fromRust);
+assert.deepEqual(await source.start(), fromRust);
 assert.deepEqual(await source.get(), fromRust);
 await source.checkNow();
 await source.install();
-assert.deepEqual(calls, [["updater_start", { controlPlaneUrl: "https://cp.example.test" }], ["get_update_state", undefined],
+// The address is the build's (slui-build.json in Rust), never the caller's.
+assert.deepEqual(calls, [["updater_start", undefined], ["get_update_state", undefined],
   ["updater_check_now", undefined], ["updater_install", undefined]]);
 const received = [];
 const unsubscribe = source.subscribe((value) => received.push(value));
