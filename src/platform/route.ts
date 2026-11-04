@@ -106,6 +106,8 @@ export class HttpControlPlane implements SlgoControlPlane {
     }
     if (!REJECTION_STATUSES.has(response.status)) throw new Error(`Control plane answered HTTP ${response.status}`);
     const rejected = parseRouteRejected(body);
+    // A CDN or proxy throttling us answers 429 with its own page rather than a route rejection: still back off.
+    if (!rejected.ok && response.status === 429) return { ok: false, error: { code: "rate-limited", message: REJECTION_MESSAGES["rate-limited"] } };
     if (!rejected.ok) return rejected;
     const { reason, message } = rejected.value;
     return { ok: false, error: { code: REJECTION_CODES[reason], message: message || REJECTION_MESSAGES[reason] } };

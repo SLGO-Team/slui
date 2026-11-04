@@ -103,6 +103,9 @@ for (const [status, body, code, connectionStatus, retry] of [
   [400, rejection("unsupported-protocol"), "unsupported-protocol", "incompatible", "none"],
   [400, rejection("invalid-request"), "invalid-route", "offline", "none"],
   [404, "<html>not found</html>", "invalid-route", "offline", "none"],
+  // A CDN or proxy throttling the control plane answers with its own page (or nothing): still back off.
+  [429, "<html>Too Many Requests</html>", "rate-limited", "offline", "backoff"],
+  [429, "", "rate-limited", "offline", "backoff"],
   [200, routeBody({ steam_id: "76561198000000001" }), "invalid-route", "offline", "none"],
   [200, routeBody({ sidecar_endpoint: "ws://localhost:7801/slgo/sidecar" }), "invalid-route", "offline", "none"],
   [200, routeBody({ expires_at: new Date(Date.now() - 1).toISOString() }), "expired-route", "stale", "reroute"],
@@ -571,6 +574,10 @@ assert.equal(nextFailureCount(3, 0, 60_000), 1, "a stable session starts the bac
   assert.equal(failed.retry, "backoff");
   assert.equal(clientSessionReducer(failed, { type: "failed", attempt: 1, status: "offline", detail: "x" }).retry, "none");
   assert.equal(clientSessionReducer(failed, { type: "discover", attempt: 2 }).retry, null);
+  // A connect result that lands after the same attempt's failure keeps the failure and its retry.
+  assert.equal(clientSessionReducer(failed, { type: "connected", attempt: 1, status: "offline" }), failed);
+  assert.equal(clientSessionReducer(failed, { type: "connected", attempt: 0, status: "live" }), failed, "an older attempt is ignored");
+  assert.equal(clientSessionReducer({ ...failed, retry: null }, { type: "connected", attempt: 1, status: "live" }).status, "live");
 }
 
 const sessionDependencies = (controlPlane, connection) => ({
@@ -649,6 +656,25 @@ async function attempt(dependencies, drive, { initial = initialClientSessionStat
   lastSocket().drop(4004, "Player left the server");
   assert.equal(state().status, "not-in-game", "leaving the server is waiting, not unauthorized");
   assert.equal(state().retry, "poll");
+  cleanup();
+}
+for (const [label, after, status, retry] of [
+  ["a 4004 close", (socket) => socket.drop(4004, "Player left the server"), "not-in-game", "poll"],
+  ["a 1006 close", (socket) => socket.drop(1006, ""), "offline", "backoff"],
+  ["a 4003 close", (socket) => socket.drop(4003, "Server instance ended"), "ended", "reroute"],
+]) {
+  // Tauri delivers frames queued behind a large (fetched) baseline in one synchronous loop, so the close
+  // reaches the session before `connect()` resolves; the late connect result must not erase the retry.
+  const { connection } = harness();
+  sequence = 0;
+  const { state, actions, cleanup } = await attempt(sessionDependencies(answer(200, routeBody()), connection), (socket) => {
+    socket.accept();
+    socket.deliver(baselineEvent());
+    after(socket);
+  });
+  assert.equal(actions.at(-1).type, "connected", `${label}: the connect result arrives last`);
+  assert.equal(state().status, status, label);
+  assert.equal(state().retry, retry, `${label}: the session still reconnects`);
   cleanup();
 }
 {
