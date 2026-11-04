@@ -89,6 +89,8 @@ export type ChatLine =
   | { id: string; kind: "notice"; segments: ChatNoticeSegment[]; atMs: number }
   | { id: string; kind: "system"; text: string; atMs: number };
 export type ChatPending = { commandId: string; scope: ChatInputScope; body: string; sentAtMs: number };
+/** Sends still waiting for their result, keyed by command id, in send order. */
+export type ChatPendingSends = Readonly<Record<string, ChatPending>>;
 export type ChatSource = { serverId: string; instanceId: string };
 /** Player order per team from the latest match.snapshot, for dot colours. */
 export type ChatRoster = readonly { role: Role; playerIds: readonly string[] }[];
@@ -98,7 +100,11 @@ export type ChatInputState = {
   scope: ChatInputScope;
   /** Kept across closes except Esc and a successful send; a rejected message returns here. */
   draft: string;
-  pending: ChatPending | null;
+  /**
+   * Every send without a result yet. A second message may be sent before the first is
+   * answered; each result, timeout or failure settles only its own entry.
+   */
+  pending: ChatPendingSends;
   /** Oldest first, at most CHAT_HISTORY_LIMIT rows. */
   lines: ChatLine[];
   /** The server instance the history belongs to; a different one starts a new history. */
@@ -109,7 +115,7 @@ export type ChatInputState = {
 };
 
 export const initialChatInputState: ChatInputState = {
-  open: false, scope: "global", draft: "", pending: null, lines: [], source: null, seen: [], roster: [],
+  open: false, scope: "global", draft: "", pending: {}, lines: [], source: null, seen: [], roster: [],
 };
 
 /** Escape, a click outside the panel, the overlay losing the system foreground it held, chat no longer available. */
@@ -128,6 +134,18 @@ export type ChatInputAction =
   | { type: "notice"; source: ChatSource; notice: ChatNotice; nowMs: number }
   | { type: "connection"; status: ConnectionStatus; nowMs: number }
   | { type: "tick"; nowMs: number };
+
+export function hasPendingChat(state: ChatInputState): boolean {
+  return Object.keys(state.pending).length > 0;
+}
+
+const hasOwn = (pending: ChatPendingSends, commandId: string) => Object.prototype.hasOwnProperty.call(pending, commandId);
+
+function withoutPending(pending: ChatPendingSends, commandId: string): ChatPendingSends {
+  const rest = { ...pending };
+  delete rest[commandId];
+  return rest;
+}
 
 function appendLine(lines: ChatLine[], line: ChatLine): ChatLine[] {
   return [...lines, line].slice(-CHAT_HISTORY_LIMIT);
@@ -163,7 +181,7 @@ function receiveMessage(state: ChatInputState, source: ChatSource, message: Chat
     // One row per command: the server's copy takes the echo's place (and fade clock).
     const echo = next.lines.findIndex((row) => row.kind === "player" && row.sender === null && row.commandId === commandId);
     if (echo >= 0) return { ...next, lines: next.lines.map((row, index) => (index === echo ? { ...line, atMs: row.atMs } : row)) };
-    if (next.pending?.commandId === commandId) return { ...next, pending: null, lines: appendLine(next.lines, line) };
+    if (hasOwn(next.pending, commandId)) return { ...next, pending: withoutPending(next.pending, commandId), lines: appendLine(next.lines, line) };
   }
   return { ...next, lines: appendLine(next.lines, line) };
 }
@@ -171,8 +189,8 @@ function receiveMessage(state: ChatInputState, source: ChatSource, message: Chat
 function fail(state: ChatInputState, pending: ChatPending, reason: string | undefined, nowMs: number): ChatInputState {
   return {
     ...state,
-    pending: null,
-    // Something typed since the send wins over the returned message.
+    pending: withoutPending(state.pending, pending.commandId),
+    // Something typed since the send (or an earlier failed message already returned) wins.
     draft: state.draft.trim() ? state.draft : pending.body,
     lines: appendLine(state.lines, { id: `${pending.commandId}:failed`, kind: "system", text: `发送失败：${formatChatFailure(reason)}`, atMs: nowMs }),
   };
@@ -194,7 +212,7 @@ export function chatInputReducer(state: ChatInputState, action: ChatInputAction)
         ...state,
         open: false,
         draft: "",
-        pending: { commandId: command.command_id, scope: command.scope, body: command.body, sentAtMs: nowMs },
+        pending: { ...state.pending, [command.command_id]: { commandId: command.command_id, scope: command.scope, body: command.body, sentAtMs: nowMs } },
       };
     }
     case "close":
@@ -202,12 +220,12 @@ export function chatInputReducer(state: ChatInputState, action: ChatInputAction)
       return { ...state, open: false, draft: action.reason === "escape" ? "" : state.draft };
     case "command-result": {
       const { result, nowMs } = action;
-      const pending = state.pending;
-      if (result.command_kind !== "command.chat.send" || pending?.commandId !== result.command_id) return state;
+      if (result.command_kind !== "command.chat.send" || !hasOwn(state.pending, result.command_id)) return state;
+      const pending = state.pending[result.command_id];
       if (result.status === "accepted" || result.status === "duplicate") {
-        // The server's chat.message normally arrived first and cleared `pending`;
+        // The server's chat.message normally arrived first and settled the send;
         // otherwise echo the message until it does.
-        return { ...state, pending: null, lines: appendLine(state.lines, { id: `echo:${pending.commandId}`, kind: "player",
+        return { ...state, pending: withoutPending(state.pending, pending.commandId), lines: appendLine(state.lines, { id: `echo:${pending.commandId}`, kind: "player",
           scope: pending.scope, sender: null, body: pending.body, commandId: pending.commandId, atMs: nowMs }) };
       }
       return fail(state, pending, result.reason, nowMs);
@@ -228,16 +246,17 @@ export function chatInputReducer(state: ChatInputState, action: ChatInputAction)
     }
     case "connection": {
       if (action.status === "live") return state;
-      // The history belonged to the ended match; a pending send can no longer be answered.
+      // The history belonged to the ended match; pending sends can no longer be answered.
       if (endsMatch(action.status)) return initialChatInputState;
       const closed = state.open ? { ...state, open: false } : state;
-      // A stale stream may still deliver the result; anything else has lost it.
-      return closed.pending && action.status !== "stale" ? fail(closed, closed.pending, "disconnected", action.nowMs) : closed;
+      // A stale stream may still deliver the results; anything else has lost them.
+      if (action.status === "stale") return closed;
+      return Object.values(closed.pending).reduce((next, pending) => fail(next, pending, "disconnected", action.nowMs), closed);
     }
-    case "tick":
-      return state.pending && action.nowMs - state.pending.sentAtMs >= CHAT_COMMAND_TIMEOUT_MS
-        ? fail(state, state.pending, "timeout", action.nowMs)
-        : state;
+    case "tick": {
+      const expired = Object.values(state.pending).filter((pending) => action.nowMs - pending.sentAtMs >= CHAT_COMMAND_TIMEOUT_MS);
+      return expired.reduce((next, pending) => fail(next, pending, "timeout", action.nowMs), state);
+    }
   }
 }
 
