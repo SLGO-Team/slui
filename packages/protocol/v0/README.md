@@ -366,9 +366,10 @@ entry itself when its time runs out. `sent_at` is required.
   `player_id` is a SteamID64 or null (test dummy, non-Steam account),
   `display_name` plugin-sanitised plain text of 1-64 characters and `team`
   the side at the time of the death (`ntf`, `scp`, null when unassigned).
-  `killer` is null only for a suicide. `assister` is the one assist CS2 shows
-  (the qualifying assister with the most damage) or null. Outside a suicide
-  the three non-null `player_id`s differ.
+  `killer` is null only for a suicide. `assister` is the kill's one assist
+  (CS2 `player_death.assister`: the qualifying player with the most damage,
+  else the last flashbang thrower; SLGO then adds SCP ability and SCP-079
+  assists) or null. Outside a suicide the three non-null `player_id`s differ.
 - `weapon`: one of `HUD_KILLFEED_WEAPONS`, a closed set covering every SCP:SL
   kill source (firearms, `particle_disruptor`, `jailbird`, `micro_hid`,
   `grenade_he`, `scp018`, the attacking SCP for SCP attacks, `other` for the
@@ -380,6 +381,17 @@ entry itself when its time runs out. `sent_at` is required.
 - `visible_remaining_ms`: integer > 0, the time left at `sent_at` before the
   entry starts its 1 s fade-out. CS2 shows an entry 5 s, 7.5 s when the viewer
   is its killer or victim; the plugin has already applied that.
+
+One optional key, additive (no `schema_version` change):
+
+- `assisted_flash`: `true` when the assist came from a flashbang (CS2
+  `assistedflash`); the client draws a flashbang icon between `+` and the
+  assister's name, as CS2's `huddeathnotice` does. Written only when true, never
+  without an assister, and only to players whose SLUI declares
+  `hud-killfeed-flash-assist`: older clients reject entries with unknown keys,
+  so they never receive it and draw the assister without the icon. A sidecar
+  validates plugin publishes with this package, so sidecars must carry the
+  version that knows the key before an SLUI release declares the feature.
 
 ## Scoreboard
 
@@ -686,6 +698,8 @@ Known features:
   `hud.spectating` to this player.
 - `hud-killfeed`: SLUI draws the top-right killfeed, so the plugin hides its
   own killfeed hint and sends `hud.killfeed` to this player.
+- `hud-killfeed-flash-assist`: SLUI draws the flash-assist icon, so the plugin
+  writes `assisted_flash` in this player's `hud.killfeed` entries.
 - `scoreboard`: SLUI draws the scoreboard on its own key, so the plugin ignores
   its scoreboard keybind for this player and sends `scoreboard.snapshot`.
 - `team-select`: SLUI draws the team select menu, so the plugin sends its menu

@@ -8,6 +8,8 @@ const SVG = "/assets/slui-svg";
 export const KILLFEED_SUICIDE_ICON = "/assets/killfeed/suicide.svg";
 /** CS2 `icon_headshot` (head, entry hole and exit trail, SLUI-drawn after the 1080p capture). */
 export const KILLFEED_HEADSHOT_ICON = "/assets/killfeed/headshot.svg";
+/** CS2 `flashbang_assist` before a flash assister's name; SLUI uses the shop's flashbang silhouette. */
+export const KILLFEED_FLASH_ASSIST_ICON = `${SVG}/GrenadeFlash.svg`;
 /** Fallback for weapons without artwork: the plain skull, so it never reads as a suicide's skull and crossbones. */
 export const KILLFEED_SKULL_ICON = "/assets/hud/skull.svg";
 

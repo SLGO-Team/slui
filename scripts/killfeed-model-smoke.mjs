@@ -6,6 +6,7 @@ import { ROLE_COLORS } from "../src/shared/roleColors.ts";
 import { initialKillfeedState, KILLFEED_FADE_MS, killfeedReducer, sameKillfeedTime, selectKillfeed } from "../src/features/killfeed/model.ts";
 import {
   KILLFEED_FALLBACK_WEAPONS,
+  KILLFEED_FLASH_ASSIST_ICON,
   KILLFEED_HEADSHOT_ICON,
   KILLFEED_SKULL_ICON,
   KILLFEED_SUICIDE_ICON,
@@ -87,6 +88,16 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
 }
 
 {
+  // A flash assist draws the flashbang icon before the assister (CS2 assistedflash).
+  let state = killfeedReducer(initialKillfeedState, event(baseline(), 0));
+  state = killfeedReducer(state, event(feed(kill("kill-1", { assister: LIMA, assisted_flash: true })), 0));
+  const [flashed] = selectKillfeed(state, 100);
+  assert.equal(flashed.assister.name, "Lima");
+  assert.equal(flashed.assistedFlash, true);
+  assert.equal(KILLFEED_FLASH_ASSIST_ICON, "/assets/slui-svg/GrenadeFlash.svg", "the shop's flashbang silhouette");
+}
+
+{
   // Views: suicide has no weapon (skull instead), names in side colours, unassigned grey.
   let state = killfeedReducer(initialKillfeedState, event(baseline(), 0));
   state = killfeedReducer(state, event(feed(
@@ -99,6 +110,7 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
   assert.equal(own.viewer, "killer");
   assert.equal(own.headshot, true);
   assert.equal(own.assister.name, "Lima");
+  assert.equal(own.assistedFlash, false, "a plain assist has no flashbang icon");
   assert.equal(own.killer.color, "#6f9ce6", "NTF in CS2's CT blue");
   assert.equal(own.victim.color, ROLE_COLORS.scp, "SCP keeps the SLGO red (user decision 2026-10-18)");
   assert.equal(own.weaponIcon, KILLFEED_WEAPON_ICONS.e11sr);
