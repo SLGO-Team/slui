@@ -50,7 +50,7 @@ const reduce = (state, ...actions) => actions.reduce(chatInputReducer, state);
 let state = reduce(initialChatInputState, { type: "open", scope: "team" });
 assert.equal(state.open, true);
 assert.equal(state.scope, "team");
-assert.equal(reduce(state, { type: "open", scope: "global" }).scope, "team", "Y/U while typing never switches scope");
+assert.equal(reduce(state, { type: "open", scope: "global" }).scope, "team", "a chat key while typing never switches scope");
 state = reduce(state, { type: "toggle-scope" });
 assert.equal(state.scope, "global");
 assert.equal(reduce(initialChatInputState, { type: "draft", text: "x" }).draft, "", "a closed input ignores typing");

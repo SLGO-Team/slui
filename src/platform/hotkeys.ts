@@ -18,10 +18,12 @@ export const DEFAULT_HOTKEYS: HotkeySettings = { shop: "KeyB", scoreboard: "Caps
 const LETTER = /^Key([A-Z])$/;
 const FUNCTION = /^F([1-9]|1[0-2])$/;
 const CAPS_LOCK = "CapsLock";
+// The open shop requests the hovered item for a teammate with R, and selects items with digits.
+const SHOP_REQUEST = "KeyR";
 
-/** A key the shop or a chat may use: letters and F1-F12. Digits select shop items. */
+/** A key any action may use: letters except R, and F1-F12. Digits and R belong to the open shop. */
 export function isBindableHotkey(code: unknown): code is HotkeyCode {
-  return typeof code === "string" && (LETTER.test(code) || FUNCTION.test(code));
+  return typeof code === "string" && code !== SHOP_REQUEST && (LETTER.test(code) || FUNCTION.test(code));
 }
 
 /** A key the scoreboard may use: the shop's keys plus CapsLock. */

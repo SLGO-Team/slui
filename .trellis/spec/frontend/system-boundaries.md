@@ -732,7 +732,8 @@ by window label (`?window=home` in a browser preview).
   `parseSettings()`, which delegates to `normalizeRadarPreferences()` and
   `normalizeHotkeys()`. Four keys are configurable: shop (B), scoreboard
   (CapsLock), global chat (Y) and team chat (U). The shop and chat keys are
-  letters and F1-F12; digits are reserved for shop item selection. The
+  letters except R and F1-F12; digits (item selection) and R (teammate
+  request) are reserved for the open shop. The
   scoreboard key adds CapsLock (Tab is the SCP:SL inventory). All four differ: a
   key that is invalid or taken by an earlier action (`HOTKEY_ACTIONS` order)
   recovers to its default, and if that default is taken too every key recovers.

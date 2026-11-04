@@ -69,10 +69,13 @@ static SCOREBOARD_HOTKEY: AtomicU32 = AtomicU32::new(VK_CAPITAL);
 static CHAT_GLOBAL_HOTKEY: AtomicU32 = AtomicU32::new(0x59);
 static CHAT_TEAM_HOTKEY: AtomicU32 = AtomicU32::new(0x55);
 
-// Must match isBindableHotkey in src/platform/hotkeys.ts: letters and F1-F12, for the
-// shop and both chats. Digits are taken by shop item selection.
+// The open shop requests the hovered item for a teammate with R.
+const VK_R: u32 = 0x52;
+
+// Must match isBindableHotkey in src/platform/hotkeys.ts: letters except R, and F1-F12.
+// Digits (item selection) and R (teammate request) belong to the open shop.
 fn is_bindable_hotkey(virtual_key: u32) -> bool {
-    matches!(virtual_key, 0x41..=0x5A | 0x70..=0x7B)
+    matches!(virtual_key, 0x41..=0x5A | 0x70..=0x7B) && virtual_key != VK_R
 }
 
 // Must match isBindableScoreboardHotkey: the shop's keys plus CapsLock (CS2 holds Tab,
@@ -1553,8 +1556,8 @@ mod hotkey_tests {
         for vk in [0x41, 0x42, 0x55, 0x59, 0x5A, 0x70, 0x7B] {
             assert!(is_bindable_hotkey(vk), "{vk:#x}");
         }
-        // Digits, Escape, F13, modifiers, CapsLock and Tab are rejected.
-        for vk in [0x30, 0x31, 0x39, 0x1B, 0x7C, 0x10, 0x11, 0xA0, 0x14, 0x09, 0] {
+        // R (the shop's teammate request), digits, Escape, F13, modifiers, CapsLock and Tab are rejected.
+        for vk in [0x52, 0x30, 0x31, 0x39, 0x1B, 0x7C, 0x10, 0x11, 0xA0, 0x14, 0x09, 0] {
             assert!(!is_bindable_hotkey(vk), "{vk:#x}");
         }
     }
@@ -1564,8 +1567,8 @@ mod hotkey_tests {
         for vk in [0x14, 0x41, 0x5A, 0x70, 0x7B] {
             assert!(is_bindable_scoreboard_hotkey(vk), "{vk:#x}");
         }
-        // Tab (the SCP:SL inventory), digits and modifiers are rejected.
-        for vk in [0x09, 0x31, 0x10, 0xA0, 0] {
+        // Tab (the SCP:SL inventory), R, digits and modifiers are rejected.
+        for vk in [0x09, 0x52, 0x31, 0x10, 0xA0, 0] {
             assert!(!is_bindable_scoreboard_hotkey(vk), "{vk:#x}");
         }
     }
