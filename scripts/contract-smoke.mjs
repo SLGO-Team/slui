@@ -48,6 +48,8 @@ import {
   parseScoreboardSnapshot,
   parseShopSnapshot,
   parseUpdateManifest,
+  toAssetUrl,
+  MAX_ASSET_URL_LENGTH,
   compareReleaseVersions,
   UPDATE_PLATFORM,
   endsMatch,
@@ -451,6 +453,58 @@ assert.equal(parseRoute({
   session_token: "token",
   expires_at: new Date(Date.now() - 1).toISOString(),
 }).ok, false);
+{
+  // Routes always name a TLS sidecar: the client sends the session token there.
+  const routeTo = (sidecar_endpoint) => parseRoute({
+    protocol_version: 0,
+    type: "control.route.resolved",
+    identity_mode: "local-steamid",
+    steam_id: "76561198000000001",
+    server_id: "server-a",
+    instance_id: "instance-a",
+    sidecar_endpoint,
+    session_token: "token",
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+  });
+  for (const endpoint of ["wss://sidecar.example.invalid:7790/slgo/sidecar", "wss://203.0.113.5/slgo/sidecar"]) {
+    assert.equal(routeTo(endpoint).value.sidecarEndpoint, endpoint);
+  }
+  for (const endpoint of ["ws://127.0.0.1:7801/slgo/sidecar", "ws://sidecar.example.invalid/slgo/sidecar", "https://sidecar.example.invalid",
+    "wss://", "wss://user:secret@sidecar.example.invalid/slgo/sidecar", "", 7790, null]) {
+    assert.equal(routeTo(endpoint).ok, false, `sidecar_endpoint ${JSON.stringify(endpoint)} is refused`);
+  }
+}
+{
+  // Server-sent image URLs: https only, bounded; anything else draws the bundled fallback.
+  assert.equal(toAssetUrl("https://avatars.example/a.jpg"), "https://avatars.example/a.jpg");
+  assert.equal(toAssetUrl("https://avatars.example/a b\")x.jpg"), "https://avatars.example/a%20b%22)x.jpg", "normalised: quotes and spaces cannot leave CSS url(\"…\")");
+  assert.equal(toAssetUrl(`https://a.example/${"a".repeat(MAX_ASSET_URL_LENGTH - "https://a.example/".length)}`).length, MAX_ASSET_URL_LENGTH);
+  for (const bad of ["http://avatars.example/a.jpg", "data:image/png;base64,AAAA", "javascript:alert(1)", "/assets/slui-svg/Medkit.svg", "", "  ",
+    "https://user:secret@avatars.example/a.jpg", `https://a.example/${"a".repeat(MAX_ASSET_URL_LENGTH)}`, 42, {}, null, undefined]) {
+    assert.equal(toAssetUrl(bad), null, `${JSON.stringify(bad)?.slice(0, 40)} is not drawn`);
+  }
+
+  const withAvatar = (avatar_url) => {
+    const snapshot = makeMatchSnapshot();
+    snapshot.teams[0].players[0] = { ...snapshot.teams[0].players[0], avatar_url };
+    return snapshot;
+  };
+  const avatarOf = (snapshot) => parseMatchSnapshot(snapshot).value.teams[0].players[0].avatar_url;
+  assert.equal(avatarOf(withAvatar("https://avatars.example/enemy.jpg")), "https://avatars.example/enemy.jpg");
+  for (const bad of ["http://avatars.example/enemy.jpg", "data:image/svg+xml,<svg/>", "javascript:alert(1)", "x".repeat(600), 7]) {
+    const snapshot = withAvatar(bad);
+    assert.equal(avatarOf(snapshot), null, "a bad avatar_url becomes null without rejecting the snapshot");
+    assert.equal(snapshot.teams[0].players[0].avatar_url, bad, "the input object is not modified");
+  }
+  assert.equal("avatar_url" in parseMatchSnapshot(validSnapshot).value.teams[0].players[0], false, "an absent avatar_url stays absent");
+
+  const item = { item_id: "armor", name: "Armor", price: 50, quantity: null, purchasable: true };
+  const iconOf = (icon_url) => parseShopSnapshot({ balance: 100, window_open: true, items: [{ ...item, icon_url }] }).value.items[0].icon_url;
+  assert.equal(iconOf("https://cdn.example/armor.svg"), "https://cdn.example/armor.svg");
+  for (const bad of ["http://cdn.example/armor.svg", "data:image/svg+xml,<svg/>", "javascript:alert(1)", "/assets/slui-svg/ArmorCombat.svg", 42]) {
+    assert.equal(iconOf(bad), null, `icon_url ${JSON.stringify(bad)} becomes null without rejecting the snapshot`);
+  }
+}
 assert.equal(canUsePlayerScopedFeatures({ kind: "unverified", identity: { steamId: "76561198000000001" } }), false);
 assert.equal(canUsePlayerScopedFeatures({ kind: "claimed", identity: { steamId: "76561198000000001" }, mode: "local-steamid" }), true, "the sidecar authorizes claimed SteamIDs by IP binding");
 assert.equal(canUsePlayerScopedFeatures({ kind: "verified", identity: { steamId: "76561198000000001" }, mode: "device-signature" }), true);
@@ -954,6 +1008,11 @@ assert.equal(parseShopSnapshot({
   assert.equal(withRequests([{ ...request, price: -1 }]).ok, false);
   assert.equal(withRequests([{ ...request, purchasable: "yes" }]).ok, false);
   assert.equal(withRequests([{ ...request, category_id: null, icon_url: null, unavailable_reason: null }]).ok, true);
+  for (const [icon_url, expected] of [["https://cdn.example/a.svg", "https://cdn.example/a.svg"], ["http://cdn.example/a.svg", null], [false, null]]) {
+    const requests = [{ ...request, icon_url }];
+    assert.equal(withRequests(requests).value.requests[0].icon_url, expected, `request icon_url ${JSON.stringify(icon_url)}`);
+    assert.equal(requests[0].icon_url, icon_url, "the input request is not modified");
+  }
   assert.equal(withRequests(Array.from({ length: 65 }, (_, index) => ({ ...request, request_id: String(index) }))).ok, false);
   assert.equal(withRequests({}).ok, false);
   assert.equal(parseShopSnapshot({ ...base, items: [{ ...base.items[0], requestable: "true" }] }).ok, false);

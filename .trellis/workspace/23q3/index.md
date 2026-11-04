@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 61
-- **Last Active**: 2026-11-03
+- **Total Sessions**: 62
+- **Last Active**: 2026-11-04
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1444 | Active |
+| `journal-1.md` | ~1466 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 62 | 2026-11-04 | SLUI 1.0 prep: webview CSP and server-sent URL validation | `e9d0af3` | `fix/csp-and-url-validation` |
 | 61 | 2026-11-03 | Radar map blend: CS2 additive through DWM compositing | `a2cd331`, `e7b1b05` | `fix/radar-map-blend` |
 | 60 | 2026-11-03 | Radar zone wash: bake into artwork after in-game hairline | `0de6729` | `claude/admiring-hamilton-38bwyp` |
 | 59 | 2026-11-03 | Overlay perf: hidden pause and per-zone radar wash on Windows | `518d512`, `2b1a2bf`, `1494513` | `claude/admiring-hamilton-38bwyp` |

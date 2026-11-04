@@ -37,6 +37,11 @@ name = "slui_lib"
 # profile's fat LTO each ran its own LTO pass (release rebuild of slui 291 -> 234 s without them).
 crate-type = ["rlib"]
 
+[features]
+# Local test packages (`tauri:build:local`, `build-installer --local`; set by tauri.local.conf.json)
+# talk to the local backend, whose sidecar serves plain ws:// on loopback. Release builds refuse ws://.
+local-backend = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

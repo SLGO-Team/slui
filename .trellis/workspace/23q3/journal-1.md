@@ -1442,3 +1442,25 @@ Fixed the no-op mapBlend radar setting. Root cause: mix-blend-mode screen only b
 ### Status
 
 [OK] **Completed**
+
+
+## Session 62: SLUI 1.0 prep: webview CSP and server-sent URL validation
+<!-- trellis-session: v=2 fp=0dfd110eb95b9a5f -->
+
+**Date**: 2026-11-04
+**Task**: SLUI 1.0 prep: webview CSP and server-sent URL validation
+**Branch**: `fix/csp-and-url-validation`
+
+### Summary
+
+Child task 1 of the 1.0 prep (S1-S3). CSP is a meta written by Vite from VITE_CONTROL_PLANE_URL (scripts/vite-csp.mjs, csp-smoke), so every build entry point including the deploy scripts matches it; tauri csp stays null (devCsp would not apply on desktop dev). Release builds refuse ws:// sidecar sockets (cargo feature local-backend via tauri.local.conf.json keeps loopback ws for local packages). parseRoute parses sidecar_endpoint as wss without credentials; avatar_url/icon_url become null unless https and <=512 chars (toAssetUrl). Verified in dev:mock and in a release build over CDP (IPC, theme fonts/sounds, https images, no violations; foreign fetch blocked). Installer shell CSP noted as I5 in installer-hardening.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e9d0af3` | fix(security): add a webview CSP and validate server-sent sidecar and image URLs |
+
+### Status
+
+[OK] **Completed**

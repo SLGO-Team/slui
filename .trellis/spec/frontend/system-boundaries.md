@@ -388,7 +388,10 @@ request", "Sidecar session handshake", "Security boundary").
   `webpki-roots`). The TLS handshake sends **no SNI** (`enable_sni = false`), because a
   game host's network resets handshakes naming a domain it has not allowlisted and the
   webview cannot omit SNI; the certificate is still verified against the URL host name,
-  with no switch to skip it. Plain `ws://` is refused unless the host is loopback.
+  with no switch to skip it. Plain `ws://` is accepted only by debug builds and
+  local test packages (cargo feature `local-backend`), and only on loopback; a
+  release build refuses it (`ALLOW_PLAIN_WS` in `sidecar_socket.rs`). Routes are
+  `wss://` in every build (`parseRoute`).
   Rust reports browser close semantics: no close frame (connect, TLS or handshake
   failure, drop) → `1006`, a close frame without a code → `1005`, otherwise the
   sidecar's code and reason, so the close mapping below is unchanged. The adapter
