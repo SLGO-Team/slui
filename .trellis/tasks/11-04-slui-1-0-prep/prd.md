@@ -66,4 +66,7 @@
   PR #95 已合并（f99bb43）。
 - 子任务 2 `11-04-window-capabilities`：分支 `fix/window-capabilities`。命令清单 `src-tauri/app-commands.rs` +
   AppManifest，capability 拆成 shared / home / overlay，`core:default` 收窄；CDP 实测每个窗口只能调自己的命令。
-- 下一步：子任务 3 `11-04-updater-hardening`。
+  PR #96 已合并（7a76b28）。
+- 子任务 3 `11-04-updater-hardening`：分支 `fix/updater-hardening`。地址取自构建产物 `slui-build.json`，
+  下载上限 150 MB，新版本失败回退到已验证的旧安装包，启动失败显示 unavailable，requireSignedVersion + `--app-version`。
+- 下一步：子任务 4 `11-04-connection-liveness`。

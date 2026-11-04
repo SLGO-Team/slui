@@ -19,9 +19,18 @@
 
 ## Acceptance Criteria
 
-- [ ] 前端传入的地址不再决定检查地址；不合规地址被拒绝。
-- [ ] 超限下载中止并报错，不占满内存。
-- [ ] U1 场景有单元测试：新版本失败后仍能安装旧的已验证安装包。
-- [ ] U2：未启动时点「检查更新」有明确结果，diag 日志有启动失败原因。
-- [ ] U3 的签名/校验方式与发布流程兼容（旧客户端升级到新版本不受影响）。
-- [ ] cargo clippy `-D warnings`、workspace 测试、`npm test` 通过。
+- [x] 前端传入的地址不再决定检查地址；不合规地址被拒绝。
+- [x] 超限下载中止并报错，不占满内存。
+- [x] U1 场景有单元测试：新版本失败后仍能安装旧的已验证安装包。
+- [x] U2：未启动时点「检查更新」有明确结果，diag 日志有启动失败原因。
+- [x] U3 的签名/校验方式与发布流程兼容（旧客户端升级到新版本不受影响）。
+- [x] cargo clippy `-D warnings`、workspace 测试、`npm test` 通过。
+
+## 实现说明
+
+- 设计见 design.md。地址来源改为构建产物 `slui-build.json`（不是 `option_env!`），理由在 design.md。
+- 验证（2026-11-04）：`tauri build --no-bundle`（local 配置、独立 identifier）+ 本机假控制平面（7800 端口，
+  安装包无 Content-Length 地流 300 MB）：diag 记录 `update checks against http://127.0.0.1:7800/v0/update`
+  （来自嵌入的 slui-build.json），下载在约 152 MB 时中止，状态 `failed { signature }`，进程内存约 124 MB。
+  U1/U2 的状态机由单元测试覆盖。
+- 兼容：旧客户端只认 `file:`，slgo-deploy 按 tab 分隔匹配 `file:`，多出的 `version:` 字段不影响。
