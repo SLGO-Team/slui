@@ -205,7 +205,6 @@ template switch (`/P /R /NS /ARGS /UPDATE`).
 | --- | --- | --- |
 | `/SLUI-STARTMENU`, `/SLUI-DESKTOP` | `install::nsis_args` (with `/NS`) | create that shortcut |
 | `/SLUI-THEME-PACK` | `uninstall::nsis_args` | `RMDir /r "$INSTDIR\theme-pack"` |
-| `/SLUI-APPDATA` | `uninstall::nsis_args` | sets the template's `$DeleteAppDataCheckboxState` |
 | `/SLUI-CLEANUP` | `uninstall::nsis_args` (relocated runs only) | `/REBOOTOK` deletion of `$EXEDIR\slui-uninstall.exe`, `$EXEDIR\uninstall.exe`, `$EXEDIR` |
 
 - The uninstaller runs NSIS as `<temp copy of uninstall.exe> /S [...] _?=<dir>`:
@@ -221,6 +220,11 @@ template switch (`/P /R /NS /ARGS /UPDATE`).
 - User data (`%APPDATA%` / `%LOCALAPPDATA%` `\com.slui.desktop`) is removed by
   the non-elevated UI for the invoking user, after waiting (≤ 10 s, by process
   handle) for the `slui.exe` / `msedgewebview2.exe` processes that NSIS closed.
+  Never hand it to NSIS: the elevated process's `$APPDATA` is the account that
+  approved UAC, not the invoking standard user's.
+- An existing install is never left behind: an older one is only updated, a
+  same-version one only reinstalled into its own `InstallLocation`
+  (`install::resolve_target`; the reinstall options show the location read-only).
 - Plain `npm run tauri build` defines nothing in the hooks and keeps the default
   NSIS uninstaller; only `build-installer.mjs` adds the branded one.
 - E2E from Git Bash: set `MSYS_NO_PATHCONV=1` when passing NSIS switches, or

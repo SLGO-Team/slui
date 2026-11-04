@@ -1,4 +1,4 @@
-import { formatBytes, optionsGate, type Detect, type Shortcut, type State } from "../model.ts";
+import { dirEditable, formatBytes, optionsGate, type Detect, type Shortcut, type State } from "../model.ts";
 import { Check } from "./Check.tsx";
 
 /** Install location and shortcuts, edited in place on the welcome screen. */
@@ -13,6 +13,8 @@ export function Options({ state, detect, onDirChange, onBrowse, onShortcutChange
   const check = state.check?.input === state.dir ? state.check.result : null;
   const free = check && !check.error ? check.freeBytes : null;
   const invalid = !gate.ok && gate.reason !== null;
+  // A reinstall stays where SLUI is installed.
+  const editable = dirEditable(state);
   return <section className="setup-options" aria-label="安装选项">
     <div className="setup-options__head">
       <label className="setup-options__label" htmlFor="setup-dir">安装位置</label>
@@ -24,8 +26,8 @@ export function Options({ state, detect, onDirChange, onBrowse, onShortcutChange
     </div>
     <div className="setup-field">
       <input id="setup-dir" className="setup-input" value={state.dir} spellCheck={false} autoComplete="off"
-        aria-invalid={invalid} onChange={(event) => onDirChange(event.target.value)} />
-      <button type="button" className="setup-button" onClick={onBrowse}>浏览…</button>
+        readOnly={!editable} aria-invalid={invalid} onChange={(event) => onDirChange(event.target.value)} />
+      {editable ? <button type="button" className="setup-button" onClick={onBrowse}>浏览…</button> : null}
     </div>
     <div className="setup-options__checks">
       <Check checked={state.startMenuShortcut} onChange={(value) => onShortcutChange("startMenu", value)}>

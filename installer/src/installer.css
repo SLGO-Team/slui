@@ -253,6 +253,7 @@ body { margin: 0; background: var(--home-chrome); overflow: hidden; }
 .setup-input:hover { border-color: #33475c; }
 .setup-input:focus { outline: none; border-color: var(--home-orange); }
 .setup-input[aria-invalid="true"] { border-color: var(--home-error); }
+.setup-input:read-only { border-color: var(--home-line-strong); opacity: 0.72; cursor: default; }
 
 .setup-check { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; cursor: pointer; }
 .setup-check input { position: absolute; opacity: 0; pointer-events: none; }

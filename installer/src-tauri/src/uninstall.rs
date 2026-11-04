@@ -245,13 +245,15 @@ pub fn failed(reason: FailReason) -> UninstallOutcome {
 /// NSIS command line. `_?=` runs the uninstaller where it is (so the caller can wait for
 /// it) with `dir` as `$INSTDIR`; it must be last and must not be quoted, even with spaces.
 /// Switches: src-tauri/windows/installer-hooks.nsh.
+///
+/// `request.user_data` passes nothing: the elevated NSIS process resolves `$APPDATA` for
+/// the account that approved UAC, which is not the invoking user's when a standard user
+/// typed an administrator's password. [`remove_user_data`] removes the invoking user's
+/// data from this unelevated process instead.
 pub fn nsis_args(dir: &str, request: UninstallRequest, cleanup: bool) -> String {
     let mut args = vec!["/S"];
     if request.theme_pack {
         args.push("/SLUI-THEME-PACK");
-    }
-    if request.user_data {
-        args.push("/SLUI-APPDATA");
     }
     if cleanup {
         args.push("/SLUI-CLEANUP");
@@ -368,12 +370,24 @@ mod tests {
         assert_eq!(nsis_args(r"C:\Program Files\SLUI", NONE, false), r"/S _?=C:\Program Files\SLUI");
         assert_eq!(
             nsis_args(r"D:\Games\SLUI", BOTH, true),
-            r"/S /SLUI-THEME-PACK /SLUI-APPDATA /SLUI-CLEANUP _?=D:\Games\SLUI"
+            r"/S /SLUI-THEME-PACK /SLUI-CLEANUP _?=D:\Games\SLUI"
         );
         let theme_only = UninstallRequest { theme_pack: true, user_data: false };
         assert_eq!(nsis_args(r"D:\SLUI", theme_only, false), r"/S /SLUI-THEME-PACK _?=D:\SLUI");
         let data_only = UninstallRequest { theme_pack: false, user_data: true };
-        assert_eq!(nsis_args(r"D:\SLUI", data_only, true), r"/S /SLUI-APPDATA /SLUI-CLEANUP _?=D:\SLUI");
+        assert_eq!(nsis_args(r"D:\SLUI", data_only, true), r"/S /SLUI-CLEANUP _?=D:\SLUI");
+    }
+
+    #[test]
+    fn user_data_is_never_left_to_the_elevated_nsis_process() {
+        for theme_pack in [true, false] {
+            for cleanup in [true, false] {
+                let with_data = nsis_args(r"D:\SLUI", UninstallRequest { theme_pack, user_data: true }, cleanup);
+                let without = nsis_args(r"D:\SLUI", UninstallRequest { theme_pack, user_data: false }, cleanup);
+                assert_eq!(with_data, without);
+                assert!(!with_data.contains("APPDATA"), "{with_data}");
+            }
+        }
     }
 
     #[test]

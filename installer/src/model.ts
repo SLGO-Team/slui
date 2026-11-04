@@ -141,11 +141,20 @@ export function initialDir(detect: Detect): string {
   return detect.installed?.dir ?? detect.defaultDir;
 }
 
-/** Whether the welcome screen shows the editable install options (location and shortcuts). */
+/** Whether the welcome screen shows the install options (location and shortcuts). */
 export function optionsVisible(state: State): boolean {
   if (!state.detect || state.screen !== "welcome") return false;
   const kind = classify(state.detect);
   return kind === "fresh" || (kind === "same" && state.reinstalling);
+}
+
+/**
+ * Whether the install location can be changed: only for a fresh install. A reinstall stays in
+ * the installed dir; installing elsewhere would leave the old install (and its uninstaller)
+ * behind, and the installer refuses it.
+ */
+export function dirEditable(state: State): boolean {
+  return state.detect !== null && classify(state.detect) === "fresh";
 }
 
 export type Gate = { ok: true } | { ok: false; reason: string | null };
@@ -280,7 +289,7 @@ export function reduce(state: State, action: Action): State {
     case "closeReinstall":
       return state.reinstalling ? { ...state, reinstalling: false, notice: null } : state;
     case "dirChanged":
-      return { ...state, dir: action.dir };
+      return dirEditable(state) ? { ...state, dir: action.dir } : state;
     case "dirChecked":
       return action.input === state.dir ? { ...state, check: { input: action.input, result: action.result } } : state;
     case "shortcutChanged":
