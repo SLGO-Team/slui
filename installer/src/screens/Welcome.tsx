@@ -14,7 +14,7 @@ export function Welcome({ state, detect, kind, options, launchError, onStart, on
   state: State;
   detect: Detect;
   kind: Kind;
-  /** Install location and shortcuts are shown and editable. */
+  /** Install location and shortcuts are shown; the location is editable only for a fresh install. */
   options: boolean;
   launchError: string | null;
   onStart: (mode: InstallMode) => void;

@@ -49,18 +49,14 @@
 !macroend
 
 ; Uninstall switches passed by the branded uninstaller (installer/, uninstaller feature):
-;   /SLUI-APPDATA      delete the app data, as the wizard's checkbox does
 ;   /SLUI-THEME-PACK   delete $INSTDIR\theme-pack
 ;   /SLUI-CLEANUP      the uninstaller runs from a temp copy in $EXEDIR next to the
 ;                      branded uninstaller's own temp copy; both are locked until their
 ;                      processes exit, so they are deleted at the next reboot
-!macro NSIS_HOOK_PREUNINSTALL
-  ClearErrors
-  ${GetOptions} $CMDLINE "/SLUI-APPDATA" $R9
-  ${IfNot} ${Errors}
-    StrCpy $DeleteAppDataCheckboxState 1
-  ${EndIf}
-!macroend
+; There is no user-data switch: this process runs elevated, so its $APPDATA and
+; $LOCALAPPDATA belong to the account that approved UAC, which is not the invoking
+; user's when a standard user typed an administrator's password. The branded
+; uninstaller removes the invoking user's data itself, unelevated.
 
 ; Runs after the template has removed the app, its shortcuts and the uninstall entry.
 ; Not in update mode: the next install overwrites the files.

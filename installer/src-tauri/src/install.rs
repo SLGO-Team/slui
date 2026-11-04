@@ -8,7 +8,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    detect::{self, Relation},
+    detect::{self, DirCheck, Installed, Relation},
     payload::{PayloadError, Session},
 };
 
@@ -107,30 +107,42 @@ pub fn nsis_args(mode: Mode, dir: &str, shortcuts: Shortcuts) -> String {
 
 /// Re-detects the machine and resolves the directory to install into.
 fn target_dir(request: &InstallRequest) -> Result<String, InstallOutcome> {
-    let installed = detect::read_installed();
-    let relation = installed.as_ref().map(|installed| installed.relation);
-    if relation == Some(Relation::Newer) {
-        return Err(failed(FailReason::Downgrade));
-    }
-    match request.mode {
-        Mode::Update => match (installed, relation) {
-            // An update always goes into the existing directory.
-            (Some(installed), Some(Relation::Older)) => Ok(installed.dir),
-            _ => Err(failed(FailReason::ModeMismatch)),
-        },
-        // An older install is only ever updated in place; installing next to it would
-        // leave its files behind.
-        Mode::Fresh | Mode::Reinstall if relation == Some(Relation::Older) => Err(failed(FailReason::ModeMismatch)),
-        Mode::Fresh | Mode::Reinstall => {
-            let check = detect::check_dir(&request.dir);
-            if check.error.is_some() {
-                return Err(failed(FailReason::InvalidDir));
-            }
-            if check.free_bytes.is_some_and(|free| free < detect::required_bytes()) {
-                return Err(failed(FailReason::InsufficientSpace));
-            }
-            Ok(check.normalized)
+    resolve_target(request.mode, detect::read_installed(), || detect::check_dir(&request.dir), detect::required_bytes())
+}
+
+/// An existing install is never left behind: an older one is only updated in place and a
+/// same-version one only reinstalled in place. Installing next to it would keep its
+/// `slui.exe` and `uninstall.exe`, and that `uninstall.exe` would later delete the
+/// uninstall entry, which then belongs to the new install. `check` (of the requested
+/// directory) runs only when that directory matters.
+fn resolve_target(
+    mode: Mode,
+    installed: Option<Installed>,
+    check: impl FnOnce() -> DirCheck,
+    required_bytes: u64,
+) -> Result<String, InstallOutcome> {
+    let installed = match (mode, installed) {
+        (_, Some(installed)) if installed.relation == Relation::Newer => return Err(failed(FailReason::Downgrade)),
+        // An update always goes into the existing directory.
+        (Mode::Update, Some(installed)) if installed.relation == Relation::Older => return Ok(installed.dir),
+        (Mode::Update, _) | (Mode::Reinstall, None) => return Err(failed(FailReason::ModeMismatch)),
+        (Mode::Fresh | Mode::Reinstall, Some(installed)) if installed.relation == Relation::Older => {
+            return Err(failed(FailReason::ModeMismatch));
         }
+        (Mode::Fresh | Mode::Reinstall, installed) => installed,
+    };
+    let check = check();
+    if check.error.is_some() {
+        return Err(failed(FailReason::InvalidDir));
+    }
+    if check.free_bytes.is_some_and(|free| free < required_bytes) {
+        return Err(failed(FailReason::InsufficientSpace));
+    }
+    match installed {
+        // The registry's `InstallLocation`, as an update uses it.
+        Some(installed) if same_dir(&check.normalized, &installed.dir) => Ok(installed.dir),
+        Some(_) => Err(failed(FailReason::ModeMismatch)),
+        None => Ok(check.normalized),
     }
 }
 
@@ -356,6 +368,68 @@ mod tests {
         assert!(same_dir(r"C:\Program Files\SLUI", r"c:\program files\slui"));
         assert!(same_dir(r"D:\SLUI\", r"D:\SLUI"));
         assert!(!same_dir(r"D:\SLUI", r"D:\SLUI2"));
+    }
+
+    const INSTALLED_DIR: &str = r"D:\Games\SLUI";
+    const GB: u64 = 1 << 30;
+
+    fn installed(relation: Relation) -> Option<Installed> {
+        Some(Installed { version: "0.1.0".into(), dir: INSTALLED_DIR.into(), relation })
+    }
+
+    fn checked(normalized: &str) -> impl FnOnce() -> DirCheck {
+        let normalized = normalized.to_string();
+        move || DirCheck { normalized, free_bytes: Some(GB), error: None }
+    }
+
+    fn unchecked() -> DirCheck {
+        panic!("the requested directory must not matter here")
+    }
+
+    fn mismatch() -> Result<String, InstallOutcome> {
+        Err(failed(FailReason::ModeMismatch))
+    }
+
+    #[test]
+    fn reinstall_stays_in_the_installed_dir() {
+        let same = || installed(Relation::Same);
+        assert_eq!(resolve_target(Mode::Reinstall, same(), checked(INSTALLED_DIR), GB), Ok(INSTALLED_DIR.into()));
+        // Case and a trailing separator do not make another directory; the registry value wins.
+        assert_eq!(resolve_target(Mode::Reinstall, same(), checked(r"d:\games\slui\"), GB), Ok(INSTALLED_DIR.into()));
+        assert_eq!(resolve_target(Mode::Reinstall, same(), checked(r"E:\SLUI"), GB), mismatch());
+        // A fresh install does not leave a same-version install behind either.
+        assert_eq!(resolve_target(Mode::Fresh, same(), checked(r"E:\SLUI"), GB), mismatch());
+        assert_eq!(resolve_target(Mode::Fresh, same(), checked(INSTALLED_DIR), GB), Ok(INSTALLED_DIR.into()));
+        // Nothing left to reinstall.
+        assert_eq!(resolve_target(Mode::Reinstall, None, unchecked, GB), mismatch());
+    }
+
+    #[test]
+    fn older_and_newer_installs_decide_before_the_requested_dir() {
+        assert_eq!(resolve_target(Mode::Update, installed(Relation::Older), unchecked, GB), Ok(INSTALLED_DIR.into()));
+        assert_eq!(resolve_target(Mode::Update, installed(Relation::Same), unchecked, GB), mismatch());
+        assert_eq!(resolve_target(Mode::Update, None, unchecked, GB), mismatch());
+        for mode in [Mode::Fresh, Mode::Reinstall] {
+            assert_eq!(resolve_target(mode, installed(Relation::Older), unchecked, GB), mismatch());
+        }
+        for mode in [Mode::Fresh, Mode::Update, Mode::Reinstall] {
+            assert_eq!(resolve_target(mode, installed(Relation::Newer), unchecked, GB), Err(failed(FailReason::Downgrade)));
+        }
+    }
+
+    #[test]
+    fn fresh_install_goes_into_the_checked_dir() {
+        assert_eq!(resolve_target(Mode::Fresh, None, checked(r"E:\SLUI"), GB), Ok(r"E:\SLUI".into()));
+        let invalid = || DirCheck { normalized: "SLUI".into(), free_bytes: None, error: Some(detect::DirError::NotAbsolute) };
+        assert_eq!(resolve_target(Mode::Fresh, None, invalid, GB), Err(failed(FailReason::InvalidDir)));
+        let full = || DirCheck { normalized: r"E:\SLUI".into(), free_bytes: Some(GB - 1), error: None };
+        assert_eq!(resolve_target(Mode::Fresh, None, full, GB), Err(failed(FailReason::InsufficientSpace)));
+        // A same-version reinstall checks the requested dir too.
+        let same_full = || DirCheck { normalized: INSTALLED_DIR.into(), free_bytes: Some(GB - 1), error: None };
+        assert_eq!(
+            resolve_target(Mode::Reinstall, installed(Relation::Same), same_full, GB),
+            Err(failed(FailReason::InsufficientSpace))
+        );
     }
 
     #[test]

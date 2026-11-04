@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   CANCELLED_NOTICE,
   classify,
+  dirEditable,
   formatBytes,
   initialState,
   optionsGate,
@@ -98,6 +99,17 @@ assert.equal(reinstalled.run.mode, "reinstall");
 assert.equal(reinstalled.run.dir, "D:\\Games\\SLUI");
 assert.equal(apply(reinstalling, ...checked("D:\\Games\\SLUI"), { type: "start", mode: "fresh" }).screen, "welcome",
   "same version never starts a fresh install");
+// The reinstall location is read-only: installing elsewhere would leave the old install behind.
+assert.equal(dirEditable(reinstalling), false, "reinstall keeps the installed dir");
+assert.equal(reduce(reinstalling, { type: "dirChanged", dir: "E:\\SLUI" }), reinstalling, "reinstall ignores a typed dir");
+const movedReinstall = apply(reinstalling, ...checked("E:\\SLUI"), { type: "start", mode: "reinstall" });
+assert.equal(movedReinstall.screen, "welcome", "a check for another dir never starts a reinstall");
+assert.equal(movedReinstall.dir, "D:\\Games\\SLUI");
+for (const relation of ["older", "newer"]) {
+  assert.equal(dirEditable(apply(initialState, { type: "detected", detect: detect(installedAt(relation)) })), false);
+}
+assert.equal(dirEditable(initialState), false, "nothing is editable before detection");
+assert.equal(dirEditable(apply(initialState, { type: "detected", detect: detect() })), true, "fresh install picks a dir");
 
 // Downgrade: nothing can start.
 state = apply(initialState, { type: "detected", detect: detect(installedAt("newer", "0.2.0")) });
@@ -194,4 +206,4 @@ assert.equal(formatBytes(108_921_856), "104 MB");
 assert.equal(formatBytes(186.4 * GB), "186.4 GB");
 assert.equal(formatBytes(0), "0 MB");
 
-console.log("installer model smoke: classify, inline options, shortcuts, reinstall, gate, cancel, failure/retry, unattended update ok");
+console.log("installer model smoke: classify, inline options, shortcuts, reinstall in place, gate, cancel, failure/retry, unattended update ok");
