@@ -10,6 +10,9 @@ mod steam_profile;
 mod theme_pack;
 mod updater;
 
+#[cfg(test)]
+mod command_acl_tests;
+
 #[cfg(windows)]
 use std::sync::{atomic::AtomicIsize, mpsc, OnceLock};
 use std::{

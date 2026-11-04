@@ -82,15 +82,21 @@ fn wait_for_exit(_pid: u32) -> bool {
 
 /// Starts this executable elevated through the UAC prompt. `Err("cancelled")` when the player declined it; on success
 /// this instance exits.
+/// Only the home window may ask: its capability is the only one that grants this command, and the
+/// caller is checked again here in case a capability ever widens.
 #[tauri::command]
-pub async fn relaunch_elevated(app: AppHandle) -> Result<(), String> {
+pub async fn relaunch_elevated(app: AppHandle, webview: tauri::Webview) -> Result<(), String> {
+    if webview.label() != crate::HOME_WINDOW {
+        diag!("SLGO: elevated relaunch refused for window {}", webview.label());
+        return Err("Only the home window can relaunch SLUI elevated".into());
+    }
     #[cfg(windows)]
     {
         use tauri::Manager;
 
         // The prompt belongs to the home window, where the player asked for it.
         let owner = app
-            .get_webview_window("home")
+            .get_webview_window(crate::HOME_WINDOW)
             .and_then(|home| home.hwnd().ok())
             .map_or(0, |hwnd| hwnd.0 as isize);
         diag!("SLGO: elevated relaunch requested");

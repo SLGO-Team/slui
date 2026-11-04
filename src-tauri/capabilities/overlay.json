@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay",
+  "description": "The overlay window only: input and hotkeys, world blur, visibility, the sidecar socket and the identity it proves",
+  "windows": ["overlay"],
+  "permissions": [
+    "core:webview:allow-internal-toggle-devtools",
+    "allow-set-overlay-interactive",
+    "allow-set-overlay-keyboard-focus",
+    "allow-set-overlay-session-live",
+    "allow-set-hotkeys",
+    "allow-set-scoreboard-capture",
+    "allow-get-overlay-visibility",
+    "allow-get-game-foreground",
+    "allow-get-current-steam-identity",
+    "allow-game-log-size",
+    "allow-game-log-read",
+    "allow-set-backdrop-regions",
+    "allow-set-backdrop-options",
+    "allow-get-backdrop-available",
+    "allow-sidecar-open",
+    "allow-sidecar-send",
+    "allow-sidecar-close"
+  ]
+}
