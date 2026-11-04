@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/career-match-detail.schema.json",
+  "title": "Career match detail (GET /v0/matches/{match_id})",
+  "description": "Player refs are indexes into players; parseCareerMatchDetail also checks that they resolve and that rounds increase.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "match_id", "mode", "server_id", "started_at", "ended_at", "duration_ms", "status", "end_reason", "counts_for_career", "score_to_win",
+    "max_rounds", "has_halftime", "winner_side", "score_a", "score_b", "players", "rounds"
+  ],
+  "$defs": {
+    "ref": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/count" }] },
+    "nullable_count": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/count" }] },
+    "nullable_identifier": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/identifier" }] },
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref", "player_id", "nickname", "side", "first_team", "result", "joined_late", "left_early", "rounds_played", "kills", "deaths",
+        "assists", "headshot_kills", "damage", "kast_rounds", "opening_kills", "opening_deaths", "multi_3k", "multi_4k", "multi_5k",
+        "clutch_wins", "flash_assists", "enemies_flashed", "mvps", "money_spent", "adr", "kast"
+      ],
+      "properties": {
+        "ref": { "$ref": "career-common.schema.json#/$defs/count" },
+        "player_id": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/player_id" }] },
+        "nickname": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/text" }] },
+        "side": { "$ref": "career-common.schema.json#/$defs/team_id" },
+        "first_team": { "$ref": "career-common.schema.json#/$defs/role" },
+        "result": { "$ref": "career-common.schema.json#/$defs/match_result" },
+        "joined_late": { "type": "boolean" },
+        "left_early": { "type": "boolean" },
+        "rounds_played": { "$ref": "career-common.schema.json#/$defs/count" },
+        "kills": { "$ref": "career-common.schema.json#/$defs/count" },
+        "deaths": { "$ref": "career-common.schema.json#/$defs/count" },
+        "assists": { "$ref": "career-common.schema.json#/$defs/count" },
+        "headshot_kills": { "$ref": "career-common.schema.json#/$defs/count" },
+        "damage": { "$ref": "career-common.schema.json#/$defs/amount" },
+        "kast_rounds": { "$ref": "career-common.schema.json#/$defs/count" },
+        "opening_kills": { "$ref": "career-common.schema.json#/$defs/count" },
+        "opening_deaths": { "$ref": "career-common.schema.json#/$defs/count" },
+        "multi_3k": { "$ref": "career-common.schema.json#/$defs/count" },
+        "multi_4k": { "$ref": "career-common.schema.json#/$defs/count" },
+        "multi_5k": { "$ref": "career-common.schema.json#/$defs/count" },
+        "clutch_wins": { "$ref": "career-common.schema.json#/$defs/count" },
+        "flash_assists": { "$ref": "career-common.schema.json#/$defs/count" },
+        "enemies_flashed": { "$ref": "career-common.schema.json#/$defs/count" },
+        "mvps": { "$ref": "career-common.schema.json#/$defs/count" },
+        "money_spent": { "$ref": "career-common.schema.json#/$defs/count" },
+        "adr": { "$ref": "career-common.schema.json#/$defs/rate" },
+        "kast": { "$ref": "career-common.schema.json#/$defs/fraction" }
+      }
+    },
+    "kill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["round_ms", "kind", "killer", "victim", "assister", "assist_source", "killer_role", "victim_role", "weapon", "headshot", "opening", "trade", "exit"],
+      "properties": {
+        "round_ms": { "$ref": "#/$defs/nullable_count" },
+        "kind": { "$ref": "career-common.schema.json#/$defs/identifier" },
+        "killer": { "$ref": "#/$defs/ref" },
+        "victim": { "$ref": "#/$defs/ref" },
+        "assister": { "$ref": "#/$defs/ref" },
+        "assist_source": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/assist_source" }] },
+        "killer_role": { "$ref": "#/$defs/nullable_identifier" },
+        "victim_role": { "$ref": "#/$defs/nullable_identifier" },
+        "weapon": { "$ref": "career-common.schema.json#/$defs/identifier" },
+        "headshot": { "type": "boolean" },
+        "opening": { "type": "boolean" },
+        "trade": { "type": "boolean" },
+        "exit": { "type": "boolean" }
+      }
+    },
+    "round": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["round_seq", "round", "half", "ntf_side", "completed", "winner_side", "winner_team", "end_reason", "duration_ms", "score_a", "score_b", "mvp", "mvp_reason", "kills"],
+      "properties": {
+        "round_seq": { "type": "integer", "minimum": 1 },
+        "round": { "$ref": "#/$defs/nullable_count" },
+        "half": { "$ref": "#/$defs/nullable_count" },
+        "ntf_side": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/team_id" }] },
+        "completed": { "type": "boolean" },
+        "winner_side": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/team_id" }] },
+        "winner_team": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/role" }] },
+        "end_reason": { "$ref": "#/$defs/nullable_identifier" },
+        "duration_ms": { "$ref": "#/$defs/nullable_count" },
+        "score_a": { "$ref": "#/$defs/nullable_count" },
+        "score_b": { "$ref": "#/$defs/nullable_count" },
+        "mvp": { "$ref": "#/$defs/ref" },
+        "mvp_reason": { "$ref": "#/$defs/nullable_identifier" },
+        "kills": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/kill" } }
+      }
+    }
+  },
+  "properties": {
+    "match_id": { "$ref": "career-common.schema.json#/$defs/match_id" },
+    "mode": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/mode" }] },
+    "server_id": { "$ref": "career-common.schema.json#/$defs/text" },
+    "started_at": { "$ref": "career-common.schema.json#/$defs/date_time" },
+    "ended_at": { "$ref": "career-common.schema.json#/$defs/date_time" },
+    "duration_ms": { "$ref": "career-common.schema.json#/$defs/count" },
+    "status": { "$ref": "career-common.schema.json#/$defs/match_status" },
+    "end_reason": { "$ref": "#/$defs/nullable_identifier" },
+    "counts_for_career": { "type": "boolean" },
+    "score_to_win": { "$ref": "#/$defs/nullable_count" },
+    "max_rounds": { "$ref": "#/$defs/nullable_count" },
+    "has_halftime": { "type": ["boolean", "null"] },
+    "winner_side": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/team_id" }] },
+    "score_a": { "$ref": "#/$defs/nullable_count" },
+    "score_b": { "$ref": "#/$defs/nullable_count" },
+    "players": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/player" } },
+    "rounds": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/round" } }
+  }
+}

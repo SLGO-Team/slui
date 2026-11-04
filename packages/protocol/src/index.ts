@@ -730,7 +730,8 @@ export type ParseErrorCode =
   | "unauthorized"
   | "not-in-game"
   | "rate-limited"
-  | "invalid-update-manifest";
+  | "invalid-update-manifest"
+  | "invalid-career";
 
 export type ParseError = { code: ParseErrorCode; message: string; eventId?: string };
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: ParseError };
@@ -1696,3 +1697,5 @@ export class EventSequenceGuard {
     return { ok: true, value: event };
   }
 }
+
+export * from "./career.ts";

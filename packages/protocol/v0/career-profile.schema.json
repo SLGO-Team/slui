@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/career-profile.schema.json",
+  "title": "Career profile (GET /v0/players/{player_id})",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["player_id", "nickname", "mode", "modes", "first_match_at", "last_match_at", "unfinished", "left_early", "overall", "ntf", "scp", "scp_roles", "weapons"],
+  "properties": {
+    "player_id": { "$ref": "career-common.schema.json#/$defs/player_id" },
+    "nickname": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/text" }] },
+    "mode": { "$ref": "career-common.schema.json#/$defs/mode" },
+    "modes": { "type": "array", "maxItems": 64, "items": { "$ref": "career-common.schema.json#/$defs/mode" } },
+    "first_match_at": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/date_time" }] },
+    "last_match_at": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/date_time" }] },
+    "unfinished": { "$ref": "career-common.schema.json#/$defs/count" },
+    "left_early": { "$ref": "career-common.schema.json#/$defs/count" },
+    "overall": { "$ref": "career-common.schema.json#/$defs/stats" },
+    "ntf": { "$ref": "career-common.schema.json#/$defs/stats" },
+    "scp": { "$ref": "career-common.schema.json#/$defs/stats" },
+    "scp_roles": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "rounds", "rounds_won", "kills", "deaths", "damage", "adr"],
+        "properties": {
+          "role": { "$ref": "career-common.schema.json#/$defs/identifier" },
+          "rounds": { "$ref": "career-common.schema.json#/$defs/count" },
+          "rounds_won": { "$ref": "career-common.schema.json#/$defs/count" },
+          "kills": { "$ref": "career-common.schema.json#/$defs/count" },
+          "deaths": { "$ref": "career-common.schema.json#/$defs/count" },
+          "damage": { "$ref": "career-common.schema.json#/$defs/amount" },
+          "adr": { "$ref": "career-common.schema.json#/$defs/rate" }
+        }
+      }
+    },
+    "weapons": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["weapon", "kills", "headshot_kills"],
+        "properties": {
+          "weapon": { "$ref": "career-common.schema.json#/$defs/identifier" },
+          "kills": { "$ref": "career-common.schema.json#/$defs/count" },
+          "headshot_kills": { "$ref": "career-common.schema.json#/$defs/count" }
+        }
+      }
+    }
+  }
+}

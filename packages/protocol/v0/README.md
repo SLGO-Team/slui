@@ -611,6 +611,46 @@ file, verified by SLUI against the public key it was built with. Versions are pl
 `min_version` may not exceed `version`. SLUI treats any failure here as "no update" and keeps
 working.
 
+## Career API
+
+Public, read-only match history built by the control plane from its match warehouse
+(`src/career.ts`). No credentials are sent or accepted; any client may query any player.
+Only settled matches are ever served, so nothing about a match in progress leaks through it.
+
+| Request | 200 body | Parser |
+|---|---|---|
+| `GET {control_plane}/v0/players/{player_id}?mode=` | [career-profile.schema.json](./career-profile.schema.json) | `parseCareerProfile` |
+| `GET {control_plane}/v0/players/{player_id}/matches?mode=&limit=&cursor=` | [career-match-list.schema.json](./career-match-list.schema.json) | `parseCareerMatchList` |
+| `GET {control_plane}/v0/matches/{match_id}` | [career-match-detail.schema.json](./career-match-detail.schema.json) | `parseCareerMatchDetail` |
+
+Shared definitions are in [career-common.schema.json](./career-common.schema.json).
+
+- `player_id` is the account id the game reports: a SteamID64, or `id@provider` for other
+  providers (`isCareerPlayerId`); percent-encode it in the path. Players who play with
+  do-not-track, test bots and erased players have no career: their profile is a 404, and in a
+  match detail they appear with `player_id: null` (and usually `nickname: null`).
+- `mode` is `all` (default) or a mode profile id such as `competitive`; an unknown mode gives
+  zero totals rather than an error. `modes` lists the modes the player has counted matches in.
+- Totals cover counted matches only (finished, with complete data); `unfinished` counts the
+  others. Rates are computed by the server and are `null` when their denominator is 0 (no
+  deaths, no rounds, no shots).
+- Matches are newest first. `limit` is 1-50 (default 20); pass `next_cursor` back as `cursor`
+  for the next page, `null` means the last page. Cursors are opaque.
+- A match detail exists only for matches with complete data. `players[].ref` is the player's
+  index; round MVPs and kills refer to players by it, `null` when the player did not take part
+  (environment deaths, mid-round spawns).
+- `kind`, `weapon`, roles, `end_reason` and `mvp_reason` pass through the server's values; the
+  known ones are listed as `CAREER_*` constants and clients must show unknown ones generically.
+
+| HTTP | Body ([career-error.schema.json](./career-error.schema.json), `parseCareerError`) | Meaning |
+|---|---|---|
+| 400 | `invalid-request` | malformed id, mode, limit or cursor |
+| 404 | `not-found` | no such player or match (or not served, see above) |
+| 429 | `rate-limited` | too many requests from this address; retry with backoff |
+| 503 | `unavailable` | the warehouse is not configured or not reachable; retry later |
+
+Successful responses may be cached for 60 seconds; errors are not cached.
+
 ## Sidecar session handshake
 
 The client opens a WebSocket to the route's `sidecar_endpoint`. Its first text
