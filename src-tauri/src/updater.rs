@@ -8,8 +8,14 @@
 //! started with `--update --after-pid <pid>`, and SLUI exits. The installer waits for this
 //! process, installs elevated and starts the new SLUI.
 //!
+//! The manifest address is fixed by the build: `controlPlaneUrl` of the embedded
+//! `slui-build.json`, which the Vite build that produced this frontend writes from
+//! VITE_CONTROL_PLANE_URL (scripts/vite-build-info.mjs). `tauri dev` embeds no frontend and reads
+//! `dist/` instead, so it checks whatever the last `vite build` was built for.
+//!
 //! Failures are quiet (fail-open): they show in the home window's version tile and the
-//! next check retries. Nothing here ever blocks SLUI.
+//! next check retries. Nothing here ever blocks SLUI. A newer release that fails to download or
+//! verify leaves an already verified older one installable.
 
 use std::{
     fs,
@@ -21,7 +27,7 @@ use std::{
 };
 
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuItem},
     AppHandle, Emitter, Manager, Url, Wry,
@@ -46,6 +52,12 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 /// A download that stops receiving data for this long fails; a slow one keeps going.
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
+/// The whole installer is held in memory until its signature is checked; a download past this
+/// size (the installer is about 30 MB) is aborted rather than read to the end.
+const MAX_INSTALLER_BYTES: u64 = 150 * 1024 * 1024;
+
+/// Written by the Vite build next to index.html and embedded with it (scripts/vite-build-info.mjs).
+const BUILD_INFO_FILE: &str = "slui-build.json";
 
 const TEMP_PREFIX: &str = "slui-update-";
 const TEMP_SUFFIX_DIGITS: usize = 16;
@@ -55,10 +67,13 @@ const TEMP_SUFFIX_DIGITS: usize = 16;
 pub enum FailReason {
     /// Unreachable endpoint, bad response or interrupted download.
     Network,
-    /// The installer's signature does not match the built-in key or the announced version.
+    /// The installer's signature does not match the built-in key or the announced version, or
+    /// the download is larger than any installer (MAX_INSTALLER_BYTES).
     Signature,
     /// The verified installer could not be written or started.
     Launch,
+    /// Update checks could not start: this build has no valid control-plane address.
+    Unavailable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -90,6 +105,7 @@ pub struct UpdateState {
 /// A verified installer held in memory.
 struct Verified {
     version: String,
+    notes: Option<String>,
     bytes: Arc<Vec<u8>>,
 }
 
@@ -138,7 +154,9 @@ impl Machine {
         self.verified = None;
     }
 
-    /// A newer release; returns whether it still has to be downloaded.
+    /// A newer release; returns whether it still has to be downloaded. An older verified
+    /// installer stays until the new one is verified, so a failed download can fall back to it;
+    /// one at least as new as the announced release was withdrawn and is dropped.
     fn update_found(&mut self, version: &str, notes: Option<String>, min_version: Option<&str>, now: u64) -> bool {
         if self.installing() {
             return false;
@@ -149,7 +167,9 @@ impl Machine {
             self.state.phase = Phase::Ready { version: version.to_owned(), notes };
             return false;
         }
-        self.verified = None;
+        if self.verified.as_ref().is_some_and(|verified| !is_older(&verified.version, version)) {
+            self.verified = None;
+        }
         self.state.phase = Phase::Downloading { version: version.to_owned(), received: 0, total: None };
         true
     }
@@ -161,19 +181,30 @@ impl Machine {
     }
 
     fn downloaded(&mut self, version: String, notes: Option<String>, bytes: Vec<u8>) {
-        self.state.phase = Phase::Ready { version: version.clone(), notes };
-        self.verified = Some(Verified { version, bytes: Arc::new(bytes) });
+        self.state.phase = Phase::Ready { version: version.clone(), notes: notes.clone() };
+        self.verified = Some(Verified { version, notes, bytes: Arc::new(bytes) });
     }
 
-    /// `required` keeps its last known value. A failed re-check of a ready update keeps it
-    /// ready: the verified installer is still valid.
+    /// `required` keeps its last known value. A verified installer stays installable: a failed
+    /// re-check keeps it ready, and a newer release that fails to download falls back to it.
     fn check_failed(&mut self, reason: FailReason, now: u64) {
         if self.installing() {
             return;
         }
         self.state.last_checked = Some(now);
-        if !matches!(self.state.phase, Phase::Ready { .. }) {
-            self.state.phase = Phase::Failed { reason };
+        if matches!(self.state.phase, Phase::Ready { .. }) {
+            return;
+        }
+        self.state.phase = match &self.verified {
+            Some(verified) => Phase::Ready { version: verified.version.clone(), notes: verified.notes.clone() },
+            None => Phase::Failed { reason },
+        };
+    }
+
+    /// The check loop could not start (see `updater_start`).
+    fn unavailable(&mut self) {
+        if !self.installing() {
+            self.state.phase = Phase::Failed { reason: FailReason::Unavailable };
         }
     }
 
@@ -186,11 +217,20 @@ impl Machine {
         Some(install)
     }
 
-    /// The installer did not start; the verified bytes stay, so a retry check makes the
-    /// same version ready again without downloading it.
+    /// The installer did not start. The failure shows (a ready button would hide it); the
+    /// verified bytes stay, so the retry check makes the same version ready again without
+    /// downloading it, or falls back to it when that check fails.
     fn install_failed(&mut self) {
         self.state.phase = Phase::Failed { reason: FailReason::Launch };
     }
+}
+
+/// Whether `version` is a lower release than `than`; unparsable versions are never older.
+fn is_older(version: &str, than: &str) -> bool {
+    matches!(
+        (semver::Version::parse(version), semver::Version::parse(than)),
+        (Ok(version), Ok(than)) if version < than
+    )
 }
 
 /// `min_version` when the running version is below it. A missing or malformed value
@@ -317,53 +357,97 @@ fn state(app: &AppHandle) -> UpdateState {
     machine.state.clone()
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BuildInfo {
+    control_plane_url: String,
+}
+
+/// `controlPlaneUrl` of slui-build.json. A missing file resolves to index.html, which fails here too.
+fn parse_build_info(bytes: &[u8]) -> Result<String, String> {
+    serde_json::from_slice::<BuildInfo>(bytes)
+        .map(|info| info.control_plane_url)
+        .map_err(|error| format!("{BUILD_INFO_FILE} is missing or unreadable: {error}"))
+}
+
+/// `{control_plane_url}/v0/update`, under the client's own rule (src/platform/backend.ts): https,
+/// or plain http only on this machine.
 fn update_endpoint(control_plane_url: &str) -> Result<Url, String> {
     let base = control_plane_url.trim().trim_end_matches('/');
     let url = Url::parse(&format!("{base}{UPDATE_PATH}")).map_err(|error| format!("Invalid control plane URL: {error}"))?;
+    let loopback = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
     match url.scheme() {
-        "https" | "http" => Ok(url),
+        "https" => Ok(url),
+        "http" if loopback => Ok(url),
+        "http" => Err("A plain http control plane URL must be on this machine".into()),
         scheme => Err(format!("Unsupported control plane URL scheme {scheme}")),
     }
 }
 
-/// Starts the check loop against `{control_plane_url}/v0/update`. Called by the home window
-/// on startup (never in mock mode); later calls only return the state.
+fn build_updater(app: &AppHandle) -> Result<(tauri_plugin_updater::Updater, Url), String> {
+    let asset = app
+        .asset_resolver()
+        .get(BUILD_INFO_FILE.into())
+        .ok_or_else(|| format!("{BUILD_INFO_FILE} is not in this build"))?;
+    let endpoint = update_endpoint(&parse_build_info(&asset.bytes)?)?;
+    let plugin = app
+        .updater_builder()
+        .target(UPDATE_PLATFORM)
+        .endpoints(vec![endpoint.clone()])
+        .map_err(|error| format!("Update endpoint rejected: {error}"))?
+        .timeout(CHECK_TIMEOUT)
+        .configure_client(|client| client.connect_timeout(CONNECT_TIMEOUT).read_timeout(READ_TIMEOUT))
+        .build()
+        .map_err(|error| format!("Updater unavailable: {error}"))?;
+    Ok((plugin, endpoint))
+}
+
+/// Starts the check loop against this build's control plane (see the module comment). Called by
+/// the home window on startup (never in mock mode); later calls only return the state. A failure
+/// is logged and shows as `Failed { Unavailable }`; the next call tries again.
 #[tauri::command]
-pub fn updater_start(app: AppHandle, control_plane_url: String) -> Result<UpdateState, String> {
+pub fn updater_start(app: AppHandle) -> Result<UpdateState, String> {
     {
         let updater = app.state::<Updater>();
         let mut started = updater.started.lock().map_err(|_| "Update state unavailable")?;
         if *started {
             return Ok(state(&app));
         }
-        let endpoint = update_endpoint(&control_plane_url)?;
-        let plugin = app
-            .updater_builder()
-            .target(UPDATE_PLATFORM)
-            .endpoints(vec![endpoint.clone()])
-            .map_err(|error| format!("Update endpoint rejected: {error}"))?
-            .timeout(CHECK_TIMEOUT)
-            .configure_client(|client| client.connect_timeout(CONNECT_TIMEOUT).read_timeout(READ_TIMEOUT))
-            .build()
-            .map_err(|error| format!("Updater unavailable: {error}"))?;
-        *started = true;
-        diag!("SLGO: update checks against {endpoint}");
-        let handle = app.clone();
-        tauri::async_runtime::spawn(async move { run(handle, plugin).await });
+        match build_updater(&app) {
+            Ok((plugin, endpoint)) => {
+                *started = true;
+                diag!("SLGO: update checks against {endpoint}");
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move { run(handle, plugin).await });
+            }
+            Err(error) => {
+                drop(started);
+                diag!("SLGO: update checks not started: {error}");
+                transition(&app, Machine::unavailable);
+                return Err(error);
+            }
+        }
     }
     Ok(state(&app))
 }
 
 /// Checks now (the version tile's retry); ignored while a check, download or install runs.
+/// Refused when the checks never started, which the version tile already shows.
 #[tauri::command]
-pub fn updater_check_now(app: AppHandle) {
+pub fn updater_check_now(app: AppHandle) -> Result<(), String> {
+    let updater = app.state::<Updater>();
+    if !updater.started.lock().is_ok_and(|started| *started) {
+        diag!("SLGO: update check requested, but update checks are not running");
+        return Err("Update checks are not running".into());
+    }
     let busy = matches!(
         state(&app).phase,
         Phase::Checking | Phase::Downloading { .. } | Phase::Installing { .. }
     );
     if !busy {
-        app.state::<Updater>().wake.notify_one();
+        updater.wake.notify_one();
     }
+    Ok(())
 }
 
 #[tauri::command]
@@ -494,18 +578,28 @@ async fn check(app: &AppHandle, plugin: &tauri_plugin_updater::Updater) {
     diag!("SLGO: downloading update {}", update.version);
     let mut received = 0_u64;
     let mut last_report = Instant::now();
-    let result = update
-        .download(
-            |chunk, total| {
-                received += chunk as u64;
-                if last_report.elapsed() >= PROGRESS_INTERVAL {
-                    last_report = Instant::now();
-                    transition(app, |machine| machine.progress(received, total));
-                }
-            },
-            || {},
-        )
-        .await;
+    // The plugin collects the whole body before verifying it; dropping its future ends the request.
+    let too_large = Notify::new();
+    let download = update.download(
+        |chunk, total| {
+            received += chunk as u64;
+            if exceeds_installer_limit(received, total) {
+                too_large.notify_one();
+            } else if last_report.elapsed() >= PROGRESS_INTERVAL {
+                last_report = Instant::now();
+                transition(app, |machine| machine.progress(received, total));
+            }
+        },
+        || {},
+    );
+    let result = tokio::select! {
+        result = download => result,
+        () = too_large.notified() => {
+            diag!("SLGO: update {} is larger than {MAX_INSTALLER_BYTES} bytes; download aborted", update.version);
+            transition(app, |machine| machine.check_failed(FailReason::Signature, now_ms()));
+            return;
+        }
+    };
     match result {
         Ok(bytes) => {
             diag!("SLGO: update {} verified ({} bytes)", update.version, bytes.len());
@@ -517,6 +611,11 @@ async fn check(app: &AppHandle, plugin: &tauri_plugin_updater::Updater) {
             transition(app, |machine| machine.check_failed(reason, now_ms()));
         }
     }
+}
+
+/// Whether a download has passed MAX_INSTALLER_BYTES, or announces that it will.
+fn exceeds_installer_limit(received: u64, total: Option<u64>) -> bool {
+    received > MAX_INSTALLER_BYTES || total.is_some_and(|total| total > MAX_INSTALLER_BYTES)
 }
 
 fn fail_reason(error: &tauri_plugin_updater::Error) -> FailReason {
@@ -576,9 +675,69 @@ mod tests {
         assert!(matches!(machine.state.phase, Phase::Ready { .. }), "and stays visible meanwhile");
         assert!(!machine.update_found("0.8.0", None, None, 2));
         assert!(matches!(machine.state.phase, Phase::Ready { .. }));
-        // A newer release replaces it.
+        // A newer release is downloaded; the verified one stays until it is replaced.
         assert!(machine.update_found("0.9.0", None, None, 3));
+        machine.downloaded("0.9.0".into(), None, vec![9]);
+        assert_eq!(machine.verified.as_ref().map(|verified| verified.version.as_str()), Some("0.9.0"));
+    }
+
+    #[test]
+    fn a_failed_newer_release_falls_back_to_the_verified_one() {
+        // 0.7.0 must update to 0.8.0, which is ready; 0.9.0 is announced but never verifies.
+        let mut machine = Machine::new("0.7.0".into());
+        assert!(machine.begin_check());
+        assert!(machine.update_found("0.8.0", Some("eight".into()), Some("0.8.0"), 1));
+        machine.downloaded("0.8.0".into(), Some("eight".into()), vec![8]);
+        for reason in [FailReason::Network, FailReason::Signature] {
+            assert!(machine.begin_check());
+            assert!(machine.update_found("0.9.0", None, Some("0.8.0"), 2), "0.9.0 is downloaded");
+            assert_eq!(machine.state.phase, Phase::Downloading { version: "0.9.0".into(), received: 0, total: None });
+            machine.check_failed(reason, 3);
+            assert_eq!(machine.state.phase, Phase::Ready { version: "0.8.0".into(), notes: Some("eight".into()) });
+            assert_eq!(machine.state.required.as_deref(), Some("0.8.0"));
+            let (version, bytes) = machine.begin_install().expect("0.8.0 still installs");
+            assert_eq!((version.as_str(), bytes.as_slice()), ("0.8.0", [8].as_slice()));
+            machine.install_failed();
+        }
+        // After a failed launch, a failing re-check also comes back to it.
+        assert!(machine.begin_check());
+        machine.check_failed(FailReason::Network, 4);
+        assert!(matches!(&machine.state.phase, Phase::Ready { version, .. } if version == "0.8.0"));
+    }
+
+    #[test]
+    fn an_announced_release_older_than_the_verified_one_drops_it() {
+        let mut machine = Machine::new("0.7.0".into());
+        ready(&mut machine, "0.9.0");
+        assert!(machine.begin_check());
+        assert!(machine.update_found("0.8.0", None, None, 2), "0.9.0 was withdrawn for 0.8.0");
         assert!(machine.verified.is_none());
+        machine.check_failed(FailReason::Network, 3);
+        assert_eq!(machine.state.phase, Phase::Failed { reason: FailReason::Network });
+    }
+
+    #[test]
+    fn checks_that_cannot_start_show_as_unavailable() {
+        let mut machine = Machine::new("0.7.0".into());
+        machine.unavailable();
+        assert_eq!(machine.state.phase, Phase::Failed { reason: FailReason::Unavailable });
+        assert_eq!(serde_json::to_value(&machine.state.phase).unwrap(), serde_json::json!({ "kind": "failed", "reason": "unavailable" }));
+    }
+
+    #[test]
+    fn the_control_plane_comes_from_the_build_info() {
+        assert_eq!(parse_build_info(br#"{"controlPlaneUrl":"https://cp.example.test"}"#).unwrap(), "https://cp.example.test");
+        // A build without the file resolves to index.html.
+        assert!(parse_build_info(b"<!doctype html><html></html>").is_err());
+        assert!(parse_build_info(br#"{"controlPlaneUrl":null}"#).is_err());
+    }
+
+    #[test]
+    fn downloads_past_the_installer_limit_are_refused() {
+        assert!(!exceeds_installer_limit(30 << 20, Some(30 << 20)));
+        assert!(!exceeds_installer_limit(MAX_INSTALLER_BYTES, None));
+        assert!(exceeds_installer_limit(MAX_INSTALLER_BYTES + 1, None), "without a Content-Length");
+        assert!(exceeds_installer_limit(1, Some(MAX_INSTALLER_BYTES + 1)), "announced up front");
     }
 
     #[test]
@@ -665,10 +824,12 @@ mod tests {
         installing(&mut machine);
         machine.check_failed(FailReason::Network, 2);
         assert_eq!(machine.state, expected);
-        // A failed launch still shows, and later results apply again.
+        // A failed launch still shows, and later results apply again: a failed check falls back
+        // to the verified installer.
         machine.install_failed();
+        assert_eq!(machine.state.phase, Phase::Failed { reason: FailReason::Launch });
         machine.check_failed(FailReason::Network, 3);
-        assert_eq!(machine.state.phase, Phase::Failed { reason: FailReason::Network });
+        assert_eq!(machine.state.phase, Phase::Ready { version: "0.8.0".into(), notes: None });
     }
 
     #[test]
@@ -770,6 +931,10 @@ mod tests {
         assert_eq!(update_endpoint("https://cp.example.test").unwrap().as_str(), "https://cp.example.test/v0/update");
         assert_eq!(update_endpoint("https://cp.example.test/").unwrap().as_str(), "https://cp.example.test/v0/update");
         assert_eq!(update_endpoint("http://127.0.0.1:7800").unwrap().as_str(), "http://127.0.0.1:7800/v0/update");
+        assert_eq!(update_endpoint("http://localhost:7800").unwrap().as_str(), "http://localhost:7800/v0/update");
+        assert_eq!(update_endpoint("http://[::1]:7800").unwrap().as_str(), "http://[::1]:7800/v0/update");
+        assert!(update_endpoint("http://cp.example.test").is_err(), "plain http only on this machine");
+        assert!(update_endpoint("http://192.0.2.1:7800").is_err());
         assert!(update_endpoint("ftp://cp.example.test").is_err());
         assert!(update_endpoint("not a url").is_err());
     }

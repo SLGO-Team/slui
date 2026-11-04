@@ -82,14 +82,15 @@ jobs:
           npm run installer:build
       # minisign signature checked by SLUI's updater (src-tauri/src/updater.rs) against the
       # public key in tauri.conf.json. The signed comment carries the file name, which the
-      # updater requires to be exactly SLUI-Setup-<manifest version>.exe, so sign that file.
+      # updater requires to be exactly SLUI-Setup-<manifest version>.exe, so sign that file,
+      # and the version (--app-version), which requireSignedVersion requires to be the manifest's.
       - name: Sign installer for the updater
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          npx tauri signer sign "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe"
+          npx tauri signer sign --app-version "$VERSION" "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe"
           test -s "src-tauri/target/release/bundle/setup/SLUI-Setup-$VERSION.exe.sig"
       # Re-running this job replaces the assets. gh finds draft releases by tag.
       - name: Upload to the draft release
