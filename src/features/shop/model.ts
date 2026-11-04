@@ -165,7 +165,10 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
   if (action.type === "connection") {
     if (endsMatch(action.status)) return { ...initialShopState, connectionStatus: action.status };
     const next = { ...state, connectionStatus: action.status };
-    if (action.status === "offline" || action.status === "not-in-game" || action.status === "unauthorized") return abandonPending(next);
+    // Only a live or stale stream can still answer: any other status means the socket the commands
+    // went out on is gone (a re-route from stale passes through connecting without going offline),
+    // and a command left pending would block its card until the player disconnects.
+    if (action.status !== "live" && action.status !== "stale") return abandonPending(next);
     return next;
   }
 
@@ -191,10 +194,13 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
     const target = shopCommandTarget(action.command);
     if (Object.values(state.pending).some((candidate) => candidate.target === target)) return state;
     const pending: ShopPendingCommand = { command: action.command, target, sentAtMs: action.sentAtMs, state: "pending" };
+    // One record per target: the new command replaces the target's finished one (rejected, failed,
+    // abandoned...), so a card shows its latest outcome and the map stays bounded over a long session.
+    const commands = Object.fromEntries(Object.entries(state.commands).filter(([, record]) => record.target !== target));
     return {
       ...state,
       pending: { ...state.pending, [action.command.command_id]: pending },
-      commands: { ...state.commands, [action.command.command_id]: { state: "pending", target, sentAtMs: action.sentAtMs } },
+      commands: { ...commands, [action.command.command_id]: { state: "pending", target, sentAtMs: action.sentAtMs } },
       failureReason: null,
     };
   }
@@ -268,7 +274,12 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
   };
   const commands = { ...state.commands };
   for (const [id, record] of Object.entries(commands)) if (record.state === "success") commands[id] = { ...record, state: "idle" };
-  return { ...state, sequence: event.sequence, restartPending: false, lastEventReceivedAtMs: receivedAtMs, frame, commands };
+  // A timed-out command waits for its late result only until the next snapshot: the snapshot already
+  // shows whether it took effect, and a result that never comes must not block the card for the match.
+  // Its timedOut record stays, and a result arriving after this is ignored.
+  const pending = { ...state.pending };
+  for (const [id, command] of Object.entries(pending)) if (command.state === "timedOut") delete pending[id];
+  return { ...state, sequence: event.sequence, restartPending: false, lastEventReceivedAtMs: receivedAtMs, frame, commands, pending };
 }
 
 function availabilityForState(state: ShopState, nowMs: number): ShopAvailability {

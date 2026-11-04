@@ -68,6 +68,45 @@ assert.equal(selectShop(state, 1_000).hasSnapshot, true, "offline keeps last aut
   }
 }
 
+// A command that can no longer be answered never blocks its card for the rest of the match.
+{
+  const live = (() => {
+    let next = shopReducer(initialShopState, { type: "connection", status: "live" });
+    next = shopReducer(next, { type: "event", event: baseline, receivedAtMs: 1_000 });
+    return shopReducer(next, { type: "event", event: snapshot, receivedAtMs: 1_000 });
+  })();
+  const purchase = createPurchaseCommand("armor");
+  const sent = shopReducer(live, { type: "command", command: purchase, sentAtMs: 1_000 });
+
+  // A re-route from stale passes through connecting: the old socket's result never comes.
+  for (const status of ["connecting", "route-pending", "baseline-required"]) {
+    const rerouted = shopReducer(shopReducer(sent, { type: "connection", status: "stale" }), { type: "connection", status });
+    assert.deepEqual(rerouted.pending, {}, `${status} abandons the in-flight command`);
+    assert.equal(rerouted.commands[purchase.command_id]?.state, "abandoned");
+  }
+  assert.equal(Object.keys(shopReducer(sent, { type: "connection", status: "stale" }).pending).length, 1, "stale may still answer");
+
+  // A timed-out command waits for its late result only until the next snapshot.
+  const timedOut = shopReducer(sent, { type: "tick", nowMs: 1_000 + SHOP_COMMAND_TIMEOUT_MS + 1 });
+  assert.equal(selectShop(timedOut, 7_000).items[0].disabled, true, "a timed-out command still blocks before a snapshot");
+  const later = shopReducer(timedOut, { type: "event", event: { ...snapshot, sequence: 3, event_id: "shop-3" }, receivedAtMs: 7_000 });
+  assert.deepEqual(later.pending, {}, "the next snapshot retires the timed-out command");
+  assert.equal(later.commands[purchase.command_id]?.state, "timedOut", "its record stays");
+  assert.equal(selectShop(later, 7_000).items[0].disabled, false, "the card can be bought again");
+  const late = shopReducer(later, { type: "command-result", result: { command_id: purchase.command_id, command_kind: purchase.kind, status: "accepted" } });
+  assert.equal(late, later, "a result after that is ignored");
+
+  // One record per target: a newer command replaces the finished one, so the card shows its latest outcome.
+  const rejected = shopReducer(sent, { type: "command-result", result: { command_id: purchase.command_id, command_kind: purchase.kind, status: "rejected", reason: "余额不足" } });
+  assert.equal(selectShop(rejected, 1_000).items[0].commandState, "rejected");
+  const retry = createPurchaseCommand("armor");
+  let retried = shopReducer(rejected, { type: "command", command: retry, sentAtMs: 2_000 });
+  assert.equal(retried.commands[purchase.command_id], undefined, "the rejected record is replaced");
+  assert.equal(Object.keys(retried.commands).length, 1, "commands stay bounded per target");
+  retried = shopReducer(retried, { type: "command-result", result: { command_id: retry.command_id, command_kind: retry.kind, status: "accepted" } });
+  assert.equal(selectShop(retried, 2_000).items[0].commandState, "success", "a success after a rejection plays as a success");
+}
+
 // Owning an item is display-only: a held but still purchasable item (second flashbang) is buyable
 // from both the click and the number-key path; only the plugin's purchasable flag blocks it.
 {
