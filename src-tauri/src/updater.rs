@@ -119,9 +119,19 @@ impl Machine {
         }
     }
 
+    /// Whether the installer is being started. A re-check of a ready update runs alongside
+    /// the install button, so its result can arrive after the click; it must then change
+    /// nothing, or it would re-enable the button (a second installer) or hide a failed launch.
+    fn installing(&self) -> bool {
+        matches!(self.state.phase, Phase::Installing { .. })
+    }
+
     /// `204`, or a manifest that is not newer: the manifest's `min_version` is at most its
     /// `version`, so nothing is required either. A withdrawn update is dropped.
     fn no_update(&mut self, now: u64) {
+        if self.installing() {
+            return;
+        }
         self.state.phase = Phase::Idle;
         self.state.required = None;
         self.state.last_checked = Some(now);
@@ -130,6 +140,9 @@ impl Machine {
 
     /// A newer release; returns whether it still has to be downloaded.
     fn update_found(&mut self, version: &str, notes: Option<String>, min_version: Option<&str>, now: u64) -> bool {
+        if self.installing() {
+            return false;
+        }
         self.state.required = required_version(&self.state.current, min_version);
         self.state.last_checked = Some(now);
         if self.verified.as_ref().is_some_and(|verified| verified.version == version) {
@@ -155,6 +168,9 @@ impl Machine {
     /// `required` keeps its last known value. A failed re-check of a ready update keeps it
     /// ready: the verified installer is still valid.
     fn check_failed(&mut self, reason: FailReason, now: u64) {
+        if self.installing() {
+            return;
+        }
         self.state.last_checked = Some(now);
         if !matches!(self.state.phase, Phase::Ready { .. }) {
             self.state.phase = Phase::Failed { reason };
@@ -210,10 +226,14 @@ fn is_temp_dir_name(name: &str) -> bool {
 /// (`timestamp:<n>\tfile:<name>`). minisign's global signature covers that comment, so once
 /// the plugin has verified the download it proves which release the bytes are; the manifest's
 /// `version` alone is unsigned and could pair a newer number with an older installer.
+///
+/// The comment is read only where minisign-verify's `Signature::decode` reads it: the third
+/// line. The first line is the untrusted comment, outside the signature and never checked for
+/// its prefix, so a `trusted comment: ` there would let an old signed installer claim any name.
 fn signed_file_name(signature: &str) -> Option<String> {
     let decoded = base64::engine::general_purpose::STANDARD.decode(signature.trim()).ok()?;
     let text = String::from_utf8(decoded).ok()?;
-    let comment = text.lines().find_map(|line| line.strip_prefix("trusted comment: "))?;
+    let comment = text.lines().nth(2)?.strip_prefix("trusted comment: ")?;
     comment.split('\t').find_map(|field| field.strip_prefix("file:")).map(str::to_owned)
 }
 
@@ -614,6 +634,44 @@ mod tests {
     }
 
     #[test]
+    fn a_late_check_result_keeps_installing() {
+        let installing = |machine: &mut Machine| {
+            ready(machine, "0.8.0");
+            assert!(machine.begin_check(), "the periodic re-check starts while ready");
+            assert!(machine.begin_install().is_some(), "and the player clicks install meanwhile");
+        };
+        let expected = UpdateState {
+            current: "0.7.0".into(),
+            phase: Phase::Installing { version: "0.8.0".into() },
+            required: None,
+            last_checked: Some(1),
+        };
+
+        let mut machine = Machine::new("0.7.0".into());
+        installing(&mut machine);
+        assert!(!machine.update_found("0.8.0", None, Some("0.8.0"), 2), "nothing to download");
+        assert_eq!(machine.state, expected);
+        assert!(!machine.update_found("0.9.0", None, None, 3), "not even a newer release");
+        assert_eq!(machine.state, expected);
+        assert!(machine.begin_install().is_none(), "no second installer");
+
+        let mut machine = Machine::new("0.7.0".into());
+        installing(&mut machine);
+        machine.no_update(2);
+        assert_eq!(machine.state, expected);
+        assert!(machine.verified.is_some());
+
+        let mut machine = Machine::new("0.7.0".into());
+        installing(&mut machine);
+        machine.check_failed(FailReason::Network, 2);
+        assert_eq!(machine.state, expected);
+        // A failed launch still shows, and later results apply again.
+        machine.install_failed();
+        machine.check_failed(FailReason::Network, 3);
+        assert_eq!(machine.state.phase, Phase::Failed { reason: FailReason::Network });
+    }
+
+    #[test]
     fn busy_phases_refuse_a_second_check() {
         let mut machine = Machine::new("0.7.0".into());
         assert!(machine.begin_check());
@@ -686,9 +744,25 @@ mod tests {
         let text = "untrusted comment: signature from tauri secret key\nRUT=\ntrusted comment: timestamp:1792406090\tfile:SLUI-Setup-0.8.0.exe\nAAAA==\n";
         let signature = base64::engine::general_purpose::STANDARD.encode(text);
         assert_eq!(signed_file_name(&signature).as_deref(), Some("SLUI-Setup-0.8.0.exe"));
-        let unnamed = base64::engine::general_purpose::STANDARD.encode("trusted comment: timestamp:1\n");
+        let unnamed = "untrusted comment: signature from tauri secret key\nRUT=\ntrusted comment: timestamp:1\nAAAA==\n";
+        let unnamed = base64::engine::general_purpose::STANDARD.encode(unnamed);
         assert_eq!(signed_file_name(&unnamed), None);
+        let misplaced = "trusted comment: timestamp:1\tfile:SLUI-Setup-0.8.0.exe\n";
+        let misplaced = base64::engine::general_purpose::STANDARD.encode(misplaced);
+        assert_eq!(signed_file_name(&misplaced), None, "only the third line is the trusted comment");
         assert_eq!(signed_file_name("not base64"), None);
+    }
+
+    #[test]
+    fn a_forged_first_line_does_not_rename_a_signed_installer() {
+        // A real 0.7.0 signature whose unsigned first line was rewritten to claim 9.9.9.
+        let text = "trusted comment: timestamp:0\tfile:SLUI-Setup-9.9.9.exe\nRUT=\ntrusted comment: timestamp:1792406090\tfile:SLUI-Setup-0.7.0.exe\nAAAA==\n";
+        let signature = base64::engine::general_purpose::STANDARD.encode(text);
+        assert_eq!(signed_file_name(&signature).as_deref(), Some("SLUI-Setup-0.7.0.exe"));
+        // Without its prefix the third line is no trusted comment (minisign rejects it too).
+        let text = "trusted comment: timestamp:0\tfile:SLUI-Setup-9.9.9.exe\nRUT=\nfile:SLUI-Setup-9.9.9.exe\nAAAA==\n";
+        let signature = base64::engine::general_purpose::STANDARD.encode(text);
+        assert_eq!(signed_file_name(&signature), None);
     }
 
     #[test]
