@@ -15,7 +15,7 @@
    - 破坏性变更在 type 后加 `!`，例如 `feat!: ...`。合并时只使用标题，PR 描述不会进入提交信息。
 4. CI 通过后 squash 合并，合并后分支自动删除。
 
-CI 在 Windows 上运行 `npm ci`、`npm run lint`、`npm test`、生产模式构建，以及两个 Rust crate 的编译和测试。
+CI 在 Windows 上运行 `npm ci`、`npm audit`、`npm run lint`、`npm test`、生产模式构建，以及 Rust workspace 的 `cargo test` 和 `cargo clippy -D warnings`。
 
 ## 发版
 
@@ -30,18 +30,19 @@ CI 在 Windows 上运行 `npm ci`、`npm run lint`、`npm test`、生产模式�
 
 1. 每当有 PR 合并到 `main`，release-please 会创建或更新发版 PR `chore(main): release X.Y.Z`，
    其中包含版本号变更和 `CHANGELOG.md`。
-2. 准备发版时合并这个 PR。随后自动创建标签 `vX.Y.Z` 和**草稿** Release，并构建
-   `SLUI-Setup-X.Y.Z.exe` 上传到草稿。
-3. 下载草稿中的安装器，安装并检查无误后，在 GitHub 上手动发布这个 Release。
+2. 准备发版时合并这个 PR。随后自动创建标签 `vX.Y.Z` 和草稿 Release，构建并签名
+   `SLUI-Setup-X.Y.Z.exe`，上传安装器和 `.sig` 后**自动发布**这个 Release。发布即上线：
+   正在运行的 SLUI 会在下次检查时下载并提示更新，所以合并发版 PR 前先在本地验证好安装包。
 
-构建失败时，修好问题后重跑 release 工作流中的 `installer` job 即可，上传会覆盖旧文件。如果要放弃这次发版，
-删除草稿 Release 和标签，再把发版 PR 的标签改回 `autorelease: pending`。
+构建或上传失败时 Release 保持草稿，修好问题后重跑 release 工作流中的 `installer` job 即可，上传会覆盖旧文件。
+如果要放弃这次发版，删除草稿 Release 和标签，再把发版 PR 的标签改回 `autorelease: pending`。
 
 维护者需要的仓库配置：
 
 - 仓库变量 `RELEASE_APP_CLIENT_ID` 和 secret `RELEASE_APP_PRIVATE_KEY`：一个只安装在本仓库的 GitHub App，
   需要 Contents、Pull requests、Issues 的读写权限。用 App 令牌是为了让发版 PR 也能触发 CI。
-- Environment `release`，只允许 `main` 使用，其中有 secret `CONTROL_PLANE_URL`，即正式安装器连接的控制平面地址。
+- Environment `release`，只允许 `main` 使用，其中有 secret `CONTROL_PLANE_URL`，即正式安装器连接的控制平面地址，
+  以及更新签名用的 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（缺少私钥时 `installer` job 直接失败）。
 
 ## 本地构建安装器
 

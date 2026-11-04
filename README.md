@@ -1,6 +1,10 @@
 # SLUI
 
-SCP: Secret Laboratory 的 Windows 游戏覆盖层客户端，配合 SLGO 服务器使用，提供 HUD、商店、聊天和小地图。基于 Tauri、React 和 TypeScript。
+SCP: Secret Laboratory 的 Windows 游戏覆盖层客户端，配合 SLGO 服务器使用，提供 HUD、商店、聊天、计分板、击杀信息、选边界面和小地图。基于 Tauri、React 和 TypeScript。
+
+## 游戏内按键
+
+默认与 CS2 一致：B 打开 / 关闭商店，按住 Caps Lock 显示计分板，Y 全体聊天，U 队伍聊天。四个按键都可以在“设置 → 快捷键”中修改，可用 R 以外的字母键和 F1–F12（计分板另可用 Caps Lock），不带修饰键；数字键和 R 留给打开的商店选购和请求队友购买。
 
 ## 开发
 
@@ -17,7 +21,7 @@ npm test
 | `npm run tauri:build:local` | 连接本地后端的测试安装包 |
 | `npm run installer:build` | 正式安装器 `SLUI-Setup-<version>.exe`，需要设置 `VITE_CONTROL_PLANE_URL` |
 
-安装器同时安装卸载程序 `slui-uninstall.exe`，“应用和功能”中的卸载会打开它。卸载默认保留主题包和用户设置，可分别勾选“同时删除主题包”和“删除用户设置和数据”；静默卸载使用 `uninstall.exe /S`。
+安装器同时安装卸载程序 `slui-uninstall.exe`，“应用和功能”中的卸载会打开它。卸载默认保留主题包和用户设置，可分别勾选“同时删除主题包”和“删除用户设置和数据”；静默卸载使用安装目录中的 NSIS 卸载程序 `uninstall.exe /S`。
 
 SLUI 会在后台检查并下载新版本（启动时及每 6 小时），校验签名后在首页“版本”卡片和托盘菜单提供“更新并重启”，点击后经一次 UAC 授权自动安装并重新打开。正式发布的安装器附带供更新校验的 `SLUI-Setup-<version>.exe.sig`；本地构建的安装器未签名，不能作为更新分发。
 

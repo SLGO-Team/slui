@@ -10,6 +10,7 @@ license; the rest of the repository is covered by the project license
 - `public/assets/slui-svg/*.svg`
 - `public/assets/hud/avatar-terrorist.png` (Nine-Tailed Fox emblem)
 - `public/assets/hud/avatar-ct.svg` (SCP Foundation emblem)
+- `public/assets/teamselect/*.webp` (team select illustrations, see `public/assets/teamselect/SOURCES.md`)
 - `src/mocks/preview/background-2.jpg` (in-game screenshot)
 - `public/assets/minimap/rooms/*.svg` (room illustrations drawn after the SCP-079 map)
 
