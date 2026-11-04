@@ -207,6 +207,43 @@ export function createWindowControls(): WindowControls {
   return { minimize: () => run("minimize"), close: () => run("close") };
 }
 
+// ---- 关于 group links ----
+
+/** The public source repository: SLUI is GPL-3.0-or-later. */
+export const PROJECT_URL = "https://github.com/SLGO-Team/slui";
+
+export interface AboutLinks {
+  /** Selects slui.log in Explorer, like the tray's 打开日志文件夹. */
+  revealLog(): Promise<void>;
+  /** Opens the source repository in the default browser. */
+  openProjectPage(): Promise<void>;
+}
+
+export type UrlOpener = (url: string) => Promise<void>;
+
+const tauriOpenUrl: UrlOpener = async (url) => {
+  const { openUrl } = await import("@tauri-apps/plugin-opener");
+  await openUrl(url);
+};
+
+const browserOpenUrl: UrlOpener = async (url) => {
+  window.open(url, "_blank", "noopener,noreferrer");
+};
+
+export function createAboutLinks(
+  invoke: CommandInvoker | null = isTauri() ? tauriInvoke : null,
+  openUrl: UrlOpener = isTauri() ? tauriOpenUrl : browserOpenUrl,
+): AboutLinks {
+  return {
+    async revealLog() {
+      // A browser preview writes no log file.
+      if (!invoke) throw new Error("浏览器预览没有日志文件");
+      await invoke<void>("reveal_log_file");
+    },
+    openProjectPage: () => openUrl(PROJECT_URL),
+  };
+}
+
 // ---- Window selection ----
 
 export async function currentWindowLabel(): Promise<WindowLabel> {

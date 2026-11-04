@@ -800,16 +800,19 @@ fn show_home(app: &AppHandle, request_attention: bool) {
 }
 
 // Selects slui.log in Explorer, so a player can attach it to a report.
-fn reveal_log(app: &AppHandle) {
+// Shared by the tray item and the 关于 group's button.
+fn reveal_log(app: &AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
 
-    let Some(path) = diag::path() else {
-        diag!("SLGO: no log file to show");
-        return;
-    };
-    if let Err(error) = app.opener().reveal_item_in_dir(path) {
-        diag!("SLGO: cannot show the log file: {error}");
-    }
+    let path = diag::path().ok_or_else(|| "no log file to show".to_string())?;
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|error| format!("cannot show the log file: {error}"))
+}
+
+#[tauri::command]
+fn reveal_log_file(app: AppHandle) -> Result<(), String> {
+    reveal_log(&app).inspect_err(|error| diag!("SLGO: {error}"))
 }
 
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
@@ -837,7 +840,11 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
                 }
             }
             updater::TRAY_ITEM_ID => updater::install_from_tray(app),
-            "open-log" => reveal_log(app),
+            "open-log" => {
+                if let Err(error) = reveal_log(app) {
+                    diag!("SLGO: {error}");
+                }
+            }
             "quit" => {
                 diag!("SLGO: quit from the tray; exiting");
                 app.exit(0);
@@ -1426,6 +1433,7 @@ pub fn run() {
             save_settings,
             get_game_running,
             get_current_steam_identity,
+            reveal_log_file,
             steam_profile::get_steam_profile,
             game_log::game_log_size,
             game_log::game_log_read,
