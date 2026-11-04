@@ -76,6 +76,11 @@ export function clientSessionReducer(state: ClientSessionState, action: ClientSe
     case "route-resolved":
       return { ...state, status: "connecting", detail: null, attempt: action.attempt, retry: null };
     case "connected":
+      // `connect()` settles on the stream going live, but a close or failure delivered in the same loop (Tauri
+      // hands queued Channel frames over together) is dispatched first. That failure already describes this
+      // attempt and holds its retry; the late result must not erase it, or nothing ever reconnects.
+      if (action.status !== "live" && action.attempt === state.attempt && state.retry !== null) return state;
+      return { ...state, status: action.status, detail: null, attempt: action.attempt, retry: null, endReason: action.status === "live" ? null : state.endReason };
     case "connection-status":
       return { ...state, status: action.status, detail: null, attempt: action.attempt, retry: null, endReason: action.status === "live" ? null : state.endReason };
     case "failed": {
