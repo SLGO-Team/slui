@@ -69,6 +69,8 @@ export type KillfeedNoticeView = {
   /** null only for a suicide without an attacker ("skull victim"); a self-kill names the victim ("name skull name"). */
   killer: KillfeedPlayerView | null;
   assister: KillfeedPlayerView | null;
+  /** CS2 `assistedflash`: the flashbang icon between `+` and the assister. */
+  assistedFlash: boolean;
   victim: KillfeedPlayerView;
   /** Weapon artwork, or the fallback; null for a suicide (CS2 hides `#Weapon` then). */
   weaponIcon: string | null;
@@ -94,6 +96,7 @@ export function selectKillfeed(state: KillfeedState, nowMs: number): KillfeedNot
       suicide: entry.suicide,
       killer: entry.killer === null ? null : player(entry.killer),
       assister: entry.assister === null ? null : player(entry.assister),
+      assistedFlash: entry.assister !== null && entry.assisted_flash === true,
       victim: player(entry.victim),
       weaponIcon: entry.suicide ? null : killfeedWeaponIcon(entry.weapon),
       headshot: entry.headshot,

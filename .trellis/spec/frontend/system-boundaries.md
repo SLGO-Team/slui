@@ -376,7 +376,7 @@ request", "Sidecar session handshake", "Security boundary").
   `setFeatures` stores the latest `client.features` list; it is sent on change
   while `live` and after every accepted baseline when not empty, so callers
   never resend after a reconnect. `App.tsx` maps overlay `enabled` to
-  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages", "hud-money", "hud-status", "hud-spectating", "hud-killfeed", "scoreboard"]` / `[]`: a disabled overlay
+  `["chat-input", "shop-menu", "top-hud", "win-panel", "hud-messages", "hud-money", "hud-status", "hud-spectating", "hud-killfeed", "hud-killfeed-flash-assist", "scoreboard"]` / `[]`: a disabled overlay
   keeps the session live, so it must withdraw the features explicitly or the plugin keeps
   ignoring Y, keeps refusing to open its in-game shop from B and keeps its own
   chat feed, top HUD, win panel, message zone (alerts, hints, progress) and balance hidden.

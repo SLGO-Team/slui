@@ -498,6 +498,11 @@ export type HudKillfeedEntry = {
   killer: HudKillfeedPlayer | null;
   /** The one assist CS2 shows; null for a suicide. */
   assister: HudKillfeedPlayer | null;
+  /**
+   * CS2 `assistedflash`: the assist came from a flashbang, drawn as a flashbang icon before the assister's name.
+   * Written only when true and only to clients declaring `hud-killfeed-flash-assist`; requires an assister.
+   */
+  assisted_flash?: true;
   victim: HudKillfeedPlayer;
   /** `other` for a suicide. */
   weapon: HudKillfeedWeapon;
@@ -935,6 +940,8 @@ export const CLIENT_FEATURE_HUD_STATUS = "hud-status";
 export const CLIENT_FEATURE_HUD_SPECTATING = "hud-spectating";
 /** SLUI draws the top-right killfeed: the plugin hides its own killfeed hint and publishes `hud.killfeed` for this player. */
 export const CLIENT_FEATURE_HUD_KILLFEED = "hud-killfeed";
+/** SLUI draws the flash-assist icon: the plugin writes `assisted_flash` in this player's `hud.killfeed` entries. */
+export const CLIENT_FEATURE_HUD_KILLFEED_FLASH_ASSIST = "hud-killfeed-flash-assist";
 /** SLUI draws the scoreboard: the plugin ignores its own scoreboard key and publishes `scoreboard.snapshot` for this player. */
 export const CLIENT_FEATURE_SCOREBOARD = "scoreboard";
 /** SLUI draws the team select menu: the plugin publishes its menu session as `team.menu` instead of drawing its Hint roster. */
@@ -1434,6 +1441,9 @@ export function parseTeamMenu(payload: unknown): ParseResult<TeamMenuSnapshot> {
 
 const HUD_KILLFEED_KEYS = new Set(["entries"]);
 const HUD_KILLFEED_ENTRY_KEYS = new Set(["entry_id", "suicide", "killer", "assister", "victim", "weapon", "headshot", "viewer", "visible_remaining_ms"]);
+/** Optional entry key, sent only to clients declaring `hud-killfeed-flash-assist` and only when true. */
+const HUD_KILLFEED_ASSISTED_FLASH = "assisted_flash";
+const HUD_KILLFEED_ENTRY_KEYS_WITH_FLASH = new Set([...HUD_KILLFEED_ENTRY_KEYS, HUD_KILLFEED_ASSISTED_FLASH]);
 const HUD_KILLFEED_PLAYER_KEYS = new Set(["player_id", "display_name", "team"]);
 const STEAM_ID64 = /^[0-9]{17}$/;
 
@@ -1447,7 +1457,12 @@ function isKillfeedPlayer(value: unknown): value is HudKillfeedPlayer {
 }
 
 function isKillfeedEntry(value: unknown): value is HudKillfeedEntry {
-  if (!isRecord(value) || !hasOnlyKeys(value, HUD_KILLFEED_ENTRY_KEYS) || HUD_KILLFEED_ENTRY_KEYS.size !== Object.keys(value).length) return false;
+  if (!isRecord(value)) return false;
+  const flash = Object.prototype.hasOwnProperty.call(value, HUD_KILLFEED_ASSISTED_FLASH);
+  const keys = flash ? HUD_KILLFEED_ENTRY_KEYS_WITH_FLASH : HUD_KILLFEED_ENTRY_KEYS;
+  if (!hasOnlyKeys(value, keys) || keys.size !== Object.keys(value).length) return false;
+  // A flash assist is an assist: written only as true, and never without an assister (so never on a suicide).
+  if (flash && (value.assisted_flash !== true || value.assister === null)) return false;
   if (!isKillfeedText(value.entry_id) || typeof value.suicide !== "boolean" || !isKillfeedPlayer(value.victim)) return false;
   if (value.killer !== null && !isKillfeedPlayer(value.killer)) return false;
   if (value.assister !== null && !isKillfeedPlayer(value.assister)) return false;

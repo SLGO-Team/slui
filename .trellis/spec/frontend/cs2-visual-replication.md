@@ -608,7 +608,9 @@ backgrounds and the wrong suicide and headshot marks.
   (the plugin already applied CS2's 1.5x for the viewer's own kill or death). An entry the next copy leaves out
   disappears at once (a new round clears the feed) unless it is already fading, which it finishes. Another
   instance's baseline or an ended session clears the feed; a reconnect to the same instance keeps it.
-- Content order (CS2): killer, `+` and the assister, weapon icon, headshot icon, victim. A suicide
+- Content order (CS2): killer, `+`, the flash-assist icon when `assisted_flash` (CS2 `assistedflash`: the layout puts
+  `flashbang_assist` between the assist partition and the assister label), the assister, weapon icon, headshot icon,
+  victim. A suicide
   (`suicide`, CS2 `DeathNoticeSuicide`) draws the skull and crossbones instead of the weapon; a self-kill keeps
   the killer, so it reads "name skull name" as in the capture, and a death without an attacker is "skull name".
 - Colour: NTF names in CS2's killfeed blue `#6f9ce6` (`CTColor`, capture; NTF's blue everywhere else too),
@@ -628,7 +630,8 @@ backgrounds and the wrong suicide and headshot marks.
   decision 2026-10-18) and draw the plain skull (`hud/skull.svg`, never the suicide mark); adding art later only
   touches `KILLFEED_WEAPON_ICONS`. `public/assets/killfeed/suicide.svg` (skull and crossbones) and `headshot.svg`
   (a head facing right, entry hole upper left, the round leaving right with speed lines) are SLUI drawings
-  after the capture.
+  after the capture. The flash-assist icon is the shop's flashbang silhouette (`slui-svg/GrenadeFlash.svg`); no
+  capture of CS2's own `flashbang_assist` art was available.
 - Motion (CSS animations fixed at mount, never the 250 ms UI clock): a new notice fades in over 0.2 s
   (Panorama `.Available`); at its fade time it fades out over 1 s ease-out (`DeathNoticeFadeOutTime`), the
   delay is `fadeAtMs - mountedAtMs` (negative when mounted part-way). A notice mounted more than 0.2 s after
@@ -636,7 +639,8 @@ backgrounds and the wrong suicide and headshot marks.
 - Layering: `.killfeed-overlay` is a fixed layer at z-index 4 on the scaled 1920x1080 canvas; nothing else
   sits in the top-right corner.
 - Mock preview: `hudScene=killfeed` plays an enemy kill, the viewer's headshot with an assist, a self-kill, a
-  weapon without art (fallback skull), a long name, a death without an attacker and the viewer's death;
+  weapon without art (fallback skull) with a flash assist, a long name, a death without an attacker and the
+  viewer's death;
   `hudSceneAt=7100` pins the moment six rows are on screen. Compare a full-resolution capture of it (e.g. headless
   Edge `--screenshot --window-size=1920,1080`) with a CS2 capture cropped to the same region. A hidden preview pane renders no frames, so CSS animations stand still there;
   check motion in a visible pane or by setting `getAnimations()` times.

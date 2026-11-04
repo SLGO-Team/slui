@@ -379,6 +379,8 @@ type ScriptedKill = {
   atMs: number;
   killer: MockKillfeedPlayer | null;
   assister?: MockKillfeedPlayer;
+  /** The assist came from a flashbang (CS2 `assistedflash`). */
+  assistedFlash?: boolean;
   victim: MockKillfeedPlayer;
   weapon?: Readonly<Record<Role, HudKillfeedWeapon>>;
   /** Headshots only happen to NTF firearms. */
@@ -387,14 +389,14 @@ type ScriptedKill = {
 
 /**
  * `killfeed`: an enemy kill, the viewer's headshot with an assist, a self-kill, a weapon without artwork (fallback
- * skull), a long name, a death without an attacker and the viewer's death, so the stack shows every notice style
- * at once around 7 s.
+ * skull) with a flash assist, a long name, a death without an attacker and the viewer's death, so the stack shows
+ * every notice style at once around 7 s.
  */
 const KILLFEED_KILLS: readonly ScriptedKill[] = [
   { atMs: 500, killer: KF_ROOK, victim: KF_ATLAS, weapon: { ntf: "ak", scp: "scp939" } },
   { atMs: 1_800, killer: KF_NOVA, assister: KF_CIPHER, victim: KF_STRIKER, weapon: { ntf: "e11sr", scp: "scp173" }, headshot: true },
   { atMs: 3_200, killer: KF_PHANTOM, victim: KF_PHANTOM },
-  { atMs: 4_400, killer: KF_VANGUARD, victim: KF_SPECTER, weapon: { ntf: "com45", scp: "other" } },
+  { atMs: 4_400, killer: KF_VANGUARD, assister: KF_ATLAS, assistedFlash: true, victim: KF_SPECTER, weapon: { ntf: "com45", scp: "other" } },
   { atMs: 5_600, killer: KF_ECHO, victim: KF_WARDEN, weapon: { ntf: "grenade_he", scp: "scp096" } },
   { atMs: 6_300, killer: null, victim: KF_CIPHER },
   { atMs: 7_000, killer: KF_ROOK, victim: KF_NOVA, weapon: { ntf: "logicer", scp: "scp106" } },
@@ -413,11 +415,13 @@ function killfeedAt(scene: HudScene, viewerRole: Role, elapsedMs: number, run: n
     const left = kill.atMs + lifetime - elapsedMs;
     if (elapsedMs < kill.atMs || left <= 0) return;
     const killerRole = kill.killer === null ? null : sideRole(kill.killer);
+    const assister = suicide || !kill.assister ? null : wire(kill.assister);
     entries.push({
       entry_id: `${scene}-${run}-${index}`,
       suicide,
       killer: kill.killer === null ? null : wire(kill.killer),
-      assister: suicide || !kill.assister ? null : wire(kill.assister),
+      assister,
+      ...(assister !== null && kill.assistedFlash ? { assisted_flash: true as const } : {}),
       victim: wire(kill.victim),
       weapon: suicide || killerRole === null || !kill.weapon ? "other" : kill.weapon[killerRole],
       headshot: !suicide && killerRole === "ntf" && kill.headshot === true,

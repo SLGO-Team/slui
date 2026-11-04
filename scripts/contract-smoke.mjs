@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import {
   CLIENT_FEATURE_HUD_KILLFEED,
+  CLIENT_FEATURE_HUD_KILLFEED_FLASH_ASSIST,
   CLIENT_FEATURE_HUD_MESSAGES,
   CLIENT_FEATURE_HUD_MONEY,
   CLIENT_FEATURE_HUD_SPECTATING,
@@ -758,6 +759,14 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseHudKillfeed(withKill({ assister: { ...kill.victim } })).ok, false, "the assister is not the victim");
   assert.equal(parseHudKillfeed(withKill({ victim: { ...kill.killer } })).ok, false, "the killer is not the victim");
   assert.equal(parseHudKillfeed(withSuicide({ assister: kill.assister })).ok, false, "a suicide has no assist");
+  assert.equal(CLIENT_FEATURE_HUD_KILLFEED_FLASH_ASSIST, "hud-killfeed-flash-assist");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_KILLFEED_FLASH_ASSIST] }).ok, true);
+  assert.equal(parseHudKillfeed(withKill({ assisted_flash: true })).ok, true, "a flash assist (optional key)");
+  assert.equal(parseHudKillfeed(withKill({ assisted_flash: false })).ok, false, "assisted_flash is written only as true");
+  assert.equal(parseHudKillfeed(withKill({ assisted_flash: "yes" })).ok, false);
+  assert.equal(parseHudKillfeed(withKill({ assister: null, assisted_flash: true })).ok, false, "a flash assist needs an assister");
+  assert.equal(parseHudKillfeed(withSuicide({ assisted_flash: true })).ok, false, "a suicide has no assist");
+  assert.equal(parseHudKillfeed(withKill({ assisted_flash: true, extra: 1 })).ok, false, "other unknown keys stay rejected");
   assert.equal(parseHudKillfeed(withSuicide({ headshot: true })).ok, false, "a suicide has no headshot");
   assert.equal(parseHudKillfeed(withSuicide({ weapon: "ak" })).ok, false, "a suicide has no weapon");
   assert.equal(parseHudKillfeed(withSuicide({ viewer: "killer" })).ok, false, "a suicide has no killer to be");
