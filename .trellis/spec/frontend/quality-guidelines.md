@@ -172,11 +172,28 @@ these are the code-level contracts behind them.
 - **Cargo.lock JSONPath needs `.value`.** release-please's TOML parser wraps
   every scalar as `{ value, start, end }`, so a lockfile entry is selected with
   `$.package[?(@.name.value==='slui')].version`, not `@.name==='slui'`.
-- **Production builds need a URL at build time.** `vite.config.ts` refuses a
-  non-mock build without `VITE_CONTROL_PLANE_URL`, so CI's build check sets the
+- **Production builds need a URL at build time.** `vite.config.ts` runs
+  `readBackendConfig` and refuses a non-mock build without a valid
+  `VITE_CONTROL_PLANE_URL` (https, or http on loopback), so CI's build check sets the
   placeholder `https://control-plane.invalid`. The real URL exists only as the
   `CONTROL_PLANE_URL` secret of the `release` environment (main only) — never an
   Actions variable (variables are printed in step logs) and never a file.
+- **The webview CSP is a `<meta>` written by Vite, not Tauri's `csp`.**
+  `scripts/vite-csp.mjs` puts it first in `<head>` of every build and dev-server
+  page; connect-src names the origin of the same `VITE_CONTROL_PLANE_URL` the client
+  fetches, so every build entry point (build-installer, `tauri:build:local`, deploy
+  scripts running `tauri build`) matches with nothing to pass. Keep
+  `app.security.csp` null: a header policy is enforced on top and would block the
+  control plane. A new resource origin (font, sound, image host, fetch target) needs
+  its directive in `buildContentSecurityPolicy` and `csp-smoke`; check the console
+  for `Content-Security-Policy` errors. Inline `<script>`/`<style>` in the final
+  HTML are allowed by sha256 hash; the dev server also gets `style-src
+  'unsafe-inline'` (Vite's CSS injection) and `ws: wss:`. Tauri's `devCsp` would do
+  nothing: desktop `tauri dev` loads the devUrl directly.
+- **Local test packages are a cargo feature.** `tauri.local.conf.json` sets
+  `build.features: ["local-backend"]` (used by `tauri:build:local` and
+  `build-installer --local`); with it, or in debug builds, the sidecar socket accepts
+  plain `ws://` on loopback. A release build accepts only `wss://`.
 - **Theme packs enter installers only via `build-installer.mjs --theme-pack
   <dir>`**, which defines `SLUI_THEME_PACK_SOURCE` in the generated hooks
   wrapper (`target/release/slui-installer-hooks.nsh`), writes

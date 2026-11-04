@@ -1,6 +1,7 @@
 {
   "build": {
-    "beforeBuildCommand": "npm run build:local"
+    "beforeBuildCommand": "npm run build:local",
+    "features": ["local-backend"]
   },
   "plugins": {
     "updater": {

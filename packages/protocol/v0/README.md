@@ -600,6 +600,13 @@ Rejections match [route-rejected.schema.json](./route-rejected.schema.json)
 (`parseRouteRejected`). A route is not an authorization by itself: the sidecar
 admits the session only through IP binding (see Security boundary).
 
+`sidecar_endpoint` is always a `wss://` URL with a host and no credentials;
+`parseRoute` refuses anything else, because the client sends the session token
+there. A released SLUI also refuses plain `ws://` when it opens the socket. Local
+test builds reach the local backend's plain `ws://` sidecar only through their
+own build-time override (`VITE_DEV_SIDECAR_ENDPOINT`, loopback only), never
+through a route.
+
 ## Update manifest
 
 `GET {control_plane}/v0/update` returns `200` with a manifest matching
@@ -775,6 +782,14 @@ Client rejection mapping: `not-in-game` and `rate-limited` map to the
 `ParseErrorCode`s of the same name and are retried with backoff;
 `invalid-request` maps to `invalid-route`; `unsupported-protocol` and
 `unauthorized` keep their names.
+
+Server-sent image URLs, `avatar_url` (`match.snapshot` players) and `icon_url`
+(shop items and teammate requests), are drawn by the client only when they are
+`https://` URLs without credentials of at most 512 characters (`toAssetUrl`,
+`MAX_ASSET_URL_LENGTH`). Any other value (another scheme such as `http:`,
+`data:` or `javascript:`, a relative path, a longer string, a non-string) is
+treated as `null` and draws the bundled fallback; it does not invalidate the
+payload around it.
 
 ## Fixtures
 
