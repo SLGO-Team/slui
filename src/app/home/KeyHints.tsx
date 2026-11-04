@@ -1,12 +1,11 @@
-import { hotkeyLabel } from "../../platform/hotkeys";
+import { hotkeyLabel, type HotkeySettings } from "../../platform/hotkeys";
 
-// Y/U are fixed chat keys (see isBindableHotkey); the shop and scoreboard keys are configurable.
-export function KeyHints({ shopKey, scoreboardKey }: { shopKey: string; scoreboardKey: string }) {
+export function KeyHints({ hotkeys }: { hotkeys: HotkeySettings }) {
   const hints = [
-    { key: hotkeyLabel(shopKey), action: "打开 / 关闭商店" },
-    { key: hotkeyLabel(scoreboardKey), action: "按住显示计分板" },
-    { key: "Y", action: "全体聊天" },
-    { key: "U", action: "队伍聊天" },
+    { key: hotkeyLabel(hotkeys.shop), action: "打开 / 关闭商店" },
+    { key: hotkeyLabel(hotkeys.scoreboard), action: "按住显示计分板" },
+    { key: hotkeyLabel(hotkeys.chatGlobal), action: "全体聊天" },
+    { key: hotkeyLabel(hotkeys.chatTeam), action: "队伍聊天" },
   ];
   return <section className="home-section" aria-labelledby="home-keys-title">
     <h2 id="home-keys-title" className="home-section__title">游戏内按键<span className="home-eyebrow">IN-GAME KEYS</span></h2>

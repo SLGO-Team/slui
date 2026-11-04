@@ -249,7 +249,7 @@ export function HomeApp() {
         <OverlaySwitch state={overlay} note={overlaySwitchNote(overlay.enabled, settings.overlay.autoEnableOnConnect, session)} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
         <StatusBar session={session} steam={steamPreview ?? steamAccount(session, steamProfile)} gameRunning={gameRunning}
           update={update} onRetry={sessionSource.retry} />
-        <KeyHints shopKey={settings.hotkeys.shop} scoreboardKey={settings.hotkeys.scoreboard} />
+        <KeyHints hotkeys={settings.hotkeys} />
       </div> : <>
         <header className="home-page__header">
           <div className="home-page__header-inner">

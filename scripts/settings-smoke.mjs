@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { DEFAULT_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES } from "../src/features/minimap/preferences.ts";
 import { DEFAULT_APP_SETTINGS, parseSettings, parseSettingsText, serializeSettings, SETTINGS_VERSION } from "../src/platform/settings.ts";
 import { DEFAULT_AUDIO_SETTINGS } from "../src/platform/audioSettings.ts";
-import { DEFAULT_HOTKEYS, hotkeyLabel, hotkeyVirtualKey, isBindableHotkey, isBindableScoreboardHotkey } from "../src/platform/hotkeys.ts";
+import {
+  DEFAULT_HOTKEYS, HOTKEY_ACTIONS, hotkeyLabel, hotkeyOwner, hotkeyVirtualKey, isBindableFor, isBindableHotkey, isBindableScoreboardHotkey,
+} from "../src/platform/hotkeys.ts";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "../src/platform/overlaySettings.ts";
 
 // Missing or unreadable files fall back to the radar contract defaults.
@@ -73,16 +75,19 @@ assert.equal(audioOf({ shopVolume: -0.2 }), 0);
 for (const shopVolume of [Number.NaN, Infinity, "0.5", null, undefined, true]) assert.equal(audioOf({ shopVolume }), 0.15, `recover ${String(shopVolume)}`);
 assert.equal(audioOf([]), 0.15, "array audio");
 
-// Shop hotkey: letters except the chat keys Y and U, and F1-F12; anything else recovers to the default.
-for (const code of ["KeyA", "KeyB", "KeyZ", "F1", "F12"]) assert.equal(isBindableHotkey(code), true, code);
-for (const code of ["KeyY", "KeyU", "Digit1", "Digit0", "F13", "F0", "Escape", "ShiftLeft", "b", "", 66, null]) {
+// Shop and chat hotkeys: letters and F1-F12; anything else recovers to the default.
+for (const code of ["KeyA", "KeyB", "KeyY", "KeyU", "KeyZ", "F1", "F12"]) assert.equal(isBindableHotkey(code), true, code);
+for (const code of ["Digit1", "Digit0", "F13", "F0", "Escape", "ShiftLeft", "b", "", 66, null]) {
   assert.equal(isBindableHotkey(code), false, String(code));
   assert.deepEqual(parseSettings({ version: SETTINGS_VERSION, hotkeys: { shop: code } }).hotkeys, DEFAULT_HOTKEYS, `recover ${String(code)}`);
+  assert.deepEqual(parseSettings({ version: SETTINGS_VERSION, hotkeys: { chatTeam: code } }).hotkeys, DEFAULT_HOTKEYS, `recover chat ${String(code)}`);
 }
 assert.deepEqual(parseSettings({ version: SETTINGS_VERSION, hotkeys: [] }).hotkeys, DEFAULT_HOTKEYS, "array hotkeys");
-// Virtual-key codes must match the Rust hook (is_bindable_shop_hotkey).
+// Virtual-key codes must match the Rust hook (is_bindable_hotkey).
 assert.equal(hotkeyVirtualKey("KeyA"), 0x41);
 assert.equal(hotkeyVirtualKey("KeyB"), 0x42);
+assert.equal(hotkeyVirtualKey("KeyU"), 0x55);
+assert.equal(hotkeyVirtualKey("KeyY"), 0x59);
 assert.equal(hotkeyVirtualKey("KeyZ"), 0x5a);
 assert.equal(hotkeyVirtualKey("F1"), 0x70);
 assert.equal(hotkeyVirtualKey("F12"), 0x7b);
@@ -90,26 +95,44 @@ assert.equal(hotkeyVirtualKey("Digit1"), null);
 assert.equal(hotkeyLabel("KeyG"), "G");
 assert.equal(hotkeyLabel("F5"), "F5");
 
-// Scoreboard key (held): the shop's keys plus CapsLock, never the shop key itself; each
-// key recovers on its own (Rust is_bindable_scoreboard_hotkey / validate_hotkeys).
-assert.deepEqual(DEFAULT_HOTKEYS, { shop: "KeyB", scoreboard: "CapsLock" });
-for (const code of ["CapsLock", "KeyA", "KeyT", "F1", "F12"]) assert.equal(isBindableScoreboardHotkey(code), true, code);
-for (const code of ["Tab", "KeyY", "KeyU", "Digit1", "ShiftLeft", "", null]) assert.equal(isBindableScoreboardHotkey(code), false, String(code));
-assert.equal(isBindableHotkey("CapsLock"), false, "CapsLock never opens the shop");
+// Scoreboard key (held): the shop's keys plus CapsLock (Rust is_bindable_scoreboard_hotkey).
+assert.deepEqual(DEFAULT_HOTKEYS, { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU" });
+assert.deepEqual(HOTKEY_ACTIONS, ["shop", "scoreboard", "chatGlobal", "chatTeam"], "the order set_hotkeys takes them in");
+for (const code of ["CapsLock", "KeyA", "KeyT", "KeyY", "F1", "F12"]) assert.equal(isBindableScoreboardHotkey(code), true, code);
+for (const code of ["Tab", "Digit1", "ShiftLeft", "", null]) assert.equal(isBindableScoreboardHotkey(code), false, String(code));
+assert.equal(isBindableHotkey("CapsLock"), false, "CapsLock never opens the shop or a chat");
+assert.equal(isBindableFor("scoreboard", "CapsLock"), true);
+assert.equal(isBindableFor("chatGlobal", "CapsLock"), false);
+
+// All four keys different; a key taken by an earlier action recovers to its own default
+// (Rust validate_hotkeys rejects any shared key).
 const hotkeysOf = (hotkeys) => parseSettings({ version: SETTINGS_VERSION, hotkeys }).hotkeys;
-assert.deepEqual(hotkeysOf({ shop: "KeyB", scoreboard: "KeyT" }), { shop: "KeyB", scoreboard: "KeyT" });
-assert.deepEqual(hotkeysOf({ shop: "KeyT", scoreboard: "KeyT" }), { shop: "KeyT", scoreboard: "CapsLock" }, "a shared key goes back to CapsLock");
-assert.deepEqual(hotkeysOf({ shop: "KeyY", scoreboard: "KeyB" }), DEFAULT_HOTKEYS, "the shop falls back to B, which the scoreboard then cannot keep");
-assert.deepEqual(hotkeysOf({ shop: "F3", scoreboard: "Tab" }), { shop: "F3", scoreboard: "CapsLock" });
-assert.deepEqual(hotkeysOf({ shop: "F3" }), { shop: "F3", scoreboard: "CapsLock" }, "files from before the scoreboard key");
+const withKeys = (keys) => ({ ...DEFAULT_HOTKEYS, ...keys });
+assert.deepEqual(hotkeysOf({ shop: "KeyB", scoreboard: "KeyT" }), withKeys({ scoreboard: "KeyT" }), "files from before the chat keys");
+assert.deepEqual(hotkeysOf({ shop: "KeyT", scoreboard: "KeyT" }), withKeys({ shop: "KeyT" }), "a shared key goes back to CapsLock");
+assert.deepEqual(hotkeysOf({ shop: "F3", scoreboard: "Tab" }), withKeys({ shop: "F3" }));
+assert.deepEqual(hotkeysOf({ shop: "F3" }), withKeys({ shop: "F3" }), "files from before the scoreboard key");
+assert.deepEqual(hotkeysOf(withKeys({ chatGlobal: "KeyT", chatTeam: "F2" })), withKeys({ chatGlobal: "KeyT", chatTeam: "F2" }));
+assert.deepEqual(hotkeysOf(withKeys({ shop: "KeyY", chatGlobal: "KeyT" })), withKeys({ shop: "KeyY", chatGlobal: "KeyT" }),
+  "Y may open the shop once global chat moved");
+assert.deepEqual(hotkeysOf(withKeys({ chatTeam: "KeyY" })), DEFAULT_HOTKEYS, "both chats on Y: team chat goes back to U");
+assert.deepEqual(hotkeysOf(withKeys({ chatGlobal: "KeyB" })), DEFAULT_HOTKEYS, "global chat on the shop key goes back to Y");
+assert.deepEqual(hotkeysOf({ shop: "KeyY", scoreboard: "KeyB" }), DEFAULT_HOTKEYS,
+  "Y opens the shop, so global chat cannot have its default: every key goes back");
+assert.deepEqual(hotkeysOf(withKeys({ chatGlobal: "CapsLock" })), DEFAULT_HOTKEYS, "CapsLock is the scoreboard's alone");
 assert.equal(hotkeyVirtualKey("CapsLock"), 0x14);
 assert.equal(hotkeyLabel("CapsLock"), "Caps Lock");
+
+// The settings page names the action that already holds a key.
+assert.equal(hotkeyOwner(DEFAULT_HOTKEYS, "KeyU", "shop"), "chatTeam");
+assert.equal(hotkeyOwner(DEFAULT_HOTKEYS, "KeyU", "chatTeam"), null, "a key is never taken from itself");
+assert.equal(hotkeyOwner(DEFAULT_HOTKEYS, "KeyT"), null);
 
 // Round trip keeps all eleven preferences plus the overlay, hotkeys and audio blocks.
 const custom = {
   overlay: { autoEnableOnConnect: false, worldBlur: false, worldBlurStrength: 2 },
   radar: { ...DEFAULT_RADAR_PREFERENCES, orientation: "heading-up", mapScale: 0.25, hudScale: 1.1, dynamicZoom: true },
-  hotkeys: { shop: "F3", scoreboard: "KeyT" },
+  hotkeys: { shop: "F3", scoreboard: "KeyT", chatGlobal: "KeyY", chatTeam: "F4" },
   audio: { shopVolume: 0.55 },
 };
 const text = serializeSettings(custom);

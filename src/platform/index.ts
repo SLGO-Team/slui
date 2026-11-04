@@ -11,7 +11,7 @@ import {
   type SteamIdentity,
   type SteamIdentityProof,
 } from "../contracts";
-import { DEFAULT_HOTKEYS, hotkeyVirtualKey, normalizeHotkeys, type HotkeySettings } from "./hotkeys";
+import { DEFAULT_HOTKEYS, HOTKEY_ACTIONS, hotkeyVirtualKey, normalizeHotkeys, type HotkeySettings } from "./hotkeys";
 
 export interface SteamClientIdentity {
   getCurrentUser(): Promise<SteamIdentity | null>;
@@ -44,10 +44,16 @@ export interface SlgoConnection {
   getStatus(): ConnectionStatus;
 }
 
-// Y opens global chat and U team chat, as in CS2.
+// The configurable chat keys (Y and U by default, as in CS2) and the shop key.
 export type OverlayShortcut = "chat-global" | "chat-team" | "shop";
 const OVERLAY_SHORTCUTS: readonly string[] = ["chat-global", "chat-team", "shop"] satisfies readonly OverlayShortcut[];
-const CHAT_KEYS: Readonly<Record<string, OverlayShortcut>> = { KeyY: "chat-global", KeyU: "chat-team" };
+
+/** The shortcut a key opens, matched like the Rust hook's `overlay_shortcut`. */
+export function overlayShortcutFor(code: string, hotkeys: HotkeySettings): OverlayShortcut | null {
+  if (code === hotkeys.chatGlobal) return "chat-global";
+  if (code === hotkeys.chatTeam) return "chat-team";
+  return code === hotkeys.shop ? "shop" : null;
+}
 
 /**
  * `gameForeground` is whether the game had the foreground at the key press, read by
@@ -123,13 +129,13 @@ export function createOverlayWindowController(): OverlayWindowController {
     },
     async setHotkeys(next) {
       const normalized = normalizeHotkeys(next);
-      const shop = hotkeyVirtualKey(normalized.shop);
-      const scoreboard = hotkeyVirtualKey(normalized.scoreboard);
-      if (shop === null || scoreboard === null) throw new Error(`Unsupported hotkeys ${normalized.shop} / ${normalized.scoreboard}`);
+      const keys = HOTKEY_ACTIONS.map((action) => hotkeyVirtualKey(normalized[action]));
+      const [shop, scoreboard, chatGlobal, chatTeam] = keys;
+      if (keys.includes(null)) throw new Error(`Unsupported hotkeys ${HOTKEY_ACTIONS.map((action) => normalized[action]).join(" / ")}`);
       hotkeys = normalized;
       if (!isTauri) return;
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("set_hotkeys", { shop, scoreboard });
+      await invoke("set_hotkeys", { shop, scoreboard, chatGlobal, chatTeam });
     },
     async setScoreboardCapture(capture) {
       scoreboardCapture = capture;
@@ -197,7 +203,7 @@ export function createOverlayWindowController(): OverlayWindowController {
       const onKeyDown = (event: KeyboardEvent) => {
         if (!active || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
         if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
-        const shortcut = event.code === hotkeys.shop ? "shop" : CHAT_KEYS[event.code];
+        const shortcut = overlayShortcutFor(event.code, hotkeys);
         if (!shortcut) return;
         event.preventDefault();
         // While the overlay holds the foreground (the open shop), keys reach this page
