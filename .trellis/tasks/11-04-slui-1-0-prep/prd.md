@@ -63,4 +63,7 @@
 - 子任务 1 `11-04-security-csp-urls`（2026-11-04）：分支 `fix/csp-and-url-validation`。
   CSP 改为 Vite 从 `VITE_CONTROL_PLANE_URL` 生成 meta，构建入口（含 slgo-deploy 两个脚本）都不用改；
   安装器外壳的 CSP 记到 installer-hardening（I5）。
-- 下一步：子任务 2 `11-04-window-capabilities`。
+  PR #95 已合并（f99bb43）。
+- 子任务 2 `11-04-window-capabilities`：分支 `fix/window-capabilities`。命令清单 `src-tauri/app-commands.rs` +
+  AppManifest，capability 拆成 shared / home / overlay，`core:default` 收窄；CDP 实测每个窗口只能调自己的命令。
+- 下一步：子任务 3 `11-04-updater-hardening`。

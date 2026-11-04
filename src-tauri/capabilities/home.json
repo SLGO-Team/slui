@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "home",
+  "description": "The home window only: its title bar, saving settings, updates, the elevated relaunch, the log file, the Steam tile and the project link",
+  "windows": ["home"],
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
+    "core:webview:allow-internal-toggle-devtools",
+    "allow-save-settings",
+    "allow-reveal-log-file",
+    "allow-relaunch-elevated",
+    "allow-get-steam-profile",
+    "allow-updater-start",
+    "allow-updater-check-now",
+    "allow-updater-install",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/SLGO-Team/slui" }]
+    }
+  ]
+}

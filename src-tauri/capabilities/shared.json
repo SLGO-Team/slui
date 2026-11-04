@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "shared",
+  "description": "What both windows call: events between them, settings and state reads, the game and update state, theme pack files and the page log",
+  "windows": ["home", "overlay"],
+  "permissions": [
+    "core:event:default",
+    "allow-log-overlay-event",
+    "allow-list-theme-pack-files",
+    "allow-load-settings",
+    "allow-get-overlay-state",
+    "allow-set-overlay-enabled",
+    "allow-get-game-running",
+    "allow-get-game-conditions",
+    "allow-get-update-state"
+  ]
+}

@@ -1464,3 +1464,25 @@ Child task 1 of the 1.0 prep (S1-S3). CSP is a meta written by Vite from VITE_CO
 ### Status
 
 [OK] **Completed**
+
+
+## Session 63: SLUI 1.0 prep: per-window command capabilities
+<!-- trellis-session: v=2 fp=a96271d7e14b00ea -->
+
+**Date**: 2026-11-04
+**Task**: SLUI 1.0 prep: per-window command capabilities
+**Branch**: `fix/window-capabilities`
+
+### Summary
+
+Child task 2 (S4). build.rs declares all 31 app commands (src-tauri/app-commands.rs) in an AppManifest so Tauri checks every app command; capabilities split into shared/home/overlay, core:default narrowed to core:event:default plus home's title-bar window calls. Privileged commands (relaunch_elevated, updater start/check/install, save_settings, reveal_log_file) are home-only; relaunch_elevated also checks the caller label. command_acl_tests keeps manifest, generate_handler! and grants in step. Verified over CDP on a release local build: each window can call only its commands, no ACL errors at startup. PR #95 (CSP) merged as f99bb43.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `875c981` | fix(security): give the overlay and home windows only the commands each one calls |
+
+### Status
+
+[OK] **Completed**
