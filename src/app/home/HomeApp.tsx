@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RadarPreferences } from "../../features/minimap/preferences";
 import {
-  createGameProcessSource, createOverlayStateSource, createSessionStatusSubscriber, createWindowControls, DISABLED_OVERLAY,
-  type OverlayState, type SessionStatusSnapshot,
+  createAboutLinks, createGameProcessSource, createOverlayStateSource, createSessionStatusSubscriber, createWindowControls,
+  DISABLED_OVERLAY, type AboutLinks, type OverlayState, type SessionStatusSnapshot,
 } from "../../platform/desktop";
 import type { AudioSettings as Audio } from "../../platform/audioSettings";
 import type { HotkeySettings as Hotkeys } from "../../platform/hotkeys";
@@ -58,6 +58,7 @@ export function HomeApp() {
   const gameSource = useMemo(() => createGameProcessSource(), []);
   const sessionSource = useMemo(() => createSessionStatusSubscriber(), []);
   const windowControls = useMemo(() => createWindowControls(), []);
+  const aboutLinks = useMemo(() => createAboutLinks(), []);
   const updateSource = useMemo(() => createUpdateSource(undefined, undefined,
     import.meta.env.DEV ? readUpdatePreview(window.location.search) : null), []);
   const steamProfiles = useMemo(() => createSteamProfileSource(), []);
@@ -78,6 +79,7 @@ export function HomeApp() {
   const [update, setUpdate] = useState<UpdateState | null>(null);
   const [gameConditions, setGameConditions] = useState<GameConditions>(NO_GAME_CONDITIONS);
   const [relaunch, setRelaunch] = useState<RelaunchState>(RELAUNCH_IDLE);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const saveTimer = useRef<number | null>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -197,6 +199,16 @@ export function HomeApp() {
   }, [updateSource]);
   useEffect(() => () => { if (saveTimer.current !== null) window.clearTimeout(saveTimer.current); }, []);
 
+  const followLink = useCallback((open: (links: AboutLinks) => Promise<void>, failure: string) => {
+    setLinkError(null);
+    void open(aboutLinks).catch((error: unknown) => {
+      console.error(failure, error);
+      setLinkError(`${failure}：${errorText(error)}`);
+    });
+  }, [aboutLinks]);
+  const revealLog = useCallback(() => followLink((links) => links.revealLog(), "无法打开日志文件夹"), [followLink]);
+  const openProject = useCallback(() => followLink((links) => links.openProjectPage(), "无法打开项目主页"), [followLink]);
+
   // Each section edits its own block; the whole file is saved so blocks never drop each other.
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     const next = { ...settingsRef.current, ...patch };
@@ -261,7 +273,8 @@ export function HomeApp() {
               onReset={() => updateHotkeys(DEFAULT_APP_SETTINGS.hotkeys)} />
             <AudioSettings id="home-settings-audio" value={settings.audio} onChange={updateAudio}
               onReset={() => updateAudio(DEFAULT_APP_SETTINGS.audio)} />
-            <AboutSettings id="home-settings-about" update={aboutUpdate(update)} onAction={updateAction} />
+            <AboutSettings id="home-settings-about" update={aboutUpdate(update)} linkError={linkError} onAction={updateAction}
+              onRevealLog={revealLog} onOpenProject={openProject} />
           </div>
         </div>
       </>}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
-  createGameProcessSource, createOverlayStateSource, createSessionStatusPublisher, createSessionStatusSubscriber,
-  DISABLED_OVERLAY, parseOverlayState, parseSessionStatus,
+  createAboutLinks, createGameProcessSource, createOverlayStateSource, createSessionStatusPublisher, createSessionStatusSubscriber,
+  DISABLED_OVERLAY, parseOverlayState, parseSessionStatus, PROJECT_URL,
 } from "../src/platform/desktop.ts";
 import { overlaySwitchNote, SERVER_STATUS, serverStatus } from "../src/app/home/status.ts";
 import { steamAccount, steamTone } from "../src/app/home/steamAccount.ts";
@@ -185,4 +185,23 @@ for (const bad of [null, 1, {}, { enabled: "yes", interactive: false }, { enable
   assert.deepEqual(lines, ["error 0", "error 1", "page errors: more than 2, later ones not logged"], "a repeating error stops after the limit");
 }
 
-console.log("desktop adapters smoke: overlay state, game process, session status bridge and Steam profile ok");
+// 关于 links: the log goes through Rust (only it knows the path), the project page through the URL opener.
+{
+  const calls = [];
+  const opened = [];
+  const links = createAboutLinks(async (command, args) => { calls.push([command, args]); },
+    async (url) => { opened.push(url); });
+  await links.revealLog();
+  assert.deepEqual(calls, [["reveal_log_file", undefined]]);
+  await links.openProjectPage();
+  assert.deepEqual(opened, [PROJECT_URL]);
+  assert.match(PROJECT_URL, /^https:\/\//, "opener:default only opens http(s) URLs");
+
+  const failing = createAboutLinks(async () => { throw new Error("no log file to show"); }, async () => {});
+  await assert.rejects(failing.revealLog(), /no log file to show/, "a Rust failure reaches the caller to show");
+
+  const preview = createAboutLinks(null, async () => {});
+  await assert.rejects(preview.revealLog(), /浏览器预览/, "a browser preview has no log to reveal");
+}
+
+console.log("desktop adapters smoke: overlay state, game process, session status bridge and Steam profile and 关于 links ok");
