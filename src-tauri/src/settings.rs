@@ -34,6 +34,16 @@ fn quarantine(path: &Path) {
 /// Returns `None` when the file is missing or unreadable (after backing it up).
 pub fn load(dir: &Path) -> Result<Option<String>, String> {
     let path = settings_path(dir);
+    // Check the size first so an oversized file is never read into memory.
+    match fs::metadata(&path) {
+        Ok(metadata) if metadata.len() > MAX_SETTINGS_BYTES as u64 => {
+            quarantine(&path);
+            return Ok(None);
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("Unable to read settings: {error}")),
+    }
     match fs::read_to_string(&path) {
         Ok(text) if text.len() <= MAX_SETTINGS_BYTES && is_json_object(&text) => Ok(Some(text)),
         Ok(_) => {
@@ -121,6 +131,18 @@ mod tests {
 
         fs::write(settings_path(&dir), [0xff_u8, 0xfe, 0x00]).unwrap();
         assert_eq!(load(&dir), Ok(None));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn oversized_file_is_backed_up_and_loads_as_none() {
+        let dir = scratch_dir("oversized");
+        fs::create_dir_all(&dir).unwrap();
+        let oversized = format!(r#"{{"pad":"{}"}}"#, "x".repeat(MAX_SETTINGS_BYTES));
+        fs::write(settings_path(&dir), oversized).unwrap();
+        assert_eq!(load(&dir), Ok(None));
+        assert!(!settings_path(&dir).exists());
+        assert_eq!(backups(&dir), 1);
         let _ = fs::remove_dir_all(&dir);
     }
 }

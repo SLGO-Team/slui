@@ -668,7 +668,20 @@ fn take_keyboard_focus(overlay: windows_sys::Win32::Foundation::HWND) -> Result<
 // (diag.rs) and stderr; the webview console is hard to reach in game.
 #[tauri::command]
 fn log_overlay_event(message: String) {
+    let message = sanitize_overlay_log_message(&message);
     diag!("SLGO overlay: {message}");
+}
+
+// The webview's message lands in the log as is, so it is bounded and kept on one line:
+// a newline in it could otherwise forge a log entry that seems to come from the native side.
+const MAX_OVERLAY_LOG_BYTES: usize = 2048;
+
+fn sanitize_overlay_log_message(message: &str) -> String {
+    let mut end = message.len().min(MAX_OVERLAY_LOG_BYTES);
+    while !message.is_char_boundary(end) {
+        end -= 1;
+    }
+    message[..end].replace(['\r', '\n'], " ")
 }
 
 // Every outcome is logged: a panel that closed without the game getting the keyboard back must be explainable.
@@ -1598,6 +1611,24 @@ mod hotkey_tests {
             validate_hotkeys(0x14, ShortcutKeys { chat_global: 0x31, ..DEFAULT_KEYS }).is_err(),
             "digits select shop items"
         );
+    }
+}
+
+// Unlike the Windows-only tests below, the log sanitising runs on every platform.
+#[cfg(test)]
+mod overlay_log_tests {
+    use super::{sanitize_overlay_log_message, MAX_OVERLAY_LOG_BYTES};
+
+    #[test]
+    fn overlay_log_messages_stay_on_one_bounded_line() {
+        assert_eq!(sanitize_overlay_log_message("a\r\nSLGO: forged\nb"), "a  SLGO: forged b");
+        // Two-byte characters: the cut must land on a char boundary.
+        let long = "\u{e9}".repeat(MAX_OVERLAY_LOG_BYTES);
+        assert_eq!(sanitize_overlay_log_message(&long).len(), MAX_OVERLAY_LOG_BYTES);
+        let shifted = format!("x{long}");
+        let capped = sanitize_overlay_log_message(&shifted);
+        assert_eq!(capped.len(), MAX_OVERLAY_LOG_BYTES - 1);
+        assert!(capped[1..].chars().all(|c| c == '\u{e9}'));
     }
 }
 
