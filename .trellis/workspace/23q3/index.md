@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 63
+- **Total Sessions**: 64
 - **Last Active**: 2026-11-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1488 | Active |
+| `journal-1.md` | ~1510 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 64 | 2026-11-04 | SLUI 1.0 prep: updater hardening | `6202cd0` | `fix/updater-hardening` |
 | 63 | 2026-11-04 | SLUI 1.0 prep: per-window command capabilities | `875c981` | `fix/window-capabilities` |
 | 62 | 2026-11-04 | SLUI 1.0 prep: webview CSP and server-sent URL validation | `e9d0af3` | `fix/csp-and-url-validation` |
 | 61 | 2026-11-03 | Radar map blend: CS2 additive through DWM compositing | `a2cd331`, `e7b1b05` | `fix/radar-map-blend` |
