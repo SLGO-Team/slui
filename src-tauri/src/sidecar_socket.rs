@@ -29,9 +29,9 @@ use tokio_rustls::{
     TlsConnector,
 };
 use tokio_tungstenite::{
-    client_async,
+    client_async_with_config,
     tungstenite::{
-        protocol::{frame::coding::CloseCode, CloseFrame},
+        protocol::{frame::coding::CloseCode, CloseFrame, WebSocketConfig},
         Message,
     },
     WebSocketStream,
@@ -43,6 +43,10 @@ const CLOSE_ABNORMAL: u16 = 1006;
 const CLOSE_NO_STATUS: u16 = 1005;
 // How long a locally closed socket waits for the sidecar's closing handshake.
 const CLOSE_GRACE: Duration = Duration::from_secs(2);
+// Every text message is forwarded to the webview, so a hostile sidecar must not get
+// tungstenite's defaults (64 MiB messages) through. Baselines carry the facility layout,
+// so the cap stays generous.
+const MAX_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -176,7 +180,10 @@ async fn connect(
     } else {
         Box::new(tcp)
     };
-    let (socket, _) = client_async(target.url.as_str(), stream)
+    let config = WebSocketConfig::default()
+        .max_message_size(Some(MAX_MESSAGE_BYTES))
+        .max_frame_size(Some(MAX_MESSAGE_BYTES));
+    let (socket, _) = client_async_with_config(target.url.as_str(), stream, Some(config))
         .await
         .map_err(|error| format!("WebSocket handshake failed: {error}"))?;
     Ok(socket)
