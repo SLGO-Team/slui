@@ -73,17 +73,17 @@ state = reduce(state, { type: "submit", command: sent, nowMs: 1_000 });
 assert.equal(state.open, false);
 assert.equal(state.draft, "");
 assert.deepEqual(state.lines, [], "nothing is shown until the server answers");
-assert.equal(state.pending?.commandId, sent.command_id);
-assert.equal(reduce(initialChatInputState, { type: "submit", command: sent, nowMs: 0 }).pending, null, "a closed input cannot submit");
+assert.equal(state.pending[sent.command_id]?.commandId, sent.command_id);
+assert.deepEqual(reduce(initialChatInputState, { type: "submit", command: sent, nowMs: 0 }).pending, {}, "a closed input cannot submit");
 
 // Results for other commands or kinds are ignored.
 const accepted = { command_id: sent.command_id, command_kind: "command.chat.send", status: "accepted" };
-assert.equal(reduce(state, { type: "command-result", result: { ...accepted, command_id: "other" }, nowMs: 1_100 }).pending?.commandId, sent.command_id);
-assert.equal(reduce(state, { type: "command-result", result: { ...accepted, command_kind: "command.shop.purchase" }, nowMs: 1_100 }).pending?.commandId, sent.command_id);
+assert.equal(reduce(state, { type: "command-result", result: { ...accepted, command_id: "other" }, nowMs: 1_100 }).pending[sent.command_id]?.commandId, sent.command_id);
+assert.equal(reduce(state, { type: "command-result", result: { ...accepted, command_kind: "command.shop.purchase" }, nowMs: 1_100 }).pending[sent.command_id]?.commandId, sent.command_id);
 
 // Accepted before the server's copy: the message is echoed as the player's own row.
 const ok = reduce(state, { type: "command-result", result: accepted, nowMs: 1_100 });
-assert.equal(ok.pending, null);
+assert.deepEqual(ok.pending, {});
 assert.deepEqual(ok.lines, [{ id: `echo:${sent.command_id}`, kind: "player", scope: "global", sender: null, body: "rotate B", commandId: sent.command_id, atMs: 1_100 }]);
 assert.equal(ok.draft, "", "an accepted message is not restored");
 assert.equal(reduce(state, { type: "command-result", result: { ...accepted, status: "duplicate" }, nowMs: 1_100 }).lines[0]?.sender, null, "duplicate means the first send went through");
@@ -106,11 +106,59 @@ assert.equal(reduce(reopened, { type: "command-result", result: { ...accepted, s
 const lost = reduce(state, { type: "connection", status: "offline", nowMs: 1_300 });
 assert.equal(lost.lines.at(-1)?.text, "发送失败：连接已断开。");
 assert.equal(lost.draft, "rotate B");
-assert.equal(reduce(state, { type: "connection", status: "stale", nowMs: 1_300 }).pending?.commandId, sent.command_id, "a stale stream may still answer");
+assert.equal(reduce(state, { type: "connection", status: "stale", nowMs: 1_300 }).pending[sent.command_id]?.commandId, sent.command_id, "a stale stream may still answer");
 assert.equal(reduce(state, { type: "connection", status: "ended", nowMs: 1_300 }), initialChatInputState, "an ended instance closes chat and drops its history");
 for (const status of ["not-in-game", "game-not-running"]) assert.equal(reduce(state, { type: "connection", status, nowMs: 1_300 }), initialChatInputState, `${status} ends the match`);
-assert.equal(reduce(state, { type: "tick", nowMs: 1_000 + CHAT_COMMAND_TIMEOUT_MS - 1 }).pending?.commandId, sent.command_id);
+assert.equal(reduce(state, { type: "tick", nowMs: 1_000 + CHAT_COMMAND_TIMEOUT_MS - 1 }).pending[sent.command_id]?.commandId, sent.command_id);
 assert.equal(reduce(state, { type: "tick", nowMs: 1_000 + CHAT_COMMAND_TIMEOUT_MS }).lines.at(-1)?.text, "发送失败：服务器未响应。");
+
+// Overlapping sends: a second message sent before the first is answered; each send keeps its own result.
+const first = createChatCommand("a", "global");
+const second = createChatCommand("b", "team");
+const resultFor = (command, status, reason) => ({ command_id: command.command_id, command_kind: command.kind, status, ...(reason ? { reason } : {}) });
+const both = reduce(initialChatInputState, { type: "open", scope: "global" }, { type: "submit", command: first, nowMs: 2_000 },
+  { type: "open", scope: "team" }, { type: "submit", command: second, nowMs: 3_000 });
+assert.deepEqual(Object.keys(both.pending), [first.command_id, second.command_id], "both sends wait for their own result");
+assert.equal(both.draft, "");
+// The first fails after the second was sent: its failure is still shown and the message returned.
+const firstRejected = reduce(both, { type: "command-result", result: resultFor(first, "rejected", "rate-limited"), nowMs: 3_100 });
+assert.deepEqual(firstRejected.lines.map((line) => [line.id, line.text]), [[`${first.command_id}:failed`, "发送失败：发送过于频繁，请稍候。"]]);
+assert.equal(firstRejected.draft, "a", "the failed first message returns to the empty input");
+assert.deepEqual(Object.keys(firstRejected.pending), [second.command_id], "the second send still waits");
+const secondAccepted = reduce(firstRejected, { type: "command-result", result: resultFor(second, "accepted"), nowMs: 3_200 });
+assert.deepEqual(secondAccepted.pending, {});
+assert.deepEqual(secondAccepted.lines.map((line) => line.id), [`${first.command_id}:failed`, `echo:${second.command_id}`]);
+assert.equal(secondAccepted.lines[1].body, "b");
+assert.equal(secondAccepted.draft, "a", "the second's success does not clear the returned first message");
+// The second answered first, then the first fails.
+const reversed = reduce(both, { type: "command-result", result: resultFor(second, "accepted"), nowMs: 3_100 },
+  { type: "command-result", result: resultFor(first, "failed", "timeout"), nowMs: 3_200 });
+assert.deepEqual(reversed.lines.map((line) => line.id), [`echo:${second.command_id}`, `${first.command_id}:failed`]);
+assert.equal(reversed.lines[1].text, "发送失败：服务器未响应。");
+assert.equal(reversed.draft, "a");
+// What the player is typing meanwhile is never replaced by a returned message.
+const typing = reduce(both, { type: "open", scope: "team" }, { type: "draft", text: "c" },
+  { type: "command-result", result: resultFor(first, "rejected", "rate-limited"), nowMs: 3_100 });
+assert.equal(typing.draft, "c");
+assert.equal(typing.lines.at(-1)?.text, "发送失败：发送过于频繁，请稍候。");
+// Both fail: the first returns to the input, the second only prints its failure.
+const bothRejected = reduce(firstRejected, { type: "command-result", result: resultFor(second, "rejected", "rate-limited"), nowMs: 3_200 });
+assert.deepEqual(bothRejected.lines.map((line) => line.id), [`${first.command_id}:failed`, `${second.command_id}:failed`]);
+assert.equal(bothRejected.draft, "a");
+// Each send times out on its own clock.
+const firstTimedOut = reduce(both, { type: "tick", nowMs: 2_000 + CHAT_COMMAND_TIMEOUT_MS });
+assert.deepEqual(firstTimedOut.lines.map((line) => [line.id, line.text]), [[`${first.command_id}:failed`, "发送失败：服务器未响应。"]]);
+assert.deepEqual(Object.keys(firstTimedOut.pending), [second.command_id]);
+assert.equal(firstTimedOut.draft, "a");
+const bothTimedOut = reduce(firstTimedOut, { type: "tick", nowMs: 3_000 + CHAT_COMMAND_TIMEOUT_MS });
+assert.deepEqual(bothTimedOut.lines.map((line) => line.id), [`${first.command_id}:failed`, `${second.command_id}:failed`]);
+assert.deepEqual(bothTimedOut.pending, {});
+// A lost connection fails every pending send, in send order.
+const bothLost = reduce(both, { type: "connection", status: "offline", nowMs: 3_100 });
+assert.deepEqual(bothLost.lines.map((line) => [line.id, line.text]), [[`${first.command_id}:failed`, "发送失败：连接已断开。"], [`${second.command_id}:failed`, "发送失败：连接已断开。"]]);
+assert.deepEqual(bothLost.pending, {});
+assert.equal(bothLost.draft, "a");
+assert.deepEqual(Object.keys(reduce(both, { type: "connection", status: "stale", nowMs: 3_100 }).pending), [first.command_id, second.command_id]);
 
 // History keeps the newest rows only.
 let flood = initialChatInputState;
@@ -183,11 +231,18 @@ const own = createChatCommand("rotate A", "team");
 const ownMessage = message("m3", { sender_id: NOVA, sender_name: "Nova", body: "rotate A", command_id: own.command_id });
 let mine = reduce(live, { type: "open", scope: "team" }, { type: "submit", command: own, nowMs: 100 },
   { type: "message", source, message: ownMessage, nowMs: 150 });
-assert.equal(mine.pending, null, "the server's copy settles the send");
+assert.deepEqual(mine.pending, {}, "the server's copy settles the send");
 assert.deepEqual(mine.lines.map((line) => [line.id, line.sender?.name]), [["message:m3", "Nova"]]);
 mine = reduce(mine, { type: "command-result", result: { command_id: own.command_id, command_kind: own.kind, status: "accepted" }, nowMs: 160 });
 assert.equal(mine.lines.length, 1, "the later result adds no echo");
 assert.equal(reduce(mine, { type: "tick", nowMs: 100 + CHAT_COMMAND_TIMEOUT_MS }).lines.length, 1, "no timeout after the message arrived");
+// With a second send waiting, the server's copy of the first settles only the first.
+const ownNext = createChatCommand("rotate B", "team");
+const overlapping = reduce(live, { type: "open", scope: "team" }, { type: "submit", command: own, nowMs: 100 },
+  { type: "open", scope: "team" }, { type: "submit", command: ownNext, nowMs: 120 },
+  { type: "message", source, message: ownMessage, nowMs: 150 });
+assert.deepEqual(Object.keys(overlapping.pending), [ownNext.command_id]);
+assert.equal(reduce(overlapping, { type: "tick", nowMs: 120 + CHAT_COMMAND_TIMEOUT_MS }).lines.at(-1)?.id, `${ownNext.command_id}:failed`);
 
 // Own message, reverse order (fake plugin, or the message queued behind): echo, then replaced in place.
 let echoed = reduce(live, { type: "open", scope: "team" }, { type: "submit", command: own, nowMs: 100 },
