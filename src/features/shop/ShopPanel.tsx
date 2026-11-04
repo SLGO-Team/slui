@@ -188,7 +188,23 @@ export const ShopPanel = memo(function ShopPanel({
   const columns = useMemo(() => groupShopItems(shop.items, shop.categories, role), [role, shop.items, shop.categories]);
   const visible = open && shop.hasSnapshot && shop.windowOpen;
   const audio = useShopAudio(visible, volume);
-  useEffect(() => { if (!visible) setDenial(null); }, [visible]);
+  // A plugin failure belongs to the shop session it happened in: hiding the shop dismisses it, and a
+  // new failure (each command clears the reason first) shows again.
+  const failureReasonRef = useRef(shop.failureReason);
+  failureReasonRef.current = shop.failureReason;
+  const [dismissedFailure, setDismissedFailure] = useState<string | null>(null);
+  useEffect(() => { if (shop.failureReason === null) setDismissedFailure(null); }, [shop.failureReason]);
+  // The panel stays mounted while hidden, and a hidden card never fires pointerleave: start every
+  // opening from the category list with nothing hovered, so a digit or Backspace never acts on a
+  // column or card from an earlier opening.
+  useEffect(() => {
+    if (visible) return;
+    setDenial(null);
+    setSelectedCategory(null);
+    setHoveredItemId(null);
+    setHoveredRequestId(null);
+    setDismissedFailure(failureReasonRef.current);
+  }, [visible]);
   // Banner only: CS2's buy menu has no failure sound (the purchase cue already played).
   const deny = useCallback((item: ShopItemView | ShopRequestView) => {
     // A purchase still in flight blocks a repeat silently; only an unavailable card has a reason.
@@ -360,7 +376,7 @@ export const ShopPanel = memo(function ShopPanel({
   const previewKnown = previewItemId !== null && (shop.items.some((item) => item.item_id === previewItemId) || shop.requests.some((request) => request.item_id === previewItemId));
   const previewId = previewKnown ? previewItemId : shop.items[0]?.item_id ?? null;
   const showRequests = shop.requests.length > 0;
-  const failure = denial ? { text: denial.reason, key: `denial-${denial.seq}` } : shop.failureReason ? { text: shop.failureReason, key: `plugin-${shop.failureReason}` } : null;
+  const failure = denial ? { text: denial.reason, key: `denial-${denial.seq}` } : shop.failureReason && shop.failureReason !== dismissedFailure ? { text: shop.failureReason, key: `plugin-${shop.failureReason}` } : null;
   return (
     <>
       <ShopMask />
