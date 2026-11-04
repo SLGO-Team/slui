@@ -75,9 +75,10 @@ assert.equal(audioOf({ shopVolume: -0.2 }), 0);
 for (const shopVolume of [Number.NaN, Infinity, "0.5", null, undefined, true]) assert.equal(audioOf({ shopVolume }), 0.15, `recover ${String(shopVolume)}`);
 assert.equal(audioOf([]), 0.15, "array audio");
 
-// Shop and chat hotkeys: letters and F1-F12; anything else recovers to the default.
+// Shop and chat hotkeys: letters except R (the open shop's teammate request) and F1-F12;
+// anything else recovers to the default.
 for (const code of ["KeyA", "KeyB", "KeyY", "KeyU", "KeyZ", "F1", "F12"]) assert.equal(isBindableHotkey(code), true, code);
-for (const code of ["Digit1", "Digit0", "F13", "F0", "Escape", "ShiftLeft", "b", "", 66, null]) {
+for (const code of ["KeyR", "Digit1", "Digit0", "F13", "F0", "Escape", "ShiftLeft", "b", "", 66, null]) {
   assert.equal(isBindableHotkey(code), false, String(code));
   assert.deepEqual(parseSettings({ version: SETTINGS_VERSION, hotkeys: { shop: code } }).hotkeys, DEFAULT_HOTKEYS, `recover ${String(code)}`);
   assert.deepEqual(parseSettings({ version: SETTINGS_VERSION, hotkeys: { chatTeam: code } }).hotkeys, DEFAULT_HOTKEYS, `recover chat ${String(code)}`);
@@ -99,7 +100,7 @@ assert.equal(hotkeyLabel("F5"), "F5");
 assert.deepEqual(DEFAULT_HOTKEYS, { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU" });
 assert.deepEqual(HOTKEY_ACTIONS, ["shop", "scoreboard", "chatGlobal", "chatTeam"], "the order set_hotkeys takes them in");
 for (const code of ["CapsLock", "KeyA", "KeyT", "KeyY", "F1", "F12"]) assert.equal(isBindableScoreboardHotkey(code), true, code);
-for (const code of ["Tab", "Digit1", "ShiftLeft", "", null]) assert.equal(isBindableScoreboardHotkey(code), false, String(code));
+for (const code of ["Tab", "KeyR", "Digit1", "ShiftLeft", "", null]) assert.equal(isBindableScoreboardHotkey(code), false, String(code));
 assert.equal(isBindableHotkey("CapsLock"), false, "CapsLock never opens the shop or a chat");
 assert.equal(isBindableFor("scoreboard", "CapsLock"), true);
 assert.equal(isBindableFor("chatGlobal", "CapsLock"), false);

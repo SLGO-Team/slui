@@ -373,7 +373,7 @@ function App({ harness }: AppProps) {
     };
   }, [overlayState]);
 
-  // While the overlay is enabled it owns Y/U and B, so the plugin ignores its own chat-area
+  // While the overlay is enabled it owns the chat and shop keys (Y/U and B by default), so the plugin ignores its own chat-area
   // toggle and no longer opens its in-game shop for this player. A disabled overlay keeps
   // the session live, so it must say so. While input is blocked the overlay hands chat, the
   // shop and the team menu back: the plugin redraws its own on the presence change.
@@ -456,7 +456,7 @@ function App({ harness }: AppProps) {
   }, [mockConnection, previewFocus, session.retry]);
 
   // The shop hotkey always closes the shop, but only opens it over the focused game during
-  // the buy window, so typing elsewhere never takes the mouse. Y/U open chat over the
+  // the buy window, so typing elsewhere never takes the mouse. The chat keys open chat over the
   // focused game while the session is live, and close the shop. While chat has the
   // keyboard every hooked key is ordinary typing. The hook reports the foreground at
   // the key press itself; the browser preview (null) only sees keys while its tab is
@@ -663,7 +663,7 @@ function App({ harness }: AppProps) {
     }).catch((error: unknown) => {
       console.error("Unable to switch overlay input", error);
       // The UI stays open without the foreground: the mouse is the overlay's, so a
-      // click focuses it, and the hotkey or Y/U in game closes it (see the shortcut handler).
+      // click focuses it, and the hotkey or a chat key in game closes it (see the shortcut handler).
       overlayController.log(`overlay input switch failed: ${error instanceof Error ? error.message : String(error)}`);
     });
   }, [overlayController, overlayInteractive]);

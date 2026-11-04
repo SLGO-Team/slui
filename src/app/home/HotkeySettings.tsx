@@ -37,7 +37,7 @@ export function HotkeySettings({ id, value, onChange, onReset }: {
     if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
     const name = event.key.length === 1 ? event.key.toUpperCase() : event.key;
     if (!isBindableFor(action, event.code) || event.ctrlKey || event.altKey || event.metaKey) {
-      setRejected(`不能使用 ${name}：请选择字母键${action === "scoreboard" ? "、Caps Lock " : ""}或 F1–F12，且不带修饰键（数字键用于商店选购）。`);
+      setRejected(`不能使用 ${name}：请选择 R 以外的字母键${action === "scoreboard" ? "、Caps Lock " : ""}或 F1–F12，且不带修饰键（数字键和 R 用于商店内选购和请求队友购买）。`);
       return;
     }
     const owner = hotkeyOwner(value, event.code, action);
