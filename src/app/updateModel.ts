@@ -12,6 +12,7 @@ const FAILURE_TEXT: Record<UpdateFailReason, string> = {
   network: "检查更新失败",
   signature: "更新文件校验失败",
   launch: "无法启动安装程序",
+  unavailable: "无法检查更新",
 };
 
 function downloadText(phase: Extract<UpdatePhase, { kind: "downloading" }>): string {

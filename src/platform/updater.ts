@@ -3,7 +3,8 @@
 // show a fixed state (see src/mocks/updatePreview.ts) or none.
 import { desktopBus, isTauri, tauriInvoke, type CommandInvoker, type DesktopBus } from "./desktop.ts";
 
-export type UpdateFailReason = "network" | "signature" | "launch";
+/** `unavailable`: the checks could not start (no valid control-plane address in this build). */
+export type UpdateFailReason = "network" | "signature" | "launch" | "unavailable";
 
 export type UpdatePhase =
   | { kind: "idle" }
@@ -29,7 +30,7 @@ export const UPDATE_STATE_EVENT = "slui://update-state";
 
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
-const FAIL_REASONS: readonly unknown[] = ["network", "signature", "launch"] satisfies UpdateFailReason[];
+const FAIL_REASONS: readonly unknown[] = ["network", "signature", "launch", "unavailable"] satisfies UpdateFailReason[];
 
 function parsePhase(value: unknown): UpdatePhase | null {
   if (!value || typeof value !== "object") return null;
@@ -66,8 +67,11 @@ export function parseUpdateState(value: unknown): UpdateState | null {
 }
 
 export interface UpdateSource {
-  /** Starts the check loop against `{controlPlaneUrl}/v0/update`; later calls only return the state. */
-  start(controlPlaneUrl: string): Promise<UpdateState | null>;
+  /**
+   * Starts the check loop; later calls only return the state. Rust reads the address from the build
+   * (slui-build.json), never from the caller. Rejects when the checks cannot start.
+   */
+  start(): Promise<UpdateState | null>;
   get(): Promise<UpdateState | null>;
   subscribe(listener: (state: UpdateState) => void): () => void;
   /** Checks now (the version tile's retry). */
@@ -92,7 +96,7 @@ export function createUpdateSource(
     };
   }
   return {
-    start: async (controlPlaneUrl) => parseUpdateState(await invoke<unknown>("updater_start", { controlPlaneUrl })),
+    start: async () => parseUpdateState(await invoke<unknown>("updater_start")),
     get: async () => parseUpdateState(await invoke<unknown>("get_update_state")),
     subscribe(listener) {
       return bus.listen(UPDATE_STATE_EVENT, (payload) => {

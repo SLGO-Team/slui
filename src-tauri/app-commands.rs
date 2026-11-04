@@ -1,0 +1,37 @@
+// Every command in `generate_handler!` (src/lib.rs). build.rs turns each into an
+// `allow-<command>` permission, and with an app manifest present Tauri refuses any app
+// command that no capability grants (capabilities/*.json). Shared with the test in
+// src/command_acl_tests.rs, which keeps this list, the handler and the grants in step.
+const APP_COMMANDS: &[&str] = &[
+    "set_overlay_interactive",
+    "set_overlay_keyboard_focus",
+    "log_overlay_event",
+    "set_overlay_enabled",
+    "set_overlay_session_live",
+    "set_hotkeys",
+    "set_scoreboard_capture",
+    "get_overlay_state",
+    "get_overlay_visibility",
+    "load_settings",
+    "save_settings",
+    "get_game_running",
+    "get_current_steam_identity",
+    "reveal_log_file",
+    "get_steam_profile",
+    "game_log_size",
+    "game_log_read",
+    "get_game_foreground",
+    "get_game_conditions",
+    "relaunch_elevated",
+    "set_backdrop_regions",
+    "set_backdrop_options",
+    "get_backdrop_available",
+    "list_theme_pack_files",
+    "sidecar_open",
+    "sidecar_send",
+    "sidecar_close",
+    "updater_start",
+    "updater_check_now",
+    "get_update_state",
+    "updater_install",
+];

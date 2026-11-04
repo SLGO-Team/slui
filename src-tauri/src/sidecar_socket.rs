@@ -103,11 +103,17 @@ struct Target {
     tls: bool,
 }
 
-fn parse_target(raw: &str) -> Result<Target, String> {
+// Plain ws:// exists only for the local development sidecar, which has no TLS: `tauri dev`
+// (debug builds) and local test packages (`local-backend`, set by tauri.local.conf.json). A
+// released build only speaks wss://, so a route cannot point it at a plain local port.
+const ALLOW_PLAIN_WS: bool = cfg!(any(debug_assertions, feature = "local-backend"));
+
+fn parse_target(raw: &str, allow_plain_ws: bool) -> Result<Target, String> {
     let url = Url::parse(raw).map_err(|error| format!("Invalid sidecar endpoint: {error}"))?;
     let tls = match url.scheme() {
         "wss" => true,
-        "ws" => false,
+        "ws" if allow_plain_ws => false,
+        "ws" => return Err("ws:// sidecar endpoints are only allowed in local builds".into()),
         scheme => return Err(format!("Unsupported sidecar endpoint scheme {scheme}")),
     };
     // IPv6 literals come bracketed; the socket address and the server name take them bare.
@@ -117,7 +123,7 @@ fn parse_target(raw: &str) -> Result<Target, String> {
         .trim_start_matches('[')
         .trim_end_matches(']')
         .to_owned();
-    // Plain ws:// exists only for the local development sidecar.
+    // Even there, only on this machine.
     let loopback = host.eq_ignore_ascii_case("localhost")
         || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback());
     if !tls && !loopback {
@@ -287,7 +293,7 @@ pub fn sidecar_open(
     url: String,
     on_event: Channel<SidecarSocketEvent>,
 ) -> Result<u32, String> {
-    let target = parse_target(&url)?;
+    let target = parse_target(&url, ALLOW_PLAIN_WS)?;
     let (sender, receiver) = mpsc::unbounded_channel();
     let id = sockets.insert(sender);
     tauri::async_runtime::spawn(async move {
@@ -325,24 +331,28 @@ mod tests {
     };
 
     #[test]
-    fn plain_ws_is_only_allowed_on_loopback() {
-        for url in [
+    fn plain_ws_is_only_allowed_on_loopback_in_local_builds() {
+        let loopback = [
             "ws://127.0.0.1:7801/slgo/sidecar",
             "ws://localhost:7801/slgo/sidecar",
             "ws://[::1]:7801/slgo/sidecar",
-            "wss://sidecar.example.com:7790/slgo/sidecar",
-        ] {
-            assert!(parse_target(url).is_ok(), "{url}");
+        ];
+        for url in loopback {
+            assert!(parse_target(url, true).is_ok(), "{url}");
+            assert!(parse_target(url, false).is_err(), "released builds: {url}");
         }
-        for url in [
-            "ws://sidecar.example.com:7801/slgo/sidecar",
-            "ws://192.0.2.1:7801/slgo/sidecar",
-            "https://sidecar.example.com/slgo/sidecar",
-            "not a url",
-        ] {
-            assert!(parse_target(url).is_err(), "{url}");
+        for allow_plain_ws in [true, false] {
+            assert!(parse_target("wss://sidecar.example.com:7790/slgo/sidecar", allow_plain_ws).is_ok());
+            for url in [
+                "ws://sidecar.example.com:7801/slgo/sidecar",
+                "ws://192.0.2.1:7801/slgo/sidecar",
+                "https://sidecar.example.com/slgo/sidecar",
+                "not a url",
+            ] {
+                assert!(parse_target(url, allow_plain_ws).is_err(), "{url}");
+            }
         }
-        let target = parse_target("wss://sidecar.example.com/slgo/sidecar").unwrap();
+        let target = parse_target("wss://sidecar.example.com/slgo/sidecar", false).unwrap();
         assert_eq!(
             (target.host.as_str(), target.port, target.tls),
             ("sidecar.example.com", 443, true)
@@ -408,7 +418,7 @@ mod tests {
         config: Arc<rustls::ClientConfig>,
     ) -> (Vec<SidecarSocketEvent>, (u16, String)) {
         let target =
-            parse_target(&format!("wss://localhost:{}/slgo/sidecar", server.port)).unwrap();
+            parse_target(&format!("wss://localhost:{}/slgo/sidecar", server.port), false).unwrap();
         let (sender, receiver) = mpsc::unbounded_channel();
         let events = Mutex::new(Vec::new());
         let closed = run(target, config, receiver, |event| {
@@ -480,7 +490,7 @@ mod tests {
         let (sender, receiver) = mpsc::unbounded_channel();
         let events = Mutex::new(Vec::new());
         let closed = run(
-            parse_target(&url).unwrap(),
+            parse_target(&url, false).unwrap(),
             mozilla_tls_config(),
             receiver,
             |event| {

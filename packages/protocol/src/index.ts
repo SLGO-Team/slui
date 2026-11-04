@@ -760,6 +760,40 @@ const ENVELOPE_KEYS = new Set([
   "payload",
 ]);
 
+/** Longest server-sent image URL (`avatar_url`, `icon_url`) the client draws. */
+export const MAX_ASSET_URL_LENGTH = 512;
+
+// The WHATWG URL parser every runtime of this package has (browsers, Node, Bun); declared here
+// because the package compiles against plain ES2022 without DOM or Node types.
+type ParsedUrl = { readonly href: string; readonly protocol: string; readonly hostname: string; readonly username: string; readonly password: string };
+declare const URL: new (input: string) => ParsedUrl;
+
+const parseUrl = (value: string): ParsedUrl | null => {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * A server-sent image URL (`avatar_url`, `icon_url`) as the client may draw it: an https URL
+ * without credentials, at most MAX_ASSET_URL_LENGTH characters, normalised by the URL parser (so
+ * it is safe inside CSS `url("…")`). Anything else is null, which draws the bundled fallback; a
+ * bad URL never invalidates the payload around it.
+ */
+export function toAssetUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > MAX_ASSET_URL_LENGTH) return null;
+  const url = parseUrl(value);
+  if (!url || url.protocol !== "https:" || url.username || url.password || url.href.length > MAX_ASSET_URL_LENGTH) return null;
+  return url.href;
+}
+
+/** Replaces `key` with its toAssetUrl value when present; absent stays absent. */
+function withAssetUrl<T extends Record<string, unknown>>(value: T, key: string): T {
+  return Object.prototype.hasOwnProperty.call(value, key) ? { ...value, [key]: toAssetUrl(value[key]) } : value;
+}
+
 function error(code: ParseErrorCode, message: string, eventId?: string): ParseResult<never> {
   return { ok: false, error: { code, message, eventId } };
 }
@@ -1070,9 +1104,20 @@ export function parseUpdateManifest(raw: unknown): ParseResult<UpdateManifest> {
   return { ok: true, value: raw as unknown as UpdateManifest };
 }
 
+/**
+ * Routes always name a TLS sidecar: `wss://` with a host and no credentials. The client sends the
+ * session token there, so a plain `ws://` route is refused in every build; local builds reach the
+ * plain dev sidecar only through their own build-time override (VITE_DEV_SIDECAR_ENDPOINT).
+ */
+function isSidecarEndpoint(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const url = parseUrl(value);
+  return url !== null && url.protocol === "wss:" && url.hostname.length > 0 && !url.username && !url.password;
+}
+
 export function parseRoute(raw: unknown, now = Date.now()): ParseResult<ServerRoute> {
   if (!isRecord(raw) || raw.protocol_version !== PROTOCOL_VERSION || raw.type !== "control.route.resolved") return error("invalid-route", "Route is not a protocol v0 route");
-  if (!isNonEmptyString(raw.steam_id) || !/^[0-9]{17}$/.test(raw.steam_id) || !isNonEmptyString(raw.server_id) || !isNonEmptyString(raw.instance_id) || !isNonEmptyString(raw.session_token) || typeof raw.sidecar_endpoint !== "string" || !raw.sidecar_endpoint.startsWith("wss://")) return error("invalid-route", "Route fields are invalid");
+  if (!isNonEmptyString(raw.steam_id) || !/^[0-9]{17}$/.test(raw.steam_id) || !isNonEmptyString(raw.server_id) || !isNonEmptyString(raw.instance_id) || !isNonEmptyString(raw.session_token) || !isSidecarEndpoint(raw.sidecar_endpoint)) return error("invalid-route", "Route fields are invalid");
   if (!isNonEmptyString(raw.expires_at)) return error("invalid-route", "Route expiry is required");
   const expiresAt = Date.parse(raw.expires_at);
   if (!Number.isFinite(expiresAt) || expiresAt <= now) return error("expired-route", "Route has expired");
@@ -1128,7 +1173,7 @@ export function parseMatchSnapshot(payload: unknown): ParseResult<MatchSnapshot>
       // Kills are public for both teams, unlike the viewer-only vitals.
       if (Object.prototype.hasOwnProperty.call(player, "kills")
         && (!Number.isInteger(player.kills) || Number(player.kills) < 0)) return null;
-      return player as unknown as MatchPlayer;
+      return withAssetUrl(player, "avatar_url") as unknown as MatchPlayer;
     });
     return players.every(Boolean) ? { ...team, players } as unknown as MatchTeam : null;
   });
@@ -1266,14 +1311,13 @@ export function parseShopSnapshot(payload: unknown): ParseResult<ShopSnapshot> {
   const items = payload.items.map((item) => {
     if (!isRecord(item) || !isNonEmptyString(item.item_id) || !isNonEmptyString(item.name) || !Number.isInteger(item.price) || Number(item.price) < 0 || (item.quantity !== null && (!Number.isInteger(item.quantity) || Number(item.quantity) < 0)) || typeof item.purchasable !== "boolean") return null;
     if (item.description !== undefined && typeof item.description !== "string") return null;
-    if (item.icon_url !== undefined && item.icon_url !== null && typeof item.icon_url !== "string") return null;
     if (item.unavailable_reason !== undefined && item.unavailable_reason !== null && typeof item.unavailable_reason !== "string") return null;
     if (item.category_id !== undefined && item.category_id !== null && !isNonEmptyString(item.category_id)) return null;
     if (item.owned_quantity !== undefined && item.owned_quantity !== null && (!Number.isInteger(item.owned_quantity) || Number(item.owned_quantity) < 0)) return null;
     if (item.owner_player_ids !== undefined && item.owner_player_ids !== null && (!Array.isArray(item.owner_player_ids) || !item.owner_player_ids.every(isNonEmptyString))) return null;
     if ((item.requestable !== undefined && typeof item.requestable !== "boolean") || (item.requested !== undefined && typeof item.requested !== "boolean")) return null;
     if (item.refundable !== undefined && typeof item.refundable !== "boolean") return null;
-    return item as unknown as ShopItem;
+    return withAssetUrl(item, "icon_url") as unknown as ShopItem;
   });
   if (!items.every(Boolean)) return error("invalid-payload", "Shop snapshot contains an invalid item");
   const requests = payload.requests === undefined ? undefined : parseShopRequests(payload.requests);
@@ -1294,12 +1338,11 @@ function parseShopRequests(value: unknown): ShopRequest[] | null {
     if (!isNonEmptyString(request.requester_player_id) || !isNonEmptyString(request.requester_name) || request.requester_name.length > MAX_SHOP_REQUESTER_NAME_LENGTH) return null;
     if (!isNonEmptyString(request.item_id) || !isNonEmptyString(request.name) || !Number.isSafeInteger(request.price) || Number(request.price) < 0 || typeof request.purchasable !== "boolean") return null;
     if (request.description !== undefined && typeof request.description !== "string") return null;
-    if (request.icon_url !== undefined && request.icon_url !== null && typeof request.icon_url !== "string") return null;
     if (request.category_id !== undefined && request.category_id !== null && !isNonEmptyString(request.category_id)) return null;
     if (request.unavailable_reason !== undefined && request.unavailable_reason !== null && typeof request.unavailable_reason !== "string") return null;
     ids.add(request.request_id);
   }
-  return value as ShopRequest[];
+  return value.map((request) => withAssetUrl(request as Record<string, unknown>, "icon_url")) as unknown as ShopRequest[];
 }
 
 export function parseChatMessage(payload: unknown): ParseResult<ChatMessage> {

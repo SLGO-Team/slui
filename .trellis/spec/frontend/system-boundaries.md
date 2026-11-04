@@ -388,7 +388,10 @@ request", "Sidecar session handshake", "Security boundary").
   `webpki-roots`). The TLS handshake sends **no SNI** (`enable_sni = false`), because a
   game host's network resets handshakes naming a domain it has not allowlisted and the
   webview cannot omit SNI; the certificate is still verified against the URL host name,
-  with no switch to skip it. Plain `ws://` is refused unless the host is loopback.
+  with no switch to skip it. Plain `ws://` is accepted only by debug builds and
+  local test packages (cargo feature `local-backend`), and only on loopback; a
+  release build refuses it (`ALLOW_PLAIN_WS` in `sidecar_socket.rs`). Routes are
+  `wss://` in every build (`parseRoute`).
   Rust reports browser close semantics: no close frame (connect, TLS or handshake
   failure, drop) → `1006`, a close frame without a code → `1005`, otherwise the
   sidecar's code and reason, so the close mapping below is unchanged. The adapter
@@ -769,9 +772,9 @@ by window label (`?window=home` in a browser preview).
 | `get_game_running()` | home, overlay | `boolean` (SCPSL process present, independent of focus) |
 | `get_steam_profile(steamId)` | home (via `steamProfile.ts`) | `{ personaName, avatarUrl }`, each `string \| null`; `avatarUrl` is a PNG/JPEG `data:` URL; error unless `steamId` is 17 digits |
 | `sidecar_open(url, onEvent: Channel)` / `sidecar_send(id, data)` / `sidecar_close(id, code, reason)` | overlay (via `sidecarSocket.ts`) | socket id; `onEvent` gets `{kind:"open"}`, `{kind:"message",data}`, then exactly one `{kind:"close",code,reason}`; send/close on a closed id are dropped |
-| `updater_start(controlPlaneUrl)` | home (via `updater.ts`) | `UpdateState`; the first call starts the check loop, later calls only return the state; error for a non-http(s) URL |
+| `updater_start()` | home (via `updater.ts`) | `UpdateState`; the first call starts the check loop against the build's control plane (`slui-build.json`), later calls only return the state; error (and `failed { unavailable }`) when the build has no valid address |
 | `get_update_state()` | both | `UpdateState` |
-| `updater_check_now()` / `updater_install()` | home | check: ignored while checking / downloading / installing; install: error unless `ready` |
+| `updater_check_now()` / `updater_install()` | home | check: ignored while checking / downloading / installing, error when the checks never started; install: error unless `ready` |
 
 | Event | Direction | Payload |
 | --- | --- | --- |
@@ -871,14 +874,26 @@ signature }`) plus `min_version`. The control plane serves it at
   home window and drives the tray. `UpdateState { current, phase, required,
   lastChecked }`, `phase.kind` one of `idle | checking | downloading {version,
   received, total} | ready {version, notes} | installing {version} | failed
-  {reason: network | signature | launch}`.
-- The home window calls `updater_start` once with the `readBackendConfig` URL
-  (mock mode never does). Checks run at start and every 6 h + 0–30 min jitter.
+  {reason: network | signature | launch | unavailable}`.
+- The home window calls `updater_start` once (mock mode never does). The address
+  is the build's, never the caller's: the Vite build writes `slui-build.json`
+  (`{ controlPlaneUrl }`, scripts/vite-build-info.mjs) next to index.html, Rust
+  reads the embedded copy and applies `readBackendConfig`'s rule (https, http only
+  on loopback). `tauri dev` embeds no frontend and reads `dist/` (the last
+  `vite build`); without it the checks are `failed { unavailable }`, logged, and
+  `updater_check_now` is refused. Checks run at start and every 6 h + 0–30 min jitter.
 - tauri-plugin-updater downloads into memory and verifies the minisign signature
   against `plugins.updater.pubkey` before returning any byte. The signature's
   trusted comment must name `SLUI-Setup-<manifest version>.exe` (the comment is
   signed; the manifest's `version` is not), so release and publish steps must keep
-  that exact file name. A mismatch is `failed { signature }`; nothing is written.
+  that exact file name, and since 1.0 also carry `version:<manifest version>`
+  (`plugins.updater.requireSignedVersion`; release.yml signs with
+  `tauri signer sign --app-version`). A mismatch is `failed { signature }`; nothing
+  is written. A download past 150 MB (`MAX_INSTALLER_BYTES`) is aborted as
+  `failed { signature }` instead of being read into memory.
+- A verified installer stays installable until a newer one verifies: a newer
+  release that fails to download or verify falls back to `ready` with the old one
+  (an announced release older than it means it was withdrawn and drops it).
 - Install: the verified bytes go to a fresh `%TEMP%\slui-update-<16 hex>\`, the
   branded installer starts with `--update --after-pid <pid>` and SLUI exits. The
   shell waits for that pid (only if it is `slui.exe`, 15 s), skips the welcome

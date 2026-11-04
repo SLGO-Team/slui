@@ -58,7 +58,7 @@
       "properties": {
         "player_id": { "type": "string", "minLength": 1 },
         "display_name": { "type": "string" },
-        "avatar_url": { "type": ["string", "null"] },
+        "avatar_url": { "type": ["string", "null"], "pattern": "^https://", "maxLength": 512, "description": "Drawn by the client only when it is an https URL without credentials of at most 512 characters; anything else counts as null." },
         "is_online": { "type": "boolean" },
         "is_alive": { "type": "boolean" },
         "health": { "type": ["number", "null"], "minimum": 0 },
