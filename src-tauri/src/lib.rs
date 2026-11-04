@@ -60,45 +60,68 @@ fn overlay_may_show() -> bool {
         && SESSION_LIVE.load(Ordering::SeqCst)
 }
 
-// Fixed chat keys, as in CS2: Y opens global chat, U opens team chat.
-const VK_Y: u32 = 0x59;
-const VK_U: u32 = 0x55;
 const VK_CAPITAL: u32 = 0x14;
-// Windows virtual-key code of the configurable shop hotkey; B until settings load.
+// Windows virtual-key codes of the configurable hotkeys, the defaults until settings load:
+// B opens the shop, CapsLock is held for the scoreboard, and Y and U open global and team
+// chat as in CS2.
 static SHOP_HOTKEY: AtomicU32 = AtomicU32::new(0x42);
-// The configurable scoreboard key (held to show); CapsLock until settings load.
 static SCOREBOARD_HOTKEY: AtomicU32 = AtomicU32::new(VK_CAPITAL);
+static CHAT_GLOBAL_HOTKEY: AtomicU32 = AtomicU32::new(0x59);
+static CHAT_TEAM_HOTKEY: AtomicU32 = AtomicU32::new(0x55);
 
-// Must match isBindableHotkey in src/platform/hotkeys.ts: letters except the chat
-// keys Y and U, and F1-F12. Digits are taken by shop item selection.
-fn is_bindable_shop_hotkey(virtual_key: u32) -> bool {
-    matches!(virtual_key, 0x41..=0x5A | 0x70..=0x7B) && virtual_key != VK_Y && virtual_key != VK_U
+// Must match isBindableHotkey in src/platform/hotkeys.ts: letters and F1-F12, for the
+// shop and both chats. Digits are taken by shop item selection.
+fn is_bindable_hotkey(virtual_key: u32) -> bool {
+    matches!(virtual_key, 0x41..=0x5A | 0x70..=0x7B)
 }
 
 // Must match isBindableScoreboardHotkey: the shop's keys plus CapsLock (CS2 holds Tab,
 // which SCP:SL uses for the inventory).
 fn is_bindable_scoreboard_hotkey(virtual_key: u32) -> bool {
-    virtual_key == VK_CAPITAL || is_bindable_shop_hotkey(virtual_key)
+    virtual_key == VK_CAPITAL || is_bindable_hotkey(virtual_key)
 }
 
-fn validate_hotkeys(shop: u32, scoreboard: u32) -> Result<(), String> {
-    if !is_bindable_shop_hotkey(shop) {
-        return Err(format!("Unsupported shop hotkey {shop:#04x}"));
+/// The keys the hook turns into `slgo-shortcut` events.
+#[derive(Clone, Copy)]
+struct ShortcutKeys {
+    shop: u32,
+    chat_global: u32,
+    chat_team: u32,
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn shortcut_keys() -> ShortcutKeys {
+    ShortcutKeys {
+        shop: SHOP_HOTKEY.load(Ordering::SeqCst),
+        chat_global: CHAT_GLOBAL_HOTKEY.load(Ordering::SeqCst),
+        chat_team: CHAT_TEAM_HOTKEY.load(Ordering::SeqCst),
+    }
+}
+
+// Must match normalizeHotkeys: each key valid for its action and all four different.
+fn validate_hotkeys(scoreboard: u32, keys: ShortcutKeys) -> Result<(), String> {
+    for (name, key) in [("shop", keys.shop), ("global chat", keys.chat_global), ("team chat", keys.chat_team)] {
+        if !is_bindable_hotkey(key) {
+            return Err(format!("Unsupported {name} hotkey {key:#04x}"));
+        }
     }
     if !is_bindable_scoreboard_hotkey(scoreboard) {
         return Err(format!("Unsupported scoreboard hotkey {scoreboard:#04x}"));
     }
-    if shop == scoreboard {
-        return Err("The shop and the scoreboard need different keys".into());
+    let all = [keys.shop, scoreboard, keys.chat_global, keys.chat_team];
+    if all.iter().enumerate().any(|(index, key)| all[..index].contains(key)) {
+        return Err("The shop, scoreboard and chat hotkeys need different keys".into());
     }
     Ok(())
 }
 
 #[tauri::command]
-fn set_hotkeys(shop: u32, scoreboard: u32) -> Result<(), String> {
-    validate_hotkeys(shop, scoreboard)?;
+fn set_hotkeys(shop: u32, scoreboard: u32, chat_global: u32, chat_team: u32) -> Result<(), String> {
+    validate_hotkeys(scoreboard, ShortcutKeys { shop, chat_global, chat_team })?;
     SHOP_HOTKEY.store(shop, Ordering::SeqCst);
     SCOREBOARD_HOTKEY.store(scoreboard, Ordering::SeqCst);
+    CHAT_GLOBAL_HOTKEY.store(chat_global, Ordering::SeqCst);
+    CHAT_TEAM_HOTKEY.store(chat_team, Ordering::SeqCst);
     Ok(())
 }
 
@@ -1093,12 +1116,16 @@ struct ShortcutEvent {
     game_foreground: bool,
 }
 
-fn overlay_shortcut(vk: u32, shop_hotkey: u32) -> Option<&'static str> {
-    match vk {
-        VK_Y => Some("chat-global"),
-        VK_U => Some("chat-team"),
-        _ if vk == shop_hotkey => Some("shop"),
-        _ => None,
+// Must match overlayShortcutFor in src/platform/index.ts.
+fn overlay_shortcut(vk: u32, keys: ShortcutKeys) -> Option<&'static str> {
+    if vk == keys.chat_global {
+        Some("chat-global")
+    } else if vk == keys.chat_team {
+        Some("chat-team")
+    } else if vk == keys.shop {
+        Some("shop")
+    } else {
+        None
     }
 }
 
@@ -1212,7 +1239,7 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                 // physical key, so unlike tracking key-ups ourselves it cannot drift when
                 // an event is missed, and no timing guess is involved.
                 let repeat = (GetAsyncKeyState(vk as i32) as u16) & 0x8000 != 0;
-                let handled = scoreboard || overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::Relaxed)).is_some();
+                let handled = scoreboard || overlay_shortcut(vk, shortcut_keys()).is_some();
                 if !repeat && handled {
                     send_hook_event(HookEvent::KeyDown(vk));
                 } else if handled {
@@ -1282,7 +1309,7 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                         }
                         continue;
                     }
-                    let Some(shortcut) = overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::SeqCst)) else {
+                    let Some(shortcut) = overlay_shortcut(vk, shortcut_keys()) else {
                         continue;
                     };
                     diag!("SLGO: hotkey {shortcut} (game foreground {game_foreground})");
@@ -1298,7 +1325,7 @@ fn start_keyboard_hook(app: tauri::AppHandle) {
                     let key = if vk == SCOREBOARD_HOTKEY.load(Ordering::SeqCst) {
                         "scoreboard"
                     } else {
-                        overlay_shortcut(vk, SHOP_HOTKEY.load(Ordering::SeqCst)).unwrap_or("?")
+                        overlay_shortcut(vk, shortcut_keys()).unwrap_or("?")
                     };
                     let since = gap_ms.map_or("the hook saw no earlier event".into(), |gap| {
                         format!("the hook's last event of the key was its key-{} {gap} ms ago", if after_up { "up" } else { "down" })
@@ -1494,7 +1521,9 @@ mod foreground_process_cache_tests {
 
 #[cfg(test)]
 mod hotkey_tests {
-    use super::{is_bindable_scoreboard_hotkey, is_bindable_shop_hotkey, overlay_shortcut, repeat_is_suspect, validate_hotkeys};
+    use super::{is_bindable_hotkey, is_bindable_scoreboard_hotkey, overlay_shortcut, repeat_is_suspect, validate_hotkeys, ShortcutKeys};
+
+    const DEFAULT_KEYS: ShortcutKeys = ShortcutKeys { shop: 0x42, chat_global: 0x59, chat_team: 0x55 };
 
     #[test]
     fn a_repeat_after_the_key_up_or_with_no_earlier_event_is_suspect() {
@@ -1506,47 +1535,66 @@ mod hotkey_tests {
     }
 
     #[test]
-    fn overlay_shortcuts_map_the_chat_keys_and_the_configured_shop_key() {
-        assert_eq!(overlay_shortcut(0x59, 0x42), Some("chat-global"));
-        assert_eq!(overlay_shortcut(0x55, 0x42), Some("chat-team"));
-        assert_eq!(overlay_shortcut(0x42, 0x42), Some("shop"));
-        assert_eq!(
-            overlay_shortcut(0x74, 0x74),
-            Some("shop"),
-            "F5 as the shop key"
-        );
-        assert_eq!(
-            overlay_shortcut(0x42, 0x74),
-            None,
-            "B once the shop moved to F5"
-        );
-        assert_eq!(overlay_shortcut(0x31, 0x42), None);
+    fn overlay_shortcuts_map_the_configured_chat_and_shop_keys() {
+        assert_eq!(overlay_shortcut(0x59, DEFAULT_KEYS), Some("chat-global"));
+        assert_eq!(overlay_shortcut(0x55, DEFAULT_KEYS), Some("chat-team"));
+        assert_eq!(overlay_shortcut(0x42, DEFAULT_KEYS), Some("shop"));
+        assert_eq!(overlay_shortcut(0x31, DEFAULT_KEYS), None);
+        let moved = ShortcutKeys { shop: 0x74, chat_global: 0x54, chat_team: 0x59 };
+        assert_eq!(overlay_shortcut(0x74, moved), Some("shop"), "F5 as the shop key");
+        assert_eq!(overlay_shortcut(0x42, moved), None, "B once the shop moved to F5");
+        assert_eq!(overlay_shortcut(0x54, moved), Some("chat-global"), "T as the global chat key");
+        assert_eq!(overlay_shortcut(0x59, moved), Some("chat-team"), "Y as the team chat key");
+        assert_eq!(overlay_shortcut(0x55, moved), None, "U once team chat moved to Y");
     }
 
     #[test]
-    fn shop_hotkey_accepts_letters_and_function_keys_except_chat() {
-        for vk in [0x41, 0x42, 0x5A, 0x70, 0x7B] {
-            assert!(is_bindable_shop_hotkey(vk), "{vk:#x}");
+    fn shop_and_chat_hotkeys_accept_letters_and_function_keys() {
+        for vk in [0x41, 0x42, 0x55, 0x59, 0x5A, 0x70, 0x7B] {
+            assert!(is_bindable_hotkey(vk), "{vk:#x}");
         }
-        // Y and U (chat), digits, Escape, F13 and modifiers are rejected.
-        for vk in [0x59, 0x55, 0x30, 0x31, 0x39, 0x1B, 0x7C, 0x10, 0x11, 0xA0, 0x14, 0x09, 0] {
-            assert!(!is_bindable_shop_hotkey(vk), "{vk:#x}");
+        // Digits, Escape, F13, modifiers, CapsLock and Tab are rejected.
+        for vk in [0x30, 0x31, 0x39, 0x1B, 0x7C, 0x10, 0x11, 0xA0, 0x14, 0x09, 0] {
+            assert!(!is_bindable_hotkey(vk), "{vk:#x}");
         }
     }
 
     #[test]
-    fn scoreboard_hotkey_adds_caps_lock_and_never_shares_the_shop_key() {
+    fn scoreboard_hotkey_adds_caps_lock() {
         for vk in [0x14, 0x41, 0x5A, 0x70, 0x7B] {
             assert!(is_bindable_scoreboard_hotkey(vk), "{vk:#x}");
         }
-        // Tab (the SCP:SL inventory), Y, U, digits and modifiers are rejected.
-        for vk in [0x09, 0x59, 0x55, 0x31, 0x10, 0xA0, 0] {
+        // Tab (the SCP:SL inventory), digits and modifiers are rejected.
+        for vk in [0x09, 0x31, 0x10, 0xA0, 0] {
             assert!(!is_bindable_scoreboard_hotkey(vk), "{vk:#x}");
         }
-        assert!(validate_hotkeys(0x42, 0x14).is_ok(), "B and CapsLock");
-        assert!(validate_hotkeys(0x42, 0x42).is_err(), "one key for both");
-        assert!(validate_hotkeys(0x14, 0x42).is_err(), "CapsLock cannot open the shop");
-        assert!(validate_hotkeys(0x42, 0x59).is_err(), "Y is the chat key");
+    }
+
+    #[test]
+    fn all_four_hotkeys_must_be_valid_and_different() {
+        assert!(validate_hotkeys(0x14, DEFAULT_KEYS).is_ok(), "B, CapsLock, Y and U");
+        assert!(
+            validate_hotkeys(0x14, ShortcutKeys { shop: 0x59, chat_global: 0x54, chat_team: 0x55 }).is_ok(),
+            "Y may open the shop once global chat moved to T"
+        );
+        assert!(validate_hotkeys(0x42, DEFAULT_KEYS).is_err(), "the scoreboard on the shop key");
+        assert!(validate_hotkeys(0x59, DEFAULT_KEYS).is_err(), "the scoreboard on the global chat key");
+        assert!(
+            validate_hotkeys(0x14, ShortcutKeys { chat_team: 0x59, ..DEFAULT_KEYS }).is_err(),
+            "both chats on Y"
+        );
+        assert!(
+            validate_hotkeys(0x14, ShortcutKeys { shop: 0x55, ..DEFAULT_KEYS }).is_err(),
+            "the shop on the team chat key"
+        );
+        assert!(
+            validate_hotkeys(0x42, ShortcutKeys { shop: 0x14, ..DEFAULT_KEYS }).is_err(),
+            "CapsLock cannot open the shop"
+        );
+        assert!(
+            validate_hotkeys(0x14, ShortcutKeys { chat_global: 0x31, ..DEFAULT_KEYS }).is_err(),
+            "digits select shop items"
+        );
     }
 }
 

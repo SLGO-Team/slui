@@ -22,12 +22,11 @@ type ChatInputProps = {
   /** Called with the raw draft; the caller validates and builds the command. */
   onSubmit(body: string): void;
   onClose(reason: ChatCloseReason): void;
+  /** The configured chat keys (KeyboardEvent.code); holding the one that opened chat must not type it. */
+  openingKeys: readonly string[];
   /** Focus diagnostics for the desktop log. */
   onDiagnostic?(message: string): void;
 };
-
-// The keys that open chat; holding one must not type it into the new input.
-const OPENING_KEYS = new Set(["KeyY", "KeyU"]);
 
 // CS2 row: "[ALL] ● Name:  body" or "[T] ● Name@Place: body"; every player, the local
 // one included, uses this format. Plugin notices are coloured segments without tag or dot.
@@ -58,7 +57,7 @@ function ChatRow({ line, self, lingering }: { line: ChatLine; self: ChatRowStyle
 
 // A manual React recreation of CS2 layout/hud/hudchat.xml; class names follow the
 // Panorama ids (ChatContainer, ChatMain, ChatFG, ChatHistory, ChatTextEntry, ...).
-export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggleScope, onSubmit, onClose, onDiagnostic }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggleScope, onSubmit, onClose, openingKeys, onDiagnostic }: ChatInputProps) {
   const scale = useOverlayScale();
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -114,7 +113,7 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     // An IME composition owns Enter/Esc until it commits.
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-    if (event.repeat && openingKeyHeldRef.current && OPENING_KEYS.has(event.code)) {
+    if (event.repeat && openingKeyHeldRef.current && openingKeys.includes(event.code)) {
       event.preventDefault();
       return;
     }
@@ -155,7 +154,7 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
                     onChange={(event) => onDraft(event.target.value)}
                     onKeyDown={handleKeyDown}
                     onKeyUp={(event) => {
-                      if (OPENING_KEYS.has(event.code)) openingKeyHeldRef.current = false;
+                      if (openingKeys.includes(event.code)) openingKeyHeldRef.current = false;
                     }}
                     // Focus moved inside the page (WebView2 taking focus, a click on the
                     // history): keep typing here. Leaving is handled at the window level.

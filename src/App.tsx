@@ -48,6 +48,7 @@ import { createPreviewGameForegroundSource, foregroundLoss, subscribeGameForegro
 import { DEFAULT_AUDIO_SETTINGS } from "./platform/audioSettings";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "./platform/overlaySettings";
 import { createSettingsStore, type AppSettings } from "./platform/settings";
+import { DEFAULT_HOTKEYS } from "./platform/hotkeys";
 import { useWorldBlur } from "./platform/backdrop";
 import { useClockSelector } from "./shared/clock";
 import type { HudSceneSelf } from "./mocks/hudScenes";
@@ -176,6 +177,7 @@ function App({ harness }: AppProps) {
   const [shopOpen, setShopOpen] = useState(() => shopDebugOptions?.open ?? false);
   const [shopVolume, setShopVolume] = useState(DEFAULT_AUDIO_SETTINGS.shopVolume);
   const [overlaySettings, setOverlaySettings] = useState(DEFAULT_OVERLAY_SETTINGS);
+  const [chatKeys, setChatKeys] = useState<readonly string[]>(() => [DEFAULT_HOTKEYS.chatGlobal, DEFAULT_HOTKEYS.chatTeam]);
   const shopAvailableRef = useRef(false);
   const connectionLiveRef = useRef(false);
   const chatOpenRef = useRef(false);
@@ -323,7 +325,9 @@ function App({ harness }: AppProps) {
       if (!active) return;
       setShopVolume(settings.audio.shopVolume);
       setOverlaySettings(settings.overlay);
-      const hotkeys = `shop ${settings.hotkeys.shop}, scoreboard ${settings.hotkeys.scoreboard}`;
+      const { shop, scoreboard, chatGlobal, chatTeam } = settings.hotkeys;
+      const hotkeys = `shop ${shop}, scoreboard ${scoreboard}, global chat ${chatGlobal}, team chat ${chatTeam}`;
+      setChatKeys((current) => current[0] === chatGlobal && current[1] === chatTeam ? current : [chatGlobal, chatTeam]);
       void overlayController.setHotkeys(settings.hotkeys)
         .then(() => {
           if (hotkeys !== loggedHotkeys) overlayController.log(`hotkeys ${hotkeys}`);
@@ -851,6 +855,7 @@ function App({ harness }: AppProps) {
           onToggleScope={chatFeature.toggleScope}
           onSubmit={handleChatSubmit}
           onClose={handleChatClose}
+          openingKeys={chatKeys}
           onDiagnostic={overlayController.log}
         />
       </>}

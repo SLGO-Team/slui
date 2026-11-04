@@ -609,7 +609,7 @@ by window label (`?window=home` in a browser preview).
   webview's `set_focus()`, which bounces window focus (blur, focus). Order: interactive on, then keyboard; keyboard
   off, then interactive off, queued in the overlay. If the keyboard cannot be
   taken, the UI stays open (the mouse is the overlay's, a click focuses it);
-  the shop hotkey closes the shop and the next Y/U closes chat.
+  the shop hotkey closes the shop and the next chat key closes chat.
 - The shop and chat close when the overlay loses the system foreground it has
   held since they opened (`foregroundLoss` in `src/platform/gameForeground.ts`
   over the native `slgo-game-foreground` sample: the overlay holds it while
@@ -730,12 +730,15 @@ by window label (`?window=home` in a browser preview).
   object and atomic replacement, backing up unreadable files as
   `settings.json.bad-<unix-seconds>`. The frontend parses with
   `parseSettings()`, which delegates to `normalizeRadarPreferences()` and
-  `normalizeHotkeys()`. Bindable shop keys are letters except Y and U (chat) and
-  F1-F12; digits are reserved for shop item selection. The scoreboard key adds
-  CapsLock (Tab is the SCP:SL inventory) and never equals the shop key; each key
-  recovers to its default on its own. `hotkeys.ts` and the Rust
-  `is_bindable_shop_hotkey()` / `is_bindable_scoreboard_hotkey()` /
-  `validate_hotkeys()` must accept the same sets.
+  `normalizeHotkeys()`. Four keys are configurable: shop (B), scoreboard
+  (CapsLock), global chat (Y) and team chat (U). The shop and chat keys are
+  letters and F1-F12; digits are reserved for shop item selection. The
+  scoreboard key adds CapsLock (Tab is the SCP:SL inventory). All four differ: a
+  key that is invalid or taken by an earlier action (`HOTKEY_ACTIONS` order)
+  recovers to its default, and if that default is taken too every key recovers.
+  `hotkeys.ts` and the Rust `is_bindable_hotkey()` /
+  `is_bindable_scoreboard_hotkey()` / `validate_hotkeys()` must accept the same
+  sets, and `overlayShortcutFor()` must match the hook's `overlay_shortcut()`.
   Action state (`alternateZoomActive`) is never saved.
 - The home Steam tile shows the account in the overlay's session snapshot
   (`steamId`) with the persona name and avatar the local Steam client keeps for

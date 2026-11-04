@@ -3,23 +3,25 @@
 
 export type HotkeyCode = string;
 
-export type HotkeySettings = Readonly<{ shop: HotkeyCode; scoreboard: HotkeyCode }>;
+export type HotkeyAction = "shop" | "scoreboard" | "chatGlobal" | "chatTeam";
 
-// CS2 opens its buy menu with B. It holds Tab for the scoreboard, which SCP:SL uses
-// for the inventory, so the scoreboard takes CapsLock like the plugin's own binding.
-export const DEFAULT_HOTKEYS: HotkeySettings = { shop: "KeyB", scoreboard: "CapsLock" };
+export type HotkeySettings = Readonly<Record<HotkeyAction, HotkeyCode>>;
 
-// Y (global) and U (team) are the fixed chat keys and digits select shop items,
-// so none of them can open the shop.
-const RESERVED: ReadonlySet<HotkeyCode> = new Set(["KeyY", "KeyU"]);
+/** Every configurable key, in the order normalizeHotkeys keeps them when two collide. */
+export const HOTKEY_ACTIONS: readonly HotkeyAction[] = ["shop", "scoreboard", "chatGlobal", "chatTeam"];
+
+// CS2 opens its buy menu with B and its chats with Y (all) and U (team). It holds Tab
+// for the scoreboard, which SCP:SL uses for the inventory, so the scoreboard takes
+// CapsLock like the plugin's own binding.
+export const DEFAULT_HOTKEYS: HotkeySettings = { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU" };
 
 const LETTER = /^Key([A-Z])$/;
 const FUNCTION = /^F([1-9]|1[0-2])$/;
 const CAPS_LOCK = "CapsLock";
 
-/** A key the shop may use: letters except Y and U, F1-F12. */
+/** A key the shop or a chat may use: letters and F1-F12. Digits select shop items. */
 export function isBindableHotkey(code: unknown): code is HotkeyCode {
-  return typeof code === "string" && !RESERVED.has(code) && (LETTER.test(code) || FUNCTION.test(code));
+  return typeof code === "string" && (LETTER.test(code) || FUNCTION.test(code));
 }
 
 /** A key the scoreboard may use: the shop's keys plus CapsLock. */
@@ -27,12 +29,31 @@ export function isBindableScoreboardHotkey(code: unknown): code is HotkeyCode {
   return code === CAPS_LOCK || isBindableHotkey(code);
 }
 
-/** Each key valid for its action and the two different; anything else falls back per key to the defaults. */
-export function normalizeHotkeys(value: Partial<Record<keyof HotkeySettings, unknown>> | null | undefined): HotkeySettings {
-  const shop = isBindableHotkey(value?.shop) ? value.shop : DEFAULT_HOTKEYS.shop;
-  // The default scoreboard key (CapsLock) can never be a shop key, so the pair stays distinct.
-  const scoreboard = isBindableScoreboardHotkey(value?.scoreboard) && value.scoreboard !== shop ? value.scoreboard : DEFAULT_HOTKEYS.scoreboard;
-  return { shop, scoreboard };
+export function isBindableFor(action: HotkeyAction, code: unknown): code is HotkeyCode {
+  return action === "scoreboard" ? isBindableScoreboardHotkey(code) : isBindableHotkey(code);
+}
+
+/** The action other than `except` that already uses `code`, if any. */
+export function hotkeyOwner(hotkeys: HotkeySettings, code: HotkeyCode, except?: HotkeyAction): HotkeyAction | null {
+  return HOTKEY_ACTIONS.find((action) => action !== except && hotkeys[action] === code) ?? null;
+}
+
+/**
+ * Each key valid for its action and all four different. A key that is invalid, or taken by
+ * an earlier action, falls back to its default; when that default is taken too (only a
+ * hand-edited file gets there), every key falls back.
+ */
+export function normalizeHotkeys(value: Partial<Record<HotkeyAction, unknown>> | null | undefined): HotkeySettings {
+  const keys: Partial<Record<HotkeyAction, HotkeyCode>> = {};
+  const used = new Set<HotkeyCode>();
+  for (const action of HOTKEY_ACTIONS) {
+    const stored = value?.[action];
+    const key = isBindableFor(action, stored) && !used.has(stored) ? stored : DEFAULT_HOTKEYS[action];
+    if (used.has(key)) return DEFAULT_HOTKEYS;
+    used.add(key);
+    keys[action] = key;
+  }
+  return keys as HotkeySettings;
 }
 
 export function hotkeyLabel(code: HotkeyCode): string {
