@@ -1530,3 +1530,25 @@ Release secret CONTROL_PLANE_URL set to the portless control plane after verifyi
 ### Status
 
 [OK] **Completed**
+
+
+## Session 66: Installer hardening
+<!-- trellis-session: v=2 fp=fb035a5774fb718f -->
+
+**Date**: 2026-11-05
+**Task**: Installer hardening
+**Branch**: `fix/installer-hardening`
+
+### Summary
+
+Child 5 installer-hardening: uninstall finishes with leftovers listed and user data removed; SLUI-Setup.exe /S silent install with NSIS exit code; EstimatedSize from the whole install dir; NSIS wizard app-data box deletes the invoking user's data via RunAsUser; static CSP for the setup shell. Live-tested on this PC (silent install, locked theme-pack file, High-integrity label proof for the unelevated delete, CDP console), then restored the official 0.11.0 install.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `234ccff` | fix(installer): finish uninstalls with leftovers, add silent setup and correct the installed size |
+
+### Status
+
+[OK] **Completed**
