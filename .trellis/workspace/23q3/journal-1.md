@@ -1552,3 +1552,25 @@ Child 5 installer-hardening: uninstall finishes with leftovers listed and user d
 ### Status
 
 [OK] **Completed**
+
+
+## Session 67: SLUI 1.0 prep: shop command gate and virtual-key hotkeys
+<!-- trellis-session: v=2 fp=e7b3970c1b8ef6c7 -->
+
+**Date**: 2026-11-05
+**Task**: SLUI 1.0 prep: shop command gate and virtual-key hotkeys
+**Branch**: `fix/shop-refund-gate-and-key-layout`
+
+### Summary
+
+Confirmed #100 merged. Shop reducer refuses every command on stale data; beginCommand reports acceptance and App sends only accepted commands; single refunds gated by canRefund. Game InputManager m_UsePhysicalKeys=false, so hotkeys and in-page key handling now use virtual keys (keyCode, IME falls back to code). Smoke tests and spec updated.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8be7e80` | fix(shop): refuse every shop command on stale data and match hotkeys by virtual key |
+
+### Status
+
+[OK] **Completed**
