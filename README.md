@@ -20,6 +20,7 @@ npm test
 | --- | --- |
 | `npm run tauri:build:local` | 连接本地后端的测试安装包 |
 | `npm run installer:build` | 正式安装器 `SLUI-Setup-<version>.exe`，需要设置 `VITE_CONTROL_PLANE_URL` |
+| `npm run licenses` | 重新生成随安装包分发的 `THIRD_PARTY_LICENSES.txt`；改了 `Cargo.lock` 或增删 npm 运行时依赖后运行，CI 用 `npm run licenses:check` 检查。需要 `cargo install cargo-about --version 0.9.3 --locked --features cli` |
 
 安装器同时安装卸载程序 `slui-uninstall.exe`，“应用和功能”中的卸载会打开它。卸载默认保留主题包和用户设置，可分别勾选“同时删除主题包”和“删除用户设置和数据”；静默卸载使用安装目录中的 NSIS 卸载程序 `uninstall.exe /S`。
 
@@ -39,4 +40,4 @@ SLUI 需要与游戏运行在同一台电脑、同一网络连接上，服务器
 
 ## 许可证
 
-[GPL-3.0-or-later](LICENSE)；协议包 [`packages/protocol`](packages/protocol) 为 [MIT](packages/protocol/LICENSE)。第三方资源见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+[GPL-3.0-or-later](LICENSE)；协议包 [`packages/protocol`](packages/protocol) 为 [MIT](packages/protocol/LICENSE)，协议说明见 [`packages/protocol/v0/README.md`](packages/protocol/v0/README.md)。第三方资源见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)，依赖的许可证全文见 [`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt)（随安装包分发）。

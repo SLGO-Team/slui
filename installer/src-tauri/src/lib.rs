@@ -91,6 +91,17 @@ pub fn silent_install_args(args: &str) -> Option<&str> {
         .then_some(args)
 }
 
+/// A silent install's NSIS command line with the install directory: the caller's `/D=` when given, else the
+/// installed SLUI's directory (the uninstall entry's `InstallLocation`), so an install without `/D=` goes back
+/// where SLUI already is. NSIS would look for it under `Software\<publisher>\SLUI`, which moves whenever the
+/// bundle publisher changes (0.11 and earlier: `slui`); the uninstall entry does not.
+pub fn silent_install_command(args: &str, installed_dir: Option<&str>) -> String {
+    match installed_dir {
+        Some(dir) if !args.split_whitespace().any(|arg| arg.starts_with("/D=")) => format!("{} /D={dir}", args.trim_end()),
+        _ => args.to_string(),
+    }
+}
+
 /// Reads the unattended update flags; anything else on the command line is ignored.
 pub fn parse_unattended(args: impl IntoIterator<Item = String>) -> Option<Unattended> {
     let mut update = false;
@@ -311,6 +322,16 @@ mod tests {
         for not_silent in ["", "--update --after-pid 42", "/s", "/SILENT", r"/D=D:\a /S", "/NS"] {
             assert_eq!(silent_install_args(not_silent), None, "{not_silent:?}");
         }
+    }
+
+    #[test]
+    fn a_silent_install_without_a_dir_goes_back_to_the_installed_one() {
+        let installed = Some(r"D:\Program Files\SLUI");
+        assert_eq!(silent_install_command("/S", installed), r"/S /D=D:\Program Files\SLUI");
+        assert_eq!(silent_install_command("/S /NS /SLUI-STARTMENU ", installed), r"/S /NS /SLUI-STARTMENU /D=D:\Program Files\SLUI");
+        // The caller's /D= wins; with nothing installed NSIS picks its default.
+        assert_eq!(silent_install_command(r"/S /D=E:\SLUI", installed), r"/S /D=E:\SLUI");
+        assert_eq!(silent_install_command("/S /NS", None), "/S /NS");
     }
 
     #[test]

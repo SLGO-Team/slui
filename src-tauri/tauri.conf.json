@@ -54,6 +54,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "SLGO Team",
+    "copyright": "Copyright © 2026 SLGO Team",
+    "homepage": "https://github.com/SLGO-Team/slui",
+    "resources": {
+      "../THIRD_PARTY_LICENSES.txt": "THIRD_PARTY_LICENSES.txt"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

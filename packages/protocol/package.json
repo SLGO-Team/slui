@@ -4,6 +4,11 @@
   "version": "0.0.0",
   "license": "MIT",
   "description": "SLGO protocol v0 wire contract: types, parsers and validators shared by SLUI and the SLGO backend.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SLGO-Team/slui.git",
+    "directory": "packages/protocol"
+  },
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

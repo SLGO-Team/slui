@@ -47,6 +47,17 @@
     WriteRegStr SHCTX "${UNINSTKEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
   !endif
 
+  ; Builds before 0.12 had no bundle publisher, so the template's install-location key was
+  ; Software\slui\SLUI (the identifier's middle part). Since the publisher is SLGO Team that key
+  ; is Software\SLGO Team\SLUI, written above; the old one only held the install directory,
+  ; which the uninstall entry's InstallLocation still records. Remove it so it does not linger.
+  !if "${MANUFACTURER}" != "slui"
+    DeleteRegKey SHCTX "Software\slui\${PRODUCTNAME}"
+    DeleteRegKey /ifempty SHCTX "Software\slui"
+    DeleteRegKey /ifempty HKCU "Software\slui\${PRODUCTNAME}"
+    DeleteRegKey /ifempty HKCU "Software\slui"
+  !endif
+
   ; Apps & features size: the template counted its own files and uninstall.exe only,
   ; before the theme pack and slui-uninstall.exe above were written.
   Push $0

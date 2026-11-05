@@ -53,9 +53,14 @@ jobs:
       - run: cargo metadata --format-version 1 --manifest-path src-tauri/Cargo.toml > $null
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-hakari
+          # cargo-about pinned to the version that generated THIRD_PARTY_LICENSES.txt (same text out).
+          tool: cargo-hakari,cargo-about@0.9.3
       - run: cargo hakari generate --diff && cargo hakari manage-deps --dry-run
         working-directory: src-tauri
+      # The installer ships THIRD_PARTY_LICENSES.txt: it must list the current Cargo.lock and npm runtime
+      # dependencies, and every license must be in scripts/licenses/about.toml's accepted list.
+      # A script of its own: PowerShell's npm shim drops `--`, so `npm run licenses -- --check` would regenerate.
+      - run: npm run licenses:check
       # Both crates in one build, so their shared dependencies compile once.
       - run: cargo test --workspace --manifest-path src-tauri/Cargo.toml
       - run: cargo clippy --workspace --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings

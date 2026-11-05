@@ -2,6 +2,15 @@
   "name": "slui",
   "private": true,
   "version": "0.11.0",
+  "description": "SLUI: the Windows game overlay for SCP: Secret Laboratory on SLGO servers",
+  "homepage": "https://github.com/SLGO-Team/slui#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SLGO-Team/slui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SLGO-Team/slui/issues"
+  },
   "license": "GPL-3.0-or-later",
   "type": "module",
   "workspaces": [
@@ -10,6 +19,8 @@
   "scripts": {
     "dev": "vite",
     "dev:mock": "vite --mode mock",
+    "licenses": "node scripts/generate-licenses.mjs",
+    "licenses:check": "node scripts/generate-licenses.mjs --check",
     "lint": "tsc --noEmit && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer",
     "build": "tsc && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer && vite build",
     "build:local": "tsc && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer && vite build --mode development",
