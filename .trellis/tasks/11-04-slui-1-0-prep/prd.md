@@ -73,4 +73,7 @@
 - 子任务 4 `11-04-connection-liveness`：分支 `fix/connection-liveness`。Rust sidecar socket 10 s ping、25 s 无帧按 1006 断开，
   发送/关闭握手限时，队列 64、最多 2 个 socket；vdf 1 MiB / 8 层上限；身份轮询在要求更新期间不重试，
   稳定 live 只重置同一 attempt 的退避。
-- 下一步：子任务 5 `11-04-installer-hardening`。
+- 子任务 5 `11-04-installer-hardening`：分支 `fix/installer-hardening`。卸载有残留时照常完成并列出残留；
+  `SLUI-Setup.exe /S` 静默安装；EstimatedSize 按整个目录；模板「删除应用数据」改由钩子以未提权用户身份删除；
+  安装器外壳 CSP。本机实测全部通过，测后已还原官方 0.11.0。完成页有新提示，PR 等维护者看过再合并。
+- 下一步：子任务 6 `11-04-shop-hotkeys-layout`。
