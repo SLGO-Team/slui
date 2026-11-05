@@ -342,8 +342,10 @@ Required boundary rules:
   `@scpsl-tools/map-seed` 1.0.0 (commit
   `65c82b8f930eaef3ee30304a23c96af3a75711a3`, 14.2.7 template only), which tied
   every game update to a version bump. v6 (2026-10-18, task
-  `10-18-minimap-v6-server-layout`) removed it; the static test layouts and the
-  known-prefab table were exported from it once.
+  `10-18-minimap-v6-server-layout`) removed it. Since 2026-11-05 (task
+  `11-04-map-seed-decouple`) the static test layouts and the known-prefab table
+  come from the game itself: the plugin's Debug-only `MinimapDevExport`
+  (SLGO `Features/Sidecar/Minimap/MinimapDevExport.cs`) on a local dedicated server.
 - Steam integration only identifies the account currently logged into the
   local Steam client. It is not an SLGO account/password system.
 - Steam identity and any proof ticket are exchanged only while establishing a

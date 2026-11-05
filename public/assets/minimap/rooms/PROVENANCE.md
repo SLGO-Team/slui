@@ -8,8 +8,8 @@ mapping, and `scripts/minimap-model-smoke.mjs` keeps them unchanged.
 ## Selection
 
 `src/features/minimap/room-artwork.json` covers all 110 Entrance/HeavyContainment
-prefabs of the SCP:SL 14.2.7 template, including holiday variants (the list is
-kept in `scripts/fixtures/minimap-prefabs.json`). Each prefab name maps
+prefabs of SCP:SL 14.2.9, including holiday variants (the list is exported from
+the game into `scripts/fixtures/minimap-prefabs.json`). Each prefab name maps
 explicitly to one SVG; for example, catalog key `HCZ_Hid` resolves to
 `HCZ_MicroHID_New.svg` and the Entrance checkpoint uses
 `EZ_HCZ_Checkpoint Part.svg`. No runtime filename guessing occurs. A prefab
@@ -38,7 +38,7 @@ derives its SVG matrix from their camera projections, and overview fitting uses
 the same corners. Original fills and alpha layers survive through SVG `image`
 elements. Other-zone opacity retains the existing radar emphasis. Connector
 center-lines are not painted over rooms. In the four static test layouts
-(exported from the former generator across seeds and holidays), HCZ checkpoint
+(exported from the game across seeds and holidays), HCZ checkpoint
 yaw is 0 and Entrance checkpoint yaw is 270: the HCZ right-edge exit at (256,128)
 and Entrance top-edge exit at (128,0) share one world position. The SVGs connect
 directly without an extra line.
