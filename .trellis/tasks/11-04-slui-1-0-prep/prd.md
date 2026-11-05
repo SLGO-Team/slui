@@ -76,4 +76,8 @@
 - 子任务 5 `11-04-installer-hardening`：分支 `fix/installer-hardening`。卸载有残留时照常完成并列出残留；
   `SLUI-Setup.exe /S` 静默安装；EstimatedSize 按整个目录；模板「删除应用数据」改由钩子以未提权用户身份删除；
   安装器外壳 CSP。本机实测全部通过，测后已还原官方 0.11.0。完成页有新提示，PR 等维护者看过再合并。
-- 下一步：子任务 6 `11-04-shop-hotkeys-layout`。
+- 子任务 5 PR #100 已合并（1959ca3）。
+- 子任务 6 `11-04-shop-hotkeys-layout`：分支 `fix/shop-refund-gate-and-key-layout`。reducer 按 stale 拦所有命令，
+  beginCommand 同步返回是否接受、App 只发已接受的；单件退款看 `canRefund`。游戏 InputManager `m_UsePhysicalKeys` = false
+  （按布局 VK 匹配），所以快捷键、ChatInput、商店 R/数字、选队 M/数字都改按 VK（keyCode，IME 229 回退 code）；Rust 不变。
+- 下一步：子任务 7 `11-04-map-seed-decouple`。
