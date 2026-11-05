@@ -1,10 +1,13 @@
 [package]
 name = "slui"
 version = "0.11.0"
-description = "SLUI Windows UI framework for game companions"
-authors = ["SLUI contributors"]
+description = "SLUI: the Windows game overlay for SCP: Secret Laboratory on SLGO servers"
+authors = ["SLGO Team"]
 edition = "2021"
 license = "GPL-3.0-or-later"
+repository = "https://github.com/SLGO-Team/slui"
+homepage = "https://github.com/SLGO-Team/slui"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

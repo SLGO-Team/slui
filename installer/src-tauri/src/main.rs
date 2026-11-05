@@ -23,7 +23,9 @@ fn setup() -> i32 {
     let session = Session::create();
     let command_line = uninstall::own_command_line();
     if let Some(args) = slui_setup_lib::silent_install_args(uninstall::command_line_args(&command_line)) {
-        let code = slui_setup_lib::install::install_silently(&session, args);
+        let installed = slui_setup_lib::detect::read_installed().map(|installed| installed.dir);
+        let args = slui_setup_lib::silent_install_command(args, installed.as_deref());
+        let code = slui_setup_lib::install::install_silently(&session, &args);
         session.cleanup_after_exit();
         return code;
     }
