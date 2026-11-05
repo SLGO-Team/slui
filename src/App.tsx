@@ -774,6 +774,12 @@ function App({ harness }: AppProps) {
     // Diagnostics: the command's round trip (sent, result with latency, no result within the timeout, send failure).
     const label = shopCommandTarget(command);
     const sentAtMs = Date.now();
+    // Only a command the model accepted goes out: one it refuses (stale data, closed buy window, a repeat still in
+    // flight) would otherwise reach the plugin with no record here to resolve its result.
+    if (!shopFeature.beginCommand(command, sentAtMs)) {
+      overlayController.log(`shop command ${label} not sent: refused by the shop model (${shopFeature.availability()})`);
+      return;
+    }
     const pending = shopCommandLogRef.current;
     // Commands the sidecar never answered (an older one drops unknown kinds) are forgotten after a minute.
     for (const [id, entry] of pending) if (sentAtMs - entry.sentAtMs > 60_000) pending.delete(id);
@@ -785,7 +791,6 @@ function App({ harness }: AppProps) {
       entry.overdue = true;
       overlayController.log(`shop command ${label}: no result after ${SHOP_COMMAND_TIMEOUT_MS}ms`);
     }, SHOP_COMMAND_TIMEOUT_MS);
-    shopFeature.beginCommand(command);
     void connection.send(command).catch((error: unknown) => {
       console.error("Unable to send shop command", error);
       const reason = error instanceof Error ? error.message : "Send failed";
@@ -793,7 +798,7 @@ function App({ harness }: AppProps) {
       overlayController.log(`shop command ${label} not sent: ${reason}`);
       shopFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed", reason });
     });
-  }, [connection, overlayController, shopFeature.beginCommand, shopFeature.resolveCommand]);
+  }, [connection, overlayController, shopFeature.beginCommand, shopFeature.resolveCommand, shopFeature.availability]);
   const handleTeamCommand = useCallback((command: TeamCommand) => {
     teamSelectFeature.beginCommand(command);
     void connection.send(command).catch((error: unknown) => {

@@ -187,7 +187,8 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
   }
 
   if (action.type === "command") {
-    if (!state.frame || state.connectionStatus !== "live" || !canSendShopCommand(state.frame.snapshot, action.command)) return state;
+    // The same gate the view draws (selectShop's `enabled`): data older than SHOP_STALE_AFTER_MS refuses every command.
+    if (!state.frame || availabilityForState(state, action.sentAtMs) !== "live" || !canSendShopCommand(state.frame.snapshot, action.command)) return state;
     if (state.pending[action.command.command_id]) return state;
     const existing = state.commands[action.command.command_id];
     if (existing && existing.state !== "idle") return state;
@@ -282,7 +283,7 @@ export function shopReducer(state: ShopState, action: ShopAction): ShopState {
   return { ...state, sequence: event.sequence, restartPending: false, lastEventReceivedAtMs: receivedAtMs, frame, commands, pending };
 }
 
-function availabilityForState(state: ShopState, nowMs: number): ShopAvailability {
+export function availabilityForState(state: ShopState, nowMs: number): ShopAvailability {
   if (["signed-out", "offline", "not-in-game", "ended", "unauthorized", "incompatible", "game-not-running"].includes(state.connectionStatus)) return "disconnected";
   if (state.connectionStatus === "stale") return "stale";
   if (state.restartPending && !state.frame) return "restarted";
@@ -317,6 +318,8 @@ export type ShopItemView = ShopItem & {
   requestPending: boolean;
   /** A refund of this item is in flight; a repeat waits for its result. */
   refundPending: boolean;
+  /** A refund would be sent now: live data, buy window open, refundable and none in flight. */
+  canRefund: boolean;
 };
 
 /** A teammate's request as the request area draws it; the same purchase rules as a card. */
@@ -398,7 +401,8 @@ export function selectShop(state: ShopState, nowMs: number): ShopViewModel {
       const unavailable = !enabled || !item.purchasable;
       const requestPending = Boolean(commandFor(state, `request:${item.item_id}`).pending);
       const refundPending = Boolean(commandFor(state, `refund:${item.item_id}`).pending);
-      return { ...item, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command), requestPending, refundPending };
+      const canRefund = enabled && item.refundable === true && !refundPending;
+      return { ...item, commandState: command?.state ?? record?.state ?? "idle", commandReason: command?.reason ?? record?.reason, unavailable, disabled: unavailable || Boolean(command), requestPending, refundPending, canRefund };
     }),
     requests: (snapshot.requests ?? []).map((request) => {
       const { pending: command, record } = commandFor(state, `fulfill:${request.request_id}`);
