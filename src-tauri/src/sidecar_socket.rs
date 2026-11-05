@@ -5,6 +5,10 @@
 // that check. The webview drives each socket through sidecar_open / sidecar_send /
 // sidecar_close and receives open / message / close on a channel, with the browser
 // WebSocket's close-code semantics (src/platform/sidecarSocket.ts).
+//
+// A connection that dies silently (Wi-Fi switch, sleep, NAT timeout) sends no close and no
+// TCP reset. The heartbeat finds it: a ping goes out at a fixed interval, and when no frame
+// of any kind arrives for a while the socket ends with 1006, which the webview retries.
 
 use std::{
     collections::HashMap,
@@ -21,8 +25,11 @@ use tauri::{ipc::Channel, AppHandle, Manager, Url};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
-    sync::mpsc,
-    time::Instant,
+    sync::{
+        mpsc::{self, error::TrySendError},
+        Notify,
+    },
+    time::{Instant, MissedTickBehavior},
 };
 use tokio_rustls::{
     rustls::{self, pki_types::ServerName},
@@ -47,6 +54,27 @@ const CLOSE_GRACE: Duration = Duration::from_secs(2);
 // tungstenite's defaults (64 MiB messages) through. Baselines carry the facility layout,
 // so the cap stays generous.
 const MAX_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
+// The webview sends a handful of small commands; a full queue means the socket is stuck, and
+// it is ended (1006, so the webview reconnects) instead of growing without bound.
+const SEND_QUEUE_CAPACITY: usize = 64;
+// An old socket in its closing grace period plus its replacement. Only the overlay connects.
+const MAX_OPEN_SOCKETS: usize = 2;
+// A peer that stopped reading leaves a send waiting on a full TCP buffer, and nothing else
+// in the loop runs meanwhile, the heartbeat included.
+const SEND_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[derive(Clone, Copy, Debug)]
+struct Heartbeat {
+    /// How often a ping goes out once the socket is open.
+    interval: Duration,
+    /// How long the socket may go without receiving any frame; the sidecar answers every ping.
+    timeout: Duration,
+}
+
+const HEARTBEAT: Heartbeat = Heartbeat {
+    interval: Duration::from_secs(10),
+    timeout: Duration::from_secs(25),
+};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -61,19 +89,51 @@ enum Outgoing {
     Close(u16, String),
 }
 
+/// The webview's side of one socket: its command queue and the signal that it overflowed.
+#[derive(Clone)]
+struct SocketHandle {
+    commands: mpsc::Sender<Outgoing>,
+    overflow: Arc<Notify>,
+}
+
+/// The socket task's side of a `SocketHandle`.
+struct SocketInbox {
+    commands: mpsc::Receiver<Outgoing>,
+    overflow: Arc<Notify>,
+}
+
+fn socket_channel() -> (SocketHandle, SocketInbox) {
+    let (sender, receiver) = mpsc::channel(SEND_QUEUE_CAPACITY);
+    let overflow = Arc::new(Notify::new());
+    let handle = SocketHandle {
+        commands: sender,
+        overflow: overflow.clone(),
+    };
+    let inbox = SocketInbox {
+        commands: receiver,
+        overflow,
+    };
+    (handle, inbox)
+}
+
 #[derive(Default)]
 pub struct SidecarSockets {
     next_id: AtomicU32,
-    open: Mutex<HashMap<u32, mpsc::UnboundedSender<Outgoing>>>,
+    open: Mutex<HashMap<u32, SocketHandle>>,
 }
 
 impl SidecarSockets {
-    fn insert(&self, sender: mpsc::UnboundedSender<Outgoing>) -> u32 {
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
-        if let Ok(mut open) = self.open.lock() {
-            open.insert(id, sender);
+    fn insert(&self, handle: SocketHandle) -> Result<u32, String> {
+        let mut open = self
+            .open
+            .lock()
+            .map_err(|_| "Sidecar socket table is unavailable")?;
+        if open.len() >= MAX_OPEN_SOCKETS {
+            return Err(format!("At most {MAX_OPEN_SOCKETS} sidecar sockets may be open"));
         }
-        id
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
+        open.insert(id, handle);
+        Ok(id)
     }
 
     fn remove(&self, id: u32) {
@@ -84,13 +144,17 @@ impl SidecarSockets {
 
     // Like the browser, a socket that has already closed drops what it is given.
     fn queue(&self, id: u32, outgoing: Outgoing) {
-        if let Some(sender) = self
+        let Some(handle) = self
             .open
             .lock()
             .ok()
             .and_then(|open| open.get(&id).cloned())
-        {
-            let _ = sender.send(outgoing);
+        else {
+            return;
+        };
+        match handle.commands.try_send(outgoing) {
+            Ok(()) | Err(TrySendError::Closed(_)) => {}
+            Err(TrySendError::Full(_)) => handle.overflow.notify_one(),
         }
     }
 }
@@ -195,14 +259,34 @@ async fn connect(
     Ok(socket)
 }
 
+type Socket = WebSocketStream<Box<dyn Io>>;
+
+async fn send_within(socket: &mut Socket, message: Message) -> Result<(), String> {
+    match tokio::time::timeout(SEND_TIMEOUT, socket.send(message)).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(format!("send failed: {error}")),
+        Err(_) => Err("send timed out".into()),
+    }
+}
+
+// The closing handshake is best effort: a dead peer must not hold the task.
+async fn close_within(socket: &mut Socket, frame: Option<CloseFrame>) {
+    let _ = tokio::time::timeout(CLOSE_GRACE, socket.close(frame)).await;
+}
+
 /// Runs one socket until it closes and returns the close code and reason to report.
 /// `emit` returns false once the webview no longer listens, which ends the socket.
 async fn run(
     target: Target,
     tls: Arc<rustls::ClientConfig>,
-    mut commands: mpsc::UnboundedReceiver<Outgoing>,
+    inbox: SocketInbox,
+    heartbeat: Heartbeat,
     emit: impl Fn(SidecarSocketEvent) -> bool,
 ) -> (u16, String) {
+    let SocketInbox {
+        mut commands,
+        overflow,
+    } = inbox;
     let abnormal = || (CLOSE_ABNORMAL, String::new());
     let connecting = connect(&target, tls);
     tokio::pin!(connecting);
@@ -218,67 +302,97 @@ async fn run(
                 }
             },
             command = commands.recv() => match command {
+                Some(Outgoing::Text(_)) if early.len() >= SEND_QUEUE_CAPACITY => {
+                    diag!("SLGO: sidecar {}: too many messages before the socket opened", target.url);
+                    return abnormal();
+                }
                 Some(Outgoing::Text(text)) => early.push(text),
                 Some(Outgoing::Close(..)) | None => return abnormal(),
             },
         }
     };
     if !emit(SidecarSocketEvent::Open) {
-        let _ = socket.close(None).await;
+        close_within(&mut socket, None).await;
         return abnormal();
     }
     for text in early {
-        if let Err(error) = socket.send(Message::text(text)).await {
-            diag!("SLGO: sidecar send failed: {error}");
+        if let Err(error) = send_within(&mut socket, Message::text(text)).await {
+            diag!("SLGO: sidecar {error}");
             return abnormal();
         }
     }
 
     let mut received: Option<(u16, String)> = None;
+    // Set once either side has sent its close frame; only the stream's end is awaited then.
     let mut closing_deadline: Option<Instant> = None;
+    let mut silent_deadline = Instant::now() + heartbeat.timeout;
+    let mut pings = tokio::time::interval_at(Instant::now() + heartbeat.interval, heartbeat.interval);
+    pings.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {
         tokio::select! {
-            frame = socket.next() => match frame {
-                Some(Ok(Message::Text(text))) => {
-                    if !emit(SidecarSocketEvent::Message { data: text.to_string() }) {
-                        let _ = socket.close(None).await;
-                        return abnormal();
+            frame = socket.next() => {
+                // Any frame proves the peer is there: data, pongs, the sidecar's own pings.
+                if matches!(frame, Some(Ok(_))) {
+                    silent_deadline = Instant::now() + heartbeat.timeout;
+                }
+                match frame {
+                    Some(Ok(Message::Text(text))) => {
+                        if !emit(SidecarSocketEvent::Message { data: text.to_string() }) {
+                            close_within(&mut socket, None).await;
+                            return abnormal();
+                        }
                     }
-                }
-                // tungstenite answers the close frame; keep reading until the stream ends.
-                Some(Ok(Message::Close(frame))) => {
-                    received = Some(frame.map_or((CLOSE_NO_STATUS, String::new()), |frame| {
-                        (u16::from(frame.code), frame.reason.to_string())
-                    }));
-                }
-                // The sidecar sends text only; pings are answered by tungstenite.
-                Some(Ok(_)) => {}
-                Some(Err(error)) => {
-                    if received.is_none() && closing_deadline.is_none() {
-                        diag!("SLGO: sidecar connection lost: {error}");
+                    // tungstenite answers the close frame; keep reading until the stream ends.
+                    Some(Ok(Message::Close(frame))) => {
+                        received = Some(frame.map_or((CLOSE_NO_STATUS, String::new()), |frame| {
+                            (u16::from(frame.code), frame.reason.to_string())
+                        }));
+                        closing_deadline.get_or_insert_with(|| Instant::now() + CLOSE_GRACE);
                     }
-                    return received.unwrap_or_else(abnormal);
+                    // tungstenite answers pings itself.
+                    Some(Ok(_)) => {}
+                    Some(Err(error)) => {
+                        if received.is_none() && closing_deadline.is_none() {
+                            diag!("SLGO: sidecar connection lost: {error}");
+                        }
+                        return received.unwrap_or_else(abnormal);
+                    }
+                    None => return received.unwrap_or_else(abnormal),
                 }
-                None => return received.unwrap_or_else(abnormal),
             },
             command = commands.recv(), if closing_deadline.is_none() => match command {
                 Some(Outgoing::Text(text)) => {
-                    if let Err(error) = socket.send(Message::text(text)).await {
-                        diag!("SLGO: sidecar send failed: {error}");
+                    if let Err(error) = send_within(&mut socket, Message::text(text)).await {
+                        diag!("SLGO: sidecar {error}");
                         return abnormal();
                     }
                 }
                 Some(Outgoing::Close(code, reason)) => {
                     let frame = CloseFrame { code: CloseCode::from(code), reason: reason.into() };
-                    let _ = socket.close(Some(frame)).await;
+                    close_within(&mut socket, Some(frame)).await;
                     closing_deadline = Some(Instant::now() + CLOSE_GRACE);
                 }
                 None => {
-                    let _ = socket.close(None).await;
+                    close_within(&mut socket, None).await;
                     closing_deadline = Some(Instant::now() + CLOSE_GRACE);
                 }
             },
-            _ = tokio::time::sleep_until(closing_deadline.unwrap_or_else(Instant::now)), if closing_deadline.is_some() => {
+            () = overflow.notified(), if closing_deadline.is_none() => {
+                diag!("SLGO: sidecar {}: send queue full, closing", target.url);
+                close_within(&mut socket, None).await;
+                return abnormal();
+            }
+            _ = pings.tick(), if closing_deadline.is_none() => {
+                if let Err(error) = send_within(&mut socket, Message::Ping(Default::default())).await {
+                    diag!("SLGO: sidecar ping {error}");
+                    return abnormal();
+                }
+            }
+            () = tokio::time::sleep_until(silent_deadline), if closing_deadline.is_none() => {
+                diag!("SLGO: sidecar {}: nothing received for {:?}, connection lost", target.url, heartbeat.timeout);
+                return abnormal();
+            }
+            () = tokio::time::sleep_until(closing_deadline.unwrap_or_else(Instant::now)), if closing_deadline.is_some() => {
                 return received.unwrap_or_else(abnormal);
             }
         }
@@ -294,11 +408,11 @@ pub fn sidecar_open(
     on_event: Channel<SidecarSocketEvent>,
 ) -> Result<u32, String> {
     let target = parse_target(&url, ALLOW_PLAIN_WS)?;
-    let (sender, receiver) = mpsc::unbounded_channel();
-    let id = sockets.insert(sender);
+    let (handle, inbox) = socket_channel();
+    let id = sockets.insert(handle)?;
     tauri::async_runtime::spawn(async move {
         let emit = |event| on_event.send(event).is_ok();
-        let (code, reason) = run(target, mozilla_tls_config(), receiver, emit).await;
+        let (code, reason) = run(target, mozilla_tls_config(), inbox, HEARTBEAT, emit).await;
         app.state::<SidecarSockets>().remove(id);
         let _ = on_event.send(SidecarSocketEvent::Close { code, reason });
     });
@@ -366,9 +480,38 @@ mod tests {
         sni: tokio::task::JoinHandle<Option<String>>,
     }
 
+    type ServerSocket = WebSocketStream<tokio_rustls::server::TlsStream<tokio::net::TcpStream>>;
+
     // A one-connection TLS sidecar for `cert_name`: it sends "baseline", echoes one
     // text frame and closes with 4003.
     async fn serve_once(cert_name: &str) -> Server {
+        serve_with(cert_name, |mut socket| async move {
+            while let Some(Ok(frame)) = socket.next().await {
+                if let Message::Text(text) = frame {
+                    socket.send(Message::Text(text)).await.unwrap();
+                    break;
+                }
+            }
+            close_with_4003(socket).await;
+        })
+        .await
+    }
+
+    async fn close_with_4003(mut socket: ServerSocket) {
+        let frame = CloseFrame {
+            code: CloseCode::from(4003),
+            reason: "ended".into(),
+        };
+        socket.close(Some(frame)).await.unwrap();
+        while socket.next().await.is_some() {}
+    }
+
+    // Like serve_once, but after "baseline" the socket is handed to `after_baseline`.
+    async fn serve_with<F, Fut>(cert_name: &str, after_baseline: F) -> Server
+    where
+        F: FnOnce(ServerSocket) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send,
+    {
         let key = generate_simple_self_signed(vec![cert_name.to_owned()]).unwrap();
         let cert: CertificateDer<'static> = key.cert.der().clone();
         let mut roots = rustls::RootCertStore::empty();
@@ -394,18 +537,7 @@ mod tests {
             let sni = tls.get_ref().1.server_name().map(str::to_owned);
             let mut socket = tokio_tungstenite::accept_async(tls).await.unwrap();
             socket.send(Message::text("baseline")).await.unwrap();
-            while let Some(Ok(frame)) = socket.next().await {
-                if let Message::Text(text) = frame {
-                    socket.send(Message::Text(text)).await.unwrap();
-                    break;
-                }
-            }
-            let frame = CloseFrame {
-                code: CloseCode::from(4003),
-                reason: "ended".into(),
-            };
-            socket.close(Some(frame)).await.unwrap();
-            while socket.next().await.is_some() {}
+            after_baseline(socket).await;
             sni
         });
         Server { port, roots, sni }
@@ -417,23 +549,118 @@ mod tests {
         server: &Server,
         config: Arc<rustls::ClientConfig>,
     ) -> (Vec<SidecarSocketEvent>, (u16, String)) {
+        exchange_with(server, config, HEARTBEAT, |handle| {
+            handle.commands.try_send(Outgoing::Text("hello".into())).unwrap();
+        })
+        .await
+    }
+
+    // Connects with production TLS settings for the test certificate, runs `on_baseline`
+    // with the socket's handle when "baseline" arrives, and returns events and close.
+    async fn exchange_with(
+        server: &Server,
+        config: Arc<rustls::ClientConfig>,
+        heartbeat: Heartbeat,
+        on_baseline: impl Fn(&SocketHandle),
+    ) -> (Vec<SidecarSocketEvent>, (u16, String)) {
         let target =
             parse_target(&format!("wss://localhost:{}/slgo/sidecar", server.port), false).unwrap();
-        let (sender, receiver) = mpsc::unbounded_channel();
+        let (handle, inbox) = socket_channel();
         let events = Mutex::new(Vec::new());
-        let closed = run(target, config, receiver, |event| {
+        let closed = run(target, config, inbox, heartbeat, |event| {
             if event
                 == (SidecarSocketEvent::Message {
                     data: "baseline".into(),
                 })
             {
-                let _ = sender.send(Outgoing::Text("hello".into()));
+                on_baseline(&handle);
             }
             events.lock().unwrap().push(event);
             true
         })
         .await;
         (events.into_inner().unwrap(), closed)
+    }
+
+    const FAST_HEARTBEAT: Heartbeat = Heartbeat {
+        interval: Duration::from_millis(50),
+        timeout: Duration::from_millis(300),
+    };
+
+    #[tokio::test]
+    async fn a_silent_peer_ends_the_socket_as_lost() {
+        // The sidecar's host vanished: the socket stays open but nothing is read or answered.
+        let server = serve_with("localhost", |socket| async move {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            drop(socket);
+        })
+        .await;
+        let started = Instant::now();
+        let (events, closed) =
+            exchange_with(&server, tls_config(server.roots.clone()), FAST_HEARTBEAT, |_| {}).await;
+        assert_eq!(closed, (CLOSE_ABNORMAL, String::new()));
+        assert_eq!(events.len(), 2, "open and baseline: {events:?}");
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed >= FAST_HEARTBEAT.timeout && elapsed < Duration::from_secs(5),
+            "ended after {elapsed:?}"
+        );
+        server.sni.abort();
+    }
+
+    #[tokio::test]
+    async fn a_quiet_peer_that_answers_pings_stays_connected() {
+        // No data for several heartbeat timeouts, but every ping is answered (tungstenite
+        // replies while the server reads), so the sidecar's own close is what ends it.
+        let server = serve_with("localhost", |mut socket| async move {
+            let quiet = tokio::time::timeout(Duration::from_millis(1_200), async {
+                while let Some(Ok(_)) = socket.next().await {}
+            });
+            assert!(quiet.await.is_err(), "the client keeps the socket open");
+            close_with_4003(socket).await;
+        })
+        .await;
+        let (_, closed) =
+            exchange_with(&server, tls_config(server.roots.clone()), FAST_HEARTBEAT, |_| {}).await;
+        assert_eq!(closed, (4003, "ended".into()));
+        server.sni.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_full_send_queue_ends_the_socket() {
+        let server = serve_with("localhost", |mut socket| async move {
+            while let Some(Ok(_)) = socket.next().await {}
+        })
+        .await;
+        let (_, closed) = exchange_with(&server, tls_config(server.roots.clone()), HEARTBEAT, |handle| {
+            handle.overflow.notify_one();
+        })
+        .await;
+        assert_eq!(closed, (CLOSE_ABNORMAL, String::new()));
+    }
+
+    #[test]
+    fn queueing_past_the_capacity_signals_overflow() {
+        let sockets = SidecarSockets::default();
+        let (handle, inbox) = socket_channel();
+        let id = sockets.insert(handle).unwrap();
+        for index in 0..SEND_QUEUE_CAPACITY {
+            sockets.queue(id, Outgoing::Text(index.to_string()));
+        }
+        let overflowed = || futures_util::FutureExt::now_or_never(inbox.overflow.notified()).is_some();
+        assert!(!overflowed(), "a full queue is not an overflow yet");
+        sockets.queue(id, Outgoing::Text("one too many".into()));
+        assert!(overflowed());
+    }
+
+    #[test]
+    fn at_most_two_sockets_are_open() {
+        let sockets = SidecarSockets::default();
+        let first = sockets.insert(socket_channel().0).unwrap();
+        sockets.insert(socket_channel().0).unwrap();
+        assert!(sockets.insert(socket_channel().0).is_err(), "a third socket is refused");
+        sockets.remove(first);
+        assert!(sockets.insert(socket_channel().0).is_ok(), "a closed socket frees its slot");
     }
 
     #[tokio::test]
@@ -487,15 +714,16 @@ mod tests {
     #[ignore = "needs a reachable sidecar in SLUI_SIDECAR_PROBE_URL"]
     async fn probe_a_real_sidecar() {
         let url = std::env::var("SLUI_SIDECAR_PROBE_URL").expect("SLUI_SIDECAR_PROBE_URL");
-        let (sender, receiver) = mpsc::unbounded_channel();
+        let (handle, inbox) = socket_channel();
         let events = Mutex::new(Vec::new());
         let closed = run(
             parse_target(&url, false).unwrap(),
             mozilla_tls_config(),
-            receiver,
+            inbox,
+            HEARTBEAT,
             |event| {
                 if event == SidecarSocketEvent::Open {
-                    let _ = sender.send(Outgoing::Text("{}".into()));
+                    let _ = handle.commands.try_send(Outgoing::Text("{}".into()));
                 }
                 events.lock().unwrap().push(event);
                 true

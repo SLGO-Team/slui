@@ -398,6 +398,15 @@ request", "Sidecar session handshake", "Security boundary").
   sends commands through one promise chain to keep frame order and drops all events
   after a local `close()`. Browser previews keep the webview `WebSocket`. The control
   plane stays on webview `fetch` (its host does not filter SNI).
+  Liveness and limits (`sidecar_socket.rs`): once open, Rust pings every 10 s and ends the
+  socket with `1006` when no frame of any kind (data, pong, the sidecar's own ping) arrived
+  for 25 s, so a silently dead connection (Wi-Fi switch, sleep, NAT timeout) reconnects
+  with backoff instead of freezing the HUD at `live`. The sidecar (Bun, `idleTimeout: 30`)
+  answers pings itself. Every send and closing handshake is bounded (10 s / 2 s), because a
+  stuck send blocks the whole select loop, heartbeat included. The command queue holds 64
+  frames (also before open); overflow ends the socket with `1006`, never drops silently.
+  At most 2 sockets are open (one closing plus its replacement); a third `sidecar_open`
+  fails and the adapter reports `1006`. Browser previews have no ping API and no heartbeat.
   Manual check of a real sidecar with the production TLS settings:
   `SLUI_SIDECAR_PROBE_URL=wss://<host>:<port>/slgo/sidecar cargo test -p slui -- --ignored probe`.
 - Close mapping: 4000/4002 → `incompatible`, no retry; 4001 → `unauthorized`,
@@ -408,8 +417,12 @@ request", "Sidecar session handshake", "Security boundary").
   an unreachable control plane and lost sessions retry with backoff
   (3 s · 2^(n-1)); 4003 and expired routes reroute (1 s · 2^(n-1)); both are
   capped at 60 s. The failure count resets only after 60 s live, so a sidecar
-  that fails right after its baseline cannot cause a fast loop. `incompatible`
-  and proof rejections wait for the player.
+  that fails right after its baseline cannot cause a fast loop; only the failure
+  that ends that same live attempt resets it (`failureCountFor`), never a later
+  attempt after an end without retry. `incompatible` and proof rejections wait for
+  the player. The 3 s identity poll (`identityPollRetries`) starts no attempt while a
+  required update blocks connecting: that attempt reads no identity, so every poll
+  would look like an account switch.
 - Configuration (`src/platform/backend.ts`): only the Vite `mock` mode
   (`npm run dev:mock`, `npm run tauri:mock`) runs the mocks, and `vite.config.ts`
   refuses to build it. Every other mode needs `VITE_CONTROL_PLANE_URL`; without
@@ -747,7 +760,8 @@ by window label (`?window=home` in a browser preview).
 - The home Steam tile shows the account in the overlay's session snapshot
   (`steamId`) with the persona name and avatar the local Steam client keeps for
   it (`src-tauri/src/steam_profile.rs`): `<SteamPath>/config/loginusers.vdf`
-  `users.<SteamID64>.PersonaName` and `config/avatarcache/<SteamID64>.png`,
+  `users.<SteamID64>.PersonaName` (files over 1 MiB or nested deeper than 8 levels
+  give no name) and `config/avatarcache/<SteamID64>.png`,
   `SteamPath` from `HKCU\Software\Valve\Steam`. No Web API key and no request
   to steamcommunity.com (often unreachable from mainland China). Home re-reads
   them when the SteamID changes and whenever it is shown again; a profile read

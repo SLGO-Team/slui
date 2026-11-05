@@ -132,6 +132,36 @@ export function nextFailureCount(previous: number, liveSinceMs: number | null, n
   return liveSinceMs !== null && nowMs - liveSinceMs >= RETRY_STABLE_LIVE_MS ? 1 : previous + 1;
 }
 
+/** When an attempt's stream went live. */
+export type LivePeriod = { attempt: number; sinceMs: number };
+
+/**
+ * The backoff count after a failure of `attempt` that retries on its own. Only a live period of
+ * that same attempt can start the backoff over: once an attempt ended without a retry (or a new
+ * one began), its live period says nothing about the next failure.
+ */
+export function failureCountFor(previous: number, live: LivePeriod | null, attempt: number, retry: RetryHint, nowMs: number): number {
+  if (retry === "poll") return 0;
+  return nextFailureCount(previous, live?.attempt === attempt ? live.sinceMs : null, nowMs);
+}
+
+/**
+ * Whether the 3 s identity poll should start a new attempt: the signed-in account changed, or
+ * reading it failed while the session is not already offline. Never while a required update blocks
+ * connecting: that attempt reads no identity, so any signed-in account would look like a change.
+ */
+export function identityPollRetries(poll: {
+  updateRequired: boolean;
+  previousSteamId: string | null;
+  /** The account read now; "error" when reading it failed. */
+  current: { steamId: string | null } | "error";
+  status: ConnectionStatus;
+}): boolean {
+  if (poll.updateRequired) return false;
+  if (poll.current === "error") return poll.status !== "offline";
+  return poll.previousSteamId !== poll.current.steamId;
+}
+
 export type ClientSessionDependencies = {
   identity: SteamClientIdentity;
   proof: IdentityProofProvider;

@@ -14,6 +14,10 @@ use base64::Engine;
 
 // Steam caches 184 px PNGs of about 50-70 KB; a file far above that is not an avatar.
 const MAX_AVATAR_BYTES: u64 = 1024 * 1024;
+// loginusers.vdf holds a few hundred bytes per account that signed in on this PC.
+const MAX_LOGIN_USERS_BYTES: u64 = 1024 * 1024;
+// loginusers.vdf nests two levels ("users" > account); the parser recurses per level.
+const MAX_VDF_DEPTH: usize = 8;
 
 #[derive(serde::Serialize, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -45,7 +49,8 @@ fn read_profile(steam_root: Option<&Path>, steam_id: u64) -> SteamProfile {
     let login_users = config.join("loginusers.vdf");
     let avatar = config.join("avatarcache").join(format!("{steam_id}.png"));
     SteamProfile {
-        persona_name: read_optional(&login_users, |path| fs::read_to_string(path))
+        persona_name: read_optional(&login_users, read_login_users)
+            .flatten()
             .and_then(|text| persona_name(&text, steam_id)),
         avatar_url: read_optional(&avatar, read_avatar).flatten(),
     }
@@ -62,6 +67,14 @@ fn read_optional<T>(path: &Path, read: impl FnOnce(&Path) -> io::Result<T>) -> O
             None
         }
     }
+}
+
+fn read_login_users(path: &Path) -> io::Result<Option<String>> {
+    if fs::metadata(path)?.len() > MAX_LOGIN_USERS_BYTES {
+        diag!("SLGO: {} is larger than expected, not read", path.display());
+        return Ok(None);
+    }
+    fs::read_to_string(path).map(Some)
 }
 
 fn read_avatar(path: &Path) -> io::Result<Option<String>> {
@@ -181,11 +194,16 @@ impl Lexer<'_> {
 }
 
 fn parse_vdf(text: &str) -> Option<Vec<(String, Node)>> {
-    parse_block(&mut Lexer { chars: text.chars().peekable() }, false)
+    parse_block(&mut Lexer { chars: text.chars().peekable() }, 0)
 }
 
-/// `None` for unbalanced braces or a key without a value.
-fn parse_block(lexer: &mut Lexer, nested: bool) -> Option<Vec<(String, Node)>> {
+/// `None` for unbalanced braces, a key without a value, or nesting deeper than
+/// `MAX_VDF_DEPTH` (the parser recurses once per level).
+fn parse_block(lexer: &mut Lexer, depth: usize) -> Option<Vec<(String, Node)>> {
+    if depth > MAX_VDF_DEPTH {
+        return None;
+    }
+    let nested = depth > 0;
     let mut pairs = Vec::new();
     loop {
         match lexer.next() {
@@ -195,7 +213,7 @@ fn parse_block(lexer: &mut Lexer, nested: bool) -> Option<Vec<(String, Node)>> {
             Some(Token::Text(key)) => {
                 let value = match lexer.next()? {
                     Token::Text(value) => Node::Text(value),
-                    Token::Open => Node::Block(parse_block(lexer, true)?),
+                    Token::Open => Node::Block(parse_block(lexer, depth + 1)?),
                     Token::Close => return None,
                 };
                 pairs.push((key, value));
@@ -285,6 +303,15 @@ mod tests {
     }
 
     #[test]
+    fn rejects_nesting_deeper_than_the_limit() {
+        let nest = |levels: usize| format!("{}\"k\" \"v\"{}", "\"a\" { ".repeat(levels), " }".repeat(levels));
+        assert!(parse_vdf(&nest(MAX_VDF_DEPTH)).is_some());
+        assert_eq!(parse_vdf(&nest(MAX_VDF_DEPTH + 1)), None);
+        // A hostile file nested far deeper fails the same way instead of exhausting the stack.
+        assert_eq!(parse_vdf(&nest(100_000)), None);
+    }
+
+    #[test]
     fn lexes_unquoted_tokens_and_escapes() {
         let tokens: Vec<_> = Lexer { chars: r#"key value{"a\tb\q"}"#.chars().peekable() }.collect();
         assert_eq!(
@@ -328,6 +355,11 @@ mod tests {
         assert_eq!(read_profile(Some(&root), 76561198000000009), SteamProfile::default());
         assert_eq!(read_profile(Some(&root.join("missing")), 76561198000000001), SteamProfile::default());
         assert_eq!(read_profile(None, 76561198000000001), SteamProfile::default());
+
+        // A login file far larger than any real one is not read at all.
+        let padding = " ".repeat(MAX_LOGIN_USERS_BYTES as usize);
+        fs::write(root.join("config").join("loginusers.vdf"), format!("{LOGIN_USERS}{padding}")).unwrap();
+        assert_eq!(read_profile(Some(&root), 76561198000000001).persona_name, None);
         fs::remove_dir_all(&root).unwrap();
     }
 
