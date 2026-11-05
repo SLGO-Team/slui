@@ -1,6 +1,6 @@
 // The only uninstaller module that talks to Tauri. Outside Tauri (browser preview, opened
 // with `?role=uninstall`) it returns a mock chosen by
-// `&state=installed|theme|none|fail|cancel|datafail` (add `&running=1` for the
+// `&state=installed|theme|none|fail|cancel|datafail|locked` (add `&running=1` for the
 // running-app notice); the mock is never reachable inside the Tauri window.
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -34,9 +34,9 @@ function tauriPlatform(): UninstallPlatform {
   };
 }
 
-type MockState = "installed" | "theme" | "none" | "fail" | "cancel" | "datafail";
+type MockState = "installed" | "theme" | "none" | "fail" | "cancel" | "datafail" | "locked";
 
-const MOCK_STATES: MockState[] = ["installed", "theme", "none", "fail", "cancel", "datafail"];
+const MOCK_STATES: MockState[] = ["installed", "theme", "none", "fail", "cancel", "datafail", "locked"];
 const MOCK_DIR = "D:\\Games\\SLUI";
 
 function mockPlatform(params: URLSearchParams): UninstallPlatform {
@@ -73,6 +73,7 @@ function mockPlatform(params: URLSearchParams): UninstallPlatform {
         userDataError: state === "datafail" && request.userData
           ? "%LOCALAPPDATA%\\com.slui.desktop：另一个程序正在使用此文件，进程无法访问。 (os error 32)"
           : null,
+        leftovers: state === "locked" ? [`${MOCK_DIR}\\slui.exe`] : [],
       };
     },
     startDragging: () => {},

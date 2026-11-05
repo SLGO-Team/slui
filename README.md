@@ -23,6 +23,8 @@ npm test
 
 安装器同时安装卸载程序 `slui-uninstall.exe`，“应用和功能”中的卸载会打开它。卸载默认保留主题包和用户设置，可分别勾选“同时删除主题包”和“删除用户设置和数据”；静默卸载使用安装目录中的 NSIS 卸载程序 `uninstall.exe /S`。
 
+无人值守安装（部署工具）：`SLUI-Setup-<version>.exe /S`，不显示界面，以安装器的退出码退出（0 成功，1 取消，2 失败；未提权时仍会弹出一次 UAC）。可加 NSIS 参数：`/NS` 不创建快捷方式（再加 `/SLUI-STARTMENU`、`/SLUI-DESKTOP` 单独创建），`/D=<目录>` 指定安装目录，必须放在最后且不加引号；不加 `/D=` 时，已安装则装回原目录。例如在 PowerShell 中：`Start-Process .\SLUI-Setup-<version>.exe '/S /NS /SLUI-STARTMENU' -Wait -PassThru`。
+
 SLUI 会在后台检查并下载新版本（启动时及每 6 小时），校验签名后在首页“版本”卡片和托盘菜单提供“更新并重启”，点击后经一次 UAC 授权自动安装并重新打开。正式发布的安装器附带供更新校验的 `SLUI-Setup-<version>.exe.sig`；本地构建的安装器未签名，不能作为更新分发。
 
 SLUI 需要与游戏运行在同一台电脑、同一网络连接上，服务器才会接受连接。

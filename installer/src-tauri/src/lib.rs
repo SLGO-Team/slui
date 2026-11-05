@@ -81,6 +81,16 @@ pub struct Unattended {
     pub after_pid: Option<u32>,
 }
 
+/// The NSIS command line of a silent install (`SLUI-Setup.exe /S [/NS] [/D=<dir>]`, for
+/// deployment tools), verbatim, when `args` asks for one: a `/S` switch before `/D=`,
+/// which comes last and may contain spaces.
+pub fn silent_install_args(args: &str) -> Option<&str> {
+    args.split_whitespace()
+        .take_while(|arg| !arg.starts_with("/D="))
+        .any(|arg| arg == "/S")
+        .then_some(args)
+}
+
 /// Reads the unattended update flags; anything else on the command line is ignored.
 pub fn parse_unattended(args: impl IntoIterator<Item = String>) -> Option<Unattended> {
     let mut update = false;
@@ -291,6 +301,16 @@ mod tests {
         assert_eq!(parse_unattended(args("--update")), Some(Unattended { after_pid: None }));
         assert_eq!(parse_unattended(args("--update --after-pid nope")), Some(Unattended { after_pid: None }));
         assert_eq!(parse_unattended(args("--update --after-pid")), Some(Unattended { after_pid: None }));
+    }
+
+    #[test]
+    fn a_silent_install_is_an_nsis_s_switch_before_the_dir() {
+        assert_eq!(silent_install_args("/S"), Some("/S"));
+        assert_eq!(silent_install_args(r"/S /NS /D=C:\Program Files\SLUI"), Some(r"/S /NS /D=C:\Program Files\SLUI"));
+        assert_eq!(silent_install_args(r"/NS /S /D=D:\SLUI"), Some(r"/NS /S /D=D:\SLUI"));
+        for not_silent in ["", "--update --after-pid 42", "/s", "/SILENT", r"/D=D:\a /S", "/NS"] {
+            assert_eq!(silent_install_args(not_silent), None, "{not_silent:?}");
+        }
     }
 
     #[test]
