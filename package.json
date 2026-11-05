@@ -40,6 +40,7 @@
     "tauri:mock": "tauri dev --config src-tauri/tauri.mock.conf.json",
     "tauri:build:local": "tauri build --config src-tauri/tauri.local.conf.json --bundles nsis",
     "installer:dev": "node scripts/build-installer.mjs --dev",
+    "installer:dev:uninstall": "node scripts/build-installer.mjs --dev --uninstall",
     "installer:build:local": "node scripts/build-installer.mjs --local",
     "installer:build:shell": "node scripts/build-installer.mjs --local --reuse-payload",
     "installer:build": "node scripts/build-installer.mjs",

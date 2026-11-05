@@ -36,7 +36,7 @@ SLUI 需要与游戏运行在同一台电脑、同一网络连接上，服务器
 
 ## 主题包
 
-字体和音效可以用可选的主题包按文件替换：在应用目录（开发时为仓库根目录）放置包含 `fonts/` 和 `sounds/` 的 `theme-pack/` 目录，缺少的文件回退到内置资源。`npm run installer:build:local -- --theme-pack <目录>` 生成自带主题包的安装器。本仓库不包含任何主题包内容。
+字体和音效可以用可选的主题包按文件替换：在应用目录（开发时为仓库根目录）放置包含 `fonts/` 和 `sounds/` 的 `theme-pack/` 目录，缺少的文件回退到内置资源。`node scripts/build-installer.mjs --local --theme-pack <目录>` 生成自带主题包的安装器（直接调 node：PowerShell 的 npm 会吞掉 `npm run ... -- --theme-pack` 里的 `--`，脚本会报错而不是打出不带主题包的安装器）。本仓库不包含任何主题包内容。
 
 ## 许可证
 
