@@ -1,0 +1,53 @@
+{
+  "player_id": "76561198000000002",
+  "mode": "all",
+  "items": [
+    {
+      "match_id": "01a19c8f-4f00-7000-8000-00000000bef1",
+      "mode": "competitive",
+      "started_at": "2026-11-02T14:00:00.000Z",
+      "ended_at": "2026-11-02T14:03:10.000Z",
+      "duration_ms": 190000,
+      "status": "finished",
+      "counts_for_career": true,
+      "result": "loss",
+      "side": "team-a",
+      "first_team": "ntf",
+      "score_own": 1,
+      "score_enemy": 2,
+      "rounds_played": 3,
+      "kills": 1,
+      "deaths": 2,
+      "assists": 1,
+      "headshot_kills": 0,
+      "mvps": 0,
+      "adr": 33.3,
+      "kast": 0.6667,
+      "left_early": true
+    },
+    {
+      "match_id": "01a19c58-6080-7000-8000-00000000bef0",
+      "mode": "competitive",
+      "started_at": "2026-11-02T13:00:00.000Z",
+      "ended_at": "2026-11-02T13:03:10.000Z",
+      "duration_ms": 190000,
+      "status": "finished",
+      "counts_for_career": true,
+      "result": "loss",
+      "side": "team-a",
+      "first_team": "ntf",
+      "score_own": 1,
+      "score_enemy": 2,
+      "rounds_played": 3,
+      "kills": 1,
+      "deaths": 2,
+      "assists": 1,
+      "headshot_kills": 0,
+      "mvps": 0,
+      "adr": 33.3,
+      "kast": 0.6667,
+      "left_early": true
+    }
+  ],
+  "next_cursor": "MjAyNi0xMS0wMlQxMzowMDowMC4wMDBafDAxYTE5YzU4LTYwODAtNzAwMC04MDAwLTAwMDAwMDAwYmVmMA"
+}

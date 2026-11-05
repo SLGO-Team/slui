@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/career-error.schema.json",
+  "title": "Career API error (400 / 404 / 429 / 503)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error"],
+  "properties": {
+    "error": { "enum": ["invalid-request", "not-found", "rate-limited", "unavailable"] }
+  }
+}

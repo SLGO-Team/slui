@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/career-match-list.schema.json",
+  "title": "Career recent matches (GET /v0/players/{player_id}/matches)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["player_id", "mode", "items", "next_cursor"],
+  "properties": {
+    "player_id": { "$ref": "career-common.schema.json#/$defs/player_id" },
+    "mode": { "$ref": "career-common.schema.json#/$defs/mode" },
+    "items": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "match_id", "mode", "started_at", "ended_at", "duration_ms", "status", "counts_for_career", "result", "side", "first_team",
+          "score_own", "score_enemy", "rounds_played", "kills", "deaths", "assists", "headshot_kills", "mvps", "adr", "kast", "left_early"
+        ],
+        "properties": {
+          "match_id": { "$ref": "career-common.schema.json#/$defs/match_id" },
+          "mode": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/mode" }] },
+          "started_at": { "$ref": "career-common.schema.json#/$defs/date_time" },
+          "ended_at": { "$ref": "career-common.schema.json#/$defs/date_time" },
+          "duration_ms": { "$ref": "career-common.schema.json#/$defs/count" },
+          "status": { "$ref": "career-common.schema.json#/$defs/match_status" },
+          "counts_for_career": { "type": "boolean" },
+          "result": { "$ref": "career-common.schema.json#/$defs/match_result" },
+          "side": { "$ref": "career-common.schema.json#/$defs/team_id" },
+          "first_team": { "$ref": "career-common.schema.json#/$defs/role" },
+          "score_own": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/count" }] },
+          "score_enemy": { "oneOf": [{ "type": "null" }, { "$ref": "career-common.schema.json#/$defs/count" }] },
+          "rounds_played": { "$ref": "career-common.schema.json#/$defs/count" },
+          "kills": { "$ref": "career-common.schema.json#/$defs/count" },
+          "deaths": { "$ref": "career-common.schema.json#/$defs/count" },
+          "assists": { "$ref": "career-common.schema.json#/$defs/count" },
+          "headshot_kills": { "$ref": "career-common.schema.json#/$defs/count" },
+          "mvps": { "$ref": "career-common.schema.json#/$defs/count" },
+          "adr": { "$ref": "career-common.schema.json#/$defs/rate" },
+          "kast": { "$ref": "career-common.schema.json#/$defs/fraction" },
+          "left_early": { "type": "boolean" }
+        }
+      }
+    },
+    "next_cursor": { "type": ["string", "null"], "minLength": 1, "maxLength": 256 }
+  }
+}
