@@ -1508,3 +1508,25 @@ Child task 3 (S5, U1-U3). The updater no longer takes its address from the windo
 ### Status
 
 [OK] **Completed**
+
+
+## Session 65: Connection liveness: sidecar heartbeat and limits
+<!-- trellis-session: v=2 fp=3b4e48acc8cfcc57 -->
+
+**Date**: 2026-11-05
+**Task**: Connection liveness: sidecar heartbeat and limits
+**Branch**: `fix/connection-liveness`
+
+### Summary
+
+Release secret CONTROL_PLANE_URL set to the portless control plane after verifying the 443 center release. Child 4 connection-liveness: Rust sidecar socket heartbeat (10 s ping, 25 s silence -> 1006), bounded sends, 64-frame queue, max 2 sockets; loginusers.vdf size/depth limits; identity poll no longer retries during a required update; backoff reset tied to the live attempt. clippy, cargo test, npm test, build pass.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0368c55` | fix(connection): detect dead sidecar connections and bound socket queues |
+
+### Status
+
+[OK] **Completed**

@@ -10,6 +10,8 @@ import { TauriSidecarSocket } from "../src/platform/sidecarSocket.ts";
 import { HttpControlPlane, toWireProof } from "../src/platform/route.ts";
 import {
   clientSessionReducer,
+  failureCountFor,
+  identityPollRetries,
   initialClientSessionState,
   nextFailureCount,
   retryDelayMs,
@@ -569,6 +571,26 @@ assert.deepEqual([1, 6, 100].map((n) => retryDelayMs("poll", n)), [5_000, 5_000,
 assert.equal(nextFailureCount(3, null, 1_000_000), 4);
 assert.equal(nextFailureCount(3, 0, 59_999), 4, "a short live period does not reset the backoff");
 assert.equal(nextFailureCount(3, 0, 60_000), 1, "a stable session starts the backoff over");
+{
+  const stable = { attempt: 4, sinceMs: 0 };
+  assert.equal(failureCountFor(3, stable, 4, "backoff", 60_000), 1, "the failure ending a stable live attempt starts over");
+  assert.equal(failureCountFor(3, { attempt: 4, sinceMs: 1_000 }, 4, "backoff", 60_000), 4, "a short live period does not");
+  // Attempt 4 was live, then ended without a retry (e.g. incompatible); attempt 5 fails later.
+  assert.equal(failureCountFor(3, stable, 5, "backoff", 600_000), 4, "an older attempt's live period never resets the backoff");
+  assert.equal(failureCountFor(3, stable, 4, "poll", 60_000), 0, "waiting for a server is not a failure");
+}
+{
+  const poll = { updateRequired: false, previousSteamId: steamId, current: { steamId }, status: "live" };
+  assert.equal(identityPollRetries(poll), false);
+  assert.equal(identityPollRetries({ ...poll, current: { steamId: "76561198000000101" } }), true, "an account switch reconnects");
+  assert.equal(identityPollRetries({ ...poll, current: { steamId: null } }), true, "signing out reconnects");
+  assert.equal(identityPollRetries({ ...poll, current: "error" }), true);
+  assert.equal(identityPollRetries({ ...poll, current: "error", status: "offline" }), false);
+  // A required update never read the identity, so every signed-in poll looked like a switch.
+  const blocked = { ...poll, updateRequired: true, previousSteamId: null, status: "incompatible" };
+  assert.equal(identityPollRetries(blocked), false, "a required update stops the 3 s retry loop");
+  assert.equal(identityPollRetries({ ...blocked, current: "error" }), false);
+}
 {
   const failed = clientSessionReducer({ ...initialClientSessionState, attempt: 1 }, { type: "failed", attempt: 1, status: "offline", detail: "x", retry: "backoff" });
   assert.equal(failed.retry, "backoff");

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { ConnectionStatus, MinimapDiagnostic, SlgoEvent } from "../contracts";
 import type { ClientSessionDependencies } from "./clientSession";
-import { clientSessionReducer, initialClientSessionState, nextFailureCount, retryDelayMs, runClientSessionAttempt } from "./clientSession";
+import { clientSessionReducer, failureCountFor, identityPollRetries, initialClientSessionState, retryDelayMs, runClientSessionAttempt, type LivePeriod } from "./clientSession";
 import { updateRequiredDetail } from "./updateModel";
 
 const IDENTITY_POLL_INTERVAL_MS = 3_000;
@@ -23,7 +23,8 @@ export function useClientSession(
   const diagnosticHandlerRef = useRef(onDiagnostic);
   const statusHandlerRef = useRef(onStatus);
   const failuresRef = useRef(0);
-  const liveSinceRef = useRef<number | null>(null);
+  const liveRef = useRef<LivePeriod | null>(null);
+  const updateRequiredRef = useRef(updateRequired);
   // Every run of the attempt effect gets a new number, so a game start or exit never reuses the last one's.
   const attemptRef = useRef(0);
   // Set only by the retry timer; a manual retry or an account switch shows its progress.
@@ -32,6 +33,7 @@ export function useClientSession(
   eventHandlerRef.current = onEvent;
   diagnosticHandlerRef.current = onDiagnostic;
   statusHandlerRef.current = onStatus;
+  updateRequiredRef.current = updateRequired;
 
   const retryNow = useCallback(() => {
     backgroundRetryRef.current = false;
@@ -70,15 +72,19 @@ export function useClientSession(
 
   useEffect(() => {
     let active = true;
+    const settle = (current: { steamId: string | null } | "error") => {
+      if (active && identityPollRetries({
+        updateRequired: updateRequiredRef.current !== null,
+        previousSteamId: stateRef.current.identity?.steamId ?? null,
+        current,
+        status: stateRef.current.status,
+      })) retryNow();
+    };
     const timer = window.setInterval(() => {
-      void dependencies.identity.getCurrentUser().then((identity) => {
-        if (!active) return;
-        const previousSteamId = stateRef.current.identity?.steamId ?? null;
-        const nextSteamId = identity?.steamId ?? null;
-        if (previousSteamId !== nextSteamId) retryNow();
-      }).catch(() => {
-        if (active && stateRef.current.status !== "offline") retryNow();
-      });
+      void dependencies.identity.getCurrentUser().then(
+        (identity) => settle({ steamId: identity?.steamId ?? null }),
+        () => settle("error"),
+      );
     }, IDENTITY_POLL_INTERVAL_MS);
     return () => {
       active = false;
@@ -90,14 +96,13 @@ export function useClientSession(
   // restarted sidecar) schedules the next attempt; a new attempt cancels it.
   useEffect(() => {
     if (state.status === "live") {
-      liveSinceRef.current ??= Date.now();
+      if (liveRef.current?.attempt !== state.attempt) liveRef.current = { attempt: state.attempt, sinceMs: Date.now() };
       return undefined;
     }
     if (!state.retry || state.retry === "none") return undefined;
-    const now = Date.now();
     // Waiting for the player to join is not a failure: a later real failure starts its backoff over.
-    failuresRef.current = state.retry === "poll" ? 0 : nextFailureCount(failuresRef.current, liveSinceRef.current, now);
-    liveSinceRef.current = null;
+    failuresRef.current = failureCountFor(failuresRef.current, liveRef.current, state.attempt, state.retry, Date.now());
+    liveRef.current = null;
     const delay = retryDelayMs(state.retry, failuresRef.current);
     if (delay === null) return undefined;
     const timer = window.setTimeout(() => {

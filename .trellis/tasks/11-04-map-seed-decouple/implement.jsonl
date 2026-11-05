@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend spec index"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates, Tauri/installer contracts, test commands"}
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Minimap contracts, static layouts and prefab table"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Minimap history note about map-seed"}
