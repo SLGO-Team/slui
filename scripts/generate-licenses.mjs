@@ -2,13 +2,14 @@
 // installer ships. The installer bundles the file next to slui.exe (src-tauri/tauri.conf.json bundle.resources).
 //
 //   npm run licenses          regenerate (run after changing Cargo.lock or the npm runtime dependencies)
-//   npm run licenses -- --check   fail when the committed file is out of date
+//   npm run licenses:check    fail when the committed file is out of date
 //
 // Rust: cargo-about 0.9.3, the version CI pins (`cargo install cargo-about --version 0.9.3 --locked --features cli`) over the workspace's Windows-target
 // normal dependencies, configured in scripts/licenses/about.toml. npm: `npm ls --omit=dev` (the packages Vite
 // bundles into dist). Both fail on a license outside the accepted list, which is shared from about.toml.
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -97,16 +98,23 @@ function npmSection() {
 }
 
 function cargoSection() {
+  // Written with -o: cargo-about refuses to write to a redirected stdout under PowerShell (CI's default shell).
+  const dir = mkdtempSync(join(tmpdir(), "slui-licenses-"));
+  const file = join(dir, "cargo.txt");
   try {
-    return execFileSync("cargo", [
+    execFileSync("cargo", [
       "about", "generate", "--fail", "--workspace", "--frozen",
       "--manifest-path", join(root, "src-tauri/Cargo.toml"),
       "-c", aboutConfig,
+      "-o", file,
       join(root, "scripts/licenses/about.hbs"),
-    ], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "inherit"] }).replace(/\r\n/g, "\n").trim();
+    ], { cwd: root, stdio: ["ignore", "inherit", "inherit"] });
+    return readFileSync(file, "utf8").replace(/\r\n/g, "\n").trim();
   } catch (error) {
     if (error.code === "ENOENT") throw new Error("cargo is not on PATH");
     throw new Error(`cargo about generate failed (install it with: cargo install cargo-about --version 0.9.3 --locked --features cli): ${error.message}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 

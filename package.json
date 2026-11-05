@@ -20,6 +20,7 @@
     "dev": "vite",
     "dev:mock": "vite --mode mock",
     "licenses": "node scripts/generate-licenses.mjs",
+    "licenses:check": "node scripts/generate-licenses.mjs --check",
     "lint": "tsc --noEmit && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer",
     "build": "tsc && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer && vite build",
     "build:local": "tsc && tsc --noEmit -p packages/protocol && tsc --noEmit -p installer && vite build --mode development",

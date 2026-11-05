@@ -59,7 +59,8 @@ jobs:
         working-directory: src-tauri
       # The installer ships THIRD_PARTY_LICENSES.txt: it must list the current Cargo.lock and npm runtime
       # dependencies, and every license must be in scripts/licenses/about.toml's accepted list.
-      - run: npm run licenses -- --check
+      # A script of its own: PowerShell's npm shim drops `--`, so `npm run licenses -- --check` would regenerate.
+      - run: npm run licenses:check
       # Both crates in one build, so their shared dependencies compile once.
       - run: cargo test --workspace --manifest-path src-tauri/Cargo.toml
       - run: cargo clippy --workspace --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings
