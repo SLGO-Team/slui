@@ -84,4 +84,8 @@
 - 子任务 7 `11-04-map-seed-decouple`：分支 `chore/minimap-fixtures-from-game`。插件加 Debug 专用 `MinimapDevExport`
   （SLGO 本地合并 f4ac287），本机专用服务器导出 14.2.9 的预制体目录和四份布局，与旧夹具一致（仅浮点噪声）；
   README 致谢、PROVENANCE、spec 改为来自游戏导出。
-- 下一步：子任务 8 `11-04-metadata-licenses-docs`。
+- 子任务 7 PR #102 已合并（6d216e2）。
+- 子任务 8 `11-04-metadata-licenses-docs`：分支 `chore/metadata-and-licenses`。publisher / copyright 为 SLGO Team，
+  `THIRD_PARTY_LICENSES.txt`（cargo-about + npm ls，CI 检查新鲜度）随安装包分发。实测发现改 publisher 后不带 `/D=` 的
+  静默安装会装到 C:（NSIS 回退键随 publisher 变），品牌安装器改为补卸载入口的目录；修复后覆盖升级、卸载实测正常并已还原。
+- 至此子任务 1–8 完成；第 9 步（release-as 1.0.0）按 2026-11-05 决定暂缓到数据系统完成。
