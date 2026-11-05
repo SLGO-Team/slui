@@ -1596,3 +1596,25 @@ Confirmed #101 merged. Added a Debug-only MinimapDevExport to the plugin (SLGO f
 ### Status
 
 [OK] **Completed**
+
+
+## Session 69: SLUI 1.0 prep: SLGO Team metadata and third-party licenses
+<!-- trellis-session: v=2 fp=12fc90f70b88bf70 -->
+
+**Date**: 2026-11-05
+**Task**: SLUI 1.0 prep: SLGO Team metadata and third-party licenses
+**Branch**: `chore/metadata-and-licenses`
+
+### Summary
+
+Confirmed #102 merged. Publisher/copyright SLGO Team across bundles, Cargo and package metadata; THIRD_PARTY_LICENSES.txt from cargo-about 0.9.3 + npm ls with a shared accepted list, shipped as a bundle resource and checked in CI. Live test found silent installs without /D= went to C: after the publisher change; the shell now appends the uninstall entry's InstallLocation. Upgrade over official 0.11.0 and uninstall verified, machine restored.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d0de09d` | chore(release): publish as SLGO Team and ship third-party license texts |
+
+### Status
+
+[OK] **Completed**

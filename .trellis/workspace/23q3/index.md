@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 68
+- **Total Sessions**: 69
 - **Last Active**: 2026-11-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1598 | Active |
+| `journal-1.md` | ~1620 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 69 | 2026-11-05 | SLUI 1.0 prep: SLGO Team metadata and third-party licenses | `d0de09d` | `chore/metadata-and-licenses` |
 | 68 | 2026-11-05 | SLUI 1.0 prep: minimap fixtures from the game | `4426391` | `chore/minimap-fixtures-from-game` |
 | 67 | 2026-11-05 | SLUI 1.0 prep: shop command gate and virtual-key hotkeys | `8be7e80` | `fix/shop-refund-gate-and-key-layout` |
 | 66 | 2026-11-05 | Installer hardening | `234ccff` | `fix/installer-hardening` |
