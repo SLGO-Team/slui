@@ -21,6 +21,12 @@ fn main() {
 
 fn setup() -> i32 {
     let session = Session::create();
+    let command_line = uninstall::own_command_line();
+    if let Some(args) = slui_setup_lib::silent_install_args(uninstall::command_line_args(&command_line)) {
+        let code = slui_setup_lib::install::install_silently(&session, args);
+        session.cleanup_after_exit();
+        return code;
+    }
     if webview2::classic_required() {
         // The classic wizard keeps running from the session directory after this
         // process exits; the next run removes the directory.

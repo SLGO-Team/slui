@@ -18,7 +18,7 @@ const detect = (extra = {}) => ({
 });
 const apply = (state, ...actions) => actions.reduce(reduce, state);
 const toggle = (option, value = true) => ({ type: "optionChanged", option, value });
-const ok = (extra = {}) => ({ kind: "ok", dir: "D:\\Games\\SLUI", themePackKept: false, userDataError: null, ...extra });
+const ok = (extra = {}) => ({ kind: "ok", dir: "D:\\Games\\SLUI", themePackKept: false, userDataError: null, leftovers: [], ...extra });
 
 // Both toggles start off: the theme pack and the user's data are kept unless asked.
 const detected = apply(initialState, { type: "detected", detect: detect() });

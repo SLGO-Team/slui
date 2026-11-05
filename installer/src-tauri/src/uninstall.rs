@@ -213,7 +213,7 @@ pub enum FailReason {
     LaunchFailed,
     /// NSIS exited with a non-zero code.
     ExitCode,
-    /// NSIS exited with 0 but the entry, `slui.exe` or a theme pack asked to go is still there.
+    /// NSIS exited with 0 but the uninstall entry is still there.
     VerifyFailed,
     Busy,
 }
@@ -228,6 +228,8 @@ pub enum UninstallOutcome {
         theme_pack_kept: bool,
         /// User data directories that could not be removed.
         user_data_error: Option<String>,
+        /// Files NSIS could not delete (in use); deleted by hand or by the next install.
+        leftovers: Vec<String>,
     },
     Cancelled,
     Failed {
@@ -274,17 +276,25 @@ fn work_dir(session: &Session, relocated: bool) -> (PathBuf, bool) {
     }
 }
 
-/// Success is the machine state, not the exit code alone: exit 0, the uninstall entry
-/// gone, `slui.exe` gone, and the theme pack gone when it was asked to go.
-fn verify(exit_code: u32, dir: &str, request: UninstallRequest) -> Option<UninstallOutcome> {
+/// Success is the machine state, not the exit code alone: exit 0 and the uninstall entry
+/// gone. Then SLUI counts as uninstalled even when files stayed behind (one was in use):
+/// the entry and the uninstaller are gone, so a retry could only report "not installed".
+/// Returns the leftovers (`slui.exe`, the theme pack when it was asked to go) to list.
+fn verify(exit_code: u32, entry_exists: bool, dir: &str, request: UninstallRequest) -> Result<Vec<String>, UninstallOutcome> {
     if exit_code != 0 {
-        return Some(UninstallOutcome::Failed { code: Some(exit_code), reason: FailReason::ExitCode, detail: None });
+        return Err(UninstallOutcome::Failed { code: Some(exit_code), reason: FailReason::ExitCode, detail: None });
+    }
+    if entry_exists {
+        return Err(UninstallOutcome::Failed { code: Some(exit_code), reason: FailReason::VerifyFailed, detail: None });
     }
     let dir = Path::new(dir);
-    let left = detect::entry_exists()
-        || dir.join(detect::APP_EXE).exists()
-        || (request.theme_pack && dir.join(detect::THEME_PACK_DIR).exists());
-    left.then_some(UninstallOutcome::Failed { code: Some(exit_code), reason: FailReason::VerifyFailed, detail: None })
+    let theme_pack = request.theme_pack.then(|| dir.join(detect::THEME_PACK_DIR));
+    Ok([Some(dir.join(detect::APP_EXE)), theme_pack]
+        .into_iter()
+        .flatten()
+        .filter(|path| path.exists())
+        .map(|path| path.display().to_string())
+        .collect())
 }
 
 /// Removes the current user's SLUI data directories; returns what could not be removed.
@@ -342,9 +352,10 @@ pub fn uninstall(
 
     on_stage(Stage::Uninstalling);
     let exit_code = process.wait();
-    if let Some(failure) = verify(exit_code, &dir, request) {
-        return failure;
-    }
+    let leftovers = match verify(exit_code, detect::entry_exists(), &dir, request) {
+        Ok(leftovers) => leftovers,
+        Err(failure) => return failure,
+    };
 
     let user_data_error = match app_processes {
         Some(processes) => {
@@ -354,8 +365,8 @@ pub fn uninstall(
         }
         None => None,
     };
-    let theme_pack_kept = Path::new(&dir).join(detect::THEME_PACK_DIR).exists();
-    UninstallOutcome::Ok { dir, theme_pack_kept, user_data_error }
+    let theme_pack_kept = !request.theme_pack && Path::new(&dir).join(detect::THEME_PACK_DIR).exists();
+    UninstallOutcome::Ok { dir, theme_pack_kept, user_data_error, leftovers }
 }
 
 #[cfg(test)]
@@ -437,11 +448,18 @@ mod tests {
             dir: r"C:\SLUI".into(),
             theme_pack_kept: true,
             user_data_error: None,
+            leftovers: vec![r"C:\SLUI\slui.exe".into()],
         })
         .unwrap();
         assert_eq!(
             ok,
-            serde_json::json!({ "kind": "ok", "dir": r"C:\SLUI", "themePackKept": true, "userDataError": null })
+            serde_json::json!({
+                "kind": "ok",
+                "dir": r"C:\SLUI",
+                "themePackKept": true,
+                "userDataError": null,
+                "leftovers": [r"C:\SLUI\slui.exe"],
+            })
         );
         assert_eq!(serde_json::to_value(UninstallOutcome::Cancelled).unwrap(), serde_json::json!({ "kind": "cancelled" }));
         let failed = serde_json::to_value(UninstallOutcome::Failed {
@@ -463,9 +481,30 @@ mod tests {
     #[test]
     fn non_zero_exit_code_fails_without_reading_the_machine() {
         assert_eq!(
-            verify(2, r"C:\nowhere", BOTH),
-            Some(UninstallOutcome::Failed { code: Some(2), reason: FailReason::ExitCode, detail: None })
+            verify(2, false, r"C:\nowhere", BOTH),
+            Err(UninstallOutcome::Failed { code: Some(2), reason: FailReason::ExitCode, detail: None })
         );
+    }
+
+    #[test]
+    fn a_remaining_entry_fails_but_leftover_files_do_not() {
+        let dir = std::env::temp_dir().join(format!("slui-uninstall-verify-{}", std::process::id()));
+        fs::create_dir_all(dir.join(detect::THEME_PACK_DIR)).unwrap();
+        let text = dir.display().to_string();
+        assert_eq!(
+            verify(0, true, &text, BOTH),
+            Err(UninstallOutcome::Failed { code: Some(0), reason: FailReason::VerifyFailed, detail: None })
+        );
+        assert_eq!(verify(0, false, &text, NONE), Ok(vec![]), "a kept theme pack is no leftover");
+
+        // slui.exe was in use: NSIS exits 0, removes the entry and leaves the file.
+        fs::write(dir.join(detect::APP_EXE), b"locked").unwrap();
+        let app = dir.join(detect::APP_EXE).display().to_string();
+        let theme_pack = dir.join(detect::THEME_PACK_DIR).display().to_string();
+        assert_eq!(verify(0, false, &text, NONE), Ok(vec![app.clone()]));
+        assert_eq!(verify(0, false, &text, BOTH), Ok(vec![app, theme_pack]));
+        fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(verify(0, false, &text, BOTH), Ok(vec![]));
     }
 
     #[test]

@@ -15,6 +15,11 @@ export function Done({ version, outcome, onClose }: {
       ? <p className="setup-place">主题包保留在 <span className="setup-path" title={themePack}>{themePack}</span></p>
       : null}
     <div className="setup-notices">
+      {outcome.leftovers.length > 0
+        ? <p className="setup-notice" data-tone="error" title={outcome.leftovers.join("\n")}>
+          以下文件或文件夹未能删除（可能正在被使用），可稍后手动删除：{outcome.leftovers.join("、")}
+        </p>
+        : null}
       {outcome.userDataError
         ? <p className="setup-notice" data-tone="error" title={outcome.userDataError}>
           部分用户数据未能删除：{outcome.userDataError}

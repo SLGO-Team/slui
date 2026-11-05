@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 65
+- **Total Sessions**: 66
 - **Last Active**: 2026-11-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1532 | Active |
+| `journal-1.md` | ~1554 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 66 | 2026-11-05 | Installer hardening | `234ccff` | `fix/installer-hardening` |
 | 65 | 2026-11-05 | Connection liveness: sidecar heartbeat and limits | `0368c55` | `fix/connection-liveness` |
 | 64 | 2026-11-04 | SLUI 1.0 prep: updater hardening | `6202cd0` | `fix/updater-hardening` |
 | 63 | 2026-11-04 | SLUI 1.0 prep: per-window command capabilities | `875c981` | `fix/window-capabilities` |

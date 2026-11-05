@@ -25,7 +25,8 @@ export type FailReason =
   | "internal";
 
 export type UninstallOutcome =
-  | { kind: "ok"; dir: string; themePackKept: boolean; userDataError: string | null }
+  /** `leftovers`: files NSIS could not delete (in use); SLUI is uninstalled all the same. */
+  | { kind: "ok"; dir: string; themePackKept: boolean; userDataError: string | null; leftovers: string[] }
   | { kind: "cancelled" }
   | { kind: "failed"; code: number | null; reason: FailReason; detail: string | null };
 

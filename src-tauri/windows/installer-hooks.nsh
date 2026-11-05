@@ -46,6 +46,34 @@
     WriteRegStr SHCTX "${UNINSTKEY}" "UninstallString" "$\"$INSTDIR\slui-uninstall.exe$\""
     WriteRegStr SHCTX "${UNINSTKEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
   !endif
+
+  ; Apps & features size: the template counted its own files and uninstall.exe only,
+  ; before the theme pack and slui-uninstall.exe above were written.
+  Push $0
+  Push $1
+  Push $2
+  ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
+  IntFmt $0 "0x%08X" $0
+  WriteRegDWORD SHCTX "${UNINSTKEY}" "EstimatedSize" "$0"
+  Pop $2
+  Pop $1
+  Pop $0
+!macroend
+
+; The template's own uninstall wizard (uninstall.exe run directly) has a "delete app data"
+; check box. The template deletes $APPDATA / $LOCALAPPDATA in this elevated process, which
+; are the folders of the account that approved UAC, not the invoking user's when a standard
+; user typed an administrator's password. The hooks take the check box over: the template
+; deletes nothing, and POSTUNINSTALL deletes the folders as the desktop's user.
+Var SluiDeleteUserData
+
+!macro NSIS_HOOK_PREUNINSTALL
+  StrCpy $SluiDeleteUserData 0
+  ${If} $DeleteAppDataCheckboxState = 1
+  ${AndIf} $UpdateMode <> 1
+    StrCpy $DeleteAppDataCheckboxState 0
+    StrCpy $SluiDeleteUserData 1
+  ${EndIf}
 !macroend
 
 ; Uninstall switches passed by the branded uninstaller (installer/, uninstaller feature):
@@ -71,6 +99,19 @@
     ${EndIf}
     ; The template's RMDir ran while these files were still there.
     RMDir "$INSTDIR"
+
+    ${If} $SluiDeleteUserData = 1
+      ; What the template does for the check box besides the data folders.
+      DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
+      DeleteRegKey /ifempty SHCTX "${MANUKEY}"
+      DeleteRegValue HKCU "${MANUPRODUCTKEY}" "Installer Language"
+      DeleteRegKey /ifempty HKCU "${MANUPRODUCTKEY}"
+      DeleteRegKey /ifempty HKCU "${MANUKEY}"
+      ; RunAsUser starts the command through the desktop shell, unelevated, so %APPDATA%
+      ; and %LOCALAPPDATA% are the invoking user's. The pause lets SLUI's WebView2
+      ; processes, closed by the template, release the data folder.
+      nsis_tauri_utils::RunAsUser "$SYSDIR\cmd.exe" '/d /c ping -n 3 127.0.0.1 >nul & rd /s /q "%APPDATA%\${BUNDLEID}" & rd /s /q "%LOCALAPPDATA%\${BUNDLEID}"'
+    ${EndIf}
 
     ClearErrors
     ${GetOptions} $CMDLINE "/SLUI-CLEANUP" $R9

@@ -226,8 +226,26 @@ template switch (`/P /R /NS /ARGS /UPDATE`).
 
 - The uninstaller runs NSIS as `<temp copy of uninstall.exe> /S [...] _?=<dir>`:
   `_?=` last and unquoted, so the call waits and returns the real exit code.
-  Success is decided from the machine (entry gone, `slui.exe` gone, theme pack
-  gone when asked), never from exit code 0 alone.
+  Success is decided from the machine, never from exit code 0 alone: exit 0 and
+  the uninstall entry gone. Files NSIS could not delete (`slui.exe`, a theme pack
+  asked to go) are then `leftovers` listed on the done screen, and user data is
+  still removed: with the entry and uninstaller gone, a retry could only report
+  "not installed". The template frees `slui.exe` with Restart Manager (it force-closes
+  holders), so in practice leftovers are theme-pack files in use.
+- `SLUI-Setup.exe /S [...]` (a `/S` before `/D=`; `silent_install_args`) shows no
+  window: the shell extracts the package, runs it elevated with the arguments
+  verbatim and exits with its code (UAC declined 1, extract/start failure 2).
+- POSTINSTALL rewrites `EstimatedSize` from `${GetSize} "$INSTDIR"`: the template
+  counts only its own files, before the theme pack and `slui-uninstall.exe` exist.
+- The template wizard's "Delete the application data" box (uninstall.exe run
+  directly) is taken over: PREUNINSTALL clears `$DeleteAppDataCheckboxState` into
+  `$SluiDeleteUserData`, POSTUNINSTALL does the template's registry cleanup and
+  deletes the data folders through `nsis_tauri_utils::RunAsUser` (desktop shell,
+  unelevated, so `%APPDATA%` is the invoking user's). Verified by giving the data
+  folder a High integrity label: it survives (unelevated) while its files go.
+- The setup / uninstall shell has a static CSP (`installer/src-tauri/tauri.conf.json`
+  `csp`; `devCsp` adds inline and `ws:` for Vite): same-origin script, style and
+  fonts, `img-src 'self' data:`, `connect-src 'self' ipc: http://ipc.localhost`.
 - `slui-uninstall.exe` never runs its UI from the install directory: started
   there without arguments it copies itself to `%TEMP%\slui-setup-<pid>\` and
   starts the copy with `--relocated` (working directory `%TEMP%`). Any other

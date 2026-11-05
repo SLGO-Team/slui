@@ -215,6 +215,29 @@ pub fn install(
     verify(exit_code, &dir)
 }
 
+/// `SLUI-Setup.exe /S ...`: no window. Extracts the NSIS package, runs it elevated with the
+/// caller's arguments unchanged and returns its exit code (NSIS: 0 done, 1 cancelled,
+/// 2 failed); 1 when UAC is declined, 2 when the package cannot be extracted or started.
+/// An elevated caller (a deployment tool) gets no UAC prompt.
+pub fn install_silently(session: &Session, args: &str) -> i32 {
+    let package = match session.extract_payload() {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("slui-setup: cannot extract the package: {error:?}");
+            return 2;
+        }
+    };
+    match shell_execute(Verb::RunAs, &package, Some(args), 0) {
+        Ok(Some(process)) => process.wait() as i32,
+        Ok(None) => 2,
+        Err(ShellError::Cancelled) => 1,
+        Err(ShellError::Failed(detail)) => {
+            eprintln!("slui-setup: cannot start {}: {detail}", package.display());
+            2
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Verb {
     /// Elevated; UAC prompt.
