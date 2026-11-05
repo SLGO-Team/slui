@@ -42,7 +42,7 @@ const { resolveMinimapSync, mapDescriptorKey, minimapReducer, initialMinimapStat
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const init = { minimap_schema_version: 6, map_id: "map-1", coordinate_system: "unity-world-xz", grid: layouts[0].grid,
   position_update_hz: 15, rooms: layouts[0].rooms, bombsites: [] };
-// The four static layouts (exported from the former generator, holidays included) stand in for the plugin's layouts.
+// The four static layouts (the plugin's own rooms exported from the game, holidays included) stand in for live inits.
 assert.equal(layouts.length, 4);
 for (const layout of layouts) {
   const geometry = resolveMinimapSync({ ...init, grid: layout.grid, rooms: layout.rooms });
@@ -104,7 +104,10 @@ for (const [zone, shapes] of Object.entries(artworkManifest.byZoneShape)) {
     assert.equal(art.generic, true);
     assert.equal(decodeURIComponent(art.href.split("/").at(-1)), filename);
     const known = prefabs.filter((room) => room.zone === zone && room.shape === shape);
-    const canonical = known.find((room) => artworkManifest.byPrefabName[room.prefab] === filename);
+    // The artwork's own room: of the prefabs drawn with it, the one opening toward the most sides (a whole room, not a
+    // checkpoint half), so the check does not depend on the fixture's order.
+    const canonical = known.filter((room) => artworkManifest.byPrefabName[room.prefab] === filename)
+      .reduce((best, room) => !best || new Set(sidesOf(room)).size > new Set(sidesOf(best)).size ? room : best, undefined);
     assert.ok(canonical, `${zone}/${shape}: the generic artwork is a known prefab's own`);
     for (const room of known) {
       assert.ok(sidesOf(room).every((side) => sidesOf(canonical).includes(side)), `${room.prefab}: exits face ${filename}'s`);

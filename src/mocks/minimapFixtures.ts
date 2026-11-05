@@ -91,8 +91,8 @@ export function mockBombsites(init: MinimapInit): MinimapBombsite[] {
 }
 
 /**
- * Static layouts in the plugin's v6 `rooms` form (exported once from the former client-side generator; see the file's
- * note). Layout 0 is the preview default, layout 1 the rebuilt map.
+ * Static layouts in the plugin's v6 `rooms` form (exported from the game by the plugin's Debug-only minimap export; see
+ * the file's note). Layout 0 is the preview default, layout 1 the rebuilt map.
  */
 export const MOCK_MINIMAP_LAYOUTS: readonly { grid: MinimapInit["grid"]; rooms: readonly MinimapRoom[] }[] =
   layouts.layouts as { grid: MinimapInit["grid"]; rooms: MinimapRoom[] }[];

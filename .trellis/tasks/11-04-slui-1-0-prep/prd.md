@@ -80,4 +80,8 @@
 - 子任务 6 `11-04-shop-hotkeys-layout`：分支 `fix/shop-refund-gate-and-key-layout`。reducer 按 stale 拦所有命令，
   beginCommand 同步返回是否接受、App 只发已接受的；单件退款看 `canRefund`。游戏 InputManager `m_UsePhysicalKeys` = false
   （按布局 VK 匹配），所以快捷键、ChatInput、商店 R/数字、选队 M/数字都改按 VK（keyCode，IME 229 回退 code）；Rust 不变。
-- 下一步：子任务 7 `11-04-map-seed-decouple`。
+- 子任务 6 PR #101 已合并（fe7a977）。
+- 子任务 7 `11-04-map-seed-decouple`：分支 `chore/minimap-fixtures-from-game`。插件加 Debug 专用 `MinimapDevExport`
+  （SLGO 本地合并 f4ac287），本机专用服务器导出 14.2.9 的预制体目录和四份布局，与旧夹具一致（仅浮点噪声）；
+  README 致谢、PROVENANCE、spec 改为来自游戏导出。
+- 下一步：子任务 8 `11-04-metadata-licenses-docs`。

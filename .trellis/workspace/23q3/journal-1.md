@@ -1574,3 +1574,25 @@ Confirmed #100 merged. Shop reducer refuses every command on stale data; beginCo
 ### Status
 
 [OK] **Completed**
+
+
+## Session 68: SLUI 1.0 prep: minimap fixtures from the game
+<!-- trellis-session: v=2 fp=c1a3af1fd1cf1c90 -->
+
+**Date**: 2026-11-05
+**Task**: SLUI 1.0 prep: minimap fixtures from the game
+**Branch**: `chore/minimap-fixtures-from-game`
+
+### Summary
+
+Confirmed #101 merged. Added a Debug-only MinimapDevExport to the plugin (SLGO f4ac287, env-triggered, holiday forced via PatchInstaller). Exported SCP:SL 14.2.9 prefab catalog and four layouts on the local dedicated server; identical to the old map-seed fixtures except float noise. Replaced slui fixtures, removed the map-seed credit, made the generic-artwork smoke order-independent.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4426391` | chore(minimap): take the test layouts and prefab catalog from the game instead of scpsl-map-seed |
+
+### Status
+
+[OK] **Completed**

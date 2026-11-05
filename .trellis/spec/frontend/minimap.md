@@ -366,8 +366,13 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
 
 - `npm test`: protocol, adapter/session, layout geometry, reducer/camera,
   preview provider, and foreground subscription tests. Geometry runs on four
-  static layouts (`src/mocks/minimap-layouts.json`, exported once from the
-  former generator with the plugin's room numbering; holidays included).
+  static layouts (`src/mocks/minimap-layouts.json`: the plugin's own
+  minimap.init rooms, exported from the game by the Debug-only
+  `MinimapDevExport` for fixed seeds, holidays forced; see the file's note).
+  Re-export both fixtures after a game update that changes rooms: run a local
+  dedicated server with the plugin's Debug build and `SLGO_MINIMAP_EXPORT_DIR`
+  (plus `_SEED` / `_HOLIDAY`), then copy `layout-<seed>-<holiday>.json` rooms
+  and `prefabs.json` into the fixtures and update their notes.
 - Room-art checks cover all 110 known prefabs including holiday variants
   (`scripts/fixtures/minimap-prefabs.json`), exact local asset hashes,
   asymmetric connector directions at quarter-turn rotations, the zone + shape
