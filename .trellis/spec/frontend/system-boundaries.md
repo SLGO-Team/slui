@@ -518,7 +518,7 @@ by window label (`?window=home` in a browser preview).
   Sans SC; system Microsoft YaHei UI for body text). Do not use Stratum2 or DIN
   Next there: both are commercial licences.
 - The app/tray/exe icon is generated from `src/app/home/slui-icon.svg` with
-  `npm run tauri -- icon src/app/home/slui-icon.svg -o src-tauri/icons`; drop
+  `npx tauri icon src/app/home/slui-icon.svg -o src-tauri/icons`; drop
   the generated `android/`, `ios/` and `64x64.png`, which the Windows app does
   not use.
 - Rust owns the overlay `{ enabled, interactive }` state. The home switch and

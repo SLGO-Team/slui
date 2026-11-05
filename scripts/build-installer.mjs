@@ -10,10 +10,11 @@
 // node scripts/build-installer.mjs           production payload (`tauri build --bundles nsis`)
 // node scripts/build-installer.mjs --local   local-test payload (`npm run tauri:build:local`)
 // node scripts/build-installer.mjs --dev     shell UI only: `tauri dev`, no payload
-//                                            (add --uninstall for the uninstaller UI)
+//                                            (add --uninstall for the uninstaller UI: `npm run installer:dev:uninstall`)
 // add --reuse-payload to skip steps 2-3 and attach the package already in bundle/nsis
 // (for shell-only changes; the package must match the current version).
-// add --theme-pack <dir> to install a local theme pack directory (`fonts/`, `sounds/`) as
+// add --theme-pack <dir> (run node directly: PowerShell's npm shim drops the `--` of `npm run ... -- --theme-pack`)
+// to install a local theme pack directory (`fonts/`, `sounds/`) as
 // `<install dir>\theme-pack`; the result is SLUI-Setup-<version>-theme-pack.exe and the
 // regular installer is left untouched. Nothing is written into the repository.
 //
@@ -195,13 +196,25 @@ function directorySize(dir) {
 }
 
 function parseArgs(argv) {
+  // Declared here: parseArgs runs at the top of the script, before module-level constants below it exist.
+  const KNOWN_FLAGS = new Set(["--dev", "--local", "--reuse-payload", "--uninstall"]);
+  // PowerShell's npm shim drops `--`, so `npm run installer:build:local -- --theme-pack <dir>` reaches npm as
+  // `--theme-pack <dir>`: npm keeps the option as its own config (npm_config_theme_pack) and passes only the
+  // directory. Unchecked, that built the regular installer with no error. npm sets npm_config_<name> only for an
+  // option it parsed itself, so any of ours there means the arguments did not arrive.
+  const swallowed = [...KNOWN_FLAGS, "--theme-pack"].filter((flag) => process.env[`npm_config_${flag.slice(2).replaceAll("-", "_")}`] !== undefined);
+  if (swallowed.length > 0) {
+    fail(`npm took ${swallowed.join(", ")} as its own option (PowerShell drops \`--\`). Run node directly, e.g. `
+      + "`node scripts/build-installer.mjs --local --theme-pack <dir>`, or use the npm script that names the flag.");
+  }
   const flags = new Set();
   let themePack = null;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--theme-pack") themePack = argv[++index] ?? "";
     else if (arg.startsWith("--theme-pack=")) themePack = arg.slice("--theme-pack=".length);
-    else flags.add(arg);
+    else if (KNOWN_FLAGS.has(arg)) flags.add(arg);
+    else fail(`unknown argument ${arg} (expected ${[...KNOWN_FLAGS].join(", ")} or --theme-pack <dir>)`);
   }
   if (themePack === null) return { flags, themePack };
   if (!themePack || themePack.startsWith("--")) fail("--theme-pack needs a directory");

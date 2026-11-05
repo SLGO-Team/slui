@@ -120,7 +120,7 @@ scripts/build-installer.mjs  # shell build + uninstaller overlay + NSIS payload 
   reads it and only accepts `version == CARGO_PKG_VERSION`. Role `uninstall` →
   slui-uninstall.exe, role `setup` + the NSIS package → SLUI-Setup-<ver>.exe.
   A release exe without an overlay refuses to run; debug builds without one
-  pick the role from `SLUI_SETUP_ROLE` (`installer:dev -- --uninstall`). Do not
+  pick the role from `SLUI_SETUP_ROLE` (`npm run installer:dev:uninstall`). Do not
   reintroduce a cargo feature or a compile-time payload (RCDATA,
   `include_bytes!`, which also runs LLVM out of memory) for either role. Both
   exes carry the `SLUI Setup` version info; the window title follows the role.
