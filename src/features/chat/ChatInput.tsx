@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { sameItems, useClockSelector } from "../../shared/clock";
 import { useOverlayScale } from "../../shared/overlay";
+import { hotkeyFromEvent } from "../../platform/hotkeys";
 import { CHAT_LINE_FADE_MS, chatLineFadeDelayMs, visibleChatLines, type ChatCloseReason, type ChatInputState, type ChatLine } from "./model";
 import {
   CHAT_GLOBAL_TAG,
@@ -22,7 +23,7 @@ type ChatInputProps = {
   /** Called with the raw draft; the caller validates and builds the command. */
   onSubmit(body: string): void;
   onClose(reason: ChatCloseReason): void;
-  /** The configured chat keys (KeyboardEvent.code); holding the one that opened chat must not type it. */
+  /** The configured chat keys (hotkey names, by virtual key); holding the one that opened chat must not type it. */
   openingKeys: readonly string[];
   /** Focus diagnostics for the desktop log. */
   onDiagnostic?(message: string): void;
@@ -113,7 +114,7 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     // An IME composition owns Enter/Esc until it commits.
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-    if (event.repeat && openingKeyHeldRef.current && openingKeys.includes(event.code)) {
+    if (event.repeat && openingKeyHeldRef.current && openingKeys.includes(hotkeyFromEvent(event) ?? "")) {
       event.preventDefault();
       return;
     }
@@ -154,7 +155,7 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
                     onChange={(event) => onDraft(event.target.value)}
                     onKeyDown={handleKeyDown}
                     onKeyUp={(event) => {
-                      if (openingKeys.includes(event.code)) openingKeyHeldRef.current = false;
+                      if (openingKeys.includes(hotkeyFromEvent(event) ?? "")) openingKeyHeldRef.current = false;
                     }}
                     // Focus moved inside the page (WebView2 taking focus, a click on the
                     // history): keep typing here. Leaving is handled at the window level.

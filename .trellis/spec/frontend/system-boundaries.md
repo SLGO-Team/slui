@@ -438,6 +438,13 @@ request", "Sidecar session handshake", "Security boundary").
   always say `wss://`; route validation is unchanged.
 - A shop snapshot older than `SHOP_STALE_AFTER_MS` (5 s) disables purchases, so
   the plugin must republish `shop.snapshot` while the buy window is open.
+  The same gate covers every shop command (purchase, request, fulfil, refund,
+  refund all): `shopReducer` refuses a `command` action unless
+  `availabilityForState(state, sentAtMs)` is `live` and the snapshot allows it,
+  and `useShopFeature.beginCommand` runs the reducer synchronously and returns
+  whether it accepted; App sends only accepted commands (a refused one is logged
+  `not sent: refused by the shop model (<availability>)`). Panels gate on the
+  view too (`disabled`, `canRequest`, `canRefund`, `canRefundAll`).
 - Purchase eligibility is `purchasable` only (via `ShopItemView.disabled` and
   `isShopItemPurchaseBlocked`), for clicks and number keys alike;
   `owned_quantity` is display-only (the white owned outline), so a held but
@@ -732,7 +739,7 @@ by window label (`?window=home` in a browser preview).
   know their game is elevated (inherited from Steam or a launcher). An elevated retry while a non-elevated SLUI still
   sits in the tray only hands off to it and exits without a log line: quit from the tray first.
 - Settings live in `app_config_dir()/settings.json` as
-  `{ "version": 1, "overlay": { "autoEnableOnConnect": boolean }, "radar": RadarPreferences, "hotkeys": { "shop": KeyboardEvent.code, "scoreboard": KeyboardEvent.code }, "audio": { "shopVolume": number } }`.
+  `{ "version": 1, "overlay": { "autoEnableOnConnect": boolean }, "radar": RadarPreferences, "hotkeys": { "shop": HotkeyCode, "scoreboard": HotkeyCode, "chatGlobal": HotkeyCode, "chatTeam": HotkeyCode }, "audio": { "shopVolume": number } }`.
   A block missing from an older version-1 file falls back to its defaults.
   `autoEnableOnConnect` (default `true`; a file without the block, older ones included, gets it on) lets the overlay window, which owns
   the session, switch the overlay on through the same `set_overlay_enabled`
@@ -756,6 +763,16 @@ by window label (`?window=home` in a browser preview).
   `hotkeys.ts` and the Rust `is_bindable_hotkey()` /
   `is_bindable_scoreboard_hotkey()` / `validate_hotkeys()` must accept the same
   sets, and `overlayShortcutFor()` must match the hook's `overlay_shortcut()`.
+  A `HotkeyCode` (`KeyB`, `F5`, `CapsLock`) names a Windows **virtual key**, not
+  a physical position: SCP:SL runs Unity's legacy Input with `m_UsePhysicalKeys`
+  off (read from `SCPSL_Data/globalgamemanagers`), so the game, the Rust hook
+  (`KBDLLHOOKSTRUCT.vkCode`) and SLUI all mean "the key that types B in the
+  current layout". Page key handling never compares `KeyboardEvent.code`
+  against a hotkey or a letter/digit key: it uses `hotkeyFromEvent()` /
+  `eventDigit()` (WebView2's `keyCode` is the virtual key; during IME
+  composition, `keyCode` 229, they fall back to `code`, which matches on the
+  QWERTY letter layout IMEs use). Layout-independent keys (Escape, Backspace,
+  Delete, Enter) may use `code` / `key`.
   Action state (`alternateZoomActive`) is never saved.
 - The home Steam tile shows the account in the overlay's session snapshot
   (`steamId`) with the persona name and avatar the local Steam client keeps for

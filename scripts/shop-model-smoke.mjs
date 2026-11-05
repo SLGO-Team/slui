@@ -317,6 +317,21 @@ for (const skewMs of [60_000, -60_000]) {
   const shut = shopReducer(live, { type: "event", event: refundEvent(4, { balance: 100, window_open: false, has_refundable: true, items: [{ item_id: "GunE11SR", name: "E-11 SR", price: 3100, quantity: null, purchasable: false, refundable: true }] }), receivedAtMs: 1_000 });
   assert.equal(selectShop(shut, 1_000).canRefundAll, false);
   assert.equal(selectShop(live, 1_000 + SHOP_STALE_AFTER_MS + 1).canRefundAll, false);
+  // Single refunds follow the same gate: the card's canRefund drops with the window or stale data, and the model
+  // refuses the command (the same state back, which useShopFeature reports as "not accepted": App sends nothing).
+  assert.equal(selectShop(live, 1_000).items[0].canRefund, true);
+  assert.equal(selectShop(live, 1_000).items[1].canRefund, false, "not refundable");
+  assert.equal(selectShop(shut, 1_000).items[0].canRefund, false, "buy window closed");
+  const staleAt = 1_000 + SHOP_STALE_AFTER_MS + 1;
+  assert.equal(selectShop(live, staleAt).availability, "stale");
+  assert.equal(selectShop(live, staleAt).items[0].canRefund, false, "stale data");
+  for (const command of [createRefundCommand("GunE11SR"), createRefundAllCommand(), createPurchaseCommand("GrenadeFlash")]) {
+    assert.equal(shopReducer(live, { type: "command", command, sentAtMs: staleAt }), live, `${command.kind} on stale data is refused`);
+  }
+  assert.equal(shopReducer(shut, { type: "command", command: createRefundCommand("GunE11SR"), sentAtMs: 1_000 }), shut, "closed window refused");
+  const inFlight = shopReducer(live, { type: "command", command: createRefundCommand("GunE11SR"), sentAtMs: 1_000 });
+  assert.equal(selectShop(inFlight, 1_000).items[0].canRefund, false, "a refund in flight");
+  assert.equal(shopReducer(inFlight, { type: "command", command: createRefundCommand("GunE11SR"), sentAtMs: 1_000 }), inFlight, "a repeat is refused");
 
   // An older plugin (no field): no refund UI at all.
   let legacy = shopReducer(initialShopState, { type: "connection", status: "live" });

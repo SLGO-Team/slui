@@ -3,7 +3,7 @@ import { DEFAULT_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES } from "../src/features
 import { DEFAULT_APP_SETTINGS, parseSettings, parseSettingsText, serializeSettings, SETTINGS_VERSION } from "../src/platform/settings.ts";
 import { DEFAULT_AUDIO_SETTINGS } from "../src/platform/audioSettings.ts";
 import {
-  DEFAULT_HOTKEYS, HOTKEY_ACTIONS, hotkeyLabel, hotkeyOwner, hotkeyVirtualKey, isBindableFor, isBindableHotkey, isBindableScoreboardHotkey,
+  DEFAULT_HOTKEYS, HOTKEY_ACTIONS, eventDigit, hotkeyFromEvent, hotkeyLabel, hotkeyOwner, hotkeyVirtualKey, isBindableFor, isBindableHotkey, isBindableScoreboardHotkey,
 } from "../src/platform/hotkeys.ts";
 import { DEFAULT_OVERLAY_SETTINGS, shouldAutoEnableOverlay } from "../src/platform/overlaySettings.ts";
 
@@ -95,6 +95,29 @@ assert.equal(hotkeyVirtualKey("F12"), 0x7b);
 assert.equal(hotkeyVirtualKey("Digit1"), null);
 assert.equal(hotkeyLabel("KeyG"), "G");
 assert.equal(hotkeyLabel("F5"), "F5");
+
+// Keys are named by virtual key (WebView2's keyCode), as SCP:SL (Unity legacy Input, m_UsePhysicalKeys off) and the
+// Rust hook match them, so the label and the trigger agree on any layout. AZERTY: the key at QWERTY's Q types A and
+// reports VK_A with code "KeyQ"; the key at QWERTY's W types Z (VK_Z, code "KeyW"); the top row types & é " unshifted.
+const azerty = (keyCode, code) => ({ keyCode, code });
+assert.equal(hotkeyFromEvent(azerty(0x41, "KeyQ")), "KeyA", "AZERTY A is A");
+assert.equal(hotkeyLabel(hotkeyFromEvent(azerty(0x41, "KeyQ"))), "A");
+assert.equal(hotkeyVirtualKey(hotkeyFromEvent(azerty(0x41, "KeyQ"))), 0x41, "the hook gets the same key");
+assert.equal(hotkeyFromEvent(azerty(0x5a, "KeyW")), "KeyZ", "AZERTY Z is Z");
+assert.equal(hotkeyFromEvent(azerty(0x52, "KeyR")), "KeyR");
+assert.equal(isBindableHotkey(hotkeyFromEvent(azerty(0x52, "KeyR"))), false, "R stays the shop's");
+assert.equal(hotkeyFromEvent({ keyCode: 0x14, code: "CapsLock" }), "CapsLock");
+assert.equal(hotkeyFromEvent({ keyCode: 0x74, code: "F5" }), "F5");
+assert.equal(hotkeyFromEvent({ keyCode: 0x31, code: "Digit1" }), null, "digits are no hotkey");
+assert.equal(hotkeyFromEvent({ keyCode: 0x10, code: "ShiftLeft" }), null);
+// An IME composing hides the virtual key (keyCode 229): the physical position stands in (IMEs sit on QWERTY letters).
+assert.equal(hotkeyFromEvent({ keyCode: 229, code: "KeyB" }), "KeyB");
+assert.equal(hotkeyFromEvent({ keyCode: 229, code: "Space" }), null);
+// Digits (shop slots, team select) by virtual key: AZERTY's unshifted top row and the keypad count.
+assert.equal(eventDigit(azerty(0x31, "Digit1")), 1, "AZERTY & key is 1");
+assert.equal(eventDigit({ keyCode: 0x69, code: "Numpad9" }), 9);
+assert.equal(eventDigit({ keyCode: 0x30, code: "Digit0" }), null, "0 is no slot");
+assert.equal(eventDigit({ keyCode: 229, code: "Digit2" }), 2);
 
 // Scoreboard key (held): the shop's keys plus CapsLock (Rust is_bindable_scoreboard_hotkey).
 assert.deepEqual(DEFAULT_HOTKEYS, { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU" });

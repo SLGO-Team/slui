@@ -1,5 +1,5 @@
 import { useId, useState, type KeyboardEvent } from "react";
-import { hotkeyLabel, hotkeyOwner, isBindableFor, type HotkeyAction, type HotkeySettings as Hotkeys } from "../../platform/hotkeys";
+import { hotkeyFromEvent, hotkeyLabel, hotkeyOwner, isBindableFor, type HotkeyAction, type HotkeySettings as Hotkeys } from "../../platform/hotkeys";
 import { SettingRow, SettingsGroup } from "./controls";
 
 const ACTION_NAMES: Readonly<Record<HotkeyAction, string>> = {
@@ -36,18 +36,20 @@ export function HotkeySettings({ id, value, onChange, onReset }: {
     }
     if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
     const name = event.key.length === 1 ? event.key.toUpperCase() : event.key;
-    if (!isBindableFor(action, event.code) || event.ctrlKey || event.altKey || event.metaKey) {
+    // The key's virtual key, as the game and the hook match it (not its physical position): on AZERTY the A key is A.
+    const code = hotkeyFromEvent(event);
+    if (code === null || !isBindableFor(action, code) || event.ctrlKey || event.altKey || event.metaKey) {
       setRejected(`不能使用 ${name}：请选择 R 以外的字母键${action === "scoreboard" ? "、Caps Lock " : ""}或 F1–F12，且不带修饰键（数字键和 R 用于商店内选购和请求队友购买）。`);
       return;
     }
-    const owner = hotkeyOwner(value, event.code, action);
+    const owner = hotkeyOwner(value, code, action);
     if (owner) {
       setRejected(`不能使用 ${name}：它已是${ACTION_NAMES[owner]}键。`);
       return;
     }
     setCapturing(null);
     setRejected(null);
-    onChange({ ...value, [action]: event.code });
+    onChange({ ...value, [action]: code });
   };
 
   const keycap = (action: HotkeyAction) => <button id={`${baseId}-${action}`} type="button" className="home-keycap"

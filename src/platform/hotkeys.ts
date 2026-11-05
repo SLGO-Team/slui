@@ -1,5 +1,9 @@
-// Global overlay hotkeys, stored as KeyboardEvent.code values and matched in
-// Rust by Windows virtual-key code. Rust validates the same set (lib.rs).
+// Global overlay hotkeys, stored as Windows virtual-key names ("KeyB": the key that types B in the current
+// layout, "F5", "CapsLock") and matched in Rust by that virtual-key code. Rust validates the same set (lib.rs).
+//
+// Virtual keys, not physical positions (KeyboardEvent.code), because the game matches them so: SCP:SL runs Unity's
+// legacy Input with `m_UsePhysicalKeys` off (SCPSL_Data/globalgamemanagers), i.e. by the layout's virtual keys. On
+// AZERTY the key labelled A is "KeyA" here, in the hook and in the game alike.
 
 export type HotkeyCode = string;
 
@@ -70,4 +74,39 @@ export function hotkeyVirtualKey(code: HotkeyCode): number | null {
   if (letter) return letter[1].charCodeAt(0);
   const fn = FUNCTION.exec(code);
   return fn ? 0x6f + Number(fn[1]) : null;
+}
+
+// KeyboardEvent.keyCode while an IME processes the key (VK_PROCESSKEY): the real virtual key is not exposed.
+const VK_PROCESSKEY = 229;
+
+/**
+ * The Windows virtual-key code of a key event: WebView2 (Chromium) reports it as `keyCode`, from the same layout the
+ * hook and the game read. While an IME composes, `keyCode` is VK_PROCESSKEY and the virtual key is lost; the physical
+ * position is all that is left, and IMEs (Chinese, Japanese, Korean) sit on a QWERTY letter layout where the two agree.
+ */
+export function eventVirtualKey(event: Pick<KeyboardEvent, "keyCode" | "code">): number | null {
+  if (event.keyCode !== VK_PROCESSKEY && event.keyCode > 0) return event.keyCode;
+  const letter = LETTER.exec(event.code);
+  if (letter) return letter[1].charCodeAt(0);
+  const digit = /^Digit([0-9])$/.exec(event.code);
+  return digit ? digit[1].charCodeAt(0) : null;
+}
+
+/** The hotkey name of a key event (its virtual key), or null for a key no hotkey can name. */
+export function hotkeyFromEvent(event: Pick<KeyboardEvent, "keyCode" | "code">): HotkeyCode | null {
+  const vk = eventVirtualKey(event);
+  if (vk === null) return null;
+  if (vk === 0x14) return CAPS_LOCK;
+  if (vk >= 0x41 && vk <= 0x5a) return `Key${String.fromCharCode(vk)}`;
+  if (vk >= 0x70 && vk <= 0x7b) return `F${vk - 0x6f}`;
+  return null;
+}
+
+/** 1-9 for a digit key (top row or keypad, by virtual key: AZERTY's top row types & иж " ... unshifted), else null. */
+export function eventDigit(event: Pick<KeyboardEvent, "keyCode" | "code">): number | null {
+  const vk = eventVirtualKey(event);
+  if (vk === null) return null;
+  if (vk >= 0x31 && vk <= 0x39) return vk - 0x30;
+  if (vk >= 0x61 && vk <= 0x69) return vk - 0x60;
+  return null;
 }

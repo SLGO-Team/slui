@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Role, ShopCommand } from "../../contracts";
 import { DEFAULT_AUDIO_SETTINGS } from "../../platform/audioSettings";
+import { eventDigit, hotkeyFromEvent } from "../../platform/hotkeys";
 import { useBackdropRef } from "../../platform/backdrop";
 import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
@@ -235,9 +236,10 @@ export const ShopPanel = memo(function ShopPanel({
     setDenial(null);
     onCommand(createRequestCommand(item.item_id));
   }, [audio, canRequest, onCommand]);
-  // CS2 SellbackSlot plays buymenu_purchase, then sends `sellback`; only a refundable card offers it.
+  // CS2 SellbackSlot plays buymenu_purchase, then sends `sellback`; only a refundable card offers it, and like
+  // purchases and refund all it does nothing on stale data or with the buy window closed.
   const handleItemRefund = useCallback((item: ShopItemView) => {
-    if (item.refundable !== true || item.refundPending) return;
+    if (!item.canRefund) return;
     audio.play("purchase");
     setDenial(null);
     onCommand(createRefundCommand(item.item_id));
@@ -321,7 +323,8 @@ export const ShopPanel = memo(function ShopPanel({
         }
         return;
       }
-      if (event.code === "KeyR") {
+      // R and the digits by virtual key, as the hotkeys (platform/hotkeys.ts): the key labelled R on any layout.
+      if (hotkeyFromEvent(event) === "KeyR") {
         const hovered = hoveredItemId === null ? undefined : shop.items.find((item) => item.item_id === hoveredItemId);
         if (!hovered || !canRequest) return;
         event.preventDefault();
@@ -341,8 +344,9 @@ export const ShopPanel = memo(function ShopPanel({
         handleRefundAll();
         return;
       }
-      if (!/^[1-9]$/.test(event.key)) return;
-      const slot = Number(event.key) - 1;
+      const digit = eventDigit(event);
+      if (digit === null) return;
+      const slot = digit - 1;
       event.preventDefault();
       if (selectedCategory === null) {
         const column = columns[slot];

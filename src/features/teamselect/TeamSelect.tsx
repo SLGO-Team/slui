@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Role, TeamCommand } from "../../contracts";
 import { useBackdropRef } from "../../platform/backdrop";
+import { eventDigit, hotkeyFromEvent } from "../../platform/hotkeys";
 import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import { createTeamSelectCommand } from "./model";
@@ -11,8 +12,8 @@ const ASSETS = "/assets/teamselect";
 const EMBLEM: Readonly<Record<Role, string>> = { ntf: "/assets/bottomhud/emblem-ntf.svg", scp: "/assets/bottomhud/emblem-scp.svg" };
 /** The side's illustration in place of CS2's team models (public/assets/teamselect/SOURCES.md). */
 const ART: Readonly<Record<Role, string>> = { ntf: `${ASSETS}/ntf-squad.webp`, scp: `${ASSETS}/scp-group.webp` };
-/** CS2 key binds: 1 joins T (NTF), 2 joins CT (SCP). */
-const SIDE_KEYS: Readonly<Record<string, Role>> = { Digit1: "ntf", Numpad1: "ntf", Digit2: "scp", Numpad2: "scp" };
+/** CS2 key binds: 1 joins T (NTF), 2 joins CT (SCP); top row or keypad, by virtual key (platform/hotkeys.ts). */
+const SIDE_KEYS: Readonly<Record<number, Role>> = { 1: "ntf", 2: "scp" };
 
 export type TeamSelectProps = {
   view: TeamSelectView;
@@ -88,11 +89,12 @@ export const TeamSelect = memo(function TeamSelect({ view, onCommand, initialHov
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
-      const role = SIDE_KEYS[event.code];
+      const digit = eventDigit(event);
+      const role = digit === null ? undefined : SIDE_KEYS[digit];
       if (role) {
         event.preventDefault();
         send(commandForSide(view, role));
-      } else if (event.code === "Escape" || event.code === "KeyM") {
+      } else if (event.code === "Escape" || hotkeyFromEvent(event) === "KeyM") {
         event.preventDefault();
         send(closeCommandFor(view));
       }

@@ -11,7 +11,7 @@ import {
   type SteamIdentity,
   type SteamIdentityProof,
 } from "../contracts";
-import { DEFAULT_HOTKEYS, HOTKEY_ACTIONS, hotkeyVirtualKey, normalizeHotkeys, type HotkeySettings } from "./hotkeys";
+import { DEFAULT_HOTKEYS, HOTKEY_ACTIONS, hotkeyFromEvent, hotkeyVirtualKey, normalizeHotkeys, type HotkeySettings } from "./hotkeys";
 
 export interface SteamClientIdentity {
   getCurrentUser(): Promise<SteamIdentity | null>;
@@ -49,7 +49,8 @@ export type OverlayShortcut = "chat-global" | "chat-team" | "shop";
 const OVERLAY_SHORTCUTS: readonly string[] = ["chat-global", "chat-team", "shop"] satisfies readonly OverlayShortcut[];
 
 /** The shortcut a key opens, matched like the Rust hook's `overlay_shortcut`. */
-export function overlayShortcutFor(code: string, hotkeys: HotkeySettings): OverlayShortcut | null {
+export function overlayShortcutFor(code: string | null, hotkeys: HotkeySettings): OverlayShortcut | null {
+  if (code === null) return null;
   if (code === hotkeys.chatGlobal) return "chat-global";
   if (code === hotkeys.chatTeam) return "chat-team";
   return code === hotkeys.shop ? "shop" : null;
@@ -156,10 +157,10 @@ export function createOverlayWindowController(): OverlayWindowController {
       // page adds the key-up while the overlay holds the foreground (cursor mode), where an
       // IME can keep keys from the hook.
       const onKeyDown = (event: KeyboardEvent) => {
-        if (active && !isTauri && !event.repeat && event.code === hotkeys.scoreboard) listener.held(true);
+        if (active && !isTauri && !event.repeat && hotkeyFromEvent(event) === hotkeys.scoreboard) listener.held(true);
       };
       const onKeyUp = (event: KeyboardEvent) => {
-        if (active && event.code === hotkeys.scoreboard) listener.held(false);
+        if (active && hotkeyFromEvent(event) === hotkeys.scoreboard) listener.held(false);
       };
       const onContextMenu = (event: MouseEvent) => {
         if (!active || isTauri || !scoreboardCapture) return;
@@ -203,7 +204,7 @@ export function createOverlayWindowController(): OverlayWindowController {
       const onKeyDown = (event: KeyboardEvent) => {
         if (!active || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
         if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
-        const shortcut = overlayShortcutFor(event.code, hotkeys);
+        const shortcut = overlayShortcutFor(hotkeyFromEvent(event), hotkeys);
         if (!shortcut) return;
         event.preventDefault();
         // While the overlay holds the foreground (the open shop), keys reach this page
