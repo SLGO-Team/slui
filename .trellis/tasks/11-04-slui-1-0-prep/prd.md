@@ -69,4 +69,8 @@
   PR #96 已合并（7a76b28）。
 - 子任务 3 `11-04-updater-hardening`：分支 `fix/updater-hardening`。地址取自构建产物 `slui-build.json`，
   下载上限 150 MB，新版本失败回退到已验证的旧安装包，启动失败显示 unavailable，requireSignedVersion + `--app-version`。
-- 下一步：子任务 4 `11-04-connection-liveness`。
+- 2026-11-05：维护者决定 1.0.0 等数据系统完成后再发（第 9 步暂缓），其余子任务照常做。
+- 子任务 4 `11-04-connection-liveness`：分支 `fix/connection-liveness`。Rust sidecar socket 10 s ping、25 s 无帧按 1006 断开，
+  发送/关闭握手限时，队列 64、最多 2 个 socket；vdf 1 MiB / 8 层上限；身份轮询在要求更新期间不重试，
+  稳定 live 只重置同一 attempt 的退避。
+- 下一步：子任务 5 `11-04-installer-hardening`。
