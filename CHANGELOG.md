@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.12.0](https://github.com/SLGO-Team/slui/compare/v0.11.0...v0.12.0) (2026-11-05)
+
+
+### Features
+
+* **home:** open the log folder and the project page from the About settings ([#85](https://github.com/SLGO-Team/slui/issues/85)) ([7be218b](https://github.com/SLGO-Team/slui/commit/7be218b4e6cc4f9d119ac957097f1e689842610f))
+* **hotkeys:** make the global and team chat keys configurable ([#86](https://github.com/SLGO-Team/slui/issues/86)) ([bdc0cf1](https://github.com/SLGO-Team/slui/commit/bdc0cf152bddf78d9065e8add39d11e558d27930))
+* **killfeed:** draw CS2's flash-assist icon ([#84](https://github.com/SLGO-Team/slui/issues/84)) ([bb2ba6d](https://github.com/SLGO-Team/slui/commit/bb2ba6d8254c10920ef0fa46ebfacdf98cb1eae1))
+* **protocol:** career API contract (profile, recent matches, match detail) ([#98](https://github.com/SLGO-Team/slui/issues/98)) ([cd97e9b](https://github.com/SLGO-Team/slui/commit/cd97e9be8e9c63c07b2b9c266c11aeca17307f80))
+
+
+### Bug Fixes
+
+* **chat:** keep each pending send's result when a second message is sent ([#91](https://github.com/SLGO-Team/slui/issues/91)) ([514c245](https://github.com/SLGO-Team/slui/commit/514c245e6781d02202e3f026484fdfba197c6eee))
+* **connection:** detect dead sidecar connections and bound socket queues ([#99](https://github.com/SLGO-Team/slui/issues/99)) ([1e2d7f9](https://github.com/SLGO-Team/slui/commit/1e2d7f9b7b44238e57fdb4b10b646480be73f2c1))
+* **hotkeys:** keep R for the open shop's teammate request ([#87](https://github.com/SLGO-Team/slui/issues/87)) ([5975aea](https://github.com/SLGO-Team/slui/commit/5975aeae0b1d50e98a0ab03abc06e5ee27f62dbb))
+* **installer:** fail instead of dropping build-installer arguments that PowerShell's npm loses ([#104](https://github.com/SLGO-Team/slui/issues/104)) ([77f85d9](https://github.com/SLGO-Team/slui/commit/77f85d9d9eb12b610956c4e07e9da0c5b772cee8))
+* **installer:** finish uninstalls with leftovers, add silent setup and correct the installed size ([#100](https://github.com/SLGO-Team/slui/issues/100)) ([1959ca3](https://github.com/SLGO-Team/slui/commit/1959ca32970c59bc8a50ffd865399f44810e9417))
+* **installer:** publish as SLGO Team, ship third-party licenses and keep silent installs in place ([#103](https://github.com/SLGO-Team/slui/issues/103)) ([31136ea](https://github.com/SLGO-Team/slui/commit/31136ea7dcca82a07e37a1f458162dfbeec3564d))
+* **installer:** reinstall in place and remove only the invoking user's data ([#94](https://github.com/SLGO-Team/slui/issues/94)) ([80c785b](https://github.com/SLGO-Team/slui/commit/80c785be463f5496d5d1633e4abe4b2861d34b24))
+* **minimap:** blend the radar map with the background like CS2's additive map ([#83](https://github.com/SLGO-Team/slui/issues/83)) ([ab76797](https://github.com/SLGO-Team/slui/commit/ab76797f686ed46ce8eda7329f6f1e92f4715f7a))
+* **security:** add a webview CSP and validate server-sent sidecar and image URLs ([#95](https://github.com/SLGO-Team/slui/issues/95)) ([f99bb43](https://github.com/SLGO-Team/slui/commit/f99bb436da2cad8a64ebad11f27e5d31f0a5100b))
+* **security:** give the overlay and home windows only the commands each one calls ([#96](https://github.com/SLGO-Team/slui/issues/96)) ([7a76b28](https://github.com/SLGO-Team/slui/commit/7a76b282c9a8015c2328722a05141b0eed508791))
+* **security:** scope the opener permission and bound sidecar frames, overlay log lines and the settings file ([#92](https://github.com/SLGO-Team/slui/issues/92)) ([ef77ef9](https://github.com/SLGO-Team/slui/commit/ef77ef97519aa4d0c3b449bee6ea4041c290b8bf))
+* **session:** keep the retry when a late connect result follows a failure, and back off on bare 429s ([#89](https://github.com/SLGO-Team/slui/issues/89)) ([bb97c17](https://github.com/SLGO-Team/slui/commit/bb97c179240b3aae2ceb5a720f8d9cbf77480700))
+* **shop:** never leave a card blocked or an old column, hover or failure behind ([#88](https://github.com/SLGO-Team/slui/issues/88)) ([370953d](https://github.com/SLGO-Team/slui/commit/370953df34d2d9977591ae3a0b7af8341a43d080))
+* **shop:** refuse every shop command on stale data and match hotkeys by virtual key ([#101](https://github.com/SLGO-Team/slui/issues/101)) ([fe7a977](https://github.com/SLGO-Team/slui/commit/fe7a977ca7e3ee67f9c5632a164e777d83fa503e))
+* **updater:** check the build's own control plane, cap downloads and keep a verified installer ([#97](https://github.com/SLGO-Team/slui/issues/97)) ([eee834a](https://github.com/SLGO-Team/slui/commit/eee834a26792ac6fd34686cc609907570ee159ad))
+* **updater:** read the signed trusted comment and keep Installing over late check results ([#90](https://github.com/SLGO-Team/slui/issues/90)) ([e7eb565](https://github.com/SLGO-Team/slui/commit/e7eb565e383327bfdc0981d4686ea24e9a65e4e8))
+
+
+### Performance Improvements
+
+* **overlay:** idle while hidden, cheaper radar and world-blur loops, WebP shop images ([#81](https://github.com/SLGO-Team/slui/issues/81)) ([e3cdd2b](https://github.com/SLGO-Team/slui/commit/e3cdd2bdf2a7840c9c1ef34735f57e0d41621ba2))
+
 ## [0.11.0](https://github.com/SLGO-Team/slui/compare/v0.10.2...v0.11.0) (2026-10-30)
 
 

@@ -1,6 +1,6 @@
 [package]
 name = "slui-setup"
-version = "0.11.0"
+version = "0.12.0"
 description = "SLUI installer shell: branded UI around the SLUI NSIS package"
 authors = ["SLGO Team"]
 edition = "2021"
