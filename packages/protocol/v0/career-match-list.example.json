@@ -23,6 +23,7 @@
       "mvps": 0,
       "adr": 33.3,
       "kast": 0.6667,
+      "swing_per_round": -7.25,
       "left_early": true
     },
     {
@@ -46,6 +47,7 @@
       "mvps": 0,
       "adr": 33.3,
       "kast": 0.6667,
+      "swing_per_round": -2.5,
       "left_early": true
     }
   ],

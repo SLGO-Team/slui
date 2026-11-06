@@ -7,6 +7,8 @@
     "amount": { "type": "number", "minimum": 0 },
     "rate": { "type": ["number", "null"], "minimum": 0 },
     "fraction": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "signed": { "type": "number" },
+    "signed_rate": { "type": ["number", "null"] },
     "text": { "type": "string", "minLength": 1, "maxLength": 128 },
     "identifier": { "type": "string", "pattern": "^[A-Za-z0-9_]{1,64}$" },
     "date_time": { "type": "string", "format": "date-time" },
@@ -25,7 +27,7 @@
         "matches", "wins", "losses", "draws", "rounds_played", "rounds_won", "kills", "deaths", "assists", "headshot_kills", "damage",
         "kast_rounds", "opening_kills", "opening_deaths", "trade_kills", "traded_deaths", "multi_2k", "multi_3k", "multi_4k", "multi_5k",
         "clutch_attempts", "clutch_wins", "flash_assists", "enemies_flashed", "shots", "hits", "mvps", "gen_activations", "gen_deactivations",
-        "win_rate", "kd", "adr", "kast", "headshot_rate", "accuracy"
+        "swing", "win_rate", "kd", "adr", "kast", "headshot_rate", "accuracy", "swing_per_round"
       ],
       "properties": {
         "matches": { "$ref": "#/$defs/count" },
@@ -57,12 +59,14 @@
         "mvps": { "$ref": "#/$defs/count" },
         "gen_activations": { "$ref": "#/$defs/count" },
         "gen_deactivations": { "$ref": "#/$defs/count" },
+        "swing": { "$ref": "#/$defs/signed", "description": "Round Swing summed over the rounds played (round win probability, 0-1 per event); may be negative." },
         "win_rate": { "$ref": "#/$defs/fraction" },
         "kd": { "$ref": "#/$defs/rate" },
         "adr": { "$ref": "#/$defs/rate" },
         "kast": { "$ref": "#/$defs/fraction" },
         "headshot_rate": { "$ref": "#/$defs/fraction" },
-        "accuracy": { "$ref": "#/$defs/fraction" }
+        "accuracy": { "$ref": "#/$defs/fraction" },
+        "swing_per_round": { "$ref": "#/$defs/signed_rate", "description": "swing / rounds_played x 100, in percentage points; null without rounds." }
       }
     }
   }

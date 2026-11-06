@@ -39,12 +39,14 @@
     "mvps": 0,
     "gen_activations": 0,
     "gen_deactivations": 0,
+    "swing": -0.3,
     "win_rate": 0,
     "kd": 0.5,
     "adr": 33.3,
     "kast": 0.6667,
     "headshot_rate": 0,
-    "accuracy": 0.5
+    "accuracy": 0.5,
+    "swing_per_round": -3.33
   },
   "ntf": {
     "matches": 3,
@@ -76,12 +78,14 @@
     "mvps": 0,
     "gen_activations": 0,
     "gen_deactivations": 0,
+    "swing": -0.42,
     "win_rate": 0,
     "kd": 0,
     "adr": 35,
     "kast": 0.5,
     "headshot_rate": null,
-    "accuracy": 0.5
+    "accuracy": 0.5,
+    "swing_per_round": -7
   },
   "scp": {
     "matches": 3,
@@ -113,12 +117,14 @@
     "mvps": 0,
     "gen_activations": 0,
     "gen_deactivations": 0,
+    "swing": 0.12,
     "win_rate": 0,
     "kd": null,
     "adr": 30,
     "kast": 1,
     "headshot_rate": 0,
-    "accuracy": null
+    "accuracy": null,
+    "swing_per_round": 4
   },
   "scp_roles": [
     {

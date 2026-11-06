@@ -19,7 +19,8 @@
       "required": [
         "ref", "player_id", "nickname", "side", "first_team", "result", "joined_late", "left_early", "rounds_played", "kills", "deaths",
         "assists", "headshot_kills", "damage", "kast_rounds", "opening_kills", "opening_deaths", "multi_3k", "multi_4k", "multi_5k",
-        "clutch_wins", "flash_assists", "enemies_flashed", "mvps", "money_spent", "adr", "kast"
+        "clutch_wins", "flash_assists", "enemies_flashed", "mvps", "money_spent", "adr", "kast",
+        "swing_per_round"
       ],
       "properties": {
         "ref": { "$ref": "career-common.schema.json#/$defs/count" },
@@ -48,7 +49,8 @@
         "mvps": { "$ref": "career-common.schema.json#/$defs/count" },
         "money_spent": { "$ref": "career-common.schema.json#/$defs/count" },
         "adr": { "$ref": "career-common.schema.json#/$defs/rate" },
-        "kast": { "$ref": "career-common.schema.json#/$defs/fraction" }
+        "kast": { "$ref": "career-common.schema.json#/$defs/fraction" },
+        "swing_per_round": { "$ref": "career-common.schema.json#/$defs/signed_rate" }
       }
     },
     "kill": {
