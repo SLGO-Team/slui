@@ -1,5 +1,6 @@
 import type {
   HudAmmo,
+  HudKillfeedAssistKind,
   HudKillfeedEntry,
   HudKillfeedPlayer,
   HudKillfeedSnapshot,
@@ -53,6 +54,7 @@ export const HUD_SCENES = [
   "bottom-spectating",
   "bottom-spectating-enemy",
   "killfeed",
+  "killfeed-modifiers",
   "scoreboard-competitive",
   "scoreboard-casual",
 ] as const;
@@ -85,6 +87,7 @@ export const HUD_SCENE_LABELS: Readonly<Record<HudScene, string>> = {
   "bottom-spectating": "底部 观战队友（含换人）",
   "bottom-spectating-enemy": "底部 观战对手 SCP",
   killfeed: "右上击杀信息",
+  "killfeed-modifiers": "右上击杀信息 致盲与技能助攻",
   "scoreboard-competitive": "计分板 竞技下半场",
   "scoreboard-casual": "计分板 休闲 10v10",
 };
@@ -190,8 +193,9 @@ function sceneScript(scene: HudScene, viewerRole: Role): SceneScript {
     case "bottom-dead":
     case "bottom-spectating":
     case "bottom-spectating-enemy":
-    // The killfeed scene is scripted separately (KILLFEED_KILLS); the scoreboard scenes in scoreboardScenes.ts.
+    // The killfeed scenes are scripted separately (KILLFEED_SCRIPTS); the scoreboard scenes in scoreboardScenes.ts.
     case "killfeed":
+    case "killfeed-modifiers":
     case "scoreboard-competitive":
     case "scoreboard-casual": return {};
     case "all-slots": return { messages: {
@@ -216,7 +220,8 @@ const slotMessages = (script: SlotScript): readonly ScriptedMessage[] => Array.i
 export function hudSceneLoopMs(scene: HudScene, viewerRole: Role): number | null {
   const bottomLoop = BOTTOM_LOOP_MS[scene];
   if (bottomLoop !== undefined) return bottomLoop;
-  if (scene === "killfeed") return KILLFEED_LOOP_MS;
+  const killfeedScript = KILLFEED_SCRIPTS[scene];
+  if (killfeedScript !== undefined) return killfeedLoopMs(killfeedScript);
   const script = sceneScript(scene, viewerRole);
   const ends = [
     ...Object.values(script.messages ?? {}).flatMap((slot) => slotMessages(slot).map(messageEndMs)),
@@ -379,8 +384,10 @@ type ScriptedKill = {
   atMs: number;
   killer: MockKillfeedPlayer | null;
   assister?: MockKillfeedPlayer;
-  /** The assist came from a flashbang (CS2 `assistedflash`). */
-  assistedFlash?: boolean;
+  /** The ability behind the assist, by the killer's side (a flashbang for NTF, an SCP ability for SCP); none = damage. */
+  assistKind?: Readonly<Partial<Record<Role, HudKillfeedAssistKind>>>;
+  /** The killer was flashbanged (CS2 `attackerblind`). */
+  attackerBlind?: boolean;
   victim: MockKillfeedPlayer;
   weapon?: Readonly<Record<Role, HudKillfeedWeapon>>;
   /** Headshots only happen to NTF firearms. */
@@ -396,19 +403,42 @@ const KILLFEED_KILLS: readonly ScriptedKill[] = [
   { atMs: 500, killer: KF_ROOK, victim: KF_ATLAS, weapon: { ntf: "ak", scp: "scp939" } },
   { atMs: 1_800, killer: KF_NOVA, assister: KF_CIPHER, victim: KF_STRIKER, weapon: { ntf: "e11sr", scp: "scp173" }, headshot: true },
   { atMs: 3_200, killer: KF_PHANTOM, victim: KF_PHANTOM },
-  { atMs: 4_400, killer: KF_VANGUARD, assister: KF_ATLAS, assistedFlash: true, victim: KF_SPECTER, weapon: { ntf: "com45", scp: "other" } },
+  { atMs: 4_400, killer: KF_VANGUARD, assister: KF_ATLAS, assistKind: { ntf: "flash" }, victim: KF_SPECTER, weapon: { ntf: "com45", scp: "other" } },
   { atMs: 5_600, killer: KF_ECHO, victim: KF_WARDEN, weapon: { ntf: "grenade_he", scp: "scp096" } },
   { atMs: 6_300, killer: null, victim: KF_CIPHER },
   { atMs: 7_000, killer: KF_ROOK, victim: KF_NOVA, weapon: { ntf: "logicer", scp: "scp106" } },
 ];
-const KILLFEED_LOOP_MS = Math.max(...KILLFEED_KILLS.map((kill) => kill.atMs)) + KILLFEED_VIEWER_LIFETIME_MS + 1_000 + LOOP_GAP_MS;
+
+/**
+ * `killfeed-modifiers`: every killfeed modifier on screen at once around 3 s, for either viewer side: SCP killers
+ * with the three SCP assist icons, NTF killers with the flash assist, blind killers, the viewer's blind kill with an
+ * assist icon (a headshot on a long name for an NTF viewer), the viewer's death to a blind killer, a damage assist
+ * and a self-kill.
+ */
+const KILLFEED_MODIFIER_KILLS: readonly ScriptedKill[] = [
+  { atMs: 300, killer: KF_ROOK, assister: KF_STRIKER, assistKind: { ntf: "flash", scp: "scp173" }, victim: KF_VANGUARD, weapon: { ntf: "ak", scp: "scp939" } },
+  { atMs: 600, killer: KF_PHANTOM, assister: KF_SPECTER, assistKind: { ntf: "flash", scp: "scp3114" }, victim: KF_CIPHER, weapon: { ntf: "crossvec", scp: "scp049" } },
+  { atMs: 900, killer: KF_SPECTER, assister: KF_ROOK, assistKind: { scp: "scp079" }, victim: KF_ECHO, weapon: { ntf: "fsp9", scp: "scp096" } },
+  { atMs: 1_200, killer: KF_ATLAS, assister: KF_NOVA, assistKind: { ntf: "flash", scp: "scp173" }, attackerBlind: true, victim: KF_ROOK, weapon: { ntf: "com18", scp: "scp106" } },
+  { atMs: 1_500, killer: KF_NOVA, assister: KF_ATLAS, assistKind: { ntf: "flash", scp: "scp3114" }, attackerBlind: true, victim: KF_WARDEN, weapon: { ntf: "e11sr", scp: "scp3114" }, headshot: true },
+  { atMs: 1_800, killer: KF_STRIKER, assister: KF_PHANTOM, assistKind: { ntf: "flash", scp: "scp079" }, attackerBlind: true, victim: KF_NOVA, weapon: { ntf: "logicer", scp: "scp173" } },
+  { atMs: 2_100, killer: KF_ATLAS, assister: KF_NOVA, assistKind: { scp: "scp079" }, victim: KF_SPECTER, weapon: { ntf: "frmg0", scp: "scp0492" }, headshot: true },
+  { atMs: 2_400, killer: KF_PHANTOM, victim: KF_PHANTOM },
+];
+
+const KILLFEED_SCRIPTS: Readonly<Partial<Record<HudScene, readonly ScriptedKill[]>>> = {
+  killfeed: KILLFEED_KILLS,
+  "killfeed-modifiers": KILLFEED_MODIFIER_KILLS,
+};
+const killfeedLoopMs = (kills: readonly ScriptedKill[]) => Math.max(...kills.map((kill) => kill.atMs)) + KILLFEED_VIEWER_LIFETIME_MS + 1_000 + LOOP_GAP_MS;
 
 function killfeedAt(scene: HudScene, viewerRole: Role, elapsedMs: number, run: number): HudKillfeedSnapshot {
-  if (scene !== "killfeed") return { entries: [] };
+  const kills = KILLFEED_SCRIPTS[scene];
+  if (kills === undefined) return { entries: [] };
   const sideRole = (player: MockKillfeedPlayer): Role => player.side === "viewer" ? viewerRole : otherRole(viewerRole);
   const wire = (player: MockKillfeedPlayer): HudKillfeedPlayer => ({ player_id: player.id, display_name: player.name, team: sideRole(player) });
   const entries: HudKillfeedEntry[] = [];
-  KILLFEED_KILLS.forEach((kill, index) => {
+  kills.forEach((kill, index) => {
     const suicide = kill.killer === null || kill.killer === kill.victim;
     const viewer = kill.victim === KF_NOVA ? "victim" : kill.killer === KF_NOVA ? "killer" : null;
     const lifetime = viewer === null ? KILLFEED_LIFETIME_MS : KILLFEED_VIEWER_LIFETIME_MS;
@@ -416,12 +446,14 @@ function killfeedAt(scene: HudScene, viewerRole: Role, elapsedMs: number, run: n
     if (elapsedMs < kill.atMs || left <= 0) return;
     const killerRole = kill.killer === null ? null : sideRole(kill.killer);
     const assister = suicide || !kill.assister ? null : wire(kill.assister);
+    const assistKind = assister === null || killerRole === null ? undefined : kill.assistKind?.[killerRole];
     entries.push({
       entry_id: `${scene}-${run}-${index}`,
       suicide,
       killer: kill.killer === null ? null : wire(kill.killer),
       assister,
-      ...(assister !== null && kill.assistedFlash ? { assisted_flash: true as const } : {}),
+      ...(assistKind !== undefined ? { assist_kind: assistKind } : {}),
+      ...(!suicide && kill.attackerBlind ? { attacker_blind: true as const } : {}),
       victim: wire(kill.victim),
       weapon: suicide || killerRole === null || !kill.weapon ? "other" : kill.weapon[killerRole],
       headshot: !suicide && killerRole === "ntf" && kill.headshot === true,

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "Killfeed geometry, icon rules, no text shadow"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Client feature list and protocol boundaries"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Strict protocol parser conventions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Three-repo contract rollout order"}

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- SLUI-drawn SCP-079 assist: a wall-mounted security camera looking down. -->
+  <defs>
+    <mask id="cam-led" maskUnits="userSpaceOnUse" x="-8" y="-8" width="48" height="48">
+      <rect x="-8" y="-8" width="48" height="48" fill="#fff"/>
+      <circle cx="10.34" cy="15.36" r="1.05" fill="#000"/>
+    </mask>
+  </defs>
+  <g fill="#fff">
+    <g mask="url(#cam-led)"><g transform="rotate(-28 14 15)">
+      <path d="M2.6 10.6h5v9.8h-5c-.5 0-.8-.3-.8-.8v-8.2c0-.5.3-.8.8-.8z"/>
+      <rect x="8.2" y="11.4" width="15.6" height="8.2" rx="1.6"/>
+      <path d="M24.4 13h1.4c.4 0 .6.2.6.6v3.8c0 .4-.2.6-.6.6h-1.4z"/>
+    </g></g>
+    <circle cx="15.39" cy="9.95" r="1.7"/>
+    <rect x="28.00" y="2" width="2.8" height="9" rx=".6"/>
+  </g>
+  <path d="M15.39 9.95V5.6H28.40" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
