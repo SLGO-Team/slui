@@ -1618,3 +1618,25 @@ Confirmed #102 merged. Publisher/copyright SLGO Team across bundles, Cargo and p
 ### Status
 
 [OK] **Completed**
+
+
+## Session 70: 击杀栏图标整套重做：接线与修饰图标
+<!-- trellis-session: v=2 fp=5fbdc490c818c382 -->
+
+**Date**: 2026-11-06
+**Task**: 击杀栏图标整套重做：接线与修饰图标
+**Branch**: `feat/killfeed-icon-set`
+
+### Summary
+
+协议新增 assist_kind / attacker_blind 与能力 hud-killfeed-modifiers（保留 assisted_flash 兼容 0.12.x，二选一）；KillFeed 按 CS2 顺序画致盲与四种助攻图标，新 mock 场景 killfeed-modifiers；7 个定稿图标入库。slgo-backend feat/killfeed-modifiers 加夹具（ad4f867），插件 feat/killfeed-modifiers 接线 ledger 种类、致盲判定、按能力写键、Hint 文字（34d5038），均待本地合并。slui PR 待用户视觉评审。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `14de351` | feat(killfeed): draw the blind and ability-assist icons |
+
+### Status
+
+[OK] **Completed**

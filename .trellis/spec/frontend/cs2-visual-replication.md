@@ -608,9 +608,11 @@ backgrounds and the wrong suicide and headshot marks.
   (the plugin already applied CS2's 1.5x for the viewer's own kill or death). An entry the next copy leaves out
   disappears at once (a new round clears the feed) unless it is already fading, which it finishes. Another
   instance's baseline or an ended session clears the feed; a reconnect to the same instance keeps it.
-- Content order (CS2): killer, `+`, the flash-assist icon when `assisted_flash` (CS2 `assistedflash`: the layout puts
-  `flashbang_assist` between the assist partition and the assister label), the assister, weapon icon, headshot icon,
-  victim. A suicide
+- Content order (CS2 `huddeathnotice.xml`): the blind icon when `attacker_blind` (CS2 `AttackerBlindIcon`), killer,
+  `+`, the assist icon when `assist_kind` (CS2 `assistedflash`: the layout puts `flashbang_assist` between the assist
+  partition and the assister label; SLGO adds SCP-173's stain, SCP-3114's strangle and SCP-079 there; the legacy
+  `assisted_flash` reads as `flash`), the assister, weapon icon, headshot icon, victim. The `+` label stays next
+  to the flash icon, as in CS2's layout. A damage assist is only `+`. A suicide
   (`suicide`, CS2 `DeathNoticeSuicide`) draws the skull and crossbones instead of the weapon; a self-kill keeps
   the killer, so it reads "name skull name" as in the capture, and a death without an attacker is "skull name".
 - Colour: NTF names in CS2's killfeed blue `#6f9ce6` (`CTColor`, capture; NTF's blue everywhere else too),
@@ -628,10 +630,14 @@ backgrounds and the wrong suicide and headshot marks.
 - Icons (`presentation.ts`): firearms, Micro-HID, HE grenade and the SCPs reuse `public/assets/slui-svg/`
   (muzzles point right, towards the victim, as in CS2). Weapons the shop does not sell have no art (user
   decision 2026-10-18) and draw the plain skull (`hud/skull.svg`, never the suicide mark); adding art later only
-  touches `KILLFEED_WEAPON_ICONS`. `public/assets/killfeed/suicide.svg` (skull and crossbones) and `headshot.svg`
-  (a head facing right, entry hole upper left, the round leaving right with speed lines) are SLUI drawings
-  after the capture. The flash-assist icon is the shop's flashbang silhouette (`slui-svg/GrenadeFlash.svg`); no
-  capture of CS2's own `flashbang_assist` art was available.
+  touches `KILLFEED_WEAPON_ICONS`. The modifier icons live in `public/assets/killfeed/` (task
+  `11-06-killfeed-icon-set`, reviewed by the user against a 1080p mock): `headshot.svg`, `suicide.svg`,
+  `flash-assist.svg` and `blind.svg` are fitted to CS2's own shapes (user decision 2026-11-06: about 98% of the
+  original); `scp173-assist.svg` (the tantrum stain only), `scp3114-assist.svg` (a skeletal hand) and
+  `scp079-assist.svg` (a wall camera looking down) are SLUI's own, after SCP:SL's in-game icons. All are white
+  fills with negative-space detail, 24px high like every other icon; no shadow. `KILLFEED_ASSIST_ICONS` maps each
+  `assist_kind` to its file, `KILLFEED_BLIND_ICON` the blind mark. Mock scene `killfeed-modifiers` shows every
+  modifier at once (about 3 s in, either viewer side).
 - Motion (CSS animations fixed at mount, never the 250 ms UI clock): a new notice fades in over 0.2 s
   (Panorama `.Available`); at its fade time it fades out over 1 s ease-out (`DeathNoticeFadeOutTime`), the
   delay is `fadeAtMs - mountedAtMs` (negative when mounted part-way). A notice mounted more than 0.2 s after

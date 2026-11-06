@@ -1,4 +1,4 @@
-import { endsMatch, type ConnectionStatus, type HudKillfeedEntry, type HudKillfeedViewerRole, type SlgoEvent } from "../../contracts/index.ts";
+import { endsMatch, type ConnectionStatus, type HudKillfeedAssistKind, type HudKillfeedEntry, type HudKillfeedViewerRole, type SlgoEvent } from "../../contracts/index.ts";
 import { killfeedNameColor, killfeedWeaponIcon, type KillfeedPlayerView } from "./presentation.ts";
 
 /** CS2 `DeathNoticeFadeOutTime`: an entry fades out over 1 s once its time is up. */
@@ -68,9 +68,11 @@ export type KillfeedNoticeView = {
   suicide: boolean;
   /** null only for a suicide without an attacker ("skull victim"); a self-kill names the victim ("name skull name"). */
   killer: KillfeedPlayerView | null;
+  /** CS2 `attackerblind`: the blind icon before the killer's name. */
+  attackerBlind: boolean;
   assister: KillfeedPlayerView | null;
-  /** CS2 `assistedflash`: the flashbang icon between `+` and the assister. */
-  assistedFlash: boolean;
+  /** The ability icon between `+` and the assister (CS2 `assistedflash` and SLGO's SCP abilities); null for a damage assist. */
+  assistKind: HudKillfeedAssistKind | null;
   victim: KillfeedPlayerView;
   /** Weapon artwork, or the fallback; null for a suicide (CS2 hides `#Weapon` then). */
   weaponIcon: string | null;
@@ -81,6 +83,10 @@ export type KillfeedNoticeView = {
 };
 
 const player = (value: HudKillfeedEntry["victim"]): KillfeedPlayerView => ({ name: value.display_name, color: killfeedNameColor(value.team) });
+
+/** `assisted_flash` is the legacy form of `assist_kind: "flash"` (a sidecar or plugin that predates `assist_kind`). */
+const assistKindOf = (entry: HudKillfeedEntry): HudKillfeedAssistKind | null =>
+  entry.assist_kind ?? (entry.assisted_flash === true ? "flash" : null);
 
 /** Two selectKillfeed results of one state differ in time only by which notices are still drawn. */
 export function sameKillfeedTime(a: readonly KillfeedNoticeView[], b: readonly KillfeedNoticeView[]): boolean {
@@ -96,7 +102,8 @@ export function selectKillfeed(state: KillfeedState, nowMs: number): KillfeedNot
       suicide: entry.suicide,
       killer: entry.killer === null ? null : player(entry.killer),
       assister: entry.assister === null ? null : player(entry.assister),
-      assistedFlash: entry.assister !== null && entry.assisted_flash === true,
+      attackerBlind: !entry.suicide && entry.attacker_blind === true,
+      assistKind: entry.assister === null ? null : assistKindOf(entry),
       victim: player(entry.victim),
       weaponIcon: entry.suicide ? null : killfeedWeaponIcon(entry.weapon),
       headshot: entry.headshot,

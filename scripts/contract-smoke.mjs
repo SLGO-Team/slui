@@ -3,6 +3,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import {
   CLIENT_FEATURE_HUD_KILLFEED,
   CLIENT_FEATURE_HUD_KILLFEED_FLASH_ASSIST,
+  CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS,
+  HUD_KILLFEED_ASSIST_KINDS,
   CLIENT_FEATURE_HUD_MESSAGES,
   CLIENT_FEATURE_HUD_MONEY,
   CLIENT_FEATURE_HUD_SPECTATING,
@@ -821,6 +823,21 @@ assert.equal(parseEvent(chatEnvelope("future.event", {})).error.code, "unsupport
   assert.equal(parseHudKillfeed(withKill({ assister: null, assisted_flash: true })).ok, false, "a flash assist needs an assister");
   assert.equal(parseHudKillfeed(withSuicide({ assisted_flash: true })).ok, false, "a suicide has no assist");
   assert.equal(parseHudKillfeed(withKill({ assisted_flash: true, extra: 1 })).ok, false, "other unknown keys stay rejected");
+  assert.equal(CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS, "hud-killfeed-modifiers");
+  assert.equal(parseClientFeatures({ type: "client.features", features: [CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS] }).ok, true);
+  assert.deepEqual([...HUD_KILLFEED_ASSIST_KINDS], ["flash", "scp173", "scp3114", "scp079"]);
+  for (const assist_kind of HUD_KILLFEED_ASSIST_KINDS) assert.equal(parseHudKillfeed(withKill({ assist_kind })).ok, true, `assist_kind ${assist_kind}`);
+  assert.equal(parseHudKillfeed(withKill({ assist_kind: "damage" })).ok, false, "assist_kind is a closed set; a damage assist has none");
+  assert.equal(parseHudKillfeed(withKill({ assist_kind: null })).ok, false, "assist_kind is omitted, not null");
+  assert.equal(parseHudKillfeed(withKill({ assister: null, assist_kind: "scp173" })).ok, false, "an assist icon needs an assister");
+  assert.equal(parseHudKillfeed(withSuicide({ assist_kind: "flash" })).ok, false, "a suicide has no assist icon");
+  assert.equal(parseHudKillfeed(withKill({ assist_kind: "flash", assisted_flash: true })).ok, false, "assist_kind and the legacy assisted_flash never appear together");
+  assert.equal(parseHudKillfeed(withKill({ attacker_blind: true })).ok, true, "a blind killer (optional key)");
+  assert.equal(parseHudKillfeed(withKill({ attacker_blind: false })).ok, false, "attacker_blind is written only as true");
+  assert.equal(parseHudKillfeed(withSuicide({ attacker_blind: true })).ok, false, "a suicide has no blind killer");
+  assert.equal(parseHudKillfeed(feed({ ...selfKill, attacker_blind: true })).ok, false, "a self-kill has no blind killer");
+  assert.equal(parseHudKillfeed(withKill({ attacker_blind: true, assist_kind: "scp3114", headshot: true })).ok, true, "every modifier at once");
+  assert.equal(parseHudKillfeed(withKill({ attacker_blind: true, assisted_flash: true })).ok, true, "blind with the legacy flash assist");
   assert.equal(parseHudKillfeed(withSuicide({ headshot: true })).ok, false, "a suicide has no headshot");
   assert.equal(parseHudKillfeed(withSuicide({ weapon: "ak" })).ok, false, "a suicide has no weapon");
   assert.equal(parseHudKillfeed(withSuicide({ viewer: "killer" })).ok, false, "a suicide has no killer to be");

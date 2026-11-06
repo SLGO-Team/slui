@@ -382,16 +382,27 @@ entry itself when its time runs out. `sent_at` is required.
   entry starts its 1 s fade-out. CS2 shows an entry 5 s, 7.5 s when the viewer
   is its killer or victim; the plugin has already applied that.
 
-One optional key, additive (no `schema_version` change):
+Optional modifier keys, additive (no `schema_version` change). Older clients
+reject entries with unknown keys, so each key goes only to players whose SLUI
+declares its feature, and a sidecar validates plugin publishes with this
+package: sidecars must carry the version that knows a key before an SLUI
+release declares its feature.
 
-- `assisted_flash`: `true` when the assist came from a flashbang (CS2
-  `assistedflash`); the client draws a flashbang icon between `+` and the
-  assister's name, as CS2's `huddeathnotice` does. Written only when true, never
-  without an assister, and only to players whose SLUI declares
-  `hud-killfeed-flash-assist`: older clients reject entries with unknown keys,
-  so they never receive it and draw the assister without the icon. A sidecar
-  validates plugin publishes with this package, so sidecars must carry the
-  version that knows the key before an SLUI release declares the feature.
+- `assist_kind`: the ability behind the assist, one of
+  `HUD_KILLFEED_ASSIST_KINDS` (`flash`, `scp173` for SCP-173's tantrum stain,
+  `scp3114` for SCP-3114's strangle, `scp079`); the client draws its icon
+  between `+` and the assister's name, where CS2's `huddeathnotice` draws the
+  flashbang. Absent for a damage assist (CS2 shows only `+`). Never without an
+  assister. Sent only to `hud-killfeed-modifiers` clients.
+- `attacker_blind`: `true` when the killer was flashbanged at the kill (CS2
+  `attackerblind`); the client draws the blind icon before the killer's name.
+  Written only when true, never on a suicide. Sent only to
+  `hud-killfeed-modifiers` clients.
+- `assisted_flash`: legacy form of `assist_kind: "flash"` (CS2
+  `assistedflash`) for SLUI 0.12.x, which declares `hud-killfeed-flash-assist`
+  but not `hud-killfeed-modifiers`. Written only when true, never without an
+  assister, never together with `assist_kind`. A client that knows
+  `assist_kind` reads it as `flash`.
 
 ## Scoreboard
 
@@ -746,7 +757,11 @@ Known features:
 - `hud-killfeed`: SLUI draws the top-right killfeed, so the plugin hides its
   own killfeed hint and sends `hud.killfeed` to this player.
 - `hud-killfeed-flash-assist`: SLUI draws the flash-assist icon, so the plugin
-  writes `assisted_flash` in this player's `hud.killfeed` entries.
+  writes `assisted_flash` in this player's `hud.killfeed` entries (legacy:
+  SLUI 0.12.x; ignored when `hud-killfeed-modifiers` is declared too).
+- `hud-killfeed-modifiers`: SLUI draws the blind and assist-kind icons, so the
+  plugin writes `assist_kind` and `attacker_blind` in this player's
+  `hud.killfeed` entries.
 - `scoreboard`: SLUI draws the scoreboard on its own key, so the plugin ignores
   its scoreboard keybind for this player and sends `scoreboard.snapshot`.
 - `team-select`: SLUI draws the team select menu, so the plugin sends its menu

@@ -1,4 +1,4 @@
-import { HUD_KILLFEED_WEAPONS, type HudKillfeedWeapon, type Role } from "../../contracts/index.ts";
+import { HUD_KILLFEED_WEAPONS, type HudKillfeedAssistKind, type HudKillfeedWeapon, type Role } from "../../contracts/index.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 
 export type KillfeedPlayerView = { name: string; color: string };
@@ -8,8 +8,18 @@ const SVG = "/assets/slui-svg";
 export const KILLFEED_SUICIDE_ICON = "/assets/killfeed/suicide.svg";
 /** CS2 `icon_headshot` (head, entry hole and exit trail, SLUI-drawn after the 1080p capture). */
 export const KILLFEED_HEADSHOT_ICON = "/assets/killfeed/headshot.svg";
-/** CS2 `flashbang_assist` before a flash assister's name; SLUI uses the shop's flashbang silhouette. */
-export const KILLFEED_FLASH_ASSIST_ICON = `${SVG}/GrenadeFlash.svg`;
+/** CS2 `attackerblind` before a blind killer's name (eye struck through, SLUI-drawn after CS2's shape). */
+export const KILLFEED_BLIND_ICON = "/assets/killfeed/blind.svg";
+/**
+ * The icon between `+` and an ability assister's name. `flash` is CS2 `flashbang_assist` (SLUI-drawn after CS2's
+ * shape); the SCP ones are SLUI's own: SCP-173's tantrum stain, SCP-3114's skeletal hand, SCP-079's wall camera.
+ */
+export const KILLFEED_ASSIST_ICONS: Readonly<Record<HudKillfeedAssistKind, string>> = {
+  flash: "/assets/killfeed/flash-assist.svg",
+  scp173: "/assets/killfeed/scp173-assist.svg",
+  scp3114: "/assets/killfeed/scp3114-assist.svg",
+  scp079: "/assets/killfeed/scp079-assist.svg",
+};
 /** Fallback for weapons without artwork: the plain skull, so it never reads as a suicide's skull and crossbones. */
 export const KILLFEED_SKULL_ICON = "/assets/hud/skull.svg";
 

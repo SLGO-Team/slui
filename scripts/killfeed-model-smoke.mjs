@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { HUD_KILLFEED_WEAPONS, parseHudKillfeed } from "../packages/protocol/src/index.ts";
+import { HUD_KILLFEED_ASSIST_KINDS, HUD_KILLFEED_WEAPONS, parseHudKillfeed } from "../packages/protocol/src/index.ts";
 import { createHudSceneFrame, hudSceneLoopMs } from "../src/mocks/hudScenes.ts";
 import { ROLE_COLORS } from "../src/shared/roleColors.ts";
 import { initialKillfeedState, KILLFEED_FADE_MS, killfeedReducer, sameKillfeedTime, selectKillfeed } from "../src/features/killfeed/model.ts";
 import {
+  KILLFEED_ASSIST_ICONS,
+  KILLFEED_BLIND_ICON,
   KILLFEED_FALLBACK_WEAPONS,
-  KILLFEED_FLASH_ASSIST_ICON,
   KILLFEED_HEADSHOT_ICON,
   KILLFEED_SKULL_ICON,
   KILLFEED_SUICIDE_ICON,
@@ -88,13 +89,19 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
 }
 
 {
-  // A flash assist draws the flashbang icon before the assister (CS2 assistedflash).
+  // Modifiers: the assist kind draws its icon before the assister (CS2 assistedflash), a blind killer the blind icon
+  // before the killer (CS2 attackerblind); the legacy assisted_flash reads as the flash kind.
   let state = killfeedReducer(initialKillfeedState, event(baseline(), 0));
-  state = killfeedReducer(state, event(feed(kill("kill-1", { assister: LIMA, assisted_flash: true })), 0));
-  const [flashed] = selectKillfeed(state, 100);
-  assert.equal(flashed.assister.name, "Lima");
-  assert.equal(flashed.assistedFlash, true);
-  assert.equal(KILLFEED_FLASH_ASSIST_ICON, "/assets/slui-svg/GrenadeFlash.svg", "the shop's flashbang silhouette");
+  state = killfeedReducer(state, event(feed(
+    ...HUD_KILLFEED_ASSIST_KINDS.map((assist_kind, index) => kill(`kill-${index}`, { assister: LIMA, assist_kind })),
+    kill("kill-legacy", { assister: LIMA, assisted_flash: true }),
+    kill("kill-blind", { attacker_blind: true }),
+  ), 0));
+  const views = selectKillfeed(state, 100);
+  assert.deepEqual(views.map((view) => view.assistKind), [...HUD_KILLFEED_ASSIST_KINDS, "flash", null]);
+  assert.deepEqual(views.map((view) => view.attackerBlind), [false, false, false, false, false, true]);
+  assert.equal(views[0].assister.name, "Lima");
+  assert.equal(KILLFEED_ASSIST_ICONS.flash, "/assets/killfeed/flash-assist.svg", "no longer the shop's flashbang silhouette");
 }
 
 {
@@ -110,7 +117,8 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
   assert.equal(own.viewer, "killer");
   assert.equal(own.headshot, true);
   assert.equal(own.assister.name, "Lima");
-  assert.equal(own.assistedFlash, false, "a plain assist has no flashbang icon");
+  assert.equal(own.assistKind, null, "a damage assist has no icon");
+  assert.equal(own.attackerBlind, false);
   assert.equal(own.killer.color, "#6f9ce6", "NTF in CS2's CT blue");
   assert.equal(own.victim.color, ROLE_COLORS.scp, "SCP keeps the SLGO red (user decision 2026-10-18)");
   assert.equal(own.weaponIcon, KILLFEED_WEAPON_ICONS.e11sr);
@@ -135,6 +143,9 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
   assert.ok(existsSync(publicPath(KILLFEED_SKULL_ICON)));
   assert.ok(existsSync(publicPath(KILLFEED_HEADSHOT_ICON)));
   assert.ok(existsSync(publicPath(KILLFEED_SUICIDE_ICON)));
+  assert.ok(existsSync(publicPath(KILLFEED_BLIND_ICON)));
+  assert.deepEqual(Object.keys(KILLFEED_ASSIST_ICONS), [...HUD_KILLFEED_ASSIST_KINDS]);
+  for (const url of Object.values(KILLFEED_ASSIST_ICONS)) assert.ok(existsSync(publicPath(url)), url);
   assert.notEqual(KILLFEED_SUICIDE_ICON, KILLFEED_SKULL_ICON, "the weapon fallback never reads as a suicide");
   assert.equal(Object.keys(KILLFEED_WEAPON_ICONS).length + KILLFEED_FALLBACK_WEAPONS.length, HUD_KILLFEED_WEAPONS.length);
   assert.deepEqual([...KILLFEED_FALLBACK_WEAPONS].sort(), ["a7", "com45", "jailbird", "other", "particle_disruptor", "revolver", "scp018", "scp127", "shotgun"]);
@@ -161,6 +172,27 @@ const event = (value, receivedAtMs) => ({ type: "event", event: value, receivedA
   assert.equal(stack[4].killer, null, "the death without an attacker");
   assert.equal(createHudSceneFrame("killfeed", "scp", 7_100, 1).killfeed.entries[0].headshot, false, "SCP attacks are no headshots");
   assert.deepEqual(createHudSceneFrame("win-mvp-kills", "ntf", 0).killfeed, { entries: [] });
+}
+
+{
+  // The `killfeed-modifiers` mock scene: valid frames; around 3 s every assist icon and the blind icon are on screen
+  // for either viewer side, with the viewer's own kill and death.
+  for (const viewerRole of ["ntf", "scp"]) {
+    const loopMs = hudSceneLoopMs("killfeed-modifiers", viewerRole);
+    for (let elapsedMs = 0; elapsedMs <= loopMs; elapsedMs += 250) {
+      assert.equal(parseHudKillfeed(createHudSceneFrame("killfeed-modifiers", viewerRole, elapsedMs, 1).killfeed).ok, true, `${viewerRole} at ${elapsedMs}`);
+    }
+    const stack = createHudSceneFrame("killfeed-modifiers", viewerRole, 3_000, 1).killfeed.entries;
+    assert.equal(stack.length, 8, viewerRole);
+    assert.deepEqual(new Set(stack.map((entry) => entry.assist_kind).filter(Boolean)), new Set(HUD_KILLFEED_ASSIST_KINDS), viewerRole);
+    assert.ok(stack.some((entry) => entry.attacker_blind && entry.viewer === "killer"), `${viewerRole}: the viewer's blind kill`);
+    assert.ok(stack.some((entry) => entry.attacker_blind && entry.viewer === "victim"), `${viewerRole}: the viewer's death to a blind killer`);
+    assert.ok(stack.some((entry) => entry.assister !== null && entry.assist_kind === undefined), `${viewerRole}: a damage assist`);
+    assert.ok(stack.some((entry) => entry.suicide), `${viewerRole}: a self-kill`);
+    assert.ok(stack.every((entry) => entry.assisted_flash === undefined), "the mock speaks the current keys");
+  }
+  const ntf = createHudSceneFrame("killfeed-modifiers", "ntf", 3_000, 1).killfeed.entries;
+  assert.ok(ntf.some((entry) => entry.attacker_blind && entry.assist_kind && entry.headshot), "blind + assist icon + headshot");
 }
 
 console.log("killfeed model smoke passed");

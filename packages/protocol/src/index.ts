@@ -478,6 +478,12 @@ export type HudKillfeedViewerRole = (typeof HUD_KILLFEED_VIEWER_ROLES)[number];
 export const MAX_HUD_KILLFEED_ENTRIES = 16;
 /** Longest killfeed player name and entry id (UTF-16 code units). */
 export const MAX_HUD_KILLFEED_NAME_LENGTH = 64;
+/**
+ * Ability behind a killfeed assist, drawn between `+` and the assister's name (CS2 `assistedflash` and its SLGO
+ * siblings): a flashbang, SCP-173's tantrum stain, SCP-3114's strangle, or SCP-079. A damage assist has none.
+ */
+export const HUD_KILLFEED_ASSIST_KINDS = ["flash", "scp173", "scp3114", "scp079"] as const;
+export type HudKillfeedAssistKind = (typeof HUD_KILLFEED_ASSIST_KINDS)[number];
 export type HudKillfeedPlayer = {
   /** SteamID64; null for a player without one (test dummy, non-Steam account). */
   player_id: string | null;
@@ -499,10 +505,20 @@ export type HudKillfeedEntry = {
   /** The one assist CS2 shows; null for a suicide. */
   assister: HudKillfeedPlayer | null;
   /**
-   * CS2 `assistedflash`: the assist came from a flashbang, drawn as a flashbang icon before the assister's name.
-   * Written only when true and only to clients declaring `hud-killfeed-flash-assist`; requires an assister.
+   * The ability behind the assist, drawn as its icon before the assister's name. Written only for an ability assist
+   * and only to clients declaring `hud-killfeed-modifiers`; requires an assister; never with `assisted_flash`.
+   */
+  assist_kind?: HudKillfeedAssistKind;
+  /**
+   * Legacy form of `assist_kind: "flash"` (CS2 `assistedflash`), written only to clients that declare
+   * `hud-killfeed-flash-assist` but not `hud-killfeed-modifiers` (SLUI 0.12.x). Only true; requires an assister.
    */
   assisted_flash?: true;
+  /**
+   * CS2 `attackerblind`: the killer was flashbanged when the kill happened, drawn before the killer's name. Written
+   * only when true and only to clients declaring `hud-killfeed-modifiers`; never on a suicide.
+   */
+  attacker_blind?: true;
   victim: HudKillfeedPlayer;
   /** `other` for a suicide. */
   weapon: HudKillfeedWeapon;
@@ -975,8 +991,16 @@ export const CLIENT_FEATURE_HUD_STATUS = "hud-status";
 export const CLIENT_FEATURE_HUD_SPECTATING = "hud-spectating";
 /** SLUI draws the top-right killfeed: the plugin hides its own killfeed hint and publishes `hud.killfeed` for this player. */
 export const CLIENT_FEATURE_HUD_KILLFEED = "hud-killfeed";
-/** SLUI draws the flash-assist icon: the plugin writes `assisted_flash` in this player's `hud.killfeed` entries. */
+/**
+ * Legacy (SLUI 0.12.x): SLUI draws the flash-assist icon, so the plugin writes `assisted_flash` in this player's
+ * `hud.killfeed` entries. Ignored when `hud-killfeed-modifiers` is declared too; current SLUI declares only that.
+ */
 export const CLIENT_FEATURE_HUD_KILLFEED_FLASH_ASSIST = "hud-killfeed-flash-assist";
+/**
+ * SLUI draws the killfeed modifiers: the plugin writes `assist_kind` and `attacker_blind` in this player's
+ * `hud.killfeed` entries (and no longer `assisted_flash`).
+ */
+export const CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS = "hud-killfeed-modifiers";
 /** SLUI draws the scoreboard: the plugin ignores its own scoreboard key and publishes `scoreboard.snapshot` for this player. */
 export const CLIENT_FEATURE_SCOREBOARD = "scoreboard";
 /** SLUI draws the team select menu: the plugin publishes its menu session as `team.menu` instead of drawing its Hint roster. */
@@ -1485,9 +1509,8 @@ export function parseTeamMenu(payload: unknown): ParseResult<TeamMenuSnapshot> {
 
 const HUD_KILLFEED_KEYS = new Set(["entries"]);
 const HUD_KILLFEED_ENTRY_KEYS = new Set(["entry_id", "suicide", "killer", "assister", "victim", "weapon", "headshot", "viewer", "visible_remaining_ms"]);
-/** Optional entry key, sent only to clients declaring `hud-killfeed-flash-assist` and only when true. */
-const HUD_KILLFEED_ASSISTED_FLASH = "assisted_flash";
-const HUD_KILLFEED_ENTRY_KEYS_WITH_FLASH = new Set([...HUD_KILLFEED_ENTRY_KEYS, HUD_KILLFEED_ASSISTED_FLASH]);
+/** Optional entry keys: each written only to the clients declaring its feature, never as a default value. */
+const HUD_KILLFEED_OPTIONAL_ENTRY_KEYS = new Set(["assist_kind", "assisted_flash", "attacker_blind"]);
 const HUD_KILLFEED_PLAYER_KEYS = new Set(["player_id", "display_name", "team"]);
 const STEAM_ID64 = /^[0-9]{17}$/;
 
@@ -1502,11 +1525,19 @@ function isKillfeedPlayer(value: unknown): value is HudKillfeedPlayer {
 
 function isKillfeedEntry(value: unknown): value is HudKillfeedEntry {
   if (!isRecord(value)) return false;
-  const flash = Object.prototype.hasOwnProperty.call(value, HUD_KILLFEED_ASSISTED_FLASH);
-  const keys = flash ? HUD_KILLFEED_ENTRY_KEYS_WITH_FLASH : HUD_KILLFEED_ENTRY_KEYS;
-  if (!hasOnlyKeys(value, keys) || keys.size !== Object.keys(value).length) return false;
-  // A flash assist is an assist: written only as true, and never without an assister (so never on a suicide).
-  if (flash && (value.assisted_flash !== true || value.assister === null)) return false;
+  const keys = Object.keys(value);
+  if (!keys.every((key) => HUD_KILLFEED_ENTRY_KEYS.has(key) || HUD_KILLFEED_OPTIONAL_ENTRY_KEYS.has(key))) return false;
+  if (keys.filter((key) => HUD_KILLFEED_ENTRY_KEYS.has(key)).length !== HUD_KILLFEED_ENTRY_KEYS.size) return false;
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(value, key);
+  // An assist icon is an assist: never without an assister (so never on a suicide), and in one form only.
+  const assistKind = has("assist_kind");
+  const assistedFlash = has("assisted_flash");
+  if (assistKind && assistedFlash) return false;
+  if (assistKind && !(HUD_KILLFEED_ASSIST_KINDS as readonly unknown[]).includes(value.assist_kind)) return false;
+  if (assistedFlash && value.assisted_flash !== true) return false;
+  if ((assistKind || assistedFlash) && value.assister === null) return false;
+  // A blind killer is written only as true and never on a suicide.
+  if (has("attacker_blind") && (value.attacker_blind !== true || value.suicide !== false)) return false;
   if (!isKillfeedText(value.entry_id) || typeof value.suicide !== "boolean" || !isKillfeedPlayer(value.victim)) return false;
   if (value.killer !== null && !isKillfeedPlayer(value.killer)) return false;
   if (value.assister !== null && !isKillfeedPlayer(value.assister)) return false;

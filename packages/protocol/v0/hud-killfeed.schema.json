@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slgo.dev/slui/protocol/v0/hud-killfeed.schema.json",
   "title": "SLGO top-right killfeed payload (hud.killfeed)",
-  "description": "The viewer's killfeed (CS2 HudDeathNotice), oldest first. One recipient per publish; sent only to clients declaring hud-killfeed. Times are remaining milliseconds at the envelope's sent_at. Entry ids are unique. A suicide has no assister, no headshot, weapon other, viewer never killer, and its killer is null (no attacker) or the victim themself; any other entry has a killer, and its killer, assister and victim are different players. assisted_flash (optional, only true, only with an assister) is sent only to clients declaring hud-killfeed-flash-assist.",
+  "description": "The viewer's killfeed (CS2 HudDeathNotice), oldest first. One recipient per publish; sent only to clients declaring hud-killfeed. Times are remaining milliseconds at the envelope's sent_at. Entry ids are unique. A suicide has no assister, no headshot, weapon other, viewer never killer, and its killer is null (no attacker) or the victim themself; any other entry has a killer, and its killer, assister and victim are different players. Optional modifiers: assist_kind (the ability behind the assist; needs an assister) and attacker_blind (only true; never on a suicide) are sent only to clients declaring hud-killfeed-modifiers; assisted_flash (legacy assist_kind flash; only true; needs an assister) only to clients declaring hud-killfeed-flash-assist without hud-killfeed-modifiers. assist_kind and assisted_flash never appear together.",
   "type": "object",
   "additionalProperties": false,
   "required": ["entries"],
@@ -18,14 +18,20 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["entry_id", "suicide", "killer", "assister", "victim", "weapon", "headshot", "viewer", "visible_remaining_ms"],
-      "if": { "required": ["assisted_flash"] },
-      "then": { "properties": { "assister": { "$ref": "#/$defs/player" } } },
+      "allOf": [
+        { "if": { "required": ["assist_kind"] }, "then": { "properties": { "assister": { "$ref": "#/$defs/player" } } } },
+        { "if": { "required": ["assisted_flash"] }, "then": { "properties": { "assister": { "$ref": "#/$defs/player" } } } },
+        { "not": { "required": ["assist_kind", "assisted_flash"] } },
+        { "if": { "required": ["attacker_blind"] }, "then": { "properties": { "suicide": { "const": false } } } }
+      ],
       "properties": {
         "entry_id": { "type": "string", "minLength": 1, "maxLength": 64 },
         "suicide": { "description": "CS2 DeathNoticeSuicide: the skull replaces the weapon.", "type": "boolean" },
         "killer": { "description": "null only for a suicide without an attacker (fall, tesla, team change).", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/player" }] },
         "assister": { "description": "The kill's one assist.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/player" }] },
-        "assisted_flash": { "description": "CS2 assistedflash: the assist came from a flashbang. Written only when true.", "const": true },
+        "assist_kind": { "description": "The ability behind the assist, drawn before the assister's name (CS2 assistedflash and SLGO's SCP abilities). Absent for a damage assist.", "enum": ["flash", "scp173", "scp3114", "scp079"] },
+        "assisted_flash": { "description": "Legacy assist_kind flash for clients without hud-killfeed-modifiers (CS2 assistedflash). Written only when true.", "const": true },
+        "attacker_blind": { "description": "CS2 attackerblind: the killer was flashbanged at the kill. Written only when true.", "const": true },
         "victim": { "$ref": "#/$defs/player" },
         "weapon": {
           "enum": [

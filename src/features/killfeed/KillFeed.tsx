@@ -3,7 +3,7 @@ import { useBackdropRef } from "../../platform/backdrop.ts";
 import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
 import { sameKillfeedTime, type KillfeedNoticeView } from "./model.ts";
-import { KILLFEED_FLASH_ASSIST_ICON, KILLFEED_HEADSHOT_ICON, KILLFEED_SUICIDE_ICON, type KillfeedPlayerView } from "./presentation.ts";
+import { KILLFEED_ASSIST_ICONS, KILLFEED_BLIND_ICON, KILLFEED_HEADSHOT_ICON, KILLFEED_SUICIDE_ICON, type KillfeedPlayerView } from "./presentation.ts";
 import "./KillFeed.css";
 
 /** CS2 `.Available` -> shown: a new notice fades in over 0.2 s. A notice mounted later than that (replay, overlay re-enabled) just shows. */
@@ -32,11 +32,13 @@ function Notice({ view, still }: NoticeProps) {
   return (
     <div ref={notice} className={classes} data-killfeed-entry={view.id} data-viewer={view.viewer ?? undefined} style={style}>
       <div className="killfeed__content">
+        {/* CS2 huddeathnotice.xml order: AttackerBlindIcon, killer, `+` [assist icon] assister, weapon, HeadShot, Suicide, victim. */}
+        {view.attackerBlind ? <img className="killfeed__icon killfeed__blind" src={KILLFEED_BLIND_ICON} alt="" /> : null}
         {view.killer ? <Name player={view.killer} /> : null}
         {view.assister ? (
           <>
             <span className="killfeed__plus">+</span>
-            {view.assistedFlash ? <img className="killfeed__icon killfeed__flash" src={KILLFEED_FLASH_ASSIST_ICON} alt="" /> : null}
+            {view.assistKind ? <img className="killfeed__icon killfeed__assist" data-assist-kind={view.assistKind} src={KILLFEED_ASSIST_ICONS[view.assistKind]} alt="" /> : null}
             <Name player={view.assister} />
           </>
         ) : null}
