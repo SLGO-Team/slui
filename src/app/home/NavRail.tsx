@@ -1,11 +1,12 @@
 import type { OverlayState } from "../../platform/desktop";
-import { HomeIcon, SettingsIcon } from "./icons";
+import { CareerIcon, HomeIcon, SettingsIcon } from "./icons";
 import type { Tone } from "./status";
 
-export type HomePage = "home" | "settings";
+export type HomePage = "home" | "career" | "settings";
 
 const PAGES: readonly { id: HomePage; label: string; Icon: typeof HomeIcon }[] = [
   { id: "home", label: "首页", Icon: HomeIcon },
+  { id: "career", label: "生涯", Icon: CareerIcon },
   { id: "settings", label: "设置", Icon: SettingsIcon },
 ];
 

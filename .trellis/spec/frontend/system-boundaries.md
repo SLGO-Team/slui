@@ -787,6 +787,19 @@ by window label (`?window=home` in a browser preview).
   for another SteamID is never shown, and each missing part has its own state
   (placeholder avatar, SteamID as the title). Browser previews pick a fixed tile
   with `?steam=<scene>` (`src/mocks/steamPreview.ts`).
+- The home career page (`src/app/home/career/`, rail item 生涯) reads the public career API
+  (`packages/protocol/v0/README.md` "Career API") straight from the home webview through
+  `HttpCareerSource` (`src/platform/career.ts`): the build's control plane, no credentials, the
+  control plane's origin is already in `connect-src` and the API answers CORS `*`. Every response goes
+  through the strict `parseCareer*` parsers; one that fails (a field missing or added) is `invalid`
+  ("请更新 SLUI"), never shown with blanks. 404 is "no career yet" for the viewer (do-not-track players
+  have none), 429 / 503 / no answer offer a retry. It opens on the session's SteamID and stays mounted
+  while a match detail is open; a named player in a scoreboard opens their career. Round Swing is shown
+  as `swing_per_round` only (`formatSwing`: one decimal, always signed with a typographic minus,
+  `0.0%` unsigned and untinted, `—` for null), first in the overview, last column in the match list
+  and scoreboard. Pure formats and grouping live in `careerModel.ts` (`career-page-smoke`). Browser
+  preview: `?window=home&career=sample|slow|empty|unavailable|offline` (`src/mocks/careerPreview.ts`,
+  DEV only; the `mock` mode shows `sample` by default); its fixtures pass the same parsers.
 - Home is the only settings writer. It applies edits locally, saves with a
   150ms debounce, and does not consume `slgo-settings-changed` (that would
   echo stale values back during a slider drag).

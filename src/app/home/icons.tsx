@@ -15,6 +15,10 @@ export const SettingsIcon = (props: IconProps) => <Icon {...props}>
   <rect x="13" y="4" width="4" height="4" /><rect x="7" y="10" width="4" height="4" /><rect x="15" y="16" width="4" height="4" />
 </Icon>;
 
+export const CareerIcon = (props: IconProps) => <Icon {...props}>
+  <path d="M4 20h16" /><path d="M6.5 16.5v-5M11 16.5V7M15.5 16.5v-7M20 16.5V4.5" />
+</Icon>;
+
 export const AccountIcon = (props: IconProps) => <Icon {...props}>
   <circle cx="12" cy="8.5" r="4" /><path d="M4 20.5c1.2-4 4.3-6 8-6s6.8 2 8 6" />
 </Icon>;

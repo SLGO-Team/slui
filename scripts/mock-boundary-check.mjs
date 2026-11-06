@@ -10,9 +10,9 @@ const SRC = join(ROOT, "src");
 // Value imports from src/mocks allowed outside it, each behind a build-time constant.
 const ALLOWED = new Map([
   ["src/main.tsx", /import\("\.\/mocks\/harness"\)/],
-  // Browser previews of the home window's update states, Steam tile and game-condition banners; behind
-  // import.meta.env.DEV, so release builds drop them.
-  ["src/app/home/HomeApp.tsx", /from "\.\.\/\.\.\/mocks\/(updatePreview|steamPreview|gameConditionsPreview)"/],
+  // Browser previews of the home window's update states, Steam tile, game-condition banners and career page;
+  // behind import.meta.env.DEV, so release builds drop them.
+  ["src/app/home/HomeApp.tsx", /from "\.\.\/\.\.\/mocks\/(updatePreview|steamPreview|gameConditionsPreview|careerPreview)"/],
 ]);
 
 const files = [];

@@ -9,6 +9,7 @@ import type { HotkeySettings as Hotkeys } from "../../platform/hotkeys";
 import type { OverlaySettings as Overlay } from "../../platform/overlaySettings";
 import { createSettingsStore, DEFAULT_APP_SETTINGS, type AppSettings } from "../../platform/settings";
 import { readBackendConfig } from "../../platform/backend";
+import { HttpCareerSource } from "../../platform/career";
 import { createUpdateSource, type UpdateState } from "../../platform/updater";
 import { createSteamProfileSource, EMPTY_STEAM_PROFILE } from "../../platform/steamProfile";
 import { NO_GAME_CONDITIONS, relaunchElevated, subscribeGameConditions, type GameConditions } from "../../platform/gameConditions";
@@ -16,11 +17,13 @@ import { gameConditionBanners, RELAUNCH_IDLE, type RelaunchState } from "../game
 import { readSteamPreview } from "../../mocks/steamPreview";
 import { readUpdatePreview } from "../../mocks/updatePreview";
 import { readGameConditionsPreview } from "../../mocks/gameConditionsPreview";
+import { readCareerPreview } from "../../mocks/careerPreview";
 import { currentThemePack } from "../../shared/themePack";
 import { missingThemePackFiles, themePackNotice } from "../themePackStatus";
 import { aboutUpdate, homeServerStatus, requiredBanner, titleBarUpdate, type UpdateAction } from "../updateModel";
 import { AboutSettings } from "./AboutSettings";
 import { AudioSettings } from "./AudioSettings";
+import { CareerPage, type CareerViewer } from "./career/CareerPage";
 import { HotkeySettings } from "./HotkeySettings";
 import { KeyHints } from "./KeyHints";
 import { NavRail, type HomePage } from "./NavRail";
@@ -64,6 +67,10 @@ export function HomeApp() {
   const steamProfiles = useMemo(() => createSteamProfileSource(), []);
   const steamPreview = useMemo(() => import.meta.env.DEV ? readSteamPreview(window.location.search) : null, []);
   const conditionsPreview = useMemo(() => import.meta.env.DEV ? readGameConditionsPreview(window.location.search) : null, []);
+  const careerPreview = useMemo(() => import.meta.env.DEV ? readCareerPreview(window.location.search, BACKEND.kind === "mock") : null, []);
+  // The career API is public and read-only, so the page needs only the control plane's address.
+  const careerSource = useMemo(() => careerPreview?.source
+    ?? (BACKEND.kind === "real" ? new HttpCareerSource(BACKEND.controlPlaneUrl) : null), [careerPreview]);
   // main.tsx loads the pack before this mounts, and it does not change while SLUI runs.
   const packNotice = useMemo(() => themePackNotice(missingThemePackFiles(currentThemePack())), []);
 
@@ -234,6 +241,9 @@ export function HomeApp() {
       .finally(() => setOverlayBusy(false));
   }, [overlay.enabled, overlaySource]);
 
+  const account = steamPreview ?? steamAccount(session, steamProfile);
+  const careerViewer: CareerViewer = careerPreview ? { kind: "signed-in", playerId: careerPreview.playerId }
+    : account.kind === "signed-in" ? { kind: "signed-in", playerId: account.steamId } : account;
   const banner = requiredBanner(update);
   const conditionBanners = gameConditionBanners(conditionsPreview?.conditions ?? gameConditions,
     conditionsPreview?.relaunch ?? relaunch);
@@ -247,10 +257,10 @@ export function HomeApp() {
           banner={conditionBanner} onAction={relaunchAsAdmin} />)}
         {packNotice ? <ThemePackBanner notice={packNotice} /> : null}
         <OverlaySwitch state={overlay} note={overlaySwitchNote(overlay.enabled, settings.overlay.autoEnableOnConnect, session)} busy={overlayBusy} error={overlayError} onToggle={toggleOverlay} />
-        <StatusBar session={session} steam={steamPreview ?? steamAccount(session, steamProfile)} gameRunning={gameRunning}
+        <StatusBar session={session} steam={account} gameRunning={gameRunning}
           update={update} onRetry={sessionSource.retry} />
         <KeyHints hotkeys={settings.hotkeys} />
-      </div> : <>
+      </div> : page === "career" ? <CareerPage source={careerSource} viewer={careerViewer} /> : <>
         <header className="home-page__header">
           <div className="home-page__header-inner">
             <div>

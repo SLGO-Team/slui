@@ -1,0 +1,187 @@
+/* Career page of the home window: same navy panels, orange accent and HUD brackets as home.css. Round Swing
+   reads green when the player raised the side's round win chance and red when they cost it. */
+
+.career-view { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.career-view[hidden] { display: none; }
+.career-header__text { min-width: 0; }
+.career-header__text .home-page__subtitle { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; user-select: text; }
+.career-header__actions { display: flex; align-items: center; gap: 10px; }
+
+.career-swing { font-variant-numeric: tabular-nums; white-space: nowrap; }
+[data-tone="up"].career-swing, .career-stat__value[data-tone="up"] { color: var(--home-ok); }
+[data-tone="down"].career-swing, .career-stat__value[data-tone="down"] { color: var(--home-error); }
+[data-tone="flat"].career-swing { color: var(--home-text-2); }
+
+.career-notice { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 16px; text-align: center; }
+.career-notice__title { color: var(--home-text); font-size: 15px; font-weight: 600; }
+.career-notice__detail { max-width: 52ch; color: var(--home-muted); font-size: 12.5px; }
+.career-notice .home-button { margin-top: 4px; }
+
+.career-panel { padding-bottom: 16px; }
+.career-panel__note { margin-top: 14px; color: var(--home-muted); font-size: 12px; }
+
+/* ---- Side tabs ---- */
+
+.career-tabs { display: flex; gap: 6px; }
+.career-tabs__item {
+  min-width: 56px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--home-line-strong);
+  background: transparent;
+  color: var(--home-text-2);
+  font: 600 12.5px/1 var(--home-font-latin);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.career-tabs__item:hover { border-color: var(--home-orange); color: var(--home-orange-hi); }
+.career-tabs__item[aria-pressed="true"] { border-color: var(--home-orange); background: rgba(247, 148, 29, 0.14); color: var(--home-orange-hi); }
+.career-tabs__item:focus-visible { outline: 2px solid var(--home-orange); outline-offset: 2px; }
+
+/* ---- Overview ---- */
+
+.career-headline { display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+@media (min-width: 1180px) { .career-headline { grid-template-columns: minmax(0, 1.25fr) repeat(4, minmax(0, 1fr)); } }
+.career-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: rgba(236, 242, 248, 0.03);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+}
+.career-stat::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--home-line-strong); }
+/* Round Swing leads: HUD brackets in orange and the largest number. */
+.career-stat[data-key="swing"] {
+  grid-row: span 2;
+  justify-content: center;
+  background: linear-gradient(120deg, rgba(247, 148, 29, 0.1), rgba(236, 242, 248, 0.03) 70%);
+}
+.career-stat[data-key="swing"]::before { background: var(--home-orange-grad); }
+.career-stat__label { color: var(--home-text-2); font-size: 12px; }
+.career-stat__value { font: 700 26px/1.15 var(--home-font-latin); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; white-space: nowrap; }
+.career-stat[data-key="swing"] .career-stat__value { font-size: 40px; }
+@media (min-width: 1180px) { .career-stat[data-key="swing"] { grid-row: auto; } .career-stat[data-key="swing"] .career-stat__value { font-size: 30px; } }
+.career-stat__detail { overflow: hidden; color: var(--home-muted); font-size: 11.5px; white-space: nowrap; text-overflow: ellipsis; }
+
+.career-details { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 12px; background: var(--home-line); }
+.career-details__item { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: #111a25; min-width: 0; }
+.career-details dt { overflow: hidden; color: var(--home-muted); font-size: 11.5px; white-space: nowrap; text-overflow: ellipsis; }
+@media (min-width: 1180px) { .career-details { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.career-details dd { font: 600 15px/1.3 var(--home-font-latin); font-variant-numeric: tabular-nums; }
+
+.career-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+
+/* ---- Tables ---- */
+
+.career-table-scroll { overflow-x: auto; }
+.career-table-scroll::-webkit-scrollbar { height: 8px; }
+.career-table-scroll::-webkit-scrollbar-thumb { background: #263649; }
+.career-table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 13px; }
+.career-table th {
+  height: 34px;
+  padding: 0 6px;
+  color: var(--home-muted);
+  font: 600 11.5px/1 var(--home-font-latin);
+  letter-spacing: 0.06em;
+  text-align: right;
+  white-space: nowrap;
+}
+.career-table td { height: 36px; padding: 0 6px; border-top: 1px solid var(--home-line); text-align: right; white-space: nowrap; }
+.career-table :is(th, td):first-child { padding-left: 0; text-align: left; }
+.career-table :is(th, td):last-child { padding-right: 0; }
+.career-table__num, .career-table td { font-variant-numeric: tabular-nums; }
+.career-table__name { overflow: hidden; max-width: 180px; text-overflow: ellipsis; }
+/* Scoreboard names take the spare width and cut long nicknames. */
+.career-table--scoreboard .career-table__name { max-width: 0; width: 100%; }
+.career-table__time { color: var(--home-text-2); }
+.career-table--matches th, .career-table--matches td { text-align: right; }
+.career-table--matches :is(th, td):nth-child(-n + 3) { text-align: left; }
+.career-table__link { cursor: pointer; transition: background 120ms; }
+.career-table__link:hover { background: rgba(236, 242, 248, 0.035); }
+.career-table__link:focus-visible { outline: 1px solid var(--home-orange); outline-offset: -1px; }
+.career-role { margin-left: 6px; }
+.career-table [data-role="ntf"] { color: rgb(150, 200, 250); }
+.career-table [data-role="scp"] { color: #e0707a; }
+
+.career-result { display: inline-block; min-width: 2.2em; font-weight: 700; }
+.career-result[data-result="win"] { color: var(--home-ok); }
+.career-result[data-result="loss"] { color: var(--home-error); }
+.career-result[data-result="draw"] { color: var(--home-warn); }
+.career-result[data-result="unfinished"] { color: var(--home-muted); font-weight: 600; }
+.career-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--home-line-strong);
+  color: var(--home-muted);
+  font-size: 11px;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+.career-tag--win { border-color: rgba(69, 201, 122, 0.45); color: var(--home-ok); }
+
+.career-more { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; }
+.career-more__error { color: #ff8a8a; font-size: 12px; }
+
+/* ---- Match: score, rounds and the two scoreboards ---- */
+
+.career-score {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  padding: 18px 28px;
+  background:
+    repeating-linear-gradient(0deg, rgba(236, 242, 248, 0.018) 0 1px, transparent 1px 4px),
+    linear-gradient(120deg, #172333 0%, #111a26 55%, #0e1621 100%);
+}
+.career-score__team { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 18px; align-items: center; }
+.career-score__team[data-side="left"] { grid-column: 1; }
+.career-score__team[data-side="right"] { grid-column: 3; grid-template-columns: 1fr auto; text-align: right; }
+.career-score__name { font: 700 18px/1.2 var(--home-font-display); letter-spacing: 0.06em; }
+.career-score__start { color: var(--home-muted); font-size: 12px; }
+.career-score__value { grid-row: 1 / span 2; font: 700 46px/1 var(--home-font-latin); font-variant-numeric: tabular-nums; color: var(--home-text-2); }
+.career-score__team[data-side="left"] .career-score__value { grid-column: 2; justify-self: end; }
+.career-score__team[data-side="right"] .career-score__value { grid-column: 1; grid-row: 1 / span 2; justify-self: start; }
+.career-score__team[data-side="right"] :is(.career-score__name, .career-score__start) { grid-column: 2; }
+.career-score__team[data-won="true"] .career-score__value { color: var(--home-text); }
+.career-score__team[data-role="ntf"] .career-score__name { color: rgb(150, 200, 250); }
+.career-score__team[data-role="scp"] .career-score__name { color: #e0707a; }
+.career-score__divider { grid-column: 2; grid-row: 1; padding: 0 22px; color: var(--home-muted); font: 700 32px/1 var(--home-font-latin); }
+
+.career-rounds { display: flex; flex-wrap: wrap; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.career-rounds__cell {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border-bottom: 2px solid var(--home-line-strong);
+  background: rgba(236, 242, 248, 0.04);
+  color: var(--home-muted);
+  font: 600 11px/1 var(--home-font-latin);
+  font-variant-numeric: tabular-nums;
+}
+.career-rounds__cell[data-winner="ntf"] { border-bottom-color: rgb(150, 200, 250); color: rgb(150, 200, 250); background: rgba(150, 200, 250, 0.1); }
+.career-rounds__cell[data-winner="scp"] { border-bottom-color: #d94652; color: #e0707a; background: rgba(217, 70, 82, 0.12); }
+
+.career-team { padding-top: 6px; }
+.career-team[data-role="ntf"] { border-top: 2px solid rgba(150, 200, 250, 0.6); }
+.career-team[data-role="scp"] { border-top: 2px solid rgba(217, 70, 82, 0.7); }
+.career-team__title { color: var(--home-text) !important; font: 700 14px/1 var(--home-font-display) !important; letter-spacing: 0.06em; }
+.career-table--scoreboard tr[data-self="true"] td { background: rgba(247, 148, 29, 0.09); }
+.career-table--scoreboard tr[data-self="true"] td:first-child { box-shadow: inset 3px 0 0 var(--home-orange); padding-left: 10px; }
+.career-player {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--home-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+button.career-player:hover { color: var(--home-orange-hi); text-decoration: underline; text-underline-offset: 3px; }
+button.career-player:focus-visible { outline: 1px solid var(--home-orange); outline-offset: 2px; }
+.career-player--anonymous { color: var(--home-muted); font-weight: 400; cursor: default; }
