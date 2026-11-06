@@ -42,7 +42,8 @@
       "mvps": 1,
       "money_spent": 3100,
       "adr": 276.7,
-      "kast": 0.3333
+      "kast": 0.3333,
+      "swing_per_round": 4.6
     },
     {
       "ref": 1,
@@ -71,7 +72,8 @@
       "mvps": 0,
       "money_spent": 0,
       "adr": 33.3,
-      "kast": 0.6667
+      "kast": 0.6667,
+      "swing_per_round": -7.25
     },
     {
       "ref": 2,
@@ -100,7 +102,8 @@
       "mvps": 1,
       "money_spent": 2150,
       "adr": 125,
-      "kast": 0.6667
+      "kast": 0.6667,
+      "swing_per_round": 6.1
     },
     {
       "ref": 3,
@@ -129,7 +132,8 @@
       "mvps": 1,
       "money_spent": 0,
       "adr": 126.7,
-      "kast": 1
+      "kast": 1,
+      "swing_per_round": -3.45
     }
   ],
   "rounds": [

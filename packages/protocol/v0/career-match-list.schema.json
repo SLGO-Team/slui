@@ -16,7 +16,8 @@
         "additionalProperties": false,
         "required": [
           "match_id", "mode", "started_at", "ended_at", "duration_ms", "status", "counts_for_career", "result", "side", "first_team",
-          "score_own", "score_enemy", "rounds_played", "kills", "deaths", "assists", "headshot_kills", "mvps", "adr", "kast", "left_early"
+          "score_own", "score_enemy", "rounds_played", "kills", "deaths", "assists", "headshot_kills", "mvps", "adr", "kast", "swing_per_round",
+          "left_early"
         ],
         "properties": {
           "match_id": { "$ref": "career-common.schema.json#/$defs/match_id" },
@@ -39,6 +40,7 @@
           "mvps": { "$ref": "career-common.schema.json#/$defs/count" },
           "adr": { "$ref": "career-common.schema.json#/$defs/rate" },
           "kast": { "$ref": "career-common.schema.json#/$defs/fraction" },
+          "swing_per_round": { "$ref": "career-common.schema.json#/$defs/signed_rate" },
           "left_early": { "type": "boolean" }
         }
       }

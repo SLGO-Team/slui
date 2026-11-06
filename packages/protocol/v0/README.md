@@ -652,6 +652,12 @@ Shared definitions are in [career-common.schema.json](./career-common.schema.jso
 - Totals cover counted matches only (finished, with complete data); `unfinished` counts the
   others. Rates are computed by the server and are `null` when their denominator is 0 (no
   deaths, no rounds, no shots).
+- `swing` is Round Swing (HLTV Rating 3.0 / Leetify style): each round event (kill, death,
+  assist, generator activation or defusal, time running out) is priced by the change in the
+  side's round win probability, and the man advantage before the event counts for nobody, so
+  uneven casual teams do not inflate it. It is summed over the rounds played in win probability
+  (0-1) and may be negative; `swing_per_round` is `swing / rounds_played x 100` in percentage
+  points (`null` without rounds), the number to show.
 - Matches are newest first. `limit` is 1-50 (default 20); pass `next_cursor` back as `cursor`
   for the next page, `null` means the last page. Cursors are opaque.
 - A match detail exists only for matches with complete data. `players[].ref` is the player's

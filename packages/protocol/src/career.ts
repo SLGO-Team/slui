@@ -66,6 +66,11 @@ export const CAREER_MVP_REASONS = ["MostKills", "GeneratorActivated", "Generator
  * from them. A rate is null when its denominator is 0: win_rate = wins / matches, kd = kills /
  * deaths, adr = damage / rounds_played, kast = kast_rounds / rounds_played, headshot_rate =
  * headshot_kills / kills, accuracy = hits / shots. `damage` is to enemies (health and shields).
+ *
+ * `swing` is Round Swing: the round win probability the player added (or cost) their side through
+ * kills, deaths, assists, generator plays and time, summed over the rounds played; the man
+ * advantage before each event counts for nobody. swing_per_round = swing / rounds_played x 100, in
+ * percentage points, and may be negative.
  */
 export type CareerStats = {
   matches: number;
@@ -97,12 +102,16 @@ export type CareerStats = {
   mvps: number;
   gen_activations: number;
   gen_deactivations: number;
+  /** Sum of round win probability (0-1 per event) over the rounds played; may be negative. */
+  swing: number;
   win_rate: number | null;
   kd: number | null;
   adr: number | null;
   kast: number | null;
   headshot_rate: number | null;
   accuracy: number | null;
+  /** swing / rounds_played x 100 (percentage points); null without rounds. */
+  swing_per_round: number | null;
 };
 
 /** One SCP role over the counted rounds the player started as it, most played first. */
@@ -163,6 +172,8 @@ export type CareerMatchSummary = {
   mvps: number;
   adr: number | null;
   kast: number | null;
+  /** Round Swing per round in percentage points (see CareerStats); null without rounds. */
+  swing_per_round: number | null;
   left_early: boolean;
 };
 
@@ -205,6 +216,8 @@ export type CareerMatchPlayer = {
   money_spent: number;
   adr: number | null;
   kast: number | null;
+  /** Round Swing per round in percentage points (see CareerStats); null without rounds. */
+  swing_per_round: number | null;
 };
 
 /** One death of a round, in order. Player refs are null when the player did not take part (environment kills, mid-round spawns). */
@@ -286,6 +299,8 @@ const fits = (value: unknown, shape: Shape): value is Record<string, unknown> =>
 const count: Check = (value) => Number.isSafeInteger(value) && Number(value) >= 0;
 const amount: Check = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const rate: Check = (value) => value === null || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+/** Any finite number, negative included (Round Swing). */
+const signed: Check = (value) => typeof value === "number" && Number.isFinite(value);
 const fraction: Check = (value) => value === null || (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1);
 const bool: Check = (value) => typeof value === "boolean";
 const text: Check = (value) => typeof value === "string" && value.length > 0 && value.length <= CAREER_MAX_TEXT_LENGTH;
@@ -306,12 +321,14 @@ const STATS_COUNTS = [
 const STATS_SHAPE: Shape = {
   ...Object.fromEntries(STATS_COUNTS.map((key) => [key, count])),
   damage: amount,
+  swing: signed,
   win_rate: fraction,
   kd: rate,
   adr: rate,
   kast: fraction,
   headshot_rate: fraction,
   accuracy: fraction,
+  swing_per_round: nullable(signed),
 };
 const ROLE_SHAPE: Shape = { role: identifier, rounds: count, rounds_won: count, kills: count, deaths: count, damage: amount, adr: rate };
 const WEAPON_SHAPE: Shape = { weapon: identifier, kills: count, headshot_kills: count };
@@ -354,6 +371,7 @@ const SUMMARY_SHAPE: Shape = {
   mvps: count,
   adr: rate,
   kast: fraction,
+  swing_per_round: nullable(signed),
   left_early: bool,
 };
 
@@ -392,6 +410,7 @@ const MATCH_PLAYER_SHAPE: Shape = {
   money_spent: count,
   adr: rate,
   kast: fraction,
+  swing_per_round: nullable(signed),
 };
 
 const KILL_SHAPE: Shape = {

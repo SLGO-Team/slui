@@ -38,6 +38,12 @@ rejects(parseCareerProfile, { ...profile, rating: 1.2 }, "profile rejects unknow
 rejects(parseCareerProfile, { ...profile, overall: { ...profile.overall, kast: 1.5 } }, "kast is a share");
 rejects(parseCareerProfile, { ...profile, overall: { ...profile.overall, kills: -1 } }, "counts are non-negative");
 rejects(parseCareerProfile, { ...profile, overall: { ...profile.overall, kd: Number.NaN } }, "rates are finite");
+assert.equal(parseCareerProfile({ ...profile, overall: { ...profile.overall, swing: -1.25, swing_per_round: -13.89 } }).ok, true, "swing may be negative");
+assert.equal(parseCareerProfile({ ...profile, scp: { ...profile.scp, swing_per_round: null } }).ok, true, "swing per round is null without rounds");
+rejects(parseCareerProfile, { ...profile, overall: { ...profile.overall, swing: null } }, "swing total is a number");
+rejects(parseCareerProfile, { ...profile, overall: { ...profile.overall, swing_per_round: Number.POSITIVE_INFINITY } }, "swing per round is finite");
+const { swing_per_round: _omitted, ...withoutSwing } = profile.overall;
+rejects(parseCareerProfile, { ...profile, overall: withoutSwing }, "stats need swing per round");
 rejects(parseCareerProfile, { ...profile, weapons: Array.from({ length: 11 }, () => profile.weapons[0] ?? { weapon: "Com15", kills: 1, headshot_kills: 0 }) }, "at most ten weapons");
 rejects(parseCareerProfile, { ...profile, scp_roles: [{ role: "Scp 173", rounds: 1, rounds_won: 0, kills: 0, deaths: 0, damage: 0, adr: 0 }] }, "role is an identifier");
 
@@ -51,6 +57,8 @@ rejects(parseCareerMatchList, { ...list, items: Array.from({ length: CAREER_MATC
 rejects(parseCareerMatchList, { ...list, items: [{ ...list.items[0], result: "victory" }] }, "known results only");
 rejects(parseCareerMatchList, { ...list, items: [{ ...list.items[0], side: "TeamA" }] }, "sides use team ids");
 rejects(parseCareerMatchList, { ...list, next_cursor: "" }, "an empty cursor");
+assert.equal(parseCareerMatchList({ ...list, items: [{ ...list.items[0], swing_per_round: null }] }).ok, true, "summary swing per round may be null");
+rejects(parseCareerMatchList, { ...list, items: [{ ...list.items[0], swing_per_round: "4.2" }] }, "summary swing per round is a number");
 
 // Match detail.
 const detail = example("career-match-detail");
@@ -64,6 +72,8 @@ rejects(parseCareerMatchDetail, withKill({ assister: null, assist_source: "damag
 rejects(parseCareerMatchDetail, { ...detail, players: detail.players.map((player, index) => (index === 0 ? { ...player, ref: 5 } : player)) }, "refs equal their index");
 rejects(parseCareerMatchDetail, { ...detail, rounds: [...detail.rounds].reverse() }, "rounds increase");
 rejects(parseCareerMatchDetail, { ...detail, rounds: detail.rounds.map((round) => ({ ...round, mvp: 99 })) }, "MVP is a player");
+assert.ok(detail.players.some((player) => player.swing_per_round < 0), "the example has a negative swing");
+rejects(parseCareerMatchDetail, { ...detail, players: detail.players.map((player, index) => (index === 0 ? { ...player, swing_per_round: Number.NaN } : player)) }, "player swing per round is finite");
 
 // Errors.
 assert.equal(parseCareerError(example("career-error")).ok, true);
