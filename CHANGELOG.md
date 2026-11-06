@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/SLGO-Team/slui/compare/v0.12.0...v0.13.0) (2026-11-06)
+
+
+### Features
+
+* **killfeed:** draw the blind and ability-assist icons ([#105](https://github.com/SLGO-Team/slui/issues/105)) ([171a6a9](https://github.com/SLGO-Team/slui/commit/171a6a9c2e20288bf0c91c6a1da1aae4bbfc69e0))
+* **protocol:** Round Swing in career stats and match summaries ([#107](https://github.com/SLGO-Team/slui/issues/107)) ([0794238](https://github.com/SLGO-Team/slui/commit/07942384df2ecdc6bc16657187661715af8d9005))
+
 ## [0.12.0](https://github.com/SLGO-Team/slui/compare/v0.11.0...v0.12.0) (2026-11-05)
 
 
