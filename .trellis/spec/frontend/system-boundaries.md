@@ -716,14 +716,21 @@ by window label (`?window=home` in a browser preview).
 - A second launch exits through `tauri-plugin-single-instance` and surfaces
   the running home window, flashing its taskbar button.
 - Game conditions (task `10-30-overlay-elevated-exclusive-fullscreen`): `slgo-game-conditions` (both windows) /
-  `get_game_conditions` carry `{ elevatedGame, exclusiveFullscreen, revision }` (`src-tauri/src/game_conditions.rs`,
+  `get_game_conditions` carry `{ elevatedGame, exclusiveFullscreen, hidesWhenUnfocused, revision }` (`src-tauri/src/game_conditions.rs`,
   page `src/platform/gameConditions.ts`, listen-then-query like the foreground state). `elevatedGame`: the game
   process runs elevated and SLUI does not (UIPI: the hook sees no keys sent to it, `SetForegroundWindow` is refused).
   `exclusiveFullscreen`: `SHQueryUserNotificationState` reads `QUNS_RUNNING_D3D_FULL_SCREEN`, sampled every 300 ms
   only while the game holds the foreground and is not minimized, adopted after 1 s of continuous agreement
   (`DisplayModeLatch`; transients of other states last <= ~0.25 s, borderless reads a steady `QUNS_BUSY`); such a
   game minimizes itself whenever it loses the foreground. Both reset to false (unknown) on a new game process and on
-  the game's exit. Rust only detects; while either holds ("input blocked", `inputBlockedBy`) the overlay stops
+  the game's exit. `hidesWhenUnfocused` (task `11-08-hide-when-unfocused-hint`): SL's own display setting is
+  「无边窗口化 - 后台时隐藏窗口」, whose `FullscreenWindowManager.OnFocusChanged(false)` calls
+  `ShowWindow(GetActiveWindow(), SW_SHOWMINIMIZED)` (disassembled 11-08; only for setting value 2), so every SLUI panel
+  that takes the foreground minimizes the game. Read by the game-process thread every 2 s while the game runs from
+  `%APPDATA%\SCP Secret Laboratory\registry.txt`, line `07UserSettings_0A50_2000::-%(|::<value>` (values in menu order:
+  0 独占全屏, 1 始终可见, 2 后台时隐藏窗口, 3 窗口化), re-parsed only when the file's modified time changes; logged as
+  `game display setting: …`; false without the game, the file or the line. It only warns: it does not block input.
+  Rust only detects; while elevated or exclusive holds ("input blocked", `inputBlockedBy`) the overlay stops
   claiming `chat-input`, `shop-menu` and `team-select` (`claimedFeatures`), closes an open shop, chat and team menu,
   ignores the shop key and Y/U, keeps the scoreboard passive without right-click capture and never turns
   `interactive` on; the plugin's own UI takes those keys again on the presence change. The passive features stay.
@@ -733,11 +740,13 @@ by window label (`?window=home` in a browser preview).
   the single-instance plugin is registered. The overlay shows one passive in-game notice per condition per run in
   the message zone's high-hint slot (`withConditionHint`, 6 s, only while the plugin's high hint is empty). Home is
   never brought to the front for a condition: that alone minimizes an exclusive-fullscreen game. Browser preview:
-  `?gameConditions=elevated|exclusive|both&relaunch=busy|cancelled|failed` (home, DEV only).
+  `?gameConditions=elevated|exclusive|both|unfocused&relaunch=busy|cancelled|failed` (home, DEV only).
   Triage: a report that "looks like" the NVIDIA focus bounce (shop or chat closing, keys not opening anything) is
   first checked against `game process … elevated:` (UIPI: every `hotkey` line says `game foreground false`,
   `SetForegroundWindow refused (5)`) and `game display mode` / `game window minimized` (exclusive fullscreen: the
-  foreground jumps to the next window in z-order, often `slui.exe (class Tauri Window)`, without input). Players do not
+  foreground jumps to the next window in z-order, often `slui.exe (class Tauri Window)`, without input). `game window
+  minimized` on every foreground loss with `not exclusive fullscreen` is 后台时隐藏窗口: check `game display setting`
+  (players misremember their mode; the 11-08 reporter first claimed 始终可见). Players do not
   know their game is elevated (inherited from Steam or a launcher). An elevated retry while a non-elevated SLUI still
   sits in the tray only hands off to it and exits without a log line: quit from the tray first.
 - Settings live in `app_config_dir()/settings.json` as

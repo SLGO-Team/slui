@@ -1,7 +1,7 @@
 import type { GameConditionBanner as Banner } from "../gameConditionsModel";
 import { WarningIcon } from "./icons";
 
-/** Home page notice while a game condition hands SLUI's shop, chat and team menu back to the game's own UI. */
+/** Home page notice while a game condition holds: it hands SLUI's input panels back to the game, or warns. */
 export function GameConditionBanner({ banner, onAction }: { banner: Banner; onAction(): void }) {
   return <section className="home-banner" data-tone="warn" role="status">
     <span className="home-banner__icon"><WarningIcon /></span>
