@@ -1662,3 +1662,25 @@ Player 0.12.0 logs: SLUI died ~1 s after closing the shop at the game window res
 ### Status
 
 [OK] **Completed**
+
+
+## Session 72: Warn on SL hide-when-unfocused display mode
+<!-- trellis-session: v=2 fp=5c23e10e6f19ef21 -->
+
+**Date**: 2026-11-08
+**Task**: Warn on SL hide-when-unfocused display mode
+**Branch**: `feat/hide-when-unfocused-hint`
+
+### Summary
+
+Follow-up to the world blur restore crash: the reporter was on SL's 'Borderless Window - Hide When Unfocused' (they first claimed Keep Visible). Re-disassembled GameAssembly.dll: FullscreenWindowManager.OnFocusChanged minimizes only when display setting key 2 == 2. SLUI now reads registry.txt UserSettings_0A50_2000 while the game runs (mtime-gated) and publishes hidesWhenUnfocused: home warn banner + once-per-run in-game hint, input not blocked. Live mode-switch check and visual review pending.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ddb8a1` | feat(conditions): warn when SL's display mode minimizes the game whenever it loses focus |
+
+### Status
+
+[OK] **Completed**
