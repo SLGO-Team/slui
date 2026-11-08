@@ -32,7 +32,7 @@ the foreground, so every SLUI panel that takes input (shop, chat, team menu) min
 - [x] AC1 Parser unit tests: value 2 → true; 1 / 0 / 3 / missing line / malformed → false; CRLF and LF.
 - [x] AC2 Smoke tests cover the new field (native source validation, banners, hint, no input block).
 - [ ] AC3 Banner checked in the browser preview; the user reviews it visually before merge.
-- [ ] AC4 Live: switching SL's display mode to 后台时隐藏窗口 shows the banner (and confirms the registry key);
+- [x] AC4 Live: switching SL's display mode to 后台时隐藏窗口 shows the banner (and confirms the registry key);
   switching back clears it.
 - [x] AC5 CI clippy, workspace tests and `npm test` pass; spec updated.
 
@@ -40,3 +40,10 @@ the foreground, so every SLUI panel that takes input (shop, chat, team menu) min
 
 - Changing the game's setting for the player.
 - Changing how exclusive fullscreen is detected.
+
+## Live check (2026-11-08, dev build on the dev PC)
+
+Switching SL's display mode to 后台时隐藏窗口 wrote `UserSettings_0A50_2000` = 2 at once; SLUI logged
+`game display setting: borderless, hide when unfocused (value 2)` and published the condition 0.06 s later. The in-game
+hint showed once on joining. Team-menu opens minimized and restored the game repeatedly without a crash. Switching back
+to 始终可见 logged value 1 and cleared the condition 0.08 s later.
