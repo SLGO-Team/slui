@@ -7,8 +7,9 @@ Never copy outside the captured frame's texture when the game window restores fr
 ## Background
 
 A 0.12.0 player's SLUI exited about 1 s after closing the shop, at `game window restored`, with no `panic:` line
-(twice in three logs). SL's display mode 「无边窗口化 - 后台时隐藏窗口」 minimizes the game whenever it loses the
-foreground, so opening the shop minimizes it while the world blur capture keeps running.
+(twice in three logs). In those logs the game minimizes every time the shop takes the foreground, while the world
+blur capture keeps running. The reporter says SL is on 「无边窗口化 - 始终可见」, which does not minimize on the dev PC
+(only 「后台时隐藏窗口」 should), so why it minimizes there is still open.
 
 A Windows.Graphics.Capture probe (minimize, restore, grow a window, recreating the pool on every ContentSize change,
 like `on_frame`) showed:

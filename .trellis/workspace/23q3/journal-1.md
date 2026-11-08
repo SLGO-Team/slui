@@ -1651,7 +1651,7 @@ Confirmed #102 merged. Publisher/copyright SLGO Team across bundles, Cargo and p
 
 ### Summary
 
-Player 0.12.0 logs: SLUI died ~1 s after closing the shop at the game window restore, no panic line. SL's borderless-hide-in-background mode minimizes the game when the shop takes the foreground; WGC probe showed the restore frame reports full ContentSize in the minimized-size texture, so render copied outside it (device removed in probe). Fix: frame_extent bounds ContentSize by the texture; spec updated.
+Player 0.12.0 logs: SLUI died ~1 s after closing the shop at the game window restore, no panic line. The game minimizes whenever the shop takes the foreground (reporter says SL is on 'always visible'; cause of the minimize still open); WGC probe showed the restore frame reports full ContentSize in the minimized-size texture, so render copied outside it (device removed in probe). Fix: frame_extent bounds ContentSize by the texture; spec updated.
 
 ### Git Commits
 
