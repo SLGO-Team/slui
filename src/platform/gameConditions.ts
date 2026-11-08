@@ -1,14 +1,25 @@
 /**
- * Conditions under which SLUI cannot take input over the game (Rust `game_conditions.rs`): the game runs elevated
- * and SLUI does not (`elevatedGame`), or the game runs in exclusive fullscreen and minimizes on any foreground loss
- * (`exclusiveFullscreen`). Both are false while unknown or without a game.
+ * Game conditions from Rust (`game_conditions.rs`). Two stop SLUI taking input over the game: the game runs elevated
+ * and SLUI does not (`elevatedGame`), or it runs in exclusive fullscreen and minimizes on any foreground loss
+ * (`exclusiveFullscreen`). One only warns: SL's display setting is 「无边窗口化 - 后台时隐藏窗口」, so the game minimizes
+ * whenever a SLUI panel takes the foreground (`hidesWhenUnfocused`). All are false while unknown or without a game.
  */
-export type GameConditions = Readonly<{ elevatedGame: boolean; exclusiveFullscreen: boolean; revision: number }>;
+export type GameConditions = Readonly<{
+  elevatedGame: boolean;
+  exclusiveFullscreen: boolean;
+  hidesWhenUnfocused: boolean;
+  revision: number;
+}>;
 type GameConditionsListener = (conditions: GameConditions) => void;
 
-export const NO_GAME_CONDITIONS: GameConditions = { elevatedGame: false, exclusiveFullscreen: false, revision: 0 };
+export const NO_GAME_CONDITIONS: GameConditions = {
+  elevatedGame: false,
+  exclusiveFullscreen: false,
+  hidesWhenUnfocused: false,
+  revision: 0,
+};
 
-/** While a condition holds the overlay hands its input-taking features back to the plugin's in-game UI. */
+/** While one of these holds the overlay hands its input-taking features back to the plugin's in-game UI. */
 export function inputBlockedBy(conditions: Pick<GameConditions, "elevatedGame" | "exclusiveFullscreen">): boolean {
   return conditions.elevatedGame || conditions.exclusiveFullscreen;
 }
@@ -25,9 +36,10 @@ type GameConditionsBridge = {
 function isGameConditions(value: unknown): value is GameConditions {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const conditions = value as Record<string, unknown>;
-  return Object.keys(conditions).length === 3
+  return Object.keys(conditions).length === 4
     && typeof conditions.elevatedGame === "boolean"
     && typeof conditions.exclusiveFullscreen === "boolean"
+    && typeof conditions.hidesWhenUnfocused === "boolean"
     && typeof conditions.revision === "number"
     && Number.isSafeInteger(conditions.revision)
     && conditions.revision >= 0;
@@ -57,7 +69,12 @@ export function createNativeGameConditionsSource(bridge: GameConditionsBridge): 
         }
         if (conditions.revision <= revision) return;
         revision = conditions.revision;
-        listener({ elevatedGame: conditions.elevatedGame, exclusiveFullscreen: conditions.exclusiveFullscreen, revision });
+        listener({
+          elevatedGame: conditions.elevatedGame,
+          exclusiveFullscreen: conditions.exclusiveFullscreen,
+          hidesWhenUnfocused: conditions.hidesWhenUnfocused,
+          revision,
+        });
       };
 
       // Register first, then query; a late snapshot cannot overwrite a newer event.

@@ -7,10 +7,15 @@
 //!
 //! Rust only detects them. The overlay page hands the input-taking features back to the plugin's in-game UI while
 //! one holds, and the home page explains it.
+//!
+//! One more condition only warns: SL's display mode 「无边窗口化 - 后台时隐藏窗口」 ("Hide When Unfocused") minimizes the
+//! game whenever it loses the foreground, so every overlay panel that takes input minimizes it. Read from the game's
+//! own setting; SLUI keeps its panels and the pages tell the player to pick 「始终可见」.
 
 use std::{
+    path::PathBuf,
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -22,6 +27,8 @@ pub struct GameConditions {
     elevated_game: bool,
     /// The latched display-mode verdict; false while unknown or without a game.
     exclusive_fullscreen: bool,
+    /// SL's display setting is 「后台时隐藏窗口」 while the game runs. Warns only: input stays with SLUI.
+    hides_when_unfocused: bool,
     revision: u64,
 }
 
@@ -35,28 +42,102 @@ pub fn get_game_conditions(state: tauri::State<'_, Mutex<GameConditions>>) -> Re
 
 /// Stores and emits the conditions when they change.
 #[cfg_attr(not(windows), allow(dead_code))]
-pub fn publish(app: &AppHandle, elevated_game: bool, exclusive_fullscreen: bool) {
+pub fn publish(app: &AppHandle, elevated_game: bool, exclusive_fullscreen: bool, hides_when_unfocused: bool) {
     let state = app.state::<Mutex<GameConditions>>();
     let Ok(mut state) = state.lock() else {
         diag!("SLGO: game conditions unavailable");
         return;
     };
-    if state.elevated_game == elevated_game && state.exclusive_fullscreen == exclusive_fullscreen {
+    if state.elevated_game == elevated_game
+        && state.exclusive_fullscreen == exclusive_fullscreen
+        && state.hides_when_unfocused == hides_when_unfocused
+    {
         return;
     }
     state.elevated_game = elevated_game;
     state.exclusive_fullscreen = exclusive_fullscreen;
+    state.hides_when_unfocused = hides_when_unfocused;
     state.revision += 1;
     let snapshot = *state;
     drop(state);
     diag!(
-        "SLGO: game conditions: elevated game {elevated_game}, exclusive fullscreen {exclusive_fullscreen} \
-         (revision {}); SLUI input {}",
+        "SLGO: game conditions: elevated game {elevated_game}, exclusive fullscreen {exclusive_fullscreen}, \
+         hides when unfocused {hides_when_unfocused} (revision {}); SLUI input {}",
         snapshot.revision,
         if elevated_game || exclusive_fullscreen { "blocked" } else { "available" }
     );
     if let Err(error) = app.emit("slgo-game-conditions", snapshot) {
         diag!("SLGO: failed to emit game conditions: {error}");
+    }
+}
+
+/// SL's display-mode setting, as the menu lists it: 0 独占全屏, 1 无边窗口化 - 始终可见, 2 无边窗口化 - 后台时隐藏窗口,
+/// 3 窗口化. The game's `FullscreenWindowManager.OnFocusChanged(false)` minimizes its window only for 2.
+pub const DISPLAY_MODE_HIDE_WHEN_UNFOCUSED: u32 = 2;
+/// The setting's line in `%APPDATA%\SCP Secret Laboratory\registry.txt`: a two-character type prefix (`07`), this
+/// key, the separator, the value.
+const DISPLAY_MODE_KEY: &str = "UserSettings_0A50_2000";
+const REGISTRY_SEPARATOR: &str = "::-%(|::";
+
+/// The display-mode value in the text of SL's `registry.txt`; None without a well-formed line.
+pub fn parse_display_mode(text: &str) -> Option<u32> {
+    text.lines().find_map(|line| {
+        let (name, value) = line.split_once(REGISTRY_SEPARATOR)?;
+        let key = name.get(2..)?;
+        (key == DISPLAY_MODE_KEY).then(|| value.trim().parse().ok()).flatten()
+    })
+}
+
+fn describe_display_mode(mode: Option<u32>) -> &'static str {
+    match mode {
+        Some(0) => "exclusive fullscreen",
+        Some(1) => "borderless, keep visible",
+        Some(DISPLAY_MODE_HIDE_WHEN_UNFOCUSED) => "borderless, hide when unfocused",
+        Some(3) => "windowed",
+        Some(_) => "unrecognised",
+        None => "unknown",
+    }
+}
+
+/// SL's display-mode setting, read from its `registry.txt` while the game runs. The file is parsed again only when
+/// its modified time changes.
+pub struct DisplaySettingWatch {
+    path: Option<PathBuf>,
+    modified: Option<SystemTime>,
+    mode: Option<u32>,
+    logged: Option<Option<u32>>,
+}
+
+impl DisplaySettingWatch {
+    pub fn new() -> Self {
+        let path = std::env::var_os("APPDATA")
+            .map(|dir| PathBuf::from(dir).join("SCP Secret Laboratory").join("registry.txt"));
+        Self { path, modified: None, mode: None, logged: None }
+    }
+
+    /// Re-reads the setting if the file changed; true while it is 「后台时隐藏窗口」.
+    pub fn poll(&mut self) -> bool {
+        let Some(path) = &self.path else { return false };
+        let modified = std::fs::metadata(path).and_then(|metadata| metadata.modified()).ok();
+        if modified.is_none() || modified != self.modified {
+            self.modified = modified;
+            self.mode = modified
+                .and_then(|_| std::fs::read(path).ok())
+                .and_then(|bytes| parse_display_mode(&String::from_utf8_lossy(&bytes)));
+        }
+        if self.logged != Some(self.mode) {
+            self.logged = Some(self.mode);
+            let value = self.mode.map_or_else(|| "none".to_owned(), |mode| mode.to_string());
+            diag!("SLGO: game display setting: {} (value {value})", describe_display_mode(self.mode));
+        }
+        self.mode == Some(DISPLAY_MODE_HIDE_WHEN_UNFOCUSED)
+    }
+
+    /// The game is not running: read afresh at its next start.
+    pub fn forget(&mut self) {
+        self.modified = None;
+        self.mode = None;
+        self.logged = None;
     }
 }
 
@@ -199,7 +280,7 @@ fn notification_state() -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
-    use super::DisplayModeLatch;
+    use super::{parse_display_mode, DisplayModeLatch};
     use std::time::{Duration, Instant};
 
     const EXCLUSIVE: bool = true;
@@ -262,5 +343,19 @@ mod tests {
         feed(&mut latch, later + Duration::from_secs(10), &[EXCLUSIVE; 5]);
         latch.reset();
         assert!(!latch.exclusive(), "unknown again");
+    }
+
+    #[test]
+    fn the_display_mode_is_read_from_its_registry_line() {
+        let file = "07UserSettings_D755_1000::-%(|::0\r\n00UserSettings_5E67_6000::-%(|::true\r\n\
+                    07UserSettings_0A50_5000::-%(|::3\n07UserSettings_0A50_2000::-%(|::2\n07UserSettings_0A50_0000::-%(|::23\n";
+        assert_eq!(parse_display_mode(file), Some(2));
+        assert_eq!(parse_display_mode("07UserSettings_0A50_2000::-%(|::1\r\n"), Some(1), "CRLF line");
+        assert_eq!(parse_display_mode("07UserSettings_0A50_2000::-%(|::0"), Some(0), "last line without a newline");
+        assert_eq!(parse_display_mode("07UserSettings_0A50_5000::-%(|::2\n"), None, "another display setting");
+        assert_eq!(parse_display_mode("07UserSettings_0A50_20000::-%(|::2\n"), None, "a longer key");
+        assert_eq!(parse_display_mode("UserSettings_0A50_2000::-%(|::2\n"), None, "no type prefix");
+        assert_eq!(parse_display_mode("07UserSettings_0A50_2000::-%(|::x\n"), None, "not a number");
+        assert_eq!(parse_display_mode(""), None);
     }
 }

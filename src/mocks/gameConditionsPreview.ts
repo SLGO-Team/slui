@@ -1,14 +1,17 @@
 import type { RelaunchState } from "../app/gameConditionsModel.ts";
 import type { GameConditions } from "../platform/gameConditions.ts";
 
-// Browser previews of the home window's game-condition banners: `?gameConditions=elevated|exclusive|both`, with
+// Browser previews of the home window's game-condition banners: `?gameConditions=elevated|exclusive|both|unfocused`, with
 // `&relaunch=busy|cancelled|failed` for the elevated banner's action states. Rust detects neither outside Tauri.
 export type GameConditionsPreview = Readonly<{ conditions: GameConditions; relaunch: RelaunchState | null }>;
 
-const CONDITIONS: Readonly<Record<string, Pick<GameConditions, "elevatedGame" | "exclusiveFullscreen">>> = {
-  elevated: { elevatedGame: true, exclusiveFullscreen: false },
-  exclusive: { elevatedGame: false, exclusiveFullscreen: true },
-  both: { elevatedGame: true, exclusiveFullscreen: true },
+type PreviewConditions = Pick<GameConditions, "elevatedGame" | "exclusiveFullscreen" | "hidesWhenUnfocused">;
+
+const CONDITIONS: Readonly<Record<string, PreviewConditions>> = {
+  elevated: { elevatedGame: true, exclusiveFullscreen: false, hidesWhenUnfocused: false },
+  exclusive: { elevatedGame: false, exclusiveFullscreen: true, hidesWhenUnfocused: false },
+  both: { elevatedGame: true, exclusiveFullscreen: true, hidesWhenUnfocused: false },
+  unfocused: { elevatedGame: false, exclusiveFullscreen: false, hidesWhenUnfocused: true },
 };
 
 const RELAUNCH: Readonly<Record<string, RelaunchState>> = {

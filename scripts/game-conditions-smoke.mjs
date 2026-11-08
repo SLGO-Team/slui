@@ -55,7 +55,8 @@ function nativeFixture() {
     get snapshotCount() { return snapshotCount; },
   };
 }
-const conditions = (elevatedGame, exclusiveFullscreen, revision) => ({ elevatedGame, exclusiveFullscreen, revision });
+const conditions = (elevatedGame, exclusiveFullscreen, revision, hidesWhenUnfocused = false) =>
+  ({ elevatedGame, exclusiveFullscreen, hidesWhenUnfocused, revision });
 
 // ---- Native source: listen first, then query; revisions only move forward; a malformed frame fails closed ----
 {
@@ -93,6 +94,7 @@ const conditions = (elevatedGame, exclusiveFullscreen, revision) => ({ elevatedG
     await flush();
     malformed.emit(conditions(false, true, 2));
     malformed.emit({ elevatedGame: true, exclusiveFullscreen: false, revision: 3, extra: 1 });
+    assert.deepEqual(states.at(-1), conditions(false, false, 3), "an unknown field drops back to no condition");
     assert.deepEqual(states.at(-1), conditions(false, false, 3), "a malformed frame drops back to no condition");
     malformed.emit(conditions(true, true, 9));
     assert.equal(states.at(-1).elevatedGame, false, "a failed source stays closed");
@@ -122,6 +124,7 @@ const conditions = (elevatedGame, exclusiveFullscreen, revision) => ({ elevatedG
   assert.equal(inputBlockedBy(NO_GAME_CONDITIONS), false);
   assert.equal(inputBlockedBy(conditions(true, false, 1)), true, "elevated game");
   assert.equal(inputBlockedBy(conditions(false, true, 1)), true, "exclusive fullscreen");
+  assert.equal(inputBlockedBy(conditions(false, false, 1, true)), false, "hide when unfocused only warns");
   const all = [CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_HUD_MESSAGES,
     CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_TEAM_SELECT];
   assert.deepEqual([...INPUT_CLIENT_FEATURES].sort(), [CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TEAM_SELECT].sort());
@@ -140,6 +143,8 @@ const conditions = (elevatedGame, exclusiveFullscreen, revision) => ({ elevatedG
   assert.equal(nextConditionHint(conditions(true, true, 1), new Set()), "elevated-game");
   assert.equal(nextConditionHint(conditions(true, true, 1), new Set(["elevated-game"])), "exclusive-fullscreen");
   assert.equal(nextConditionHint(conditions(false, true, 1), new Set(["exclusive-fullscreen"])), null, "once per run");
+  assert.deepEqual(activeGameConditions(conditions(true, false, 1, true)), ["elevated-game", "hides-when-unfocused"]);
+  assert.equal(nextConditionHint(conditions(false, false, 1, true), new Set()), "hides-when-unfocused");
 
   const empty = { alert: null, hintHigh: null, hintLow: null };
   const hint = startConditionHint("exclusive-fullscreen", 1_000);
@@ -166,7 +171,12 @@ const conditions = (elevatedGame, exclusiveFullscreen, revision) => ({ elevatedG
   assert.deepEqual(elevated.action, { label: RELAUNCH_LABEL, busy: false });
   assert.equal(exclusive.condition, "exclusive-fullscreen");
   assert.equal(exclusive.action, null, "nothing for SLUI to do; the game's display setting fixes it");
-  assert.match(exclusive.detail, /无边框/);
+  assert.match(exclusive.detail, /始终可见/);
+  const [unfocused] = gameConditionBanners(conditions(false, false, 1, true), RELAUNCH_IDLE);
+  assert.equal(unfocused.condition, "hides-when-unfocused");
+  assert.equal(unfocused.action, null, "the game's display setting fixes it");
+  assert.match(unfocused.detail, /后台时隐藏窗口/);
+  assert.match(unfocused.detail, /始终可见/);
   const [busy] = gameConditionBanners(conditions(true, false, 1), { phase: "busy" });
   assert.equal(busy.action.busy, true, "one UAC prompt at a time");
   assert.match(gameConditionBanners(conditions(true, false, 1), { phase: "cancelled" })[0].detail, /已取消/);
@@ -181,6 +191,8 @@ const conditions = (elevatedGame, exclusiveFullscreen, revision) => ({ elevatedG
   assert.equal(readGameConditionsPreview("?gameConditions=other"), null);
   assert.deepEqual(readGameConditionsPreview("?gameConditions=both&relaunch=cancelled"),
     { conditions: conditions(true, true, 1), relaunch: { phase: "cancelled" } });
+  assert.deepEqual(readGameConditionsPreview("?gameConditions=unfocused"),
+    { conditions: conditions(false, false, 1, true), relaunch: null });
 }
 
 console.log("Game conditions smoke checks passed.");

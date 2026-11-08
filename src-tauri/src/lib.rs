@@ -53,6 +53,8 @@ static SLUI_ELEVATED: AtomicBool = AtomicBool::new(false);
 // Counts the game's exits (process tracking thread); the foreground thread then forgets the game process.
 #[cfg_attr(not(windows), allow(dead_code))]
 static GAME_EXITS: AtomicU32 = AtomicU32::new(0);
+/// SL's display setting is 「后台时隐藏窗口」 while the game runs (`game_conditions::DisplaySettingWatch`).
+static GAME_HIDES_WHEN_UNFOCUSED: AtomicBool = AtomicBool::new(false);
 
 // An enabled overlay is visible only over the game, and only while its session is live:
 // without the sidecar it has nothing current to show.
@@ -787,8 +789,16 @@ fn is_game_running() -> bool {
 }
 
 fn start_game_process_tracking(app: AppHandle) {
+    let mut display_setting = game_conditions::DisplaySettingWatch::new();
     thread::spawn(move || loop {
         let running = is_game_running();
+        let hides = if running {
+            display_setting.poll()
+        } else {
+            display_setting.forget();
+            false
+        };
+        GAME_HIDES_WHEN_UNFOCUSED.store(hides, Ordering::SeqCst);
         let changed = app
             .state::<GameRunningState>()
             .0
@@ -935,7 +945,12 @@ fn start_foreground_tracking(app: tauri::AppHandle) {
             game_elevated = elevated == Ok(true);
         }
         game_window.tick(if game_foreground { foreground } else { std::ptr::null_mut() }, std::time::Instant::now());
-        game_conditions::publish(&app, game_elevated && !slui_elevated, game_window.exclusive());
+        game_conditions::publish(
+            &app,
+            game_elevated && !slui_elevated,
+            game_window.exclusive(),
+            GAME_HIDES_WHEN_UNFOCUSED.load(Ordering::SeqCst),
+        );
         // The world blur captures the window the overlay aligns to.
         if game_foreground {
             backdrop::set_game_window(&app, foreground as isize);
