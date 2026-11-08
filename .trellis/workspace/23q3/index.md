@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 70
-- **Last Active**: 2026-11-06
+- **Total Sessions**: 71
+- **Last Active**: 2026-11-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1642 | Active |
+| `journal-1.md` | ~1664 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 71 | 2026-11-08 | World blur crash on game window restore | `7b8df6a` | `fix/world-blur-restore-crash` |
 | 70 | 2026-11-06 | 击杀栏图标整套重做：接线与修饰图标 | `14de351` | `feat/killfeed-icon-set` |
 | 69 | 2026-11-05 | SLUI 1.0 prep: SLGO Team metadata and third-party licenses | `d0de09d` | `chore/metadata-and-licenses` |
 | 68 | 2026-11-05 | SLUI 1.0 prep: minimap fixtures from the game | `4426391` | `chore/minimap-fixtures-from-game` |

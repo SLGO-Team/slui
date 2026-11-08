@@ -847,6 +847,13 @@ game itself:
   with a rounded-rect mask turned by its `angle`, its `fade` profile and its opacity)
   and presented. σ = 20 / 30 / 40 px at 1080p (strength
   1-3), scaled with the height.
+- A frame's px are its ContentSize bounded by its texture's own size (`frame_extent`), never
+  ContentSize alone: a ContentSize change recreates the pool, but the frame reporting it still holds
+  the old pool's texture. When the game minimizes while the shop holds the foreground (seen in 0.12.0
+  field logs from a reporter on 「始终可见」; why it minimized there is not yet known), the pool is
+  recreated at the minimized size (e.g. 334x48) and the first frame after the restore reports the full
+  window in that tiny texture. Copying by ContentSize read outside it (undefined in
+  D3D11) and killed SLUI with no `panic:` line (0.12.0 field logs; a probe got `DXGI_ERROR_DEVICE_REMOVED`).
 - Shown only when the overlay may show and is visible, the setting is on, the blur is
   available, a region exists and a frame with the current regions was presented.
   Hiding is immediate. All window work runs on the main thread (`backdrop::refresh`);

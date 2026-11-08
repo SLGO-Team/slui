@@ -1640,3 +1640,25 @@ Confirmed #102 merged. Publisher/copyright SLGO Team across bundles, Cargo and p
 ### Status
 
 [OK] **Completed**
+
+
+## Session 71: World blur crash on game window restore
+<!-- trellis-session: v=2 fp=bddffd940c496ec6 -->
+
+**Date**: 2026-11-08
+**Task**: World blur crash on game window restore
+**Branch**: `fix/world-blur-restore-crash`
+
+### Summary
+
+Player 0.12.0 logs: SLUI died ~1 s after closing the shop at the game window restore, no panic line. The game minimizes whenever the shop takes the foreground (reporter says SL is on 'always visible'; cause of the minimize still open); WGC probe showed the restore frame reports full ContentSize in the minimized-size texture, so render copied outside it (device removed in probe). Fix: frame_extent bounds ContentSize by the texture; spec updated.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7b8df6a` | fix(blur): bound the captured frame by its texture so a restored game window cannot crash SLUI |
+
+### Status
+
+[OK] **Completed**

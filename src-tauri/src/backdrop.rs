@@ -229,6 +229,14 @@ pub fn sigma_px(strength: u8, height: i32) -> f32 {
     (SIGMA_AT_1080[index] * f64::from(height.max(1)) / 1080.0) as f32
 }
 
+/// The captured px of a frame: its ContentSize bounded by its texture. The frame that first reports a
+/// larger window (restored from minimized, or grown) still holds the smaller texture the pool had, so the
+/// content alone would let the copy read outside it (undefined in D3D11; it removed the device in a probe).
+pub fn frame_extent(content: (i32, i32), texture: (u32, u32)) -> (i32, i32) {
+    let bound = |content: i32, texture: u32| content.min(i32::try_from(texture).unwrap_or(i32::MAX)).max(0);
+    (bound(content.0, texture.0), bound(content.1, texture.1))
+}
+
 /// The part of the captured frame a region's blur reads: the panel (in capture px) plus a margin,
 /// clamped to the frame, with width and height cut to multiples of 4 so every texel of the 1/4
 /// mip level averages captured pixels only. None when too little of it is captured.
@@ -951,7 +959,10 @@ float4 ps(VSOut i) : SV_Target {
             }
             let access: IDirect3DDxgiInterfaceAccess = frame.Surface()?.cast()?;
             let texture: ID3D11Texture2D = unsafe { access.GetInterface()? };
-            if let Err(error) = engine.render(&texture, (content.Width, content.Height)) {
+            let mut desc = D3D11_TEXTURE2D_DESC::default();
+            unsafe { texture.GetDesc(&mut desc) };
+            let extent = super::frame_extent((content.Width, content.Height), (desc.Width, desc.Height));
+            if let Err(error) = engine.render(&texture, extent) {
                 diag!("SLGO: world blur frame failed: {error}");
                 return Ok(());
             }
@@ -1235,6 +1246,20 @@ mod tests {
         assert_eq!((full.x, full.y, full.w, full.h), (0, 0, 2556, 1600));
         // Entirely outside the frame.
         assert_eq!(source_box(Rect { x: 3000, y: 0, w: 100, h: 100 }, 10, (2560, 1600)), None);
+    }
+
+    #[test]
+    fn frame_extent_never_exceeds_the_texture() {
+        // Restored from minimized: the window's size in the pool's minimized-size texture (probe readings).
+        assert_eq!(frame_extent((1178, 889), (334, 48)), (334, 48));
+        // Shrinking: the content is smaller than the old texture.
+        assert_eq!(frame_extent((334, 48), (1178, 889)), (334, 48));
+        assert_eq!(frame_extent((2560, 1440), (2560, 1440)), (2560, 1440));
+        // Wider but shorter texture: each axis is bounded on its own.
+        assert_eq!(frame_extent((1600, 900), (1920, 600)), (1600, 600));
+        // Nothing captured stays empty, and source_box then copies nothing.
+        assert_eq!(frame_extent((0, 0), (64, 64)), (0, 0));
+        assert_eq!(source_box(Rect { x: 0, y: 0, w: 500, h: 500 }, 10, frame_extent((1178, 889), (8, 4))), None);
     }
 
     #[test]
