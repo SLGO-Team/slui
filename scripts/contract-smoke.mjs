@@ -59,6 +59,16 @@ import {
 import { MockSidecarConnection } from "../src/platform/connection.ts";
 import { HUD_SCENES, createHudSceneFrame, hudSceneLoopMs, readHudScene } from "../src/mocks/hudScenes.ts";
 import {
+  CLIENT_FEATURE_REPLAY,
+  COMMAND_KINDS,
+  REPLAY_COMMAND_KINDS,
+  advanceReplayPosition,
+  isReplayCommandKind,
+  parseCommandResult,
+  parseReplayCatalog,
+  parseReplayState,
+} from "../src/contracts/index.ts";
+import {
   clientSessionReducer,
   initialClientSessionState,
   runClientSessionAttempt,
@@ -1234,4 +1244,157 @@ console.log("contract smoke: ok");
   assert.equal(compareReleaseVersions("1.2.3", "1.2.3"), 0);
   assert.equal(compareReleaseVersions("0.7.0", "0.7.1"), -1);
   assert.equal(compareReleaseVersions("0.7", "0.7.0"), null);
+}
+
+{
+  // Demo replay (packages/protocol/v0/README.md "Demo replay").
+  const v0 = (name) => JSON.parse(readFileSync(new URL(`../packages/protocol/v0/${name}`, import.meta.url), "utf8"));
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  assert.equal(CLIENT_FEATURE_REPLAY, "replay");
+
+  // replay.state: every example parses as a full event; sent_at is required.
+  const stateEvents = ["replay-state.example.json", "replay-state-idle.example.json", "replay-state-loading.example.json"].map(v0);
+  for (const event of stateEvents) assert.equal(parseEvent(event).ok, true, `${event.event_id} parses`);
+  assert.equal(parseEvent({ ...stateEvents[0], sent_at: undefined }).error.code, "invalid-envelope", "replay.state requires sent_at");
+  const state = stateEvents[0].payload;
+  const rejectsState = (name, mutate) => {
+    const payload = clone(state);
+    mutate(payload);
+    assert.equal(parseReplayState(payload).ok, false, `replay.state rejects ${name}`);
+  };
+  rejectsState("a missing field", (s) => { delete s.load_error; });
+  rejectsState("an unknown field", (s) => { s.extra = 1; });
+  rejectsState("playback without a demo", (s) => { s.demo = null; s.pov_slot = null; });
+  rejectsState("a demo without playback", (s) => { s.playback = null; });
+  rejectsState("a position past the end", (s) => { s.playback = { playing: false, speed: 1, position_ms: s.demo.duration_ms + 1 }; });
+  rejectsState("playing at the end", (s) => { s.playback.position_ms = s.demo.duration_ms; });
+  rejectsState("a speed below 0.25", (s) => { s.playback.speed = 0.2; });
+  rejectsState("a speed above 4", (s) => { s.playback.speed = 4.5; });
+  rejectsState("a fractional position", (s) => { s.playback.position_ms = 1.5; });
+  rejectsState("a point of view outside the players", (s) => { s.pov_slot = 9; });
+  rejectsState("a duplicate slot", (s) => { s.demo.players[1].slot = 0; });
+  rejectsState("slot 255", (s) => { s.demo.players[0].slot = 255; });
+  rejectsState("a blank name", (s) => { s.demo.players[0].display_name = " "; });
+  rejectsState("a kill of an unknown slot", (s) => { s.demo.timeline.kills[0].victim_slot = 9; });
+  rejectsState("a killer outside the players", (s) => { s.demo.timeline.kills[0].killer_slot = 9; });
+  rejectsState("markers out of order", (s) => { s.demo.timeline.rounds.reverse(); });
+  rejectsState("a marker after the end", (s) => { s.demo.timeline.kills[1].at_ms = s.demo.duration_ms + 1; });
+  rejectsState("round 0", (s) => { s.demo.timeline.rounds[0].round = 0; });
+  rejectsState("an unknown phase", (s) => { s.demo.timeline.rounds[0].phase = "warmup"; });
+  rejectsState("a lower-case bombsite", (s) => { s.demo.timeline.generators[0].label = "a"; });
+  rejectsState("an unknown generator state", (s) => { s.demo.timeline.generators[0].state = "deactivated"; });
+  rejectsState("a pause ending before it starts", (s) => { s.demo.timeline.pauses[0].end_ms = s.demo.timeline.pauses[0].start_ms - 1; });
+  rejectsState("overlapping skips", (s) => { s.demo.timeline.skips.push({ start_ms: 11000, end_ms: 20000 }); });
+  rejectsState("an empty skip", (s) => { s.demo.timeline.skips[0].end_ms = s.demo.timeline.skips[0].start_ms; });
+  rejectsState("a bad match start", (s) => { s.demo.started_at = "yesterday"; });
+  rejectsState("a blank load error", (s) => { s.load_error = { match_id: "x", reason: " " }; });
+  const paused = clone(state);
+  paused.playback = { playing: false, speed: 1, position_ms: paused.demo.duration_ms };
+  paused.pov_slot = null;
+  paused.demo.timeline.pauses.push({ start_ms: paused.demo.duration_ms - 10, end_ms: null });
+  assert.equal(parseReplayState(paused).ok, true, "paused at the end, free camera and an open pause are valid");
+
+  // advanceReplayPosition: the shared clock of the client and the sidecar's cache age.
+  const skips = [{ start_ms: 0, end_ms: 12000 }, { start_ms: 50000, end_ms: 60000 }];
+  const at = (position_ms, playing = true, speed = 1) => ({ playing, speed, position_ms });
+  assert.deepEqual(advanceReplayPosition(at(20000, false), skips, 100000, 5000), at(20000, false), "paused stays put");
+  assert.deepEqual(advanceReplayPosition(at(20000), skips, 100000, 0), at(20000), "no time, no change");
+  assert.deepEqual(advanceReplayPosition(at(20000, true, 2), skips, 100000, 5000), at(30000, true, 2), "speed scales elapsed time");
+  assert.deepEqual(advanceReplayPosition(at(20000, true, 0.25), skips, 100000, 1000), at(20250, true, 0.25), "slow motion");
+  assert.deepEqual(advanceReplayPosition(at(0), skips, 100000, 1000), at(13000), "starts after the intro skip");
+  assert.deepEqual(advanceReplayPosition(at(45000), skips, 100000, 10000), at(65000), "jumps over a skip on the way");
+  assert.deepEqual(advanceReplayPosition(at(45000), skips, 100000, 5000), at(60000), "a skip reached exactly continues at its end");
+  assert.deepEqual(advanceReplayPosition(at(95000), skips, 100000, 60000), at(100000, false), "stops at the end");
+  assert.deepEqual(advanceReplayPosition(at(95000), [{ start_ms: 98000, end_ms: 100000 }], 100000, 4000), at(100000, false), "a skip to the end stops there");
+  assert.deepEqual(advanceReplayPosition(at(20000), [], 100000, 1.7), at(20001), "positions stay whole milliseconds");
+
+  // replay.catalog.
+  const catalogEvent = v0("replay-catalog.example.json");
+  assert.equal(parseEvent(catalogEvent).ok, true, "the replay.catalog example parses");
+  const catalog = catalogEvent.payload;
+  const rejectsCatalog = (name, mutate) => {
+    const payload = clone(catalog);
+    mutate(payload);
+    assert.equal(parseReplayCatalog(payload).ok, false, `replay.catalog rejects ${name}`);
+  };
+  rejectsCatalog("a page past the last", (c) => { c.page = 2; });
+  rejectsCatalog("more entries than the page size", (c) => { c.page_size = 2; });
+  rejectsCatalog("more entries than the total", (c) => { c.total = 2; });
+  rejectsCatalog("a page size above 50", (c) => { c.page_size = 51; });
+  rejectsCatalog("entries with an error", (c) => { c.error = "failed"; });
+  rejectsCatalog("a duplicate match", (c) => { c.entries[1].match_id = c.entries[0].match_id; });
+  rejectsCatalog("an entry without readable", (c) => { delete c.entries[0].readable; });
+  rejectsCatalog("a score of one team", (c) => { c.entries[1].score = { "team-a": 1 }; });
+  rejectsCatalog("pinned: false in the query", (c) => { c.query.pinned = false; });
+  rejectsCatalog("a bad since", (c) => { c.query.since = "last week"; });
+  rejectsCatalog("an unknown query field", (c) => { c.query.map = "hid"; });
+  assert.equal(parseReplayCatalog({ ...catalog, entries: [], total: 0, error: "读取失败" }).ok, true, "a failed scan has an error and no entries");
+
+  // Commands: every example parses; field rules.
+  assert.deepEqual(COMMAND_KINDS.filter(isReplayCommandKind), [...REPLAY_COMMAND_KINDS], "replay kinds are command kinds");
+  for (const name of ["catalog", "load", "unload", "control-seek", "control-speed", "control-round", "pov", "pov-free", "pin", "unpin"]) {
+    const command = v0(`command-replay-${name}.example.json`);
+    assert.equal(parseCommand(command).ok, true, `command-replay-${name} parses`);
+    assert.equal(parseCommandResult({ command_id: command.command_id, command_kind: command.kind, status: "accepted" }).ok, true, `${command.kind} results parse`);
+  }
+  const control = (fields) => parseCommand({ kind: "command.replay.control", command_id: "c-1", ...fields }).ok;
+  for (const action of ["play", "pause", "toggle", "step"]) assert.equal(control({ action }), true, `${action} needs no fields`);
+  assert.equal(control({ action: "play", speed: 1 }), false, "play takes no speed");
+  assert.equal(control({ action: "speed", speed: 0.25 }), true);
+  assert.equal(control({ action: "speed", speed: 4 }), true);
+  assert.equal(control({ action: "speed", speed: 5 }), false, "speed above 4");
+  assert.equal(control({ action: "speed" }), false, "speed needs a value");
+  assert.equal(control({ action: "seek", position_ms: 0 }), true);
+  assert.equal(control({ action: "seek", delta_ms: 10000 }), true);
+  assert.equal(control({ action: "seek", delta_ms: 0 }), false, "a zero delta");
+  assert.equal(control({ action: "seek", position_ms: 1, delta_ms: 1 }), false, "seek takes exactly one target");
+  assert.equal(control({ action: "seek", position_ms: -1 }), false, "a negative position");
+  assert.equal(control({ action: "round", round: 3 }), true);
+  assert.equal(control({ action: "round", round: "prev" }), true);
+  assert.equal(control({ action: "round", round: 0 }), false, "round 0");
+  assert.equal(control({ action: "round", round: "last" }), false, "an unknown round selector");
+  assert.equal(control({ action: "rewind" }), false, "an unknown action");
+  const command = (kind, fields) => parseCommand({ kind, command_id: "c-1", ...fields }).ok;
+  assert.equal(command("command.replay.pov", { slot: 254 }), true);
+  assert.equal(command("command.replay.pov", { slot: 255 }), false, "slot 255");
+  assert.equal(command("command.replay.pov", {}), false, "pov needs slot (null for the free camera)");
+  assert.equal(command("command.replay.load", { match_id: " " }), false, "a blank match id");
+  assert.equal(command("command.replay.unload", { match_id: "x" }), false, "unload takes no fields");
+  assert.equal(command("command.replay.pin", { match_id: "x", reason: "a\nb" }), false, "a pin reason is one line");
+  assert.equal(command("command.replay.pin", { match_id: "x", reason: "x".repeat(129) }), false, "a pin reason of 129 characters");
+  assert.equal(command("command.replay.pin", { match_id: "x" }), false, "pin needs a reason");
+  assert.equal(command("command.replay.catalog", { query: {} }), false, "a catalog query needs a page");
+  assert.equal(command("command.replay.seek", { position_ms: 1 }), false, "an unknown replay kind");
+
+  // match.snapshot omniscient: both teams' vitals, only without a viewer team; otherwise the old rules.
+  const omniscient = v0("match-snapshot-omniscient.example.json");
+  assert.equal(parseEvent(omniscient).ok, true, "the omniscient match snapshot parses");
+  assert.equal(parseMatchSnapshot({ ...omniscient.payload, viewer_team_id: "team-a" }).ok, false, "omniscient needs viewer_team_id null");
+  assert.equal(parseMatchSnapshot({ ...omniscient.payload, omniscient: "yes" }).ok, false, "omniscient is a boolean");
+  assert.equal(parseMatchSnapshot({ ...omniscient.payload, omniscient: false }).ok, false, "without omniscient, vitals stay viewer-team only");
+  const { omniscient: _flag, ...plain } = omniscient.payload;
+  assert.equal(parseMatchSnapshot(plain).ok, false, "absent omniscient is false");
+  const teamView = v0("match-snapshot.example.json").payload;
+  assert.equal(parseMatchSnapshot({ ...teamView, omniscient: false }).ok, true, "omniscient: false keeps a team view valid");
+
+  // The plugin's IPC v1 fixtures, when the sibling checkout is present.
+  const backendDir = new URL("../../slgo-backend/protocol/ipc/v1/", import.meta.url);
+  if (existsSync(backendDir)) {
+    const examples = readdirSync(backendDir).filter((name) => /^publish-(replay-|match-snapshot-omniscient)/.test(name));
+    assert.ok(examples.length >= 6, "slgo-backend replay publish fixtures");
+    for (const name of examples) {
+      const publish = JSON.parse(readFileSync(new URL(name, backendDir), "utf8"));
+      const parse = { "replay.state": parseReplayState, "replay.catalog": parseReplayCatalog, "match.snapshot": parseMatchSnapshot }[publish.event_type];
+      assert.equal(parse(publish.payload).ok, true, `slgo-backend ${name} parses`);
+    }
+    const semantic = new URL("invalid/semantic/", backendDir);
+    const invalid = readdirSync(semantic).filter((name) => /^publish-(replay-|match-snapshot-omniscient)/.test(name));
+    assert.ok(invalid.length >= 13, "slgo-backend replay semantic fixtures");
+    for (const name of invalid) {
+      const publish = JSON.parse(readFileSync(new URL(name, semantic), "utf8"));
+      const parse = { "replay.state": parseReplayState, "replay.catalog": parseReplayCatalog, "match.snapshot": parseMatchSnapshot }[publish.event_type];
+      assert.equal(parse(publish.payload).ok, false, `slgo-backend ${name} is rejected`);
+    }
+  }
+  console.log("contract smoke (demo replay): ok");
 }

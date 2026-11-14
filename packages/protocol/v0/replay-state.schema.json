@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/replay-state.schema.json",
+  "title": "SLGO demo replay state payload (replay.state)",
+  "description": "One viewer's view of a demo replay server: the loaded recording with its players and timeline, loading progress, playback and this viewer's point of view. One recipient per publish; sent only to clients declaring the replay feature. Rules the schema cannot express (parseReplayState): playback and pov_slot are null when demo is null; position_ms <= duration_ms and playing only before the end; every time within [0, duration_ms]; markers ordered by time; kill slots and pov_slot name recorded slots; skips do not overlap.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["demo", "loading", "load_error", "playback", "pov_slot"],
+  "properties": {
+    "demo": {
+      "description": "The loaded recording, or null when none is loaded.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["match_id", "server_id", "profile_id", "started_at", "duration_ms", "is_test", "recording", "players", "timeline"],
+          "properties": {
+            "match_id": { "$ref": "#/$defs/text" },
+            "server_id": { "description": "The server that recorded it.", "$ref": "#/$defs/text" },
+            "profile_id": { "description": "Mode label from the recording header.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/text" }] },
+            "started_at": { "description": "Match start.", "type": "string", "format": "date-time" },
+            "duration_ms": { "$ref": "#/$defs/ms" },
+            "is_test": { "type": "boolean" },
+            "recording": { "description": "Loaded from a recording in progress (a snapshot taken at load time).", "type": "boolean" },
+            "players": {
+              "description": "Every identity-table slot. player_id is the id the replay's HUD events (match.snapshot, minimap, killfeed, spectating) use for that player.",
+              "type": "array",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["slot", "player_id", "display_name"],
+                "properties": {
+                  "slot": { "$ref": "#/$defs/slot" },
+                  "player_id": { "$ref": "#/$defs/text" },
+                  "display_name": { "$ref": "#/$defs/text" }
+                }
+              }
+            },
+            "timeline": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["rounds", "kills", "generators", "pauses", "skips"],
+              "properties": {
+                "rounds": {
+                  "description": "Round phase starts. round is the recorded round number; command.replay.control round uses the same number.",
+                  "type": "array",
+                  "maxItems": 512,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["at_ms", "round", "phase"],
+                    "properties": {
+                      "at_ms": { "$ref": "#/$defs/ms" },
+                      "round": { "type": "integer", "minimum": 1 },
+                      "phase": { "enum": ["buy", "action", "round_end", "match_end"] }
+                    }
+                  }
+                },
+                "kills": {
+                  "type": "array",
+                  "maxItems": 2048,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["at_ms", "killer_slot", "victim_slot"],
+                    "properties": {
+                      "at_ms": { "$ref": "#/$defs/ms" },
+                      "killer_slot": { "description": "null for a death without a killer.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/slot" }] },
+                      "victim_slot": { "$ref": "#/$defs/slot" }
+                    }
+                  }
+                },
+                "generators": {
+                  "type": "array",
+                  "maxItems": 256,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["at_ms", "label", "state"],
+                    "properties": {
+                      "at_ms": { "$ref": "#/$defs/ms" },
+                      "label": { "description": "The bombsite letter, or null when the generator is not at a site.", "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[A-Z]$" }] },
+                      "state": { "enum": ["activated", "completed"] }
+                    }
+                  }
+                },
+                "pauses": {
+                  "description": "Tactical pauses; end_ms is null when the recording ends during the pause.",
+                  "type": "array",
+                  "maxItems": 256,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["start_ms", "end_ms"],
+                    "properties": {
+                      "start_ms": { "$ref": "#/$defs/ms" },
+                      "end_ms": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ms" }] }
+                    }
+                  }
+                },
+                "skips": {
+                  "description": "Intro cinematics: the replay clock jumps from start_ms to end_ms while playing.",
+                  "type": "array",
+                  "maxItems": 16,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["start_ms", "end_ms"],
+                    "properties": {
+                      "start_ms": { "$ref": "#/$defs/ms" },
+                      "end_ms": { "$ref": "#/$defs/ms" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "loading": {
+      "description": "A load in progress; the current demo (if any) keeps playing until it completes.",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "object", "additionalProperties": false, "required": ["match_id"], "properties": { "match_id": { "$ref": "#/$defs/text" } } }
+      ]
+    },
+    "load_error": {
+      "description": "Why the latest load failed; null when it did not.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["match_id", "reason"],
+          "properties": {
+            "match_id": { "$ref": "#/$defs/text" },
+            "reason": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" }
+          }
+        }
+      ]
+    },
+    "playback": {
+      "description": "Shared by every viewer. position_ms is the position at sent_at; clients advance it with advanceReplayPosition from their receive time.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["playing", "speed", "position_ms"],
+          "properties": {
+            "playing": { "type": "boolean" },
+            "speed": { "type": "number", "minimum": 0.25, "maximum": 4 },
+            "position_ms": { "$ref": "#/$defs/ms" }
+          }
+        }
+      ]
+    },
+    "pov_slot": { "description": "This viewer's first-person target; null = free camera.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/slot" }] }
+  },
+  "$defs": {
+    "ms": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "slot": { "type": "integer", "minimum": 0, "maximum": 254 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" }
+  }
+}

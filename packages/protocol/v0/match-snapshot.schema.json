@@ -7,9 +7,13 @@
   "required": ["viewer_team_id", "state", "round", "max_rounds", "phase_remaining_ms", "phase_paused", "teams"],
   "properties": {
     "viewer_team_id": {
-      "description": "The authenticated viewer's stable team, or null for a spectator. Only this team's players may include health.",
+      "description": "The authenticated viewer's stable team, or null for a spectator. Only this team's players may include health (both teams when omniscient).",
       "type": ["string", "null"],
       "enum": ["team-a", "team-b", null]
+    },
+    "omniscient": {
+      "description": "Optional, demo replay only. true: the viewer is an omniscient observer, viewer_team_id must be null, and both teams' players may include health, shield, caps, aux power and loadout. Absent or false: only viewer_team_id's players may. Sent only to clients declaring the replay feature.",
+      "type": "boolean"
     },
     "state": {
       "enum": ["Idle", "WaitingForPlayers", "PreRoundWait", "BuyPhase", "ActionPhase", "RoundEnd", "MatchEnd"]

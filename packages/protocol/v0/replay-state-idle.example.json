@@ -1,0 +1,18 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-replay-state-idle-1",
+  "server_id": "slgo-local-7779",
+  "instance_id": "instance-2026-11-15-1000",
+  "round_id": null,
+  "sequence": 31,
+  "type": "replay.state",
+  "sent_at": "2026-11-15T10:00:00Z",
+  "payload": {
+    "demo": null,
+    "loading": null,
+    "load_error": null,
+    "playback": null,
+    "pov_slot": null
+  }
+}

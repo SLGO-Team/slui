@@ -57,6 +57,8 @@ Payload schemas:
 - [hud-killfeed.schema.json](./hud-killfeed.schema.json)
 - [scoreboard-snapshot.schema.json](./scoreboard-snapshot.schema.json)
 - [instance-ended.schema.json](./instance-ended.schema.json)
+- [replay-state.schema.json](./replay-state.schema.json)
+- [replay-catalog.schema.json](./replay-catalog.schema.json)
 - [command.schema.json](./command.schema.json)
 - [command-result.schema.json](./command-result.schema.json)
 - [session-open.schema.json](./session-open.schema.json)
@@ -100,6 +102,15 @@ Payload schemas:
 | sidecar -> client | `hud.killfeed` | The viewer's top-right killfeed (who killed whom, with what) |
 | sidecar -> client | `scoreboard.snapshot` | Scoreboard stats per side, ping, round history and loss bonus |
 | sidecar -> client | `instance.ended` | Why the instance ended; the last frame before the 4003 close |
+| sidecar -> client | `replay.state` | Demo replay server: the loaded recording, timeline, playback and the viewer's point of view |
+| sidecar -> client | `replay.catalog` | Demo replay server: one page of recordings answering `command.replay.catalog` |
+| client -> sidecar | `command.replay.catalog` | Ask for a page of the recording catalog |
+| client -> sidecar | `command.replay.load` | Load a recording |
+| client -> sidecar | `command.replay.unload` | Unload the current recording |
+| client -> sidecar | `command.replay.control` | Play, pause, toggle, step, speed, seek or jump to a round |
+| client -> sidecar | `command.replay.pov` | Watch a recorded player in first person, or return to the free camera |
+| client -> sidecar | `command.replay.pin` | Keep a recording beyond the retention period |
+| client -> sidecar | `command.replay.unpin` | Remove a recording's pin |
 
 The shop and chat payloads intentionally remain plugin-defined. SLUI must not
 reimplement their permissions or success rules.
@@ -182,6 +193,7 @@ authority). Older plugins omit them; the client treats absent as `null`.
 | `loadout` | player | Viewer's own team only, like `health`; `null` for an offline teammate. Never present for the other team or when `viewer_team_id` is `null`. |
 | `max_health` / `max_shield` | player | Viewer's own team only, like `health`. Caps of `health` / `shield` (`shield` is Hume shield + AHP); `null` when not alive. Absent from older plugins: the client then scales both to 100 as before. |
 | `aux_power` / `max_aux_power` | player | Viewer's own team only. An alive SCP-079's auxiliary power and its cap; 079 has no health or shield, so it carries no `health` / `shield` / caps (the aux bar takes their place). Absent for every other player. |
+| `omniscient` | payload | Demo replay only (see "Demo replay"). `true`: the viewer is an omniscient observer, `viewer_team_id` must be `null`, and every "viewer's own team only" field above may appear on **both** teams, with its own rules unchanged. Absent or `false`: the rules above. Sent only to clients declaring `replay`, since an older parser rejects vitals on a non-viewer team. |
 
 `loadout` carries `money` (integer), `primary_item_id` (string or `null`),
 `utility_item_ids` (strings), `armor` (`light` / `combat` / `heavy` / `null`),
@@ -190,7 +202,7 @@ authority). Older plugins omit them; the client treats absent as `null`.
 primary is the current role (`Scp173`, ...), SCP utility ids are the highest
 owned `HealthUpgradeN` / `ShieldUpgradeN` / `Scp079LevelN`. A dead teammate
 carries money only. A wrong type on any of these fields, or a `loadout` on a
-non-viewer team, rejects the snapshot.
+non-viewer team of a snapshot that is not `omniscient`, rejects the snapshot.
 
 The top-HUD timer shows, in priority order: nothing in `Idle`,
 `WaitingForPlayers` and `RoundEnd`; the generator indicator (no digits: the
@@ -440,6 +452,112 @@ sent). `sent_at` is required. Every object rejects unknown fields.
   hit a player, at most `shots_fired`), `mvps`, `utility_damage` (the part of
   `damage` dealt by the player's own HE grenades) and `enemies_flashed` (enemies
   blinded by the player's own flashbangs), all non-negative integers.
+
+## Demo replay
+
+A demo replay server plays back a recorded match with server-side dummies;
+admins join it with their game client and SLUI controls it (CS2's demo
+playback UI). It loads one recording at a time. Playback (play, pause, speed,
+position) is shared by every viewer; the point of view (first person on a
+recorded player, or the free camera) is each viewer's own. The plugin is the
+authority for every rule below (permissions included); the sidecar only
+validates and routes. Everything here goes only to clients declaring the
+`replay` feature, so older clients never see it, and a match server never
+sends it.
+
+### `replay.state`
+
+Snapshot, one recipient per publish (the point of view differs per viewer),
+cached per recipient and replayed after the baseline (first, before
+`match.snapshot`), `round_id: null`, `sent_at` required. A client is in replay
+mode while its current connection has received a `replay.state`; a new
+baseline without one (the player moved to a match server) leaves it. Payload
+`{ demo, loading, load_error, playback, pov_slot }`, all required:
+
+- `demo`: `null` while nothing is loaded, else the recording:
+  - `match_id`, `server_id` (the recording server), `profile_id` (mode label,
+    or `null`), `started_at` (ISO 8601 match start), `duration_ms`,
+    `is_test`, `recording` (loaded from a recording still in progress: a
+    snapshot taken at load time).
+  - `players`: every recorded slot, at most `MAX_REPLAY_PLAYERS`, each
+    `{ slot, player_id, display_name }` with a unique `slot` (0-254). The
+    `player_id` is the id the replay's `match.snapshot`, `minimap.*`,
+    `hud.killfeed` and `hud.spectating` use for that player, so the client
+    joins slots to HUD players by it (name, team, alive).
+  - `timeline`, every list ordered by time and within `[0, duration_ms]`:
+    `rounds` (`{ at_ms, round, phase }`, `phase` `buy` / `action` /
+    `round_end` / `match_end`, `round` the recorded round number), `kills`
+    (`{ at_ms, killer_slot, victim_slot }`, `killer_slot` `null` for a death
+    without a killer; both name recorded slots), `generators` (`{ at_ms,
+    label, state }`, `label` the bombsite letter or `null`, `state`
+    `activated` / `completed`), `pauses` (`{ start_ms, end_ms }`, `end_ms`
+    `null` when the recording ends paused), `skips` (`{ start_ms, end_ms }`,
+    non-overlapping intro cinematics the clock jumps over while playing).
+- `loading`: `{ match_id }` while a load runs, else `null`. The current
+  `demo` keeps playing until the new one is ready.
+- `load_error`: `{ match_id, reason }` when the latest load failed (`reason`
+  plugin text, 1-256 characters, shown as is), else `null`.
+- `playback`: `null` exactly when `demo` is `null`; else `{ playing, speed,
+  position_ms }` with `speed` in 0.25-4 and `position_ms` in
+  `[0, duration_ms]`. The clock stops at the end, so `playing` is `false`
+  there.
+- `pov_slot`: this viewer's first-person target (a recorded slot), or `null`
+  for the free camera; always `null` without a `demo`.
+
+`position_ms` is the position at `sent_at`. Clients advance it from their own
+receive time with `advanceReplayPosition(playback, skips, duration_ms,
+elapsedMs)` (pause stays, playing moves by elapsed x speed, jumps over skips,
+stops at the end), the same function the sidecar uses to age a cached
+`replay.state` (`sent_at` moves forward by the same time). While playing the
+plugin republishes at least every 5 seconds. Every object rejects unknown
+fields.
+
+### `replay.catalog`
+
+One page answering a `command.replay.catalog`, sent only to its sender, never
+cached. `{ command_id, query, page, page_count, page_size, total, entries,
+error }`: `query` echoes the query the plugin used (page clamped into range);
+`page` <= `page_count` (>= 1); `entries` (at most `page_size`, 1-50, and at
+most `total`) are newest match start first with unique `match_id`s, each
+`{ match_id, server_id, profile_id, started_at, duration_ms, score,
+player_count, recording, is_test, pinned, readable }`. Without a footer
+(still recording, or an unrecovered tail) `duration_ms`, `score` and
+`player_count` are `null`; `score` is `{ "team-a", "team-b" }`; `readable`
+is `false` when the summary could not be read (`started_at` is then the file
+time). `error` is the plugin's reason when the scan failed, with no
+`entries`, else `null`. The page may arrive before or after the command's
+result.
+
+### Commands
+
+Each is answered by exactly one `command.result` (`reason`: plugin text, shown
+as is). A command that changes shared playback publishes the new `replay.state`
+to every viewer before its result.
+
+| `kind` | Fields | `accepted` means |
+|---|---|---|
+| `command.replay.catalog` | `query`: `page` (>= 1) and optional `server_id`, `player` (17 digits match a SteamID64 exactly, anything else a nickname substring, case-insensitively), `test` (boolean; absent = both), `pinned` (only `true`), `since` / `until` (ISO 8601 instants, inclusive, against the match start; the client converts the user's local dates) | the scan started; the page follows as `replay.catalog` with this `command_id` |
+| `command.replay.load` | `match_id` | loading started (`replay.state.loading`); the outcome is the next `demo` or `load_error` |
+| `command.replay.unload` | none | unloaded |
+| `command.replay.control` | `action`: `play`, `pause`, `toggle`, `step` (one recorded tick, then paused); `speed` with `speed` (0.25-4); `seek` with exactly one of `position_ms` (absolute, clamped to the end) or `delta_ms` (non-zero, relative to the server's position: the +/-10 s buttons); `round` with `round` (a recorded round number, `"next"` or `"prev"`; `prev` restarts the current round unless it just started) | applied |
+| `command.replay.pov` | `slot`: a recorded slot, or `null` for the free camera | target set (switching the game camera continues on the server; `pov_slot` shows the target) |
+| `command.replay.pin` | `match_id`, `reason` (1-128 characters, one line) | the pin is written; query the page again to see it |
+| `command.replay.unpin` | `match_id` | unpinned, or it was not pinned (idempotent) |
+
+Clients throttle seeks while the timeline is dragged (send on release, or at
+most 4 per second): the sidecar's per-player command rate limit applies. A
+sidecar connected to a plugin without demo replay answers these commands
+itself with `rejected`, reason `unsupported`.
+
+### Omniscient HUD
+
+The other HUD events keep their v0 rules: `minimap.positions` addresses a
+team-less viewer with every marker `observed` (`live` or `dead`, never
+`last-known`), `hud.spectating` follows the first-person target,
+`hud.killfeed` entries carry no `viewer`, `round.result` uses the `observer`
+outcome, and `scoreboard.snapshot` is the same as in a match. Only
+`match.snapshot` needs the `omniscient` flag (see "Match snapshot top-HUD
+fields") to show both teams' health and loadout.
 
 ## Minimap payload v6
 
@@ -773,6 +891,9 @@ Known features:
 - `team-select`: SLUI draws the team select menu, so the plugin sends its menu
   session as `team.menu` instead of drawing its Hint roster for this player
   (the keybind, music and phase rules stay the plugin's).
+- `replay`: SLUI handles demo replay, so a replay server sends this player
+  `replay.state`, `replay.catalog` and the omniscient `match.snapshot`, and
+  accepts its `command.replay.*` (see "Demo replay").
 
 A sidecar that predates the frame logs and drops it like an invalid command;
 the session stays open. The sidecar answers `failed` itself if the plugin is

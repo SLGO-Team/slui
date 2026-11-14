@@ -103,6 +103,11 @@ export type MatchTeam = {
 
 export type MatchSnapshot = {
   viewer_team_id: TeamId | null;
+  /**
+   * Demo replay only (README "Demo replay"): the viewer is an omniscient observer, so vitals and `loadout` may be
+   * present on both teams. Requires `viewer_team_id: null`. Absent = false, where the viewer-team-only rule applies.
+   */
+  omniscient?: boolean;
   state: RoundState;
   round: number;
   max_rounds: number;
@@ -633,6 +638,125 @@ export type InstanceEnded = { reason: string };
 export const knownInstanceEndReason = (reason: string): InstanceEndReason | null =>
   (INSTANCE_END_REASONS as readonly string[]).includes(reason) ? reason as InstanceEndReason : null;
 
+// --- Demo replay (README "Demo replay") ---------------------------------------------------------------
+
+/** Playback speed limits of the replay server's clock. */
+export const REPLAY_MIN_SPEED = 0.25;
+export const REPLAY_MAX_SPEED = 4;
+/** Identity-table slots of one recording (0-254; 255 is the format's "none"). */
+export const REPLAY_MAX_SLOT = 254;
+export const MAX_REPLAY_PLAYERS = 64;
+export const MAX_REPLAY_ROUND_MARKS = 512;
+export const MAX_REPLAY_KILL_MARKS = 2048;
+export const MAX_REPLAY_GENERATOR_MARKS = 256;
+export const MAX_REPLAY_PAUSES = 256;
+export const MAX_REPLAY_SKIPS = 16;
+/** match_id, server_id, profile_id, player ids and names. */
+export const MAX_REPLAY_TEXT_LENGTH = 64;
+/** Plugin-written reasons (load errors, catalog errors). */
+export const MAX_REPLAY_REASON_LENGTH = 256;
+export const MAX_REPLAY_PIN_REASON_LENGTH = 128;
+export const MAX_REPLAY_CATALOG_PAGE_SIZE = 50;
+export const REPLAY_ROUND_PHASES = ["buy", "action", "round_end", "match_end"] as const;
+export type ReplayRoundPhase = (typeof REPLAY_ROUND_PHASES)[number];
+export const REPLAY_GENERATOR_STATES = ["activated", "completed"] as const;
+export type ReplayGeneratorState = (typeof REPLAY_GENERATOR_STATES)[number];
+
+/** One identity-table slot. `player_id` is the id the replay's HUD events use for that player. */
+export type ReplayPlayer = { slot: number; player_id: string; display_name: string };
+export type ReplayRoundMark = { at_ms: number; round: number; phase: ReplayRoundPhase };
+export type ReplayKillMark = { at_ms: number; killer_slot: number | null; victim_slot: number };
+export type ReplayGeneratorMark = { at_ms: number; label: string | null; state: ReplayGeneratorState };
+export type ReplayPause = { start_ms: number; end_ms: number | null };
+/** An intro cinematic: the replay clock jumps from `start_ms` to `end_ms` while playing. */
+export type ReplaySkip = { start_ms: number; end_ms: number };
+export type ReplayTimeline = {
+  rounds: ReplayRoundMark[];
+  kills: ReplayKillMark[];
+  generators: ReplayGeneratorMark[];
+  pauses: ReplayPause[];
+  skips: ReplaySkip[];
+};
+export type ReplayDemo = {
+  match_id: string;
+  server_id: string;
+  profile_id: string | null;
+  started_at: string;
+  duration_ms: number;
+  is_test: boolean;
+  /** Loaded from a recording in progress (a snapshot taken at load time). */
+  recording: boolean;
+  players: ReplayPlayer[];
+  timeline: ReplayTimeline;
+};
+/** `position_ms` is the position at the event's `sent_at`; clients advance it with `advanceReplayPosition`. */
+export type ReplayPlayback = { playing: boolean; speed: number; position_ms: number };
+/** `replay.state`: one viewer's view of the replay server (README "Demo replay"). */
+export type ReplayState = {
+  demo: ReplayDemo | null;
+  loading: { match_id: string } | null;
+  load_error: { match_id: string; reason: string } | null;
+  playback: ReplayPlayback | null;
+  /** This viewer's first-person target; null = free camera. */
+  pov_slot: number | null;
+};
+
+export type ReplayCatalogQuery = {
+  page: number;
+  server_id?: string;
+  /** A SteamID64 (17 digits) matches exactly; anything else matches nicknames, case-insensitively. */
+  player?: string;
+  test?: boolean;
+  pinned?: true;
+  /** ISO 8601 instants, inclusive, compared with the match start. */
+  since?: string;
+  until?: string;
+};
+export type ReplayCatalogEntry = {
+  match_id: string;
+  server_id: string;
+  profile_id: string | null;
+  started_at: string;
+  duration_ms: number | null;
+  score: Record<TeamId, number> | null;
+  player_count: number | null;
+  recording: boolean;
+  is_test: boolean;
+  pinned: boolean;
+  readable: boolean;
+};
+/** `replay.catalog`: one page answering the `command.replay.catalog` named by `command_id`. */
+export type ReplayCatalog = {
+  command_id: string;
+  query: ReplayCatalogQuery;
+  page: number;
+  page_count: number;
+  page_size: number;
+  total: number;
+  entries: ReplayCatalogEntry[];
+  error: string | null;
+};
+
+/**
+ * Where playback is `elapsedMs` after the state was taken: paused stays put; playing advances by
+ * `elapsedMs * speed`, jumps over intro skips like the server clock, and stops (no longer playing) at the end.
+ * SLUI interpolates with it from its receive time; the sidecar ages cached `replay.state` with it.
+ */
+export function advanceReplayPosition(playback: ReplayPlayback, skips: readonly ReplaySkip[], durationMs: number, elapsedMs: number): ReplayPlayback {
+  const end = Math.max(0, durationMs);
+  if (!playback.playing || !(elapsedMs > 0)) return playback;
+  let position = Math.min(end, playback.position_ms);
+  let budget = elapsedMs * playback.speed;
+  for (const skip of skips) {
+    if (skip.end_ms <= position) continue;
+    if (skip.start_ms > position + budget) break;
+    budget -= Math.max(0, skip.start_ms - position);
+    position = Math.max(position, skip.end_ms);
+  }
+  position = Math.min(end, Math.floor(position + Math.max(0, budget)));
+  return { ...playback, position_ms: position, playing: position < end };
+}
+
 export type ShopPurchaseCommand = {
   kind: "command.shop.purchase";
   command_id: string;
@@ -685,10 +809,43 @@ export type TeamCloseCommand = {
 };
 export type ShopCommand = ShopPurchaseCommand | ShopRequestCommand | ShopFulfillCommand | ShopRefundCommand | ShopRefundAllCommand;
 export type TeamCommand = TeamSelectCommand | TeamCloseCommand;
-export type SlgoCommand = ShopCommand | ChatSendCommand | TeamCommand;
+
+/** Asks for one catalog page; the page arrives as `replay.catalog` with this command's id. */
+export type ReplayCatalogCommand = { kind: "command.replay.catalog"; command_id: string; query: ReplayCatalogQuery };
+/** Starts loading a recording; the outcome arrives in `replay.state` (`demo` or `load_error`). */
+export type ReplayLoadCommand = { kind: "command.replay.load"; command_id: string; match_id: string };
+export type ReplayUnloadCommand = { kind: "command.replay.unload"; command_id: string };
+export type ReplayControlAction =
+  | { action: "play" | "pause" | "toggle" | "step" }
+  | { action: "speed"; speed: number }
+  /** Exactly one of `position_ms` (absolute, clamped to the end) or `delta_ms` (relative to the server's position). */
+  | { action: "seek"; position_ms: number }
+  | { action: "seek"; delta_ms: number }
+  | { action: "round"; round: number | "next" | "prev" };
+export type ReplayControlCommand = { kind: "command.replay.control"; command_id: string } & ReplayControlAction;
+/** Sets the sender's first-person target; `slot: null` = free camera. */
+export type ReplayPovCommand = { kind: "command.replay.pov"; command_id: string; slot: number | null };
+export type ReplayPinCommand = { kind: "command.replay.pin"; command_id: string; match_id: string; reason: string };
+export type ReplayUnpinCommand = { kind: "command.replay.unpin"; command_id: string; match_id: string };
+export type ReplayCommand =
+  | ReplayCatalogCommand
+  | ReplayLoadCommand
+  | ReplayUnloadCommand
+  | ReplayControlCommand
+  | ReplayPovCommand
+  | ReplayPinCommand
+  | ReplayUnpinCommand;
+export const REPLAY_COMMAND_KINDS = [
+  "command.replay.catalog", "command.replay.load", "command.replay.unload", "command.replay.control",
+  "command.replay.pov", "command.replay.pin", "command.replay.unpin",
+] as const satisfies readonly ReplayCommand["kind"][];
+export const isReplayCommandKind = (kind: string): kind is ReplayCommand["kind"] => (REPLAY_COMMAND_KINDS as readonly string[]).includes(kind);
+
+export type SlgoCommand = ShopCommand | ChatSendCommand | TeamCommand | ReplayCommand;
 export const COMMAND_KINDS = [
   "command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.shop.refund", "command.shop.refund_all",
   "command.chat.send", "command.team.select", "command.team.close",
+  ...REPLAY_COMMAND_KINDS,
 ] as const satisfies readonly SlgoCommand["kind"][];
 
 export type CommandResult = {
@@ -710,6 +867,8 @@ export type TeamMenuEvent = ProtocolEnvelope<TeamMenuSnapshot, "team.menu">;
 export type HudKillfeedEvent = ProtocolEnvelope<HudKillfeedSnapshot, "hud.killfeed"> & { sent_at: string };
 export type ScoreboardSnapshotEvent = ProtocolEnvelope<ScoreboardSnapshot, "scoreboard.snapshot"> & { sent_at: string };
 export type InstanceEndedEvent = ProtocolEnvelope<InstanceEnded, "instance.ended"> & { sent_at: string };
+export type ReplayStateEvent = ProtocolEnvelope<ReplayState, "replay.state"> & { sent_at: string };
+export type ReplayCatalogEvent = ProtocolEnvelope<ReplayCatalog, "replay.catalog">;
 
 export type SlgoEvent =
   | BaselineEvent
@@ -724,6 +883,8 @@ export type SlgoEvent =
   | HudKillfeedEvent
   | ScoreboardSnapshotEvent
   | InstanceEndedEvent
+  | ReplayStateEvent
+  | ReplayCatalogEvent
   | ProtocolEnvelope<ShopSnapshot, "shop.snapshot">
   | ProtocolEnvelope<ChatMessage, "chat.message">
   | ProtocolEnvelope<ChatNotice, "chat.notice">
@@ -1005,6 +1166,11 @@ export const CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS = "hud-killfeed-modifiers";
 export const CLIENT_FEATURE_SCOREBOARD = "scoreboard";
 /** SLUI draws the team select menu: the plugin publishes its menu session as `team.menu` instead of drawing its Hint roster. */
 export const CLIENT_FEATURE_TEAM_SELECT = "team-select";
+/**
+ * SLUI handles demo replay: `replay.state`, `replay.catalog`, the `command.replay.*` commands and the omniscient
+ * `match.snapshot`. A replay server sends those only to clients declaring it.
+ */
+export const CLIENT_FEATURE_REPLAY = "replay";
 export const MAX_CLIENT_FEATURES = 16;
 const MAX_CLIENT_FEATURE_LENGTH = 64;
 const CLIENT_FEATURE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -1182,16 +1348,21 @@ function isMatchPlayerLoadout(value: unknown): value is MatchPlayerLoadout {
 export function parseMatchSnapshot(payload: unknown): ParseResult<MatchSnapshot> {
   if (!isRecord(payload) || (payload.viewer_team_id !== null && !isTeamId(payload.viewer_team_id)) || !["Idle", "WaitingForPlayers", "PreRoundWait", "BuyPhase", "ActionPhase", "RoundEnd", "MatchEnd"].includes(String(payload.state)) || !Number.isInteger(payload.round) || Number(payload.round) < 0 || !Number.isInteger(payload.max_rounds) || Number(payload.max_rounds) < 1 || !Number.isInteger(payload.phase_remaining_ms) || Number(payload.phase_remaining_ms) < 0 || typeof payload.phase_paused !== "boolean" || !Array.isArray(payload.teams) || payload.teams.length !== 2) return error("invalid-payload", "Match snapshot is invalid");
   if (!isOptionalRemainingMs(payload.generator_remaining_ms) || !isOptionalRemainingMs(payload.pause_remaining_ms)) return error("invalid-payload", "Match snapshot clocks are invalid");
+  if (payload.omniscient !== undefined && typeof payload.omniscient !== "boolean") return error("invalid-payload", "Match snapshot omniscient flag is invalid");
+  const omniscient = payload.omniscient === true;
+  if (omniscient && payload.viewer_team_id !== null) return error("invalid-payload", "An omniscient match snapshot has no viewer team");
+  // An omniscient (demo replay) viewer may see both teams' vitals and loadouts; everyone else only their own team's.
+  const seesTeam = (teamId: unknown) => omniscient || teamId === payload.viewer_team_id;
   const teams = payload.teams.map((team) => {
     if (!isRecord(team) || !isTeamId(team.team_id) || !isRole(team.role) || !isNonEmptyString(team.display_name) || !Number.isInteger(team.score) || !Array.isArray(team.players)) return null;
     const players = team.players.map((player) => {
       if (!isRecord(player) || !isNonEmptyString(player.player_id) || typeof player.display_name !== "string" || typeof player.is_online !== "boolean" || typeof player.is_alive !== "boolean") return null;
       const vitals = MATCH_PLAYER_VITAL_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(player, key));
-      if (vitals.length > 0 && team.team_id !== payload.viewer_team_id) return null;
+      if (vitals.length > 0 && !seesTeam(team.team_id)) return null;
       if (!vitals.every((key) => { const value = player[key]; return value === null || (isFiniteNumber(value) && value >= 0); })) return null;
       // Money and equipment follow the same viewer-team-only rule as the vitals.
       if (Object.prototype.hasOwnProperty.call(player, "loadout")) {
-        if (team.team_id !== payload.viewer_team_id) return null;
+        if (!seesTeam(team.team_id)) return null;
         if (player.loadout !== null && !isMatchPlayerLoadout(player.loadout)) return null;
       }
       // Kills are public for both teams, unlike the viewer-only vitals.
@@ -1631,6 +1802,164 @@ export function parseInstanceEnded(payload: unknown): ParseResult<InstanceEnded>
   return { ok: true, value: { reason: payload.reason } };
 }
 
+const REPLAY_STATE_KEYS = new Set(["demo", "loading", "load_error", "playback", "pov_slot"]);
+const REPLAY_DEMO_KEYS = new Set(["match_id", "server_id", "profile_id", "started_at", "duration_ms", "is_test", "recording", "players", "timeline"]);
+const REPLAY_PLAYER_KEYS = new Set(["slot", "player_id", "display_name"]);
+const REPLAY_TIMELINE_KEYS = new Set(["rounds", "kills", "generators", "pauses", "skips"]);
+const REPLAY_ROUND_KEYS = new Set(["at_ms", "round", "phase"]);
+const REPLAY_KILL_KEYS = new Set(["at_ms", "killer_slot", "victim_slot"]);
+const REPLAY_GENERATOR_KEYS = new Set(["at_ms", "label", "state"]);
+const REPLAY_RANGE_KEYS = new Set(["start_ms", "end_ms"]);
+const REPLAY_PLAYBACK_KEYS = new Set(["playing", "speed", "position_ms"]);
+const REPLAY_MATCH_REF_KEYS = new Set(["match_id"]);
+const REPLAY_LOAD_ERROR_KEYS = new Set(["match_id", "reason"]);
+const REPLAY_CATALOG_KEYS = new Set(["command_id", "query", "page", "page_count", "page_size", "total", "entries", "error"]);
+const REPLAY_QUERY_KEYS = new Set(["page", "server_id", "player", "test", "pinned", "since", "until"]);
+const REPLAY_ENTRY_KEYS = new Set(["match_id", "server_id", "profile_id", "started_at", "duration_ms", "score", "player_count", "recording", "is_test", "pinned", "readable"]);
+const REPLAY_SCORE_KEYS = new Set(["team-a", "team-b"]);
+const BOMBSITE_LABEL = /^[A-Z]$/;
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+
+const isReplayText = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MAX_REPLAY_TEXT_LENGTH;
+const isReplayReason = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MAX_REPLAY_REASON_LENGTH;
+const isReplayMs = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+const isReplaySlot = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= REPLAY_MAX_SLOT;
+const isReplaySpeed = (value: unknown): value is number => isFiniteNumber(value) && value >= REPLAY_MIN_SPEED && value <= REPLAY_MAX_SPEED;
+const isIsoInstant = (value: unknown): value is string => isNonEmptyString(value) && value.length <= MAX_REPLAY_TEXT_LENGTH && Number.isFinite(Date.parse(value));
+const hasAllKeys = (value: Record<string, unknown>, keys: ReadonlySet<string>) => [...keys].every((key) => Object.prototype.hasOwnProperty.call(value, key));
+
+/** At most `max` objects, each passing `item`, ordered by `at` (non-decreasing). */
+function isTimedList(value: unknown, max: number, item: (entry: Record<string, unknown>) => boolean, at: (entry: Record<string, unknown>) => number): boolean {
+  if (!Array.isArray(value) || value.length > max) return false;
+  let previous = 0;
+  for (const entry of value) {
+    if (!isRecord(entry) || !item(entry) || at(entry) < previous) return false;
+    previous = at(entry);
+  }
+  return true;
+}
+
+function isReplayDemo(value: unknown): value is ReplayDemo {
+  if (!isRecord(value) || !hasOnlyKeys(value, REPLAY_DEMO_KEYS) || !hasAllKeys(value, REPLAY_DEMO_KEYS) || !isReplayText(value.match_id) || !isReplayText(value.server_id)
+    || !(value.profile_id === null || isReplayText(value.profile_id)) || !isIsoInstant(value.started_at) || !isReplayMs(value.duration_ms)
+    || typeof value.is_test !== "boolean" || typeof value.recording !== "boolean" || !Array.isArray(value.players) || value.players.length > MAX_REPLAY_PLAYERS) return false;
+  const duration = value.duration_ms;
+  const slots = new Set<number>();
+  for (const player of value.players) {
+    if (!isRecord(player) || !hasOnlyKeys(player, REPLAY_PLAYER_KEYS) || !isReplaySlot(player.slot) || !isReplayText(player.player_id) || !isReplayText(player.display_name) || slots.has(player.slot)) return false;
+    slots.add(player.slot);
+  }
+  const timeline = value.timeline;
+  if (!isRecord(timeline) || !hasOnlyKeys(timeline, REPLAY_TIMELINE_KEYS)) return false;
+  const inRange = (ms: unknown): ms is number => isReplayMs(ms) && ms <= duration;
+  const isSlotOf = (slot: unknown) => isReplaySlot(slot) && slots.has(slot);
+  const atMs = (entry: Record<string, unknown>) => entry.at_ms as number;
+  const startMs = (entry: Record<string, unknown>) => entry.start_ms as number;
+  if (!isTimedList(timeline.rounds, MAX_REPLAY_ROUND_MARKS, (mark) => hasOnlyKeys(mark, REPLAY_ROUND_KEYS) && inRange(mark.at_ms)
+    && Number.isSafeInteger(mark.round) && Number(mark.round) >= 1 && (REPLAY_ROUND_PHASES as readonly unknown[]).includes(mark.phase), atMs)) return false;
+  if (!isTimedList(timeline.kills, MAX_REPLAY_KILL_MARKS, (mark) => hasOnlyKeys(mark, REPLAY_KILL_KEYS) && inRange(mark.at_ms)
+    && (mark.killer_slot === null || isSlotOf(mark.killer_slot)) && isSlotOf(mark.victim_slot), atMs)) return false;
+  if (!isTimedList(timeline.generators, MAX_REPLAY_GENERATOR_MARKS, (mark) => hasOnlyKeys(mark, REPLAY_GENERATOR_KEYS) && inRange(mark.at_ms)
+    && (mark.label === null || (typeof mark.label === "string" && BOMBSITE_LABEL.test(mark.label))) && (REPLAY_GENERATOR_STATES as readonly unknown[]).includes(mark.state), atMs)) return false;
+  if (!isTimedList(timeline.pauses, MAX_REPLAY_PAUSES, (pause) => hasOnlyKeys(pause, REPLAY_RANGE_KEYS) && inRange(pause.start_ms)
+    && (pause.end_ms === null || (inRange(pause.end_ms) && pause.end_ms >= Number(pause.start_ms))), startMs)) return false;
+  // Intro skips never overlap: each starts at or after the previous one's end.
+  let skipEnd = 0;
+  return isTimedList(timeline.skips, MAX_REPLAY_SKIPS, (skip) => {
+    if (!hasOnlyKeys(skip, REPLAY_RANGE_KEYS) || !inRange(skip.start_ms) || !inRange(skip.end_ms) || skip.start_ms >= skip.end_ms || skip.start_ms < skipEnd) return false;
+    skipEnd = skip.end_ms;
+    return true;
+  }, startMs);
+}
+
+export function parseReplayState(payload: unknown): ParseResult<ReplayState> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, REPLAY_STATE_KEYS) || !hasAllKeys(payload, REPLAY_STATE_KEYS)) return error("invalid-payload", "Replay state is invalid");
+  const { demo, loading, load_error: loadError, playback, pov_slot: povSlot } = payload;
+  if (!(loading === null || (isRecord(loading) && hasOnlyKeys(loading, REPLAY_MATCH_REF_KEYS) && isReplayText(loading.match_id)))) return error("invalid-payload", "Replay loading is invalid");
+  if (!(loadError === null || (isRecord(loadError) && hasOnlyKeys(loadError, REPLAY_LOAD_ERROR_KEYS) && isReplayText(loadError.match_id) && isReplayReason(loadError.reason)))) return error("invalid-payload", "Replay load error is invalid");
+  if (demo === null) {
+    if (playback !== null || povSlot !== null) return error("invalid-payload", "Replay playback and point of view need a loaded demo");
+    return { ok: true, value: payload as unknown as ReplayState };
+  }
+  if (!isReplayDemo(demo)) return error("invalid-payload", "Replay demo is invalid");
+  if (!isRecord(playback) || !hasOnlyKeys(playback, REPLAY_PLAYBACK_KEYS) || typeof playback.playing !== "boolean" || !isReplaySpeed(playback.speed)
+    || !isReplayMs(playback.position_ms) || playback.position_ms > demo.duration_ms) return error("invalid-payload", "Replay playback is invalid");
+  // The server clock stops at the end, so nothing plays there.
+  if (playback.playing && playback.position_ms >= demo.duration_ms) return error("invalid-payload", "Replay playback cannot play at the end");
+  if (povSlot !== null && !(isReplaySlot(povSlot) && demo.players.some((player) => player.slot === povSlot))) return error("invalid-payload", "Replay point of view is not a recorded slot");
+  return { ok: true, value: payload as unknown as ReplayState };
+}
+
+function isReplayCatalogQuery(value: unknown): value is ReplayCatalogQuery {
+  return isRecord(value) && hasOnlyKeys(value, REPLAY_QUERY_KEYS) && Number.isSafeInteger(value.page) && Number(value.page) >= 1
+    && (value.server_id === undefined || isReplayText(value.server_id))
+    && (value.player === undefined || isReplayText(value.player))
+    && (value.test === undefined || typeof value.test === "boolean")
+    && (value.pinned === undefined || value.pinned === true)
+    && (value.since === undefined || isIsoInstant(value.since))
+    && (value.until === undefined || isIsoInstant(value.until));
+}
+
+function isReplayCatalogEntry(value: unknown): value is ReplayCatalogEntry {
+  if (!isRecord(value) || !hasOnlyKeys(value, REPLAY_ENTRY_KEYS) || !hasAllKeys(value, REPLAY_ENTRY_KEYS)) return false;
+  const score = value.score;
+  return isReplayText(value.match_id) && isReplayText(value.server_id) && (value.profile_id === null || isReplayText(value.profile_id))
+    && isIsoInstant(value.started_at) && (value.duration_ms === null || isReplayMs(value.duration_ms))
+    && (score === null || (isRecord(score) && hasOnlyKeys(score, REPLAY_SCORE_KEYS) && isCount(score["team-a"]) && isCount(score["team-b"])))
+    && (value.player_count === null || isCount(value.player_count))
+    && typeof value.recording === "boolean" && typeof value.is_test === "boolean" && typeof value.pinned === "boolean" && typeof value.readable === "boolean";
+}
+
+export function parseReplayCatalog(payload: unknown): ParseResult<ReplayCatalog> {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, REPLAY_CATALOG_KEYS) || !hasAllKeys(payload, REPLAY_CATALOG_KEYS) || !isNonEmptyString(payload.command_id) || !isReplayCatalogQuery(payload.query)) return error("invalid-payload", "Replay catalog is invalid");
+  const { page, page_count: pageCount, page_size: pageSize, total, entries } = payload;
+  if (!Number.isSafeInteger(pageCount) || Number(pageCount) < 1 || !Number.isSafeInteger(page) || Number(page) < 1 || Number(page) > Number(pageCount)
+    || !Number.isSafeInteger(pageSize) || Number(pageSize) < 1 || Number(pageSize) > MAX_REPLAY_CATALOG_PAGE_SIZE || !isCount(total)
+    || !Array.isArray(entries) || entries.length > Number(pageSize) || entries.length > total) return error("invalid-payload", "Replay catalog page is invalid");
+  if (!(payload.error === null || isReplayReason(payload.error))) return error("invalid-payload", "Replay catalog error is invalid");
+  if (payload.error !== null && entries.length > 0) return error("invalid-payload", "A failed replay catalog has no entries");
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    if (!isReplayCatalogEntry(entry) || ids.has(entry.match_id)) return error("invalid-payload", "Replay catalog entry is invalid");
+    ids.add(entry.match_id);
+  }
+  return { ok: true, value: payload as unknown as ReplayCatalog };
+}
+
+const REPLAY_SIMPLE_ACTIONS: readonly unknown[] = ["play", "pause", "toggle", "step"];
+
+function parseReplayCommand(command: Record<string, unknown>): ParseResult<ReplayCommand> {
+  const fields = (...keys: string[]) => hasOnlyKeys(command, new Set(["kind", "command_id", ...keys]));
+  const valid = (ok: boolean, what: string): ParseResult<ReplayCommand> =>
+    ok ? { ok: true, value: command as unknown as ReplayCommand } : error("invalid-payload", `Replay ${what} command is invalid`);
+  switch (command.kind) {
+    case "command.replay.catalog": return valid(fields("query") && isReplayCatalogQuery(command.query), "catalog");
+    case "command.replay.load": return valid(fields("match_id") && isReplayText(command.match_id), "load");
+    case "command.replay.unload": return valid(fields(), "unload");
+    case "command.replay.control": {
+      const { action } = command;
+      if (REPLAY_SIMPLE_ACTIONS.includes(action)) return valid(fields("action"), "control");
+      if (action === "speed") return valid(fields("action", "speed") && isReplaySpeed(command.speed), "control");
+      if (action === "seek") {
+        const absolute = fields("action", "position_ms") && isReplayMs(command.position_ms);
+        const relative = fields("action", "delta_ms") && Number.isSafeInteger(command.delta_ms) && command.delta_ms !== 0;
+        return valid(absolute || relative, "control");
+      }
+      if (action === "round") {
+        const { round } = command;
+        return valid(fields("action", "round") && (round === "next" || round === "prev" || (Number.isSafeInteger(round) && Number(round) >= 1)), "control");
+      }
+      return valid(false, "control");
+    }
+    case "command.replay.pov": return valid(fields("slot") && (command.slot === null || isReplaySlot(command.slot)), "pov");
+    case "command.replay.pin":
+      return valid(fields("match_id", "reason") && isReplayText(command.match_id) && isNonEmptyString(command.reason)
+        && command.reason.length <= MAX_REPLAY_PIN_REASON_LENGTH && !CONTROL_CHARACTER.test(command.reason), "pin");
+    case "command.replay.unpin": return valid(fields("match_id") && isReplayText(command.match_id), "unpin");
+    default: return error("invalid-payload", "Command kind is unsupported");
+  }
+}
+
 export function parseCommandResult(payload: unknown): ParseResult<CommandResult> {
   if (!isRecord(payload) || !isNonEmptyString(payload.command_id) || !(COMMAND_KINDS as readonly string[]).includes(String(payload.command_kind)) || !["accepted", "rejected", "duplicate", "failed"].includes(String(payload.status))) return error("invalid-payload", "Command result is invalid");
   if (payload.reason !== undefined && typeof payload.reason !== "string") return error("invalid-payload", "Command result reason is invalid");
@@ -1668,6 +1997,7 @@ export function parseCommand(command: unknown): ParseResult<SlgoCommand> {
     if (!["global", "team", "spectator"].includes(String(command.scope)) || !isNonEmptyString(command.body)) return error("invalid-payload", "Chat command is invalid");
     return { ok: true, value: command as ChatSendCommand };
   }
+  if (typeof command.kind === "string" && isReplayCommandKind(command.kind)) return parseReplayCommand(command);
   return error("invalid-payload", "Command kind is unsupported");
 }
 
@@ -1716,6 +2046,12 @@ export function parseEvent(raw: unknown): ParseResult<SlgoEvent> {
       payloadResult = parseInstanceEnded(envelope.payload);
       break;
     case "command.result": payloadResult = parseCommandResult(envelope.payload); break;
+    case "replay.state":
+      // The playback position is counted from sent_at, as for hud.messages.
+      if (envelope.sent_at === undefined) return error("invalid-envelope", "Replay state timestamp is required", envelope.event_id);
+      payloadResult = parseReplayState(envelope.payload);
+      break;
+    case "replay.catalog": payloadResult = parseReplayCatalog(envelope.payload); break;
     // Newer sidecars may add event types; clients skip them instead of desynchronising.
     default: return error("unsupported-event-type", `Unsupported event type: ${envelope.type}`, envelope.event_id);
   }

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slgo.dev/slui/protocol/v0/replay-catalog.schema.json",
+  "title": "SLGO demo replay catalog page (replay.catalog)",
+  "description": "One page of recordings answering the command.replay.catalog named by command_id; sent only to that command's sender, never cached. Newest match start first. Rules the schema cannot express (parseReplayCatalog): page <= page_count; entries <= page_size and <= total; match_id unique; a non-null error comes with no entries.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command_id", "query", "page", "page_count", "page_size", "total", "entries", "error"],
+  "properties": {
+    "command_id": { "type": "string", "minLength": 1 },
+    "query": { "description": "The query the plugin used (page clamped into range).", "$ref": "#/$defs/query" },
+    "page": { "type": "integer", "minimum": 1 },
+    "page_count": { "type": "integer", "minimum": 1 },
+    "page_size": { "type": "integer", "minimum": 1, "maximum": 50 },
+    "total": { "description": "Recordings matching the query.", "type": "integer", "minimum": 0 },
+    "entries": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["match_id", "server_id", "profile_id", "started_at", "duration_ms", "score", "player_count", "recording", "is_test", "pinned", "readable"],
+        "properties": {
+          "match_id": { "$ref": "#/$defs/text" },
+          "server_id": { "$ref": "#/$defs/text" },
+          "profile_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/text" }] },
+          "started_at": { "description": "Match start; the file's modification time when the header is unreadable.", "type": "string", "format": "date-time" },
+          "duration_ms": { "description": "null without a footer (recording, or an unrecovered tail).", "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }] },
+          "score": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["team-a", "team-b"],
+                "properties": { "team-a": { "type": "integer", "minimum": 0 }, "team-b": { "type": "integer", "minimum": 0 } }
+              }
+            ]
+          },
+          "player_count": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }] },
+          "recording": { "description": "Still being recorded (.slgodem.open); cannot be pinned.", "type": "boolean" },
+          "is_test": { "type": "boolean" },
+          "pinned": { "type": "boolean" },
+          "readable": { "description": "false when the summary could not be read.", "type": "boolean" }
+        }
+      }
+    },
+    "error": { "description": "Why the scan failed (entries is then empty), else null.", "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" }] }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page"],
+      "properties": {
+        "page": { "type": "integer", "minimum": 1 },
+        "server_id": { "$ref": "#/$defs/text" },
+        "player": { "description": "17 digits match a SteamID64 exactly; anything else matches nicknames, case-insensitively.", "$ref": "#/$defs/text" },
+        "test": { "description": "Only test (true) or only real (false) matches; absent = both.", "type": "boolean" },
+        "pinned": { "description": "Only pinned recordings.", "const": true },
+        "since": { "description": "Match start at or after this instant.", "type": "string", "format": "date-time" },
+        "until": { "description": "Match start at or before this instant.", "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

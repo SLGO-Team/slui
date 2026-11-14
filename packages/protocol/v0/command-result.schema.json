@@ -7,7 +7,7 @@
   "required": ["command_id", "command_kind", "status"],
   "properties": {
     "command_id": { "type": "string", "minLength": 1 },
-    "command_kind": { "enum": ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.shop.refund", "command.shop.refund_all", "command.chat.send", "command.team.select", "command.team.close"] },
+    "command_kind": { "enum": ["command.shop.purchase", "command.shop.request", "command.shop.fulfill", "command.shop.refund", "command.shop.refund_all", "command.chat.send", "command.team.select", "command.team.close", "command.replay.catalog", "command.replay.load", "command.replay.unload", "command.replay.control", "command.replay.pov", "command.replay.pin", "command.replay.unpin"] },
     "status": { "enum": ["accepted", "rejected", "duplicate", "failed"] },
     "reason": { "type": "string" }
   }

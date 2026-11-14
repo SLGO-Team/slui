@@ -1,0 +1,117 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-replay-state-1",
+  "server_id": "slgo-local-7779",
+  "instance_id": "instance-2026-11-15-1000",
+  "round_id": null,
+  "sequence": 30,
+  "type": "replay.state",
+  "sent_at": "2026-11-15T10:00:00Z",
+  "payload": {
+    "demo": {
+      "match_id": "0193f1c2-7a5e-7c41-9d2b-5e8f6a1b2c3d",
+      "server_id": "competitive",
+      "profile_id": "competitive",
+      "started_at": "2026-11-12T13:05:00Z",
+      "duration_ms": 2512340,
+      "is_test": false,
+      "recording": false,
+      "players": [
+        {
+          "slot": 0,
+          "player_id": "76561198000000004",
+          "display_name": "Orion"
+        },
+        {
+          "slot": 1,
+          "player_id": "76561198000000005",
+          "display_name": "Vega"
+        },
+        {
+          "slot": 2,
+          "player_id": "76561198000000011",
+          "display_name": "Kestrel"
+        },
+        {
+          "slot": 3,
+          "player_id": "76561198000000012",
+          "display_name": "Lynx"
+        }
+      ],
+      "timeline": {
+        "rounds": [
+          {
+            "at_ms": 12000,
+            "round": 1,
+            "phase": "buy"
+          },
+          {
+            "at_ms": 42000,
+            "round": 1,
+            "phase": "action"
+          },
+          {
+            "at_ms": 160000,
+            "round": 1,
+            "phase": "round_end"
+          },
+          {
+            "at_ms": 168000,
+            "round": 2,
+            "phase": "buy"
+          },
+          {
+            "at_ms": 198000,
+            "round": 2,
+            "phase": "action"
+          }
+        ],
+        "kills": [
+          {
+            "at_ms": 61234,
+            "killer_slot": 2,
+            "victim_slot": 1
+          },
+          {
+            "at_ms": 75000,
+            "killer_slot": null,
+            "victim_slot": 3
+          }
+        ],
+        "generators": [
+          {
+            "at_ms": 90000,
+            "label": "A",
+            "state": "activated"
+          },
+          {
+            "at_ms": 130000,
+            "label": "A",
+            "state": "completed"
+          }
+        ],
+        "pauses": [
+          {
+            "start_ms": 300000,
+            "end_ms": 330000
+          }
+        ],
+        "skips": [
+          {
+            "start_ms": 0,
+            "end_ms": 12000
+          }
+        ]
+      }
+    },
+    "loading": null,
+    "load_error": null,
+    "playback": {
+      "playing": true,
+      "speed": 1,
+      "position_ms": 61000
+    },
+    "pov_slot": 2
+  }
+}

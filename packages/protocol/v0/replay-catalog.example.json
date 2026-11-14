@@ -1,0 +1,70 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-replay-catalog-1",
+  "server_id": "slgo-local-7779",
+  "instance_id": "instance-2026-11-15-1000",
+  "round_id": null,
+  "sequence": 33,
+  "type": "replay.catalog",
+  "sent_at": "2026-11-15T10:00:00Z",
+  "payload": {
+    "command_id": "replay-cat-1a2b3c4d",
+    "query": {
+      "page": 1,
+      "player": "Orion"
+    },
+    "page": 1,
+    "page_count": 1,
+    "page_size": 10,
+    "total": 3,
+    "entries": [
+      {
+        "match_id": "0193f9e0-0000-7abc-9def-0123456789ab",
+        "server_id": "casual",
+        "profile_id": "casual",
+        "started_at": "2026-11-15T09:40:00Z",
+        "duration_ms": null,
+        "score": null,
+        "player_count": null,
+        "recording": true,
+        "is_test": false,
+        "pinned": false,
+        "readable": true
+      },
+      {
+        "match_id": "0193f1c2-7a5e-7c41-9d2b-5e8f6a1b2c3d",
+        "server_id": "competitive",
+        "profile_id": "competitive",
+        "started_at": "2026-11-12T13:05:00Z",
+        "duration_ms": 2512340,
+        "score": {
+          "team-a": 13,
+          "team-b": 9
+        },
+        "player_count": 10,
+        "recording": false,
+        "is_test": false,
+        "pinned": true,
+        "readable": true
+      },
+      {
+        "match_id": "01930d44-1b2c-7f00-8a11-2233445566aa",
+        "server_id": "competitive",
+        "profile_id": "competitive",
+        "started_at": "2026-11-02T20:10:00Z",
+        "duration_ms": 610000,
+        "score": {
+          "team-a": 2,
+          "team-b": 1
+        },
+        "player_count": 4,
+        "recording": false,
+        "is_test": true,
+        "pinned": false,
+        "readable": true
+      }
+    ],
+    "error": null
+  }
+}
