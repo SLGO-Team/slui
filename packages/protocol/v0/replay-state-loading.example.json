@@ -1,0 +1,23 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-replay-state-loading-1",
+  "server_id": "slgo-local-7779",
+  "instance_id": "instance-2026-11-15-1000",
+  "round_id": null,
+  "sequence": 32,
+  "type": "replay.state",
+  "sent_at": "2026-11-15T10:00:00Z",
+  "payload": {
+    "demo": null,
+    "loading": {
+      "match_id": "0193f1c2-7a5e-7c41-9d2b-5e8f6a1b2c3d"
+    },
+    "load_error": {
+      "match_id": "01930d44-1b2c-7f00-8a11-2233445566aa",
+      "reason": "布局签名不符：录像来自另一份地图布局，无法在本服回放。"
+    },
+    "playback": null,
+    "pov_slot": null
+  }
+}

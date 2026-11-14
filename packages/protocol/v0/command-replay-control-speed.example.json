@@ -1,0 +1,6 @@
+{
+  "kind": "command.replay.control",
+  "command_id": "replay-speed-0a1b2c3d",
+  "action": "speed",
+  "speed": 2
+}

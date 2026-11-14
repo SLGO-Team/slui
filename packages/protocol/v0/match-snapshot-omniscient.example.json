@@ -1,0 +1,120 @@
+{
+  "protocol_version": 0,
+  "schema_version": 1,
+  "event_id": "fixture-match-omniscient-1",
+  "server_id": "slgo-local-7779",
+  "instance_id": "instance-2026-11-15-1000",
+  "round_id": null,
+  "sequence": 34,
+  "type": "match.snapshot",
+  "sent_at": "2026-11-15T10:00:00Z",
+  "payload": {
+    "viewer_team_id": null,
+    "omniscient": true,
+    "state": "ActionPhase",
+    "round": 1,
+    "max_rounds": 15,
+    "phase_remaining_ms": 101000,
+    "phase_paused": false,
+    "generator_remaining_ms": null,
+    "pause_remaining_ms": null,
+    "teams": [
+      {
+        "team_id": "team-a",
+        "role": "ntf",
+        "display_name": "Team A",
+        "score": 0,
+        "players": [
+          {
+            "player_id": "76561198000000004",
+            "display_name": "Orion",
+            "avatar_url": null,
+            "is_online": true,
+            "is_alive": true,
+            "health": 86,
+            "shield": 40,
+            "max_health": 100,
+            "max_shield": 75,
+            "kills": 0,
+            "loadout": {
+              "money": 1250,
+              "primary_item_id": "GunCrossvec",
+              "utility_item_ids": [
+                "GrenadeFlash"
+              ],
+              "armor": "combat",
+              "has_commander_keycard": true,
+              "has_generator_upgrade": false
+            }
+          },
+          {
+            "player_id": "76561198000000005",
+            "display_name": "Vega",
+            "avatar_url": null,
+            "is_online": true,
+            "is_alive": false,
+            "health": 0,
+            "shield": 0,
+            "kills": 0,
+            "loadout": {
+              "money": 2100,
+              "primary_item_id": null,
+              "utility_item_ids": [],
+              "armor": null,
+              "has_commander_keycard": false,
+              "has_generator_upgrade": false
+            }
+          }
+        ]
+      },
+      {
+        "team_id": "team-b",
+        "role": "scp",
+        "display_name": "Team B",
+        "score": 0,
+        "players": [
+          {
+            "player_id": "76561198000000011",
+            "display_name": "Kestrel",
+            "avatar_url": null,
+            "is_online": true,
+            "is_alive": true,
+            "health": 1800,
+            "shield": 320,
+            "max_health": 2200,
+            "max_shield": 400,
+            "kills": 1,
+            "loadout": {
+              "money": 900,
+              "primary_item_id": "Scp939",
+              "utility_item_ids": [
+                "HealthUpgrade2"
+              ],
+              "armor": null,
+              "has_commander_keycard": false,
+              "has_generator_upgrade": true
+            }
+          },
+          {
+            "player_id": "76561198000000012",
+            "display_name": "Lynx",
+            "avatar_url": null,
+            "is_online": true,
+            "is_alive": false,
+            "health": 0,
+            "shield": 0,
+            "kills": 0,
+            "loadout": {
+              "money": 600,
+              "primary_item_id": null,
+              "utility_item_ids": [],
+              "armor": null,
+              "has_commander_keycard": false,
+              "has_generator_upgrade": false
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

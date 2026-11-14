@@ -1,0 +1,6 @@
+{
+  "kind": "command.replay.control",
+  "command_id": "replay-seek-5a6b7c8d",
+  "action": "seek",
+  "delta_ms": -10000
+}
