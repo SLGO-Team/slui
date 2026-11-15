@@ -62,8 +62,11 @@ import {
   CLIENT_FEATURE_REPLAY,
   COMMAND_KINDS,
   REPLAY_COMMAND_KINDS,
+  REPLAY_JUMP_MS,
   advanceReplayPosition,
   isReplayCommandKind,
+  isReplayJump,
+  replayElapsedMs,
   parseCommandResult,
   parseReplayCatalog,
   parseReplayState,
@@ -1253,7 +1256,7 @@ console.log("contract smoke: ok");
   assert.equal(CLIENT_FEATURE_REPLAY, "replay");
 
   // replay.state: every example parses as a full event; sent_at is required.
-  const stateEvents = ["replay-state.example.json", "replay-state-idle.example.json", "replay-state-loading.example.json"].map(v0);
+  const stateEvents = ["replay-state.example.json", "replay-state-idle.example.json", "replay-state-loading.example.json", "replay-state-warmup.example.json"].map(v0);
   for (const event of stateEvents) assert.equal(parseEvent(event).ok, true, `${event.event_id} parses`);
   assert.equal(parseEvent({ ...stateEvents[0], sent_at: undefined }).error.code, "invalid-envelope", "replay.state requires sent_at");
   const state = stateEvents[0].payload;
@@ -1288,6 +1291,22 @@ console.log("contract smoke: ok");
   rejectsState("an empty skip", (s) => { s.demo.timeline.skips[0].end_ms = s.demo.timeline.skips[0].start_ms; });
   rejectsState("a bad match start", (s) => { s.demo.started_at = "yesterday"; });
   rejectsState("a blank load error", (s) => { s.load_error = { match_id: "x", reason: " " }; });
+  // The warmup segment (README "Demo replay": timeline.warmup).
+  rejectsState("a timeline without warmup", (s) => { delete s.demo.timeline.warmup; });
+  rejectsState("a warmup overlapping the first round", (s) => { s.demo.timeline.warmup = { start_ms: 0, end_ms: s.demo.timeline.rounds[0].at_ms + 1 }; });
+  rejectsState("an open warmup with rounds", (s) => { s.demo.timeline.warmup = { start_ms: 0, end_ms: null }; });
+  rejectsState("a warmup ending before it starts", (s) => { s.demo.timeline.warmup = { start_ms: 5000, end_ms: 4000 }; });
+  rejectsState("a warmup past the end", (s) => { s.demo.timeline.warmup = { start_ms: 0, end_ms: s.demo.duration_ms + 1 }; s.demo.timeline.rounds = []; });
+  rejectsState("a warmup with an unknown field", (s) => { s.demo.timeline.warmup = { start_ms: 0, end_ms: 1000, label: "warmup" }; });
+  rejectsState("a warmup without end_ms", (s) => { s.demo.timeline.warmup = { start_ms: 0 }; });
+  const warmupState = stateEvents[3].payload;
+  assert.ok(warmupState.demo.timeline.warmup.end_ms <= warmupState.demo.timeline.rounds[0].at_ms, "the warmup example ends before round 1");
+  const touching = clone(state);
+  touching.demo.timeline.warmup = { start_ms: 0, end_ms: touching.demo.timeline.rounds[0].at_ms };
+  assert.equal(parseReplayState(touching).ok, true, "a warmup may end exactly where round 1 starts");
+  const inWarmup = clone(state);
+  inWarmup.demo.timeline = { ...inWarmup.demo.timeline, warmup: { start_ms: 0, end_ms: null }, rounds: [], kills: [], generators: [], pauses: [] };
+  assert.equal(parseReplayState(inWarmup).ok, true, "a recording that ended in warmup has an open warmup and no rounds");
   const paused = clone(state);
   paused.playback = { playing: false, speed: 1, position_ms: paused.demo.duration_ms };
   paused.pov_slot = null;
@@ -1307,6 +1326,32 @@ console.log("contract smoke: ok");
   assert.deepEqual(advanceReplayPosition(at(95000), skips, 100000, 60000), at(100000, false), "stops at the end");
   assert.deepEqual(advanceReplayPosition(at(95000), [{ start_ms: 98000, end_ms: 100000 }], 100000, 4000), at(100000, false), "a skip to the end stops there");
   assert.deepEqual(advanceReplayPosition(at(20000), [], 100000, 1.7), at(20001), "positions stay whole milliseconds");
+
+  // replayElapsedMs: recording time for HUD durations on a replay server (README "Replay clock").
+  assert.equal(replayElapsedMs(at(20000, false), skips, 100000, 5000), 0, "paused: HUD clocks freeze");
+  assert.equal(replayElapsedMs(at(20000), skips, 100000, 5000), 5000, "1x runs with the wall clock");
+  assert.equal(replayElapsedMs(at(20000, true, 4), skips, 100000, 1000), 4000, "4x runs four times as fast");
+  assert.equal(replayElapsedMs(at(20000, true, 0.25), skips, 100000, 1000), 250, "slow motion");
+  assert.equal(replayElapsedMs(at(45000), skips, 100000, 10000), 20000, "crossing a skip counts the jump over it");
+  assert.equal(replayElapsedMs(at(98000), skips, 100000, 10000), 2000, "nothing past the end");
+  assert.equal(replayElapsedMs(at(100000, false), skips, 100000, 10000), 0, "stopped at the end");
+  assert.equal(replayElapsedMs(at(20000), skips, 100000, -5), 0, "no negative time");
+
+  // isReplayJump: when clients clear their chat area and the plugin republishes recent chat.
+  assert.equal(REPLAY_JUMP_MS, 1000);
+  const withPlayback = (base, playback) => ({ ...base, playback: { ...base.playback, ...playback } });
+  const playing = withPlayback(state, { playing: true, speed: 2, position_ms: 61000 });
+  assert.equal(isReplayJump(playing, 3000, withPlayback(state, { playing: true, speed: 2, position_ms: 67000 })), false, "playing on is no jump");
+  assert.equal(isReplayJump(playing, 3000, withPlayback(state, { playing: false, speed: 2, position_ms: 67400 })), false, "pausing (with some latency) is no jump");
+  assert.equal(isReplayJump(playing, 3000, withPlayback(state, { playing: true, speed: 2, position_ms: 68000 })), true, "1 s off the clock is a jump");
+  assert.equal(isReplayJump(playing, 0, withPlayback(state, { playing: true, speed: 2, position_ms: 51000 })), true, "a seek back 10 s");
+  const paused61 = withPlayback(state, { playing: false, speed: 1, position_ms: 61000 });
+  assert.equal(isReplayJump(paused61, 60000, withPlayback(paused61, { position_ms: 61008 })), false, "a single step is no jump");
+  const idle = stateEvents[1].payload;
+  assert.equal(isReplayJump(idle, 0, state), true, "loading a demo is a jump");
+  assert.equal(isReplayJump(state, 0, idle), true, "unloading is a jump");
+  assert.equal(isReplayJump(idle, 5000, idle), false, "nothing loaded stays put");
+  assert.equal(isReplayJump(state, 0, warmupState), true, "another demo is a jump");
 
   // replay.catalog.
   const catalogEvent = v0("replay-catalog.example.json");

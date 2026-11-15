@@ -485,7 +485,10 @@ baseline without one (the player moved to a match server) leaves it. Payload
     `hud.killfeed` and `hud.spectating` use for that player, so the client
     joins slots to HUD players by it (name, team, alive).
   - `timeline`, every list ordered by time and within `[0, duration_ms]`:
-    `rounds` (`{ at_ms, round, phase }`, `phase` `buy` / `action` /
+    `warmup` (`{ start_ms, end_ms }`, or `null` for a recording that began
+    with the match; `end_ms` >= `start_ms` and at or before the first round
+    mark, or `null` when the recording ended or was loaded still in warmup,
+    which then has no `rounds`), `rounds` (`{ at_ms, round, phase }`, `phase` `buy` / `action` /
     `round_end` / `match_end`, `round` the recorded round number), `kills`
     (`{ at_ms, killer_slot, victim_slot }`, `killer_slot` `null` for a death
     without a killer; both name recorded slots), `generators` (`{ at_ms,
@@ -511,6 +514,38 @@ stops at the end), the same function the sidecar uses to age a cached
 `replay.state` (`sent_at` moves forward by the same time). While playing the
 plugin republishes at least every 5 seconds. Every object rejects unknown
 fields.
+
+### Replay clock
+
+On a replay server every HUD duration is **recording time**, not wall time:
+`phase_remaining_ms` / `generator_remaining_ms` / `pause_remaining_ms` of
+`match.snapshot`, every `*_remaining_ms` of `hud.messages` and
+`round.result`, `hud.killfeed` `visible_remaining_ms`, the scoreboard's
+`elapsed_ms` and minimap `status_age_ms`. Each is still the value at
+`sent_at`. A client in replay mode advances them with the latest
+`replay.state` of its connection instead of its local clock:
+`replayElapsedMs(playback, skips, duration_ms, wallElapsedMs)` is the
+recording time that passed in `wallElapsedMs` (nothing while paused, scaled by
+the speed, the jump over a skip included, nothing past the end), so a 4x
+replay runs its countdowns 4x and a paused one freezes them. Without a
+`replay.state` (an older client, or nothing loaded) they stay frozen.
+
+The plugin keeps the two consistent: after anything that changes the replay
+clock (play, pause, speed, seek, step, a round jump, reaching the end,
+crossing a skip) it publishes `replay.state` first and then, in the same
+frame, the affected HUD snapshots (`match.snapshot`, `hud.messages`,
+`hud.killfeed`, `round.result`, `scoreboard.snapshot`, `minimap.*`) as they
+stand at the new position. The sidecar ages cached HUD snapshots on the same
+clock (slgo-backend `protocol/ipc/README.md` "Demo replay"). Match servers are
+unchanged: there every duration is wall time.
+
+A **jump** is a position the replay clock does not explain:
+`isReplayJump(previous, elapsedMs, next)` is true when the demo changed
+(loaded, unloaded, another one) or `next.position_ms` is at least
+`REPLAY_JUMP_MS` (1 s) away from where `advanceReplayPosition` puts the
+previous state after the time between them. Seeks and round jumps are jumps;
+playing, pausing and a single step are not. The client clears its chat area
+on a jump (see "Replay HUD").
 
 ### `replay.catalog`
 
@@ -549,15 +584,45 @@ most 4 per second): the sidecar's per-player command rate limit applies. A
 sidecar connected to a plugin without demo replay answers these commands
 itself with `rejected`, reason `unsupported`.
 
-### Omniscient HUD
+### Replay HUD
 
-The other HUD events keep their v0 rules: `minimap.positions` addresses a
-team-less viewer with every marker `observed` (`live` or `dead`, never
-`last-known`), `hud.spectating` follows the first-person target,
-`hud.killfeed` entries carry no `viewer`, `round.result` uses the `observer`
-outcome, and `scoreboard.snapshot` is the same as in a match. Only
-`match.snapshot` needs the `omniscient` flag (see "Match snapshot top-HUD
-fields") to show both teams' health and loadout.
+The HUD shows the recording as the match server sent it, from the viewer's
+point of view (CS2 GOTV): first person on a recorded player (`pov_slot`), or
+the free camera. Only `match.snapshot` needs a new flag, `omniscient` (see
+"Match snapshot top-HUD fields"), to show both teams' health and loadout; the
+other events keep their v0 payloads, read as follows:
+
+- `minimap.positions` addresses a team-less viewer with every marker
+  `observed` (`live` or `dead`, never `last-known`). In first person the
+  viewpoint is the target's pose; with the free camera it is the viewer's own
+  camera as a v7 free-camera viewpoint (see "Free-camera viewpoint (v7)"),
+  or `null` outside Entrance / HeavyContainment.
+- `hud.spectating` follows the first-person target; `target` is `null` with
+  the free camera.
+- `hud.killfeed`: `viewer` and the 1.5x lifetime refer to the **first-person
+  target** (CS2 highlights the spectated player's kills and death); with the
+  free camera no entry has a `viewer`.
+- `hud.messages`: in first person the target's own message zone as it was
+  recorded (its "you" is the target, like CS2's centre messages of the
+  spectated player); with the free camera all four slots are `null`.
+- `round.result` uses the `observer` outcome, the match-end panel included.
+- `scoreboard.snapshot` is the same as in a match; `elapsed_ms` is recording
+  time since the match start.
+- `chat.message` / `chat.notice` replay the recorded chat: `sender_id` is the
+  recorded player's id (as in `replay.state.players`), `team_id` / `role` the
+  sender's side when it was said, never a `command_id`. With the free camera
+  the viewer gets every line (both teams' team chat, global chat, the
+  spectator channel and the plugin's notices); in first person only the lines
+  the target received. A line goes out when playback passes it. Its payload
+  `sent_at` is the envelope `sent_at` minus the line's recording age (the
+  recording time from when it was said to the publish position), so a live
+  line has the two equal; the client starts the line's fade that much
+  recording time in the past and runs it on the replay clock. On a jump the
+  client clears its chat area, and the plugin, applying the same
+  `isReplayJump` rule to what it last sent that viewer, republishes the lines
+  still visible at the new position (said within the chat area's lifetime
+  before it). Viewers cannot chat through SLUI on a replay server:
+  `command.chat.send` is `rejected`.
 
 ## Minimap payload v6
 
@@ -661,6 +726,19 @@ so opponents of it draw it red like an enemy marker; `state` is `carried`,
   item appearing, disappearing or changing status needs a new
   `visibility_revision`.
 
+### Free-camera viewpoint (v7)
+
+v7 adds one viewpoint form and nothing else; `minimap.init` and every other
+rule are the v6 ones, and the parsers accept both versions
+(`MINIMAP_SCHEMA_VERSIONS`). A v7 `viewpoint` may be `{ x, y, z, yaw_degrees,
+zone, room_id, player_id: null }`: a camera pose that belongs to no player.
+It is valid only for a team-less viewer (`viewer.team_id` null, so every
+marker is `observed`), which is the demo replay viewer's free camera; the
+client follows it like any viewpoint. A viewpoint with a `player_id` keeps the
+v6 rule. Only a demo replay server sends v7 (init and positions alike), and
+the sidecar delivers it only to clients that declared 7 in `session.open`; a
+v6 frame never carries a free-camera viewpoint.
+
 ### Bombsites (v5)
 
 v5 adds the bombsites (SLGO generator sites, the CS2 radar `BombZoneA/B`) to
@@ -679,7 +757,7 @@ static for a `map_id` (sent during warmup too, before any generator spawns) and
 are replaced only by a new init. Since v6 the parser itself rejects an init whose
 non-null bombsite `room_id` is not one of its `rooms` in the same zone.
 
-A non-null viewpoint must exactly match a `live` authorized marker's pose:
+A non-null viewpoint with a `player_id` must exactly match a `live` authorized marker's pose:
 self while alive; while not alive, a teammate or an `observed` player (the
 spectated target, which may be an opponent when the plugin grants it). Null viewpoint still permits team
 shared positions and uses a two-zone overview. Every object rejects unknown
@@ -799,9 +877,10 @@ The client opens a WebSocket to the route's `sidecar_endpoint`. Its first text
 frame must be [session-open.schema.json](./session-open.schema.json)
 (`parseSessionOpen`), sent within 5 seconds, and carries the route's
 `session_token`, never in the URL. `minimap_schema_versions` lists the minimap
-payload versions the client can render. If it does not include `6`, the sidecar
-sends no `minimap.*` events on that connection. This is the v6 capability
-negotiation.
+payload versions the client can render. The sidecar sends a `minimap.*` event
+only to connections whose list includes that event's `minimap_schema_version`
+(match servers send 6, a demo replay server 7), so a client without `6` gets
+no minimap from a match server. This is the minimap capability negotiation.
 
 The token binds SteamID64, `server_id`, `instance_id` and identity mode. On
 success the sidecar sends `sidecar.baseline` for the routed instance, then

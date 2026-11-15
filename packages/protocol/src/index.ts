@@ -1,6 +1,15 @@
 export const PROTOCOL_VERSION = 0 as const;
 export const SUPPORTED_SCHEMA_VERSION = 1 as const;
+/** The minimap payload version match servers send, and the one every client declares. */
 export const MINIMAP_SCHEMA_VERSION = 6 as const;
+/**
+ * v7 = v6 plus the free-camera viewpoint (`player_id: null`) of a team-less viewer, which only a demo replay server
+ * sends. The sidecar delivers a minimap event only to clients whose `session.open` declared its version.
+ */
+export const MINIMAP_FREE_VIEWPOINT_SCHEMA_VERSION = 7 as const;
+/** Every minimap payload version the parsers accept. */
+export const MINIMAP_SCHEMA_VERSIONS = [MINIMAP_SCHEMA_VERSION, MINIMAP_FREE_VIEWPOINT_SCHEMA_VERSION] as const;
+export type MinimapSchemaVersion = (typeof MINIMAP_SCHEMA_VERSIONS)[number];
 /** At most one bombsite per letter A-Z. */
 export const MINIMAP_MAX_BOMBSITES = 26 as const;
 /** Upper bound of `minimap.init.rooms` (a generated map has about 60-75 Entrance / HeavyContainment rooms). */
@@ -121,7 +130,7 @@ export type MatchSnapshot = {
 };
 
 export type MinimapInit = {
-  minimap_schema_version: typeof MINIMAP_SCHEMA_VERSION;
+  minimap_schema_version: MinimapSchemaVersion;
   map_id: string;
   coordinate_system: "unity-world-xz";
   /** The game's room grid cell (`RoomIdentifier.GridScale` x/z): one room canvas covers one cell. */
@@ -185,7 +194,11 @@ export type MinimapViewer = {
   team_id: TeamId | null;
   is_alive: boolean;
 };
-export type MinimapViewpoint = MinimapPose & { player_id: string };
+/** The pose of the player whose view the minimap follows. */
+export type MinimapPlayerViewpoint = MinimapPose & { player_id: string };
+/** v7 only: a team-less viewer's own free camera (demo replay), not any player's pose. */
+export type MinimapFreeViewpoint = MinimapPose & { player_id: null };
+export type MinimapViewpoint = MinimapPlayerViewpoint | MinimapFreeViewpoint;
 export type MinimapPosition = MinimapPose & {
   player_id: string;
   team_id: TeamId;
@@ -219,7 +232,7 @@ export type MinimapCommanderKeycard = Omit<MinimapPose, "yaw_degrees"> & {
 };
 
 export type MinimapPositions = {
-  minimap_schema_version: typeof MINIMAP_SCHEMA_VERSION;
+  minimap_schema_version: MinimapSchemaVersion;
   map_id: string;
   visibility_revision: number;
   viewer: MinimapViewer;
@@ -657,6 +670,11 @@ export const MAX_REPLAY_TEXT_LENGTH = 64;
 export const MAX_REPLAY_REASON_LENGTH = 256;
 export const MAX_REPLAY_PIN_REASON_LENGTH = 128;
 export const MAX_REPLAY_CATALOG_PAGE_SIZE = 50;
+/**
+ * A replay position this far (or farther) from where the replay clock puts it is a jump (a seek, a round jump, a newly
+ * loaded demo), not playback: clients clear their chat area and the plugin republishes the recent chat (`isReplayJump`).
+ */
+export const REPLAY_JUMP_MS = 1000;
 export const REPLAY_ROUND_PHASES = ["buy", "action", "round_end", "match_end"] as const;
 export type ReplayRoundPhase = (typeof REPLAY_ROUND_PHASES)[number];
 export const REPLAY_GENERATOR_STATES = ["activated", "completed"] as const;
@@ -670,7 +688,10 @@ export type ReplayGeneratorMark = { at_ms: number; label: string | null; state: 
 export type ReplayPause = { start_ms: number; end_ms: number | null };
 /** An intro cinematic: the replay clock jumps from `start_ms` to `end_ms` while playing. */
 export type ReplaySkip = { start_ms: number; end_ms: number };
+/** The warmup before the match starts; `end_ms` is null when the recording ends (or was loaded) still in warmup. */
+export type ReplayWarmup = { start_ms: number; end_ms: number | null };
 export type ReplayTimeline = {
+  warmup: ReplayWarmup | null;
   rounds: ReplayRoundMark[];
   kills: ReplayKillMark[];
   generators: ReplayGeneratorMark[];
@@ -755,6 +776,29 @@ export function advanceReplayPosition(playback: ReplayPlayback, skips: readonly 
   }
   position = Math.min(end, Math.floor(position + Math.max(0, budget)));
   return { ...playback, position_ms: position, playing: position < end };
+}
+
+/**
+ * Recording milliseconds that pass in `wallElapsedMs` of real time on this replay clock: 0 while paused, scaled by the
+ * speed, including the jump over an intro skip, and nothing past the end. On a replay server every HUD duration
+ * (`*_remaining_ms`, `elapsed_ms`, `status_age_ms`, ...) is recording time, so clients and the sidecar advance them
+ * with this instead of the wall clock (README "Demo replay", "Replay clock").
+ */
+export function replayElapsedMs(playback: ReplayPlayback, skips: readonly ReplaySkip[], durationMs: number, wallElapsedMs: number): number {
+  return Math.max(0, advanceReplayPosition(playback, skips, durationMs, wallElapsedMs).position_ms - Math.min(Math.max(0, durationMs), playback.position_ms));
+}
+
+/**
+ * Whether `next` jumped away from `previous` (received `elapsedMs` earlier) instead of playing on: another (or no
+ * longer any) demo, or a position at least `REPLAY_JUMP_MS` from where `advanceReplayPosition` puts the previous one.
+ * Clients clear their chat area on a jump; the plugin applies the same rule to what it last sent the viewer.
+ */
+export function isReplayJump(previous: ReplayState, elapsedMs: number, next: ReplayState): boolean {
+  if (previous.demo === null || next.demo === null) return (previous.demo === null) !== (next.demo === null);
+  if (previous.demo.match_id !== next.demo.match_id) return true;
+  if (previous.playback === null || next.playback === null) return false;
+  const expected = advanceReplayPosition(previous.playback, previous.demo.timeline.skips, previous.demo.duration_ms, elapsedMs).position_ms;
+  return Math.abs(next.playback.position_ms - expected) >= REPLAY_JUMP_MS;
 }
 
 export type ShopPurchaseCommand = {
@@ -1382,7 +1426,7 @@ export function parseMatchSnapshot(payload: unknown): ParseResult<MatchSnapshot>
 
 export function parseMinimapInit(payload: unknown): ParseResult<MinimapInit> {
   if (!isRecord(payload)) return error("invalid-payload", "Minimap init must be an object");
-  if (payload.minimap_schema_version !== MINIMAP_SCHEMA_VERSION) return error("unsupported-minimap-schema", "Unsupported minimap payload version");
+  if (!isMinimapSchemaVersion(payload.minimap_schema_version)) return error("unsupported-minimap-schema", "Unsupported minimap payload version");
   if (!hasOnlyKeys(payload, MINIMAP_INIT_KEYS)) return error("invalid-payload", "Minimap init contains unsupported fields");
   if (payload.coordinate_system !== "unity-world-xz") return error("unsupported-minimap-map", "Unsupported minimap coordinates");
   if (!isNonEmptyString(payload.map_id) || !isFiniteNumber(payload.position_update_hz) || payload.position_update_hz <= 0 || payload.position_update_hz > 60) return error("invalid-payload", "Minimap init is invalid");
@@ -1419,6 +1463,8 @@ const MINIMAP_VIEWPOINT_KEYS = new Set<string>(["player_id", ...MINIMAP_POSE_KEY
 const MINIMAP_POSITION_KEYS = new Set<string>(["player_id", "team_id", "role", "visibility", "status", "status_age_ms", "has_commander_keycard", ...MINIMAP_POSE_KEYS]);
 const MINIMAP_KEYCARD_KEYS = new Set<string>(["x", "y", "z", "zone", "room_id", "team_id", "status", "status_age_ms", "state"]);
 
+const isMinimapSchemaVersion = (value: unknown): value is MinimapSchemaVersion => (MINIMAP_SCHEMA_VERSIONS as readonly unknown[]).includes(value);
+
 function isMarkerStatusAge(status: unknown, age: unknown): boolean {
   if (!Number.isSafeInteger(age) || Number(age) < 0) return false;
   if (status === "live") return age === 0;
@@ -1442,7 +1488,7 @@ function isMinimapPose(value: Record<string, unknown>): boolean {
 
 export function parseMinimapPositions(payload: unknown): ParseResult<MinimapPositions> {
   if (!isRecord(payload)) return error("invalid-payload", "Minimap positions must be an object");
-  if (payload.minimap_schema_version !== MINIMAP_SCHEMA_VERSION) return error("unsupported-minimap-schema", "Unsupported minimap payload version");
+  if (!isMinimapSchemaVersion(payload.minimap_schema_version)) return error("unsupported-minimap-schema", "Unsupported minimap payload version");
   if (!hasOnlyKeys(payload, MINIMAP_FRAME_KEYS) || !isNonEmptyString(payload.map_id) || !Number.isSafeInteger(payload.visibility_revision) || Number(payload.visibility_revision) < 0 || typeof payload.scoreboard_visible !== "boolean" || !Array.isArray(payload.positions)) return error("invalid-payload", "Minimap positions are invalid");
   const viewer = payload.viewer;
   if (!isRecord(viewer) || !hasOnlyKeys(viewer, MINIMAP_VIEWER_KEYS) || !isNonEmptyString(viewer.player_id) || (viewer.team_id !== null && !isTeamId(viewer.team_id)) || typeof viewer.is_alive !== "boolean") return error("invalid-payload", "Minimap viewer is invalid");
@@ -1478,7 +1524,12 @@ export function parseMinimapPositions(payload: unknown): ParseResult<MinimapPosi
   if (keycard !== null && holders > 0) return error("invalid-payload", "The commander keycard cannot be both on a marker and a radar item");
   const viewpoint = payload.viewpoint;
   if (viewpoint !== null) {
-    if (!isRecord(viewpoint) || !hasOnlyKeys(viewpoint, MINIMAP_VIEWPOINT_KEYS) || !isNonEmptyString(viewpoint.player_id) || !isMinimapPose(viewpoint)) return error("invalid-payload", "Minimap viewpoint is invalid");
+    if (!isRecord(viewpoint) || !hasOnlyKeys(viewpoint, MINIMAP_VIEWPOINT_KEYS) || !(viewpoint.player_id === null || isNonEmptyString(viewpoint.player_id)) || !isMinimapPose(viewpoint)) return error("invalid-payload", "Minimap viewpoint is invalid");
+    if (viewpoint.player_id === null) {
+      // v7 free camera: only the omniscient demo replay viewer (no team, so every marker is observed) has one.
+      if (payload.minimap_schema_version !== MINIMAP_FREE_VIEWPOINT_SCHEMA_VERSION || viewerTeam !== null) return error("invalid-payload", "A free-camera viewpoint needs v7 and a viewer without a team");
+      return { ok: true, value: { ...payload, positions } as unknown as MinimapPositions };
+    }
     const target = positions.find((position) => position.player_id === viewpoint.player_id);
     const allowed = viewer.is_alive ? ["self"] : ["teammate", "observed"];
     if (!target || target.status !== "live" || !allowed.includes(target.visibility) || !MINIMAP_POSE_KEYS.every((key) => target[key] === viewpoint[key])) return error("invalid-payload", "Minimap viewpoint must match a living authorized player pose");
@@ -1805,7 +1856,7 @@ export function parseInstanceEnded(payload: unknown): ParseResult<InstanceEnded>
 const REPLAY_STATE_KEYS = new Set(["demo", "loading", "load_error", "playback", "pov_slot"]);
 const REPLAY_DEMO_KEYS = new Set(["match_id", "server_id", "profile_id", "started_at", "duration_ms", "is_test", "recording", "players", "timeline"]);
 const REPLAY_PLAYER_KEYS = new Set(["slot", "player_id", "display_name"]);
-const REPLAY_TIMELINE_KEYS = new Set(["rounds", "kills", "generators", "pauses", "skips"]);
+const REPLAY_TIMELINE_KEYS = new Set(["warmup", "rounds", "kills", "generators", "pauses", "skips"]);
 const REPLAY_ROUND_KEYS = new Set(["at_ms", "round", "phase"]);
 const REPLAY_KILL_KEYS = new Set(["at_ms", "killer_slot", "victim_slot"]);
 const REPLAY_GENERATOR_KEYS = new Set(["at_ms", "label", "state"]);
@@ -1852,6 +1903,15 @@ function isReplayDemo(value: unknown): value is ReplayDemo {
   const timeline = value.timeline;
   if (!isRecord(timeline) || !hasOnlyKeys(timeline, REPLAY_TIMELINE_KEYS)) return false;
   const inRange = (ms: unknown): ms is number => isReplayMs(ms) && ms <= duration;
+  // The warmup precedes every round: an open warmup (recording ended or loaded in it) has no rounds at all.
+  const warmup = timeline.warmup;
+  if (warmup !== null) {
+    if (!isRecord(warmup) || !hasOnlyKeys(warmup, REPLAY_RANGE_KEYS) || !inRange(warmup.start_ms)
+      || !(warmup.end_ms === null || (inRange(warmup.end_ms) && warmup.end_ms >= warmup.start_ms))) return false;
+    const rounds = Array.isArray(timeline.rounds) ? timeline.rounds as unknown[] : [];
+    const firstRound = rounds[0];
+    if (warmup.end_ms === null ? rounds.length > 0 : isRecord(firstRound) && isReplayMs(firstRound.at_ms) && firstRound.at_ms < warmup.end_ms) return false;
+  }
   const isSlotOf = (slot: unknown) => isReplaySlot(slot) && slots.has(slot);
   const atMs = (entry: Record<string, unknown>) => entry.at_ms as number;
   const startMs = (entry: Record<string, unknown>) => entry.start_ms as number;
