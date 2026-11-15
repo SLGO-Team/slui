@@ -172,6 +172,14 @@ for (const [label, payload] of [
   ["free camera with yaw 360", { ...freeFrame, viewpoint: { ...freeFrame.viewpoint, yaw_degrees: 360 } }],
   ["v7 player viewpoint off the marker pose", { ...freeFrame, viewpoint: { ...freeFrame.viewpoint, player_id: freeFrame.positions[0].player_id } }],
 ]) assert.equal(parseMinimapPositions(payload).ok, false, label);
+// A viewer replaying a match they played sees their own recorded player as an observed marker (v7 only).
+const ownRecorded = { ...freeFrame.positions[0], player_id: freeFrame.viewer.player_id };
+const ownFrame = { ...freeFrame, positions: [ownRecorded, ...freeFrame.positions.slice(1)] };
+assert.equal(parseMinimapPositions(ownFrame).ok, true, "v7: the viewer's own recorded player is an observed marker");
+assert.equal(parseMinimapPositions({ ...ownFrame, viewpoint: poseOf(ownRecorded) }).ok, true, "v7: first person on their own recorded player");
+assert.equal(parseMinimapPositions({ ...ownFrame, minimap_schema_version: 6, viewpoint: null }).ok, false, "v6 still rejects an observed marker for the viewer");
+assert.equal(parseMinimapPositions({ ...ownFrame, viewer: { ...freeFrame.viewer, team_id: "team-b" }, viewpoint: null,
+  positions: [{ ...ownRecorded, team_id: "team-a" }] }).ok, false, "a viewer with a team never gets an observed marker for themselves");
 const followed = freeFrame.positions[0];
 assert.equal(parseMinimapPositions({ ...freeFrame, viewpoint: poseOf(followed) }).ok, true, "a v7 first-person viewpoint keeps the v6 rule");
 for (const position_update_hz of [Number.NaN, Infinity, 0, -1, 61]) assert.equal(parseMinimapInit({ ...init, position_update_hz }).ok, false);
