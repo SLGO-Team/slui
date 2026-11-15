@@ -1503,7 +1503,9 @@ export function parseMinimapPositions(payload: unknown): ParseResult<MinimapPosi
     const isFriendly = position.team_id === viewer.team_id;
     if (viewerTeam === null && position.visibility !== "observed") return error("invalid-payload", "A viewer without a team can only receive observed markers");
     if (position.visibility === "observed") {
-      if (isViewer || (viewerTeam !== null && isFriendly) || position.status === "last-known") return error("invalid-payload", "Minimap observed marker is invalid");
+      // v7 demo replay: a team-less viewer may watch a match they played, so their own recorded player is an observed marker.
+      const replayedSelf = isViewer && payload.minimap_schema_version === MINIMAP_FREE_VIEWPOINT_SCHEMA_VERSION && viewerTeam === null;
+      if ((isViewer && !replayedSelf) || (viewerTeam !== null && isFriendly) || position.status === "last-known") return error("invalid-payload", "Minimap observed marker is invalid");
     } else if (position.visibility === "self") {
       if (!isViewer || !isFriendly || position.status === "last-known" || (position.status === "live") !== viewer.is_alive) return error("invalid-payload", "Minimap self does not match the viewer");
     } else if (position.visibility === "teammate") {

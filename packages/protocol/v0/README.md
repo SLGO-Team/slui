@@ -593,7 +593,8 @@ the free camera. Only `match.snapshot` needs a new flag, `omniscient` (see
 other events keep their v0 payloads, read as follows:
 
 - `minimap.positions` addresses a team-less viewer with every marker
-  `observed` (`live` or `dead`, never `last-known`). In first person the
+  `observed` (`live` or `dead`, never `last-known`), the viewer's own recorded
+  player included when they watch a match they played. In first person the
   viewpoint is the target's pose; with the free camera it is the viewer's own
   camera as a v7 free-camera viewpoint (see "Free-camera viewpoint (v7)"),
   or `null` outside Entrance / HeavyContainment.
@@ -642,7 +643,8 @@ Each frame atomically carries the stable authenticated `viewer`, spatial
 `viewpoint`, actual plugin `scoreboard_visible` state and filtered `positions`.
 The first client contract binds `viewer.player_id` to the authenticated route's
 SteamID64. Spectating never changes this identity or the viewer's stable team.
-A viewer without a team may receive only `observed` markers. Self must match the viewer
+A viewer without a team may receive only `observed` markers, never one for
+themselves except in a v7 frame (see "Free-camera viewpoint (v7)"). Self must match the viewer
 and their alive state; teammates must be other players on that team; spotted
 markers must be opponents. A dead viewer cannot use `spotted-by-self` but retains
 all authorized `spotted-by-teammate` markers.
@@ -735,7 +737,10 @@ zone, room_id, player_id: null }`: a camera pose that belongs to no player.
 It is valid only for a team-less viewer (`viewer.team_id` null, so every
 marker is `observed`), which is the demo replay viewer's free camera; the
 client follows it like any viewpoint. A viewpoint with a `player_id` keeps the
-v6 rule. Only a demo replay server sends v7 (init and positions alike), and
+v6 rule. A v7 frame for a team-less viewer may also carry an `observed` marker
+whose `player_id` is `viewer.player_id`: the recorded player when the viewer
+replays a match they played (the marker is the recording, not the viewer, and
+can be the first-person target). Only a demo replay server sends v7 (init and positions alike), and
 the sidecar delivers it only to clients that declared 7 in `session.open`; a
 v6 frame never carries a free-camera viewpoint.
 
