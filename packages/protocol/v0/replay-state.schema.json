@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slgo.dev/slui/protocol/v0/replay-state.schema.json",
   "title": "SLGO demo replay state payload (replay.state)",
-  "description": "One viewer's view of a demo replay server: the loaded recording with its players and timeline, loading progress, playback and this viewer's point of view. One recipient per publish; sent only to clients declaring the replay feature. Rules the schema cannot express (parseReplayState): playback and pov_slot are null when demo is null; position_ms <= duration_ms and playing only before the end; every time within [0, duration_ms]; markers ordered by time; kill slots and pov_slot name recorded slots; skips do not overlap.",
+  "description": "One viewer's view of a demo replay server: the loaded recording with its players and timeline, loading progress, playback and this viewer's point of view. One recipient per publish; sent only to clients declaring the replay feature. Rules the schema cannot express (parseReplayState): playback and pov_slot are null when demo is null; position_ms <= duration_ms and playing only before the end; every time within [0, duration_ms]; markers ordered by time; kill slots and pov_slot name recorded slots; skips do not overlap; the warmup ends at or after its start and before the first round mark, and an open warmup (end_ms null) has no rounds.",
   "type": "object",
   "additionalProperties": false,
   "required": ["demo", "loading", "load_error", "playback", "pov_slot"],
@@ -41,8 +41,23 @@
             "timeline": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["rounds", "kills", "generators", "pauses", "skips"],
+              "required": ["warmup", "rounds", "kills", "generators", "pauses", "skips"],
               "properties": {
+                "warmup": {
+                  "description": "The warmup before the match start, or null for a recording that began with the match. end_ms is null when the recording ends (or was loaded while recording) still in warmup.",
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["start_ms", "end_ms"],
+                      "properties": {
+                        "start_ms": { "$ref": "#/$defs/ms" },
+                        "end_ms": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ms" }] }
+                      }
+                    }
+                  ]
+                },
                 "rounds": {
                   "description": "Round phase starts. round is the recorded round number; command.replay.control round uses the same number.",
                   "type": "array",

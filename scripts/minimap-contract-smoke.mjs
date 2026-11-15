@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { parseEnvelope, parseEvent, parseMinimapInit, parseMinimapPositions } from "../src/contracts/index.ts";
+import { MINIMAP_SCHEMA_VERSIONS, parseEnvelope, parseEvent, parseMinimapInit, parseMinimapPositions } from "../src/contracts/index.ts";
 import { MockSidecarConnection } from "../src/platform/connection.ts";
 import { clientSessionReducer, initialClientSessionState, runClientSessionAttempt } from "../src/app/clientSession.ts";
 
@@ -148,11 +148,32 @@ for (const [label, payload] of invalidFrames) {
   assert.equal(result.ok, false, label);
   assert.equal(result.error.code, "invalid-payload", label);
 }
-for (const minimap_schema_version of [undefined, 1, 2, 3, 4, 5, 7]) {
+for (const minimap_schema_version of [undefined, 1, 2, 3, 4, 5, 8, "7"]) {
   assert.equal(parseMinimapInit({ ...init, minimap_schema_version }).error.code, "unsupported-minimap-schema");
   assert.equal(parseMinimapPositions({ ...frame, minimap_schema_version }).error.code, "unsupported-minimap-schema");
 }
 assert.equal(parseMinimapInit({ ...init, coordinate_system: "unknown" }).error.code, "unsupported-minimap-map");
+
+// v7 (demo replay): the v6 rules plus a free-camera viewpoint for a team-less viewer.
+assert.deepEqual(MINIMAP_SCHEMA_VERSIONS, [6, 7]);
+assert.equal(parseMinimapInit({ ...init, minimap_schema_version: 7 }).ok, true, "a v7 init is the v6 layout");
+assert.equal(parseMinimapPositions({ ...frame, minimap_schema_version: 7 }).ok, true, "v7 keeps every v6 frame valid");
+const freeExample = JSON.parse(readFileSync(new URL("../packages/protocol/v0/minimap-positions-free-viewpoint.example.json", import.meta.url), "utf8"));
+assert.equal(parseEvent(freeExample).ok, true, "public free-camera example matches runtime contract");
+const freeFrame = freeExample.payload;
+assert.equal(freeFrame.viewpoint.player_id, null);
+assert.equal(parseMinimapPositions({ ...freeFrame, positions: [] }).ok, true, "a free camera needs no marker to follow");
+for (const [label, payload] of [
+  ["free camera in v6", { ...freeFrame, minimap_schema_version: 6 }],
+  ["free camera of a viewer with a team", { ...freeFrame, viewer: { ...freeFrame.viewer, team_id: "team-a" }, positions: [] }],
+  ["free camera without player_id", { ...freeFrame, viewpoint: (({ player_id, ...pose }) => pose)(freeFrame.viewpoint) }],
+  ["free camera with an empty player_id", { ...freeFrame, viewpoint: { ...freeFrame.viewpoint, player_id: "" } }],
+  ["free camera outside the supported zones", { ...freeFrame, viewpoint: { ...freeFrame.viewpoint, zone: "LightContainment" } }],
+  ["free camera with yaw 360", { ...freeFrame, viewpoint: { ...freeFrame.viewpoint, yaw_degrees: 360 } }],
+  ["v7 player viewpoint off the marker pose", { ...freeFrame, viewpoint: { ...freeFrame.viewpoint, player_id: freeFrame.positions[0].player_id } }],
+]) assert.equal(parseMinimapPositions(payload).ok, false, label);
+const followed = freeFrame.positions[0];
+assert.equal(parseMinimapPositions({ ...freeFrame, viewpoint: poseOf(followed) }).ok, true, "a v7 first-person viewpoint keeps the v6 rule");
 for (const position_update_hz of [Number.NaN, Infinity, 0, -1, 61]) assert.equal(parseMinimapInit({ ...init, position_update_hz }).ok, false);
 assert.equal(parseMinimapInit({ ...init, all_players: [] }).ok, false);
 // v6 dropped the generator descriptor: the old fields are now unknown keys, never a version to negotiate.

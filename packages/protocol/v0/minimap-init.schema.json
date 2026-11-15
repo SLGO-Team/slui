@@ -14,7 +14,7 @@
     "bombsites"
   ],
   "properties": {
-    "minimap_schema_version": { "const": 6 },
+    "minimap_schema_version": { "description": "6, or 7 on a demo replay server (the same layout; v7 only adds the free-camera viewpoint to positions).", "enum": [6, 7] },
     "map_id": { "type": "string", "minLength": 1, "pattern": "\\S" },
     "coordinate_system": { "const": "unity-world-xz" },
     "grid": {
