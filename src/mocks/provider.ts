@@ -1,6 +1,7 @@
 import type { ChatMessage, ChatNotice, HudMessagesSnapshot, MatchPlayer, MatchPlayerLoadout, MatchSnapshot, ProtocolEnvelope, RoundResultSnapshot, ShopSnapshot, SlgoEvent } from "../contracts";
 import { RealtimeMockProvider } from "./minimapProvider.ts";
 import { mockMinimapInit, mockMinimapPositions } from "./minimapFixtures.ts";
+import { MockReplayServer, type MockReplayScenario } from "./replayMock.ts";
 export { mockMinimapInit, mockMinimapPositions } from "./minimapFixtures.ts";
 
 const envelope = <T, TType extends string>(type: TType, sequence: number, payload: T): ProtocolEnvelope<T, TType> => ({
@@ -328,7 +329,17 @@ function mockSnapshotForViewer(viewerTeamId: "team-a" | "team-b"): MatchSnapshot
   };
 }
 
-export function createMockProvider(viewerTeamId: "team-a" | "team-b" = "team-a", shopRole: MockShopRole = "scp") {
+/** A demo replay viewer's snapshot: no team, both teams with vitals and loadouts (README "Demo replay"). */
+export function mockOmniscientSnapshot(): MatchSnapshot {
+  return {
+    ...mockMatchSnapshot,
+    viewer_team_id: null,
+    omniscient: true,
+    teams: [mockSnapshotForViewer("team-a").teams[0], mockSnapshotForViewer("team-b").teams[1]],
+  };
+}
+
+export function createMockProvider(viewerTeamId: "team-a" | "team-b" = "team-a", shopRole: MockShopRole = "scp", replay: MockReplayScenario | null = null) {
   const snapshot = mockSnapshotForViewer(viewerTeamId);
   const shopSnapshot = mockShopSnapshotFor(viewerTeamId, shopRole);
   const events = mockEvents.map((event) => (
@@ -338,5 +349,5 @@ export function createMockProvider(viewerTeamId: "team-a" | "team-b" = "team-a",
         ? { ...event, payload: shopSnapshot }
       : event
   )) as SlgoEvent[];
-  return new RealtimeMockProvider(events, viewerTeamId);
+  return new RealtimeMockProvider(events, viewerTeamId, replay === null ? null : new MockReplayServer(replay, mockOmniscientSnapshot()));
 }

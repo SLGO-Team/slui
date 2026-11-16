@@ -8,4 +8,5 @@ export { readScoreboardDebugPins } from "./scoreboardScenes";
 export { createShopDebugState, readShopDebugOptions, replaceShopDebugUrl } from "./shopDebug";
 export { createHudDebugState, readHudDebugOptions, replaceHudDebugUrl } from "./hudDebug";
 export { readMinimapPreviewOptions } from "./minimapFixtures";
+export { readReplayMockScenario } from "./replayMock";
 export { readTeamSelectDebugOptions, teamMenuOptionsFor, teamSelectDebugHover, teamSelectDebugTeams } from "./teamSelectDebug";

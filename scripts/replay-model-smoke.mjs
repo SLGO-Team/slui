@@ -157,7 +157,7 @@ const enter = (event = stateEvent, at = T0) => replayReducer(replayReducer(live,
   const recorded = {
     players: [
       ...hud.teams.flatMap((team) => team.players).map((player, slot) => ({ slot, player_id: player.player_id, display_name: player.display_name })),
-      { slot: 40, player_id: "76561198000009999", display_name: "Ghost" },
+      { slot: 40, player_id: "76561198000000999", display_name: "Ghost" },
     ],
   };
   const groups = replayPlayerRows(recorded, hud, 1);
