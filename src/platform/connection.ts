@@ -1,4 +1,4 @@
-import { knownInstanceEndReason, MINIMAP_SCHEMA_VERSION, parseClientFeatures, parseCommand, parseSessionChallenge, PROTOCOL_VERSION, SESSION_PROOF_GAME_LOG, SIDECAR_CLOSE_CODES, SUPPORTED_SCHEMA_VERSION, type ConnectionFailure, type ConnectionStatus, type InstanceEndReason, type MinimapDiagnostic, type ParseErrorCode, type ParseResult, type ServerRoute, type ClientFeatures, type SessionChallenge, type SessionOpen, type SessionProof, type SlgoCommand, type SlgoEvent, type SteamIdentity } from "../contracts/index.ts";
+import { knownInstanceEndReason, MINIMAP_SCHEMA_VERSIONS, parseClientFeatures, parseCommand, parseSessionChallenge, PROTOCOL_VERSION, SESSION_PROOF_GAME_LOG, SIDECAR_CLOSE_CODES, SUPPORTED_SCHEMA_VERSION, type ConnectionFailure, type ConnectionStatus, type InstanceEndReason, type MinimapDiagnostic, type ParseErrorCode, type ParseResult, type ServerRoute, type ClientFeatures, type SessionChallenge, type SessionOpen, type SessionProof, type SlgoCommand, type SlgoEvent, type SteamIdentity } from "../contracts/index.ts";
 import type { GameLogProofReader } from "./gameLog.ts";
 import type { SlgoConnection } from "./index.ts";
 import { admitRoute, SidecarEventIntake } from "./sidecarIntake.ts";
@@ -177,7 +177,8 @@ export class WebSocketSidecarConnection implements SlgoConnection {
           schema_version: SUPPORTED_SCHEMA_VERSION,
           type: "session.open",
           session_token: route.sessionToken,
-          minimap_schema_versions: [MINIMAP_SCHEMA_VERSION],
+          // 6 from match servers, 7 (free-camera viewpoint) from demo replay servers: the radar draws both.
+          minimap_schema_versions: [...MINIMAP_SCHEMA_VERSIONS],
           ...(logMark ? { proofs: [SESSION_PROOF_GAME_LOG] } : {}),
         };
         socket.send(JSON.stringify(open));

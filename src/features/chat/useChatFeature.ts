@@ -42,6 +42,10 @@ export function useChatFeature() {
     dispatch({ type: "command-result", result: { command_id: command.command_id, command_kind: command.kind, status: "failed", reason }, nowMs });
   }, []);
 
+  const clearLines = useCallback(() => {
+    dispatch({ type: "clear-lines" });
+  }, []);
+
   const setConnectionStatus = useCallback((status: ConnectionStatus, nowMs = Date.now()) => {
     dispatch({ type: "connection", status, nowMs });
   }, []);
@@ -50,5 +54,5 @@ export function useChatFeature() {
   const timed = hasPendingChat(state);
   useEffect(() => timed ? overlayClock.subscribe((nowMs) => dispatch({ type: "tick", nowMs })) : undefined, [timed]);
 
-  return { state, open, setDraft, toggleScope, submit, close, receiveEvent, failCommand, setConnectionStatus };
+  return { state, open, setDraft, toggleScope, submit, close, receiveEvent, failCommand, setConnectionStatus, clearLines };
 }

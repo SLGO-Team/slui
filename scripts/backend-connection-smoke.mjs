@@ -277,7 +277,7 @@ const challengeFrame = { protocol_version: 0, schema_version: 1, type: "session.
   const open = parseSessionOpen(socket.sent[0]);
   assert.equal(open.ok, true);
   assert.equal(open.value.session_token, route.sessionToken);
-  assert.deepEqual(open.value.minimap_schema_versions, [6]);
+  assert.deepEqual(open.value.minimap_schema_versions, [6, 7], "match servers' v6 and replay servers' v7");
   assert.equal(connection.getStatus(), "baseline-required");
   await assert.rejects(connection.send({ kind: "command.chat.send", command_id: "early", scope: "team", body: "hi" }), /connection-not-live/, "no command before the baseline (the sidecar would close with 4000)");
   assert.equal(socket.sent.length, 1);

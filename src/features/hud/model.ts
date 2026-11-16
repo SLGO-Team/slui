@@ -70,8 +70,13 @@ type HudTeamCommon = {
   aliveCount: number;
 };
 
+/**
+ * How the viewer relates to a team: their own (`viewer`), the other side (`opponent`), or, for the omniscient
+ * demo replay observer (`match.snapshot.omniscient`), either team seen in full (`observer`: vitals and loadout like
+ * `viewer`, but not the viewer's side, so chat, shop, radar frame and bottom HUD keep the team-less path).
+ */
 export type HudTeamView =
-  | (HudTeamCommon & { relation: "viewer"; players: HudViewerPlayerView[] })
+  | (HudTeamCommon & { relation: "viewer" | "observer"; players: HudViewerPlayerView[] })
   | (HudTeamCommon & { relation: "opponent"; players: HudPlayerView[] });
 
 type RoundHudStatus = {
@@ -139,7 +144,9 @@ export const initialRoundHudState: RoundHudState = {
 
 export type RoundHudAction =
   | { type: "connection"; status: ConnectionStatus }
-  | { type: "event"; event: SlgoEvent; receivedAtMs: number };
+  | { type: "event"; event: SlgoEvent; receivedAtMs: number }
+  /** Demo replay: the recording changed (another one, or unloaded); its frames go (design 11-07-demo-replay-slui §11.6). */
+  | { type: "replay-reset" };
 
 /** The events roundHudReducer reads; App dispatches no others to it (each dispatch re-renders App). */
 export const HUD_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "match.snapshot"]);
@@ -151,6 +158,8 @@ export function roundHudReducer(state: RoundHudState, action: RoundHudAction): R
     if (endsMatch(action.status)) return { ...initialRoundHudState, connectionStatus: action.status };
     return { ...state, connectionStatus: action.status };
   }
+  // Keeps the baseline and sequence: only the previous recording's snapshot goes.
+  if (action.type === "replay-reset") return state.frame === null ? state : { ...state, frame: null };
 
   const { event, receivedAtMs } = action;
   // A baseline opens each sidecar connection and restarts the sequence even for the same instance: a restarted
@@ -352,10 +361,10 @@ export function selectRoundHud(state: RoundHudState, nowMs: number, endReason: I
         score: team.score,
         aliveCount: team.players.filter((player) => player.is_online && player.is_alive).length,
       };
-      if (team.team_id === snapshot.viewer_team_id) {
+      if (snapshot.omniscient === true || team.team_id === snapshot.viewer_team_id) {
         return {
           ...common,
-          relation: "viewer",
+          relation: snapshot.omniscient === true ? "observer" : "viewer",
           players: team.players.map((player) => ({
             ...publicPlayer(player),
             health: player.health ?? null,

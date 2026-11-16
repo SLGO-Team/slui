@@ -7,6 +7,7 @@ import { HUD_STATUS_EVENT_TYPES, hudStatusReducer, initialHudStatusState } from 
 import { initialKillfeedState, KILLFEED_EVENT_TYPES, killfeedReducer } from "../src/features/killfeed/model.ts";
 import { initialScoreboardState, SCOREBOARD_EVENT_TYPES, scoreboardReducer } from "../src/features/scoreboard/model.ts";
 import { initialShopState, SHOP_EVENT_TYPES, shopReducer } from "../src/features/shop/model.ts";
+import { initialReplayState, REPLAY_EVENT_TYPES, replayReducer } from "../src/features/replay/model.ts";
 import { initialTeamSelectState, TEAM_SELECT_EVENT_TYPES, teamSelectReducer } from "../src/features/teamselect/model.ts";
 
 // App dispatches an event only to the reducers whose *_EVENT_TYPES list its type (a dispatch re-renders App,
@@ -44,6 +45,7 @@ const reducers = [
   ["scoreboard", scoreboardReducer, initialScoreboardState, SCOREBOARD_EVENT_TYPES, true],
   ["shop", shopReducer, initialShopState, SHOP_EVENT_TYPES, true],
   ["team select", teamSelectReducer, initialTeamSelectState, TEAM_SELECT_EVENT_TYPES, true],
+  ["replay", replayReducer, initialReplayState, REPLAY_EVENT_TYPES, true],
 ];
 
 for (const [name, reducer, initial, types, timed] of reducers) {

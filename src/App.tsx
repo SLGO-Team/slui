@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TEAM_SELECT, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type ShopCommand, type SlgoEvent, type TeamCommand } from "./contracts";
+import { CLIENT_FEATURE_CHAT_INPUT, CLIENT_FEATURE_HUD_KILLFEED, CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS, CLIENT_FEATURE_HUD_MESSAGES, CLIENT_FEATURE_HUD_MONEY, CLIENT_FEATURE_HUD_SPECTATING, CLIENT_FEATURE_HUD_STATUS, CLIENT_FEATURE_REPLAY, CLIENT_FEATURE_SCOREBOARD, CLIENT_FEATURE_SHOP_MENU, CLIENT_FEATURE_TEAM_SELECT, CLIENT_FEATURE_TOP_HUD, CLIENT_FEATURE_WIN_PANEL, type ConnectionStatus, type MinimapDiagnostic, type ReplayCommand, type ShopCommand, type SlgoEvent, type TeamCommand } from "./contracts";
 import { HudTeamCounter } from "./features/hud/HudTeamCounter";
 import { HUD_EVENT_TYPES, initialRoundHudState, roundHudReducer, sameRoundHudTime, selectRoundHud, selectRoundHudClock } from "./features/hud/model";
 import { ShopPanel } from "./features/shop/ShopPanel";
@@ -28,6 +28,10 @@ import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { TeamSelect } from "./features/teamselect/TeamSelect";
 import { selectTeamSelect } from "./features/teamselect/presentation";
 import { useTeamSelectFeature } from "./features/teamselect/useTeamSelectFeature";
+import { replayLineAgeMs, selectReplayMode } from "./features/replay/model";
+import { useReplayFeature } from "./features/replay/useReplayFeature";
+import { replayCommandLabel } from "./features/replay/commands";
+import { HudTimeContext, wallDelayUntil } from "./shared/hudTime";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
 import type * as DebugHarnessModule from "./mocks/harness";
 import type { HudDebugOptions } from "./mocks/hudDebug";
@@ -74,6 +78,9 @@ const OVERLAY_CLIENT_FEATURES = [
   CLIENT_FEATURE_HUD_KILLFEED_MODIFIERS,
   CLIENT_FEATURE_SCOREBOARD,
   CLIENT_FEATURE_TEAM_SELECT,
+  // Demo replay (replay servers only): replay.state / replay.catalog, the replay commands and the omniscient HUD.
+  // Not an input feature, so it stays declared while input is blocked (the HUD and the passive bar still work).
+  CLIENT_FEATURE_REPLAY,
 ] as const;
 
 // Mocks only in the explicit `mock` mode (npm run dev:mock), which vite.config.ts never builds; their code
@@ -99,6 +106,11 @@ declare global {
       disconnect(): Promise<void>;
       reconnect(): void;
     };
+    /** Mock builds only: send replay commands and read the replay state without the console UI. */
+    __SLUI_REPLAY_DEBUG__?: {
+      send(command: ReplayCommand, seekMs?: number | null): void;
+      state(): unknown;
+    };
   }
 }
 
@@ -118,9 +130,12 @@ export type AppProps = {
 };
 
 function App({ harness }: AppProps) {
+  // ?replay=playing|paused|idle|loading|error: the mock stream is a demo replay server's, shown as it arrives (the HUD
+  // and shop debug scenes, which pin the HUD to their own fixtures, stay off).
+  const [replayMockScenario] = useState(() => MOCK_BACKEND ? harness?.readReplayMockScenario() ?? null : null);
   const debug = HUD_DEBUG_ENABLED ? harness : null;
-  const [debugOptions, setDebugOptions] = useState<HudDebugOptions | null>(() => debug?.readHudDebugOptions() ?? null);
-  const [shopDebugOptions, setShopDebugOptions] = useState<ShopDebugOptions | null>(() => SHOP_DEBUG_ENABLED ? debug?.readShopDebugOptions() ?? null : null);
+  const [debugOptions, setDebugOptions] = useState<HudDebugOptions | null>(() => replayMockScenario ? null : debug?.readHudDebugOptions() ?? null);
+  const [shopDebugOptions, setShopDebugOptions] = useState<ShopDebugOptions | null>(() => SHOP_DEBUG_ENABLED && !replayMockScenario ? debug?.readShopDebugOptions() ?? null : null);
   const [minimapOptions, setMinimapOptions] = useState<OverlayMinimapOptions>(() => debug?.readMinimapPreviewOptions() ?? DEFAULT_MINIMAP_OPTIONS);
   // ?teamSelect=ntf|scp|forced: the mock plugin opens a menu and the panel lists the captures' rosters.
   const [teamSelectDebug] = useState<TeamSelectDebugOptions | null>(() => debug?.readTeamSelectDebugOptions() ?? null);
@@ -141,7 +156,8 @@ function App({ harness }: AppProps) {
   const pinnedHudVariant: HudPresentationVariant | null = debugOptions
     ? debugOptions.variant
     : urlHudVariant === "compact" || urlHudVariant === "detailed" ? urlHudVariant : null;
-  const mockConnection = useMemo(() => MOCK_BACKEND && harness ? harness.createMockProvider(previewViewerTeam, previewShopRole) : null, [harness, previewShopRole, previewViewerTeam]);
+  const mockConnection = useMemo(() => MOCK_BACKEND && harness ? harness.createMockProvider(previewViewerTeam, previewShopRole, replayMockScenario) : null,
+    [harness, previewShopRole, previewViewerTeam, replayMockScenario]);
   const connection = useMemo<SlgoConnection>(() => mockConnection ?? new WebSocketSidecarConnection({
     // Tauri connects from Rust so the TLS handshake carries no SNI; browser previews keep WebSocket.
     createSocket: isTauri() ? createTauriSidecarSocket : undefined,
@@ -171,6 +187,7 @@ function App({ harness }: AppProps) {
   const teamSelectFeature = useTeamSelectFeature();
   const chatFeature = useChatFeature();
   const minimapFeature = useMinimapFeature();
+  const replayFeature = useReplayFeature();
   const previewFocus = useMemo(() => HUD_DEBUG_ENABLED ? createPreviewGameForegroundSource(true) : null, []);
   // The player opens the shop with its hotkey; window_open alone never opens it.
   // Only the debug build honours ?shopOpen=1.
@@ -180,6 +197,12 @@ function App({ harness }: AppProps) {
   const [chatKeys, setChatKeys] = useState<readonly string[]>(() => [DEFAULT_HOTKEYS.chatGlobal, DEFAULT_HOTKEYS.chatTeam]);
   const shopAvailableRef = useRef(false);
   const connectionLiveRef = useRef(false);
+  // The demo replay console (design 11-07-demo-replay-slui §5.1): opened with its key on a replay server only, it takes
+  // the mouse and keyboard like the shop.
+  const [replayConsoleOpen, setReplayConsoleOpen] = useState(false);
+  const replayConsoleOpenRef = useRef(false);
+  const replayModeRef = useRef(false);
+  const replayHeldForegroundRef = useRef(false);
   const chatOpenRef = useRef(false);
   const shopOpenRef = useRef(false);
   const shopVisibleRef = useRef(false);
@@ -217,9 +240,33 @@ function App({ harness }: AppProps) {
     overlayController.log(`shop closed: ${reason}${detail ? ` (${detail})` : ""}`);
     setShopOpen(false);
   }, [overlayController]);
+  // Every close of the replay console goes through here, so the log names its reason (idempotent, like the shop's).
+  const closeReplayConsole = useCallback((reason: string) => {
+    if (!replayConsoleOpenRef.current) return;
+    replayConsoleOpenRef.current = false;
+    overlayController.log(`replay console closed: ${reason}`);
+    setReplayConsoleOpen(false);
+  }, [overlayController]);
 
   const handleEvent = useCallback((event: SlgoEvent) => {
-    const receivedAtMs = Date.now();
+    const wallMs = Date.now();
+    // The replay feature sees every event first: a replay.state re-anchors the HUD clock before the snapshots the
+    // plugin sends right after it, and says whether the recording changed (stale HUD) or the position jumped (chat).
+    // HUD frames are stamped with HUD time: the wall clock on a match server, recording time on a replay server.
+    const intake = replayFeature.intake(event, wallMs);
+    const receivedAtMs = intake.hudMs;
+    if (intake.hudReset) {
+      overlayController.log("replay: recording changed, previous HUD dropped");
+      dispatchHud({ type: "replay-reset" });
+      dispatchWinPanel({ type: "replay-reset" });
+      dispatchKillfeed({ type: "replay-reset" });
+      dispatchScoreboard({ type: "replay-reset" });
+    }
+    if (intake.jump) chatFeature.clearLines();
+    if (intake.result) {
+      const { label, status, reason, afterMs } = intake.result;
+      overlayController.log(`replay command ${label}: ${status}${reason ? ` (${reason})` : ""} after ${afterMs}ms`);
+    }
     // Each reducer gets only the events it reads: useReducer has no eager bailout, so any dispatch
     // re-runs App, and minimap positions (the radar's own store) arrive at 15 Hz.
     const type = event.type;
@@ -234,14 +281,16 @@ function App({ harness }: AppProps) {
       if (sent) {
         shopCommandLogRef.current.delete(event.payload.command_id);
         const { status, reason } = event.payload;
-        overlayController.log(`shop command ${sent.label}: ${status}${reason ? ` (${reason})` : ""} after ${receivedAtMs - sent.sentAtMs}ms`);
+        overlayController.log(`shop command ${sent.label}: ${status}${reason ? ` (${reason})` : ""} after ${wallMs - sent.sentAtMs}ms`);
       }
     }
     shopFeature.receiveEvent(event);
-    teamSelectFeature.receiveEvent(event, receivedAtMs);
-    chatFeature.receiveEvent(event);
+    teamSelectFeature.receiveEvent(event, wallMs);
+    // A replayed chat line starts its fade as long ago (recording time) as it was said before the publish.
+    chatFeature.receiveEvent(event, intake.replay ? receivedAtMs - replayLineAgeMs(event) : receivedAtMs);
     minimapFeature.receiveEvent(event);
-  }, [overlayController, shopFeature.receiveEvent, teamSelectFeature.receiveEvent, chatFeature.receiveEvent, minimapFeature.receiveEvent]);
+  }, [overlayController, replayFeature.intake, shopFeature.receiveEvent, teamSelectFeature.receiveEvent, chatFeature.receiveEvent, chatFeature.clearLines,
+    minimapFeature.receiveEvent]);
   const handleDiagnostic = useCallback((diagnostic: MinimapDiagnostic) => {
     minimapFeature.receiveDiagnostic(diagnostic);
   }, [minimapFeature.receiveDiagnostic]);
@@ -259,7 +308,9 @@ function App({ harness }: AppProps) {
     connectionLiveRef.current = status === "live";
     chatFeature.setConnectionStatus(status);
     minimapFeature.setConnectionStatus(status);
-  }, [overlayController, shopFeature.setConnectionStatus, teamSelectFeature.setConnectionStatus, chatFeature.setConnectionStatus, minimapFeature.setConnectionStatus]);
+    replayFeature.setConnectionStatus(status);
+  }, [overlayController, shopFeature.setConnectionStatus, teamSelectFeature.setConnectionStatus, chatFeature.setConnectionStatus, minimapFeature.setConnectionStatus,
+    replayFeature.setConnectionStatus]);
   const dependencies = useMemo(() => ({ identity, proof, controlPlane, connection }), [connection, controlPlane, identity, proof]);
   // A required update (manifest `min_version` above this version) keeps the session from connecting.
   // Unknown until a check succeeds, so a failing update server never blocks play. No update UI here.
@@ -325,8 +376,8 @@ function App({ harness }: AppProps) {
       if (!active) return;
       setShopVolume(settings.audio.shopVolume);
       setOverlaySettings(settings.overlay);
-      const { shop, scoreboard, chatGlobal, chatTeam } = settings.hotkeys;
-      const hotkeys = `shop ${shop}, scoreboard ${scoreboard}, global chat ${chatGlobal}, team chat ${chatTeam}`;
+      const { shop, scoreboard, chatGlobal, chatTeam, replay } = settings.hotkeys;
+      const hotkeys = `shop ${shop}, scoreboard ${scoreboard}, global chat ${chatGlobal}, team chat ${chatTeam}, replay ${replay}`;
       setChatKeys((current) => current[0] === chatGlobal && current[1] === chatTeam ? current : [chatGlobal, chatTeam]);
       void overlayController.setHotkeys(settings.hotkeys)
         .then(() => {
@@ -351,10 +402,11 @@ function App({ harness }: AppProps) {
   useEffect(() => overlayState.subscribe((state) => {
     if (state.enabled) return;
     closeShopFor("overlay-disabled");
+    closeReplayConsole("overlay disabled");
     chatFeature.close("unavailable");
     teamSelectFeature.release();
     setMinimapOptions((current) => current.alternateZoomActive ? { ...current, alternateZoomActive: false } : current);
-  }), [overlayState, closeShopFor, chatFeature.close, teamSelectFeature.release]);
+  }), [overlayState, closeShopFor, closeReplayConsole, chatFeature.close, teamSelectFeature.release]);
 
   const [overlayEnabled, setOverlayEnabled] = useState(false);
   useEffect(() => {
@@ -487,6 +539,34 @@ function App({ harness }: AppProps) {
       }
       return;
     }
+    // The replay console key: only on a replay server (R18), opens over the focused game and toggles. A press while a
+    // text field has the focus is typing (the hook cannot tell), never a close.
+    if (shortcut === "replay") {
+      if (!replayModeRef.current) {
+        overlayController.log("replay key ignored: not on a replay server");
+        return;
+      }
+      if (replayConsoleOpenRef.current) {
+        const typing = document.activeElement instanceof HTMLElement && document.activeElement.closest("input, textarea, select, [contenteditable]") !== null;
+        if (typing) return;
+        closeReplayConsole("replay key");
+        return;
+      }
+      if (!(gameForeground ?? true) || !connectionLiveRef.current) {
+        overlayController.log(`replay key ignored: game foreground ${gameForeground}, session live ${connectionLiveRef.current}`);
+        return;
+      }
+      closeShopFor("replay-key");
+      overlayController.log("replay console opened");
+      replayConsoleOpenRef.current = true;
+      setReplayConsoleOpen(true);
+      return;
+    }
+    // Replay servers replay the recorded chat and refuse chat.send: the chat keys open nothing there.
+    if (replayModeRef.current && shortcut !== "shop") {
+      overlayController.log(`${shortcut} ignored: chat is read-only on a replay server`);
+      return;
+    }
     const gameFocused = (gameForeground ?? true) || (shopVisibleRef.current && document.hasFocus());
     if (shortcut === "shop") {
       if (shopOpenRef.current) {
@@ -508,7 +588,7 @@ function App({ harness }: AppProps) {
     }
     closeShopFor("chat-key");
     chatFeature.open(shortcut === "chat-team" ? "team" : "global");
-  }), [overlayController, closeShopFor, chatFeature.close, chatFeature.open]);
+  }), [overlayController, closeShopFor, closeReplayConsole, chatFeature.close, chatFeature.open]);
 
   useEffect(() => {
     if (!debug || !debugOptions) return undefined;
@@ -528,7 +608,11 @@ function App({ harness }: AppProps) {
 
   // The overlay clock never re-renders App on its own: these views are re-selected on it and kept while
   // their time-dependent part (availability) is unchanged. Panels select their own clocks and expiry.
-  const selectLiveHud = useCallback((nowMs: number) => selectRoundHud(hudState, nowMs, session.endReason), [hudState, session.endReason]);
+  // HUD state is stamped with HUD time (recording time on a replay server), so every HUD selector reads it too.
+  const hudTimeAtWall = replayFeature.hudTimeAtWall;
+  const hudTime = replayFeature.hudTime;
+  const selectLiveHud = useCallback((nowMs: number) => selectRoundHud(hudState, hudTimeAtWall(nowMs), session.endReason),
+    [hudState, hudTimeAtWall, session.endReason]);
   const liveHud = useClockSelector(selectLiveHud, sameRoundHudTime);
   const selectLiveShop = useCallback((nowMs: number) => selectShop(shopFeature.state, nowMs), [shopFeature.state]);
   const shop = useClockSelector(selectLiveShop, sameShopTime);
@@ -547,7 +631,7 @@ function App({ harness }: AppProps) {
   const debugHud = useMemo(() => debugHudFrame && selectRoundHud(debugHudFrame.state, debugHudFrame.builtAtMs), [debugHudFrame]);
   const hudClockAt = useCallback((nowMs: number) => debugHudFrame
     ? selectRoundHudClock(debugHudFrame.state, debugHudFrame.builtAtMs)
-    : selectRoundHudClock(hudState, nowMs), [debugHudFrame, hudState]);
+    : selectRoundHudClock(hudState, hudTimeAtWall(nowMs)), [debugHudFrame, hudState, hudTimeAtWall]);
   const shopCountdownAt = useCallback((nowMs: number) => hudClockAt(nowMs)?.phaseClockSeconds ?? null, [hudClockAt]);
   const displayedShop = debugShop ?? shop;
   const shopAvailable = sessionLive && displayedShop.hasSnapshot && displayedShop.windowOpen;
@@ -573,7 +657,8 @@ function App({ harness }: AppProps) {
     hud: scoreboardHud, frame: scoreboardState.frame, view: scoreboardViewState, localPlayerId: localSteamIdForScoreboard,
   }), [localSteamIdForScoreboard, scoreboardHud, scoreboardState.frame, scoreboardViewState]);
   const scoreboardFrame = scoreboardState.frame;
-  const scoreboardElapsedAt = useCallback((nowMs: number) => scoreboardFrame ? scoreboardElapsedText(scoreboardFrame, nowMs) : "", [scoreboardFrame]);
+  const scoreboardElapsedAt = useCallback((nowMs: number) => scoreboardFrame ? scoreboardElapsedText(scoreboardFrame, hudTimeAtWall(nowMs)) : "",
+    [hudTimeAtWall, scoreboardFrame]);
   // The plugin's team menu session over the match rosters (the debug scene lists the captures' rosters instead). It is
   // modal, as in CS2: while it is on screen the other panels are not drawn and the shop, chat and scoreboard stay shut.
   const teamSelectTeams = useMemo(() => debug && teamSelectDebug ? debug.teamSelectDebugTeams(teamSelectDebug)
@@ -592,8 +677,12 @@ function App({ harness }: AppProps) {
   scoreboardModeRef.current = scoreboardMode;
   // No panel takes the foreground while input is blocked, even one left open for a moment: an exclusive-fullscreen game
   // minimizes as soon as it loses it.
+  // Replay mode (R18's one switch): this connection received a replay.state. Nothing replay-specific exists without it.
+  const replayMode = selectReplayMode(replayFeature.state);
+  replayModeRef.current = replayMode;
+  const replayConsoleShown = replayMode && replayConsoleOpen && sessionLive && !inputBlocked;
   const overlayInteractive = sessionLive && !inputBlocked
-    && ((shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || (teamSelectShown && overGame));
+    && ((shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || (teamSelectShown && overGame) || replayConsoleShown);
   const wasChatOpenRef = useRef(false);
   // Diagnostics: every close, including a send and a session change.
   useEffect(() => {
@@ -678,6 +767,17 @@ function App({ harness }: AppProps) {
     if (chatOpenRef.current) handleChatClose("unavailable", "input blocked");
     teamSelectFeature.release();
   }, [closeShopFor, handleChatClose, inputBlocked, teamSelectFeature.release]);
+  // The replay console closes with replay mode, the session or input (blocked: RA `demo` remains for admins).
+  useEffect(() => {
+    if (!replayConsoleOpen) return;
+    if (!replayMode) closeReplayConsole("left replay mode");
+    else if (!sessionLive) closeReplayConsole("session not live");
+    else if (inputBlocked) closeReplayConsole("input blocked");
+  }, [closeReplayConsole, inputBlocked, replayConsoleOpen, replayMode, sessionLive]);
+  // Entering replay mode closes an open chat: replay servers take no chat input.
+  useEffect(() => {
+    if (replayMode && chatOpenRef.current) handleChatClose("unavailable", "replay server");
+  }, [handleChatClose, replayMode]);
   // A team.menu that arrived before the plugin saw the smaller feature list is dropped too, so reclaiming the feature
   // never shows a stale session: the plugin sends the current one when `team-select` is declared again.
   const teamMenuHeld = teamSelectFeature.state.menu !== null;
@@ -697,6 +797,15 @@ function App({ harness }: AppProps) {
     shopHeldForegroundRef.current = held;
     if (lost) closeShopFor("foreground", toGame ? "game" : "another window");
   }, [closeShopFor, foreground, shopOpen]);
+  useEffect(() => {
+    if (!replayConsoleOpen) {
+      replayHeldForegroundRef.current = false;
+      return;
+    }
+    const { held, lost, toGame } = foregroundLoss(replayHeldForegroundRef.current, foreground);
+    replayHeldForegroundRef.current = held;
+    if (lost) closeReplayConsole(`foreground (${toGame ? "game" : "another window"})`);
+  }, [closeReplayConsole, foreground, replayConsoleOpen]);
   useEffect(() => {
     if (!chatOpen) {
       chatHeldForegroundRef.current = false;
@@ -718,7 +827,8 @@ function App({ harness }: AppProps) {
   const hudVariant = pinnedHudVariant ?? hudVariantFor(hud, localSteamId);
   // The MVP avatar comes from the displayed roster (the debug HUD's in the mock build).
   const winPanelRoster = useMemo(() => winPanelRosterFromHud(hud), [hud]);
-  const winPanelAt = useCallback((nowMs: number) => selectWinPanel(winPanelState, nowMs, winPanelRoster), [winPanelRoster, winPanelState]);
+  const winPanelAt = useCallback((nowMs: number) => selectWinPanel(winPanelState, hudTimeAtWall(nowMs), winPanelRoster),
+    [hudTimeAtWall, winPanelRoster, winPanelState]);
   const hudSceneStill = debugOptions !== null && debugOptions.hudSceneAt !== null;
   // The in-game hint of a game condition: once per condition per SLUI run, started the first time the overlay shows over
   // the game while the plugin's own high hint is empty (that slot is read on the overlay clock only while one waits).
@@ -726,23 +836,28 @@ function App({ harness }: AppProps) {
   const [shownConditionHints, setShownConditionHints] = useState<ReadonlySet<GameConditionKey>>(() => new Set());
   const pendingConditionHint = conditionHint === null ? nextConditionHint(gameConditions, shownConditionHints) : null;
   const selectHintSlotFree = useCallback((nowMs: number) => pendingConditionHint === null
-    || selectMessageZone(hudMessagesState, nowMs).hintHigh === null, [hudMessagesState, pendingConditionHint]);
+    || selectMessageZone(hudMessagesState, hudTimeAtWall(nowMs)).hintHigh === null, [hudMessagesState, hudTimeAtWall, pendingConditionHint]);
   const hintSlotFree = useClockSelector(selectHintSlotFree);
   const overlayShown = overlayEnabled && sessionLive && overGame;
   useEffect(() => {
     if (pendingConditionHint === null || !overlayShown || !hintSlotFree) return;
-    setConditionHint(startConditionHint(pendingConditionHint, Date.now()));
+    // On HUD time like the plugin's messages in the same slot (a paused replay holds it too).
+    setConditionHint(startConditionHint(pendingConditionHint, hudTime.now()));
     setShownConditionHints((shown) => new Set(shown).add(pendingConditionHint));
     overlayController.log(`game condition hint shown: ${pendingConditionHint}`);
-  }, [hintSlotFree, overlayController, overlayShown, pendingConditionHint]);
+  }, [hintSlotFree, hudTime, overlayController, overlayShown, pendingConditionHint]);
   useEffect(() => {
     if (conditionHint === null) return undefined;
-    const timer = window.setTimeout(() => setConditionHint(null), Math.max(0, conditionHint.expiresAtMs - Date.now()));
+    const delay = wallDelayUntil(hudTime, conditionHint.expiresAtMs);
+    if (delay === null) return undefined;
+    const timer = window.setTimeout(() => setConditionHint(null), delay);
     return () => window.clearTimeout(timer);
-  }, [conditionHint]);
-  const messageZoneAt = useCallback((nowMs: number) => withConditionHint(selectMessageZone(hudMessagesState, nowMs), conditionHint, nowMs),
-    [conditionHint, hudMessagesState]);
-  const killfeedAt = useCallback((nowMs: number) => selectKillfeed(killfeedState, nowMs), [killfeedState]);
+  }, [conditionHint, hudTime]);
+  const messageZoneAt = useCallback((nowMs: number) => {
+    const hudMs = hudTimeAtWall(nowMs);
+    return withConditionHint(selectMessageZone(hudMessagesState, hudMs), conditionHint, hudMs);
+  }, [conditionHint, hudMessagesState, hudTimeAtWall]);
+  const killfeedAt = useCallback((nowMs: number) => selectKillfeed(killfeedState, hudTimeAtWall(nowMs)), [hudTimeAtWall, killfeedState]);
   // The mock identity is a team-a player; the debug build reads team-b's loadout from its first player.
   const progressPlayerId = HUD_DEBUG_ENABLED && hud.hasSnapshot
     && !hud.teams.some((team) => team.relation === "viewer" && team.players.some((player) => player.player_id === localSteamId))
@@ -799,6 +914,27 @@ function App({ harness }: AppProps) {
       shopFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed", reason });
     });
   }, [connection, overlayController, shopFeature.beginCommand, shopFeature.resolveCommand, shopFeature.availability]);
+  // Replay commands: recorded as pending (busy buttons, timeout, the seek target on the playhead), then sent; a send
+  // that fails resolves at once. Diagnostics: every command and its result go to the desktop log.
+  const handleReplayCommand = useCallback((command: ReplayCommand, seekMs: number | null = null) => {
+    replayFeature.beginCommand(command, seekMs);
+    overlayController.log(`replay command ${replayCommandLabel(command)} sent`);
+    void connection.send(command).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : "send-failed";
+      overlayController.log(`replay command ${replayCommandLabel(command)} not sent: ${reason}`);
+      replayFeature.sendFailed(command.command_id, reason);
+    });
+  }, [connection, overlayController, replayFeature.beginCommand, replayFeature.sendFailed]);
+  const replayStateRef = useRef(replayFeature.state);
+  replayStateRef.current = replayFeature.state;
+  useEffect(() => {
+    if (!MOCK_BACKEND) return undefined;
+    const control: NonNullable<Window["__SLUI_REPLAY_DEBUG__"]> = { send: handleReplayCommand, state: () => replayStateRef.current };
+    window.__SLUI_REPLAY_DEBUG__ = control;
+    return () => {
+      if (window.__SLUI_REPLAY_DEBUG__ === control) delete window.__SLUI_REPLAY_DEBUG__;
+    };
+  }, [handleReplayCommand]);
   const handleTeamCommand = useCallback((command: TeamCommand) => {
     teamSelectFeature.beginCommand(command);
     void connection.send(command).catch((error: unknown) => {
@@ -820,6 +956,7 @@ function App({ harness }: AppProps) {
   }, [chatFeature.failCommand, chatFeature.submit, chatScope, connection]);
   const minimapControls = useMemo(() => ({ alternateZoomActive: minimapOptions.alternateZoomActive }), [minimapOptions.alternateZoomActive]);
   return (
+    <HudTimeContext.Provider value={hudTime}>
     <main id="SlgoOverlayRoot" data-preview-background={previewBackground}>
       {teamSelectShown && teamSelect !== null ? (
         <TeamSelect view={teamSelect} onCommand={handleTeamCommand} initialHover={teamSelectHover}
@@ -869,6 +1006,7 @@ function App({ harness }: AppProps) {
         <debug.HudDebugPanel options={debugOptions} onChange={setDebugOptions} />
       ) : null}
     </main>
+    </HudTimeContext.Provider>
   );
 }
 

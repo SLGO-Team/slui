@@ -3,6 +3,7 @@ import { formatHudProgressCountdown, HUD_PROGRESS_RESYNC_MS, type HudProgressCar
 import { useBackdropRef } from "../../platform/backdrop.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
+import { useHudTime } from "../../shared/hudTime.ts";
 import "./ProgressCard.css";
 
 /** Exit lengths: CS2 `hudProgressBarSuccessZoom` (recording) and the `--visible` opacity transition. */
@@ -22,7 +23,11 @@ type CardBodyProps = { card: HudProgressCardView; still: boolean };
  * The countdown is written every animation frame, as CS2 does.
  */
 function ProgressCardBody({ card, still }: CardBodyProps) {
-  const [mountedAtMs] = useState(Date.now);
+  // HUD time (a demo replay runs it at the replay speed and stops it while paused); the parent remounts the body
+  // when the rate changes, so the CSS timeline below is always timed for the current rate.
+  const time = useHudTime();
+  const [mountedAtMs] = useState(time.now);
+  const rate = time.rate > 0 ? time.rate : 1;
   const countdownRef = useRef<HTMLSpanElement>(null);
   // .hud-progress-bar has `world-blur: hudWorldBlur`.
   const body = useBackdropRef();
@@ -37,21 +42,21 @@ function ProgressCardBody({ card, still }: CardBodyProps) {
     }
     let frame = 0;
     const tick = () => {
-      const remaining = card.endsAtMs - Date.now();
+      const remaining = card.endsAtMs - time.now();
       node.textContent = formatHudProgressCountdown(remaining);
-      if (remaining > 0) frame = requestAnimationFrame(tick);
+      if (remaining > 0 && time.rate > 0) frame = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(frame);
-  }, [card.endsAtMs, card.sentRemainingMs, still]);
+  }, [card.endsAtMs, card.sentRemainingMs, still, time]);
   const style = {
-    "--hudprogress-duration": `${card.totalMs}ms`,
-    "--hudprogress-delay": `${-elapsedMs}ms`,
+    "--hudprogress-duration": `${card.totalMs / rate}ms`,
+    "--hudprogress-delay": `${-elapsedMs / rate}ms`,
     "--hudprogress-icon": `url("${ICON_URL[card.icon]}")`,
     ...(card.iconRole ? { "--hudprogress-icon-color": ROLE_COLORS[card.iconRole] } : {}),
   } as CSSProperties;
   return (
-    <div ref={body} className="hudprogress__body" data-still={still ? "true" : undefined} style={style}>
+    <div ref={body} className="hudprogress__body" data-still={still || time.rate <= 0 ? "true" : undefined} style={style}>
       <span className="hudprogress__glow hudprogress__glow--left" aria-hidden="true" />
       <span className="hudprogress__glow hudprogress__glow--right" aria-hidden="true" />
       <span className="hudprogress__side hudprogress__side--left" aria-hidden="true" />
@@ -89,6 +94,7 @@ export type ProgressCardProps = {
  */
 export const ProgressCard = memo(function ProgressCard({ card, still = false }: ProgressCardProps) {
   const scale = useOverlayScale();
+  const time = useHudTime();
   const [previous, setPrevious] = useState<HudProgressCardView | null>(card);
   const [exit, setExit] = useState<Exit | null>(null);
   // Derived during render, so the frame the card ends in already draws the exit (no blank frame).
@@ -96,7 +102,7 @@ export const ProgressCard = memo(function ProgressCard({ card, still = false }: 
     setPrevious(card);
     if (card === null && previous !== null && !still) {
       // Within the re-sync tolerance of the end the countdown already shows (about) zero: it finished.
-      const finished = previous.endsAtMs - Date.now() <= HUD_PROGRESS_RESYNC_MS;
+      const finished = previous.endsAtMs - time.now() <= HUD_PROGRESS_RESYNC_MS;
       setExit({ card: previous, kind: finished ? "finished" : "fade" });
     } else if (card !== null && exit !== null) setExit(null);
   }
@@ -118,7 +124,7 @@ export const ProgressCard = memo(function ProgressCard({ card, still = false }: 
             data-hudprogress={shown.key}
             data-icon={shown.icon}
           >
-            <ProgressCardBody key={shown.animationKey} card={shown} still={still} />
+            <ProgressCardBody key={`${shown.animationKey}:${time.epoch}`} card={shown} still={still} />
           </div>
         ) : null}
       </div>

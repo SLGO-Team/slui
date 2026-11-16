@@ -133,7 +133,9 @@ export type ChatInputAction =
   | { type: "message"; source: ChatSource; message: ChatMessage; nowMs: number }
   | { type: "notice"; source: ChatSource; notice: ChatNotice; nowMs: number }
   | { type: "connection"; status: ConnectionStatus; nowMs: number }
-  | { type: "tick"; nowMs: number };
+  | { type: "tick"; nowMs: number }
+  /** Demo replay jump (a seek, another recording): the chat area empties; the plugin resends what is still visible. */
+  | { type: "clear-lines" };
 
 export function hasPendingChat(state: ChatInputState): boolean {
   return Object.keys(state.pending).length > 0;
@@ -253,6 +255,9 @@ export function chatInputReducer(state: ChatInputState, action: ChatInputAction)
       if (action.status === "stale") return closed;
       return Object.values(closed.pending).reduce((next, pending) => fail(next, pending, "disconnected", action.nowMs), closed);
     }
+    case "clear-lines":
+      // The ids go too: the plugin resends the lines still visible at the new position, which may be ones already seen.
+      return state.lines.length === 0 && state.seen.length === 0 ? state : { ...state, lines: [], seen: [] };
     case "tick": {
       const expired = Object.values(state.pending).filter((pending) => action.nowMs - pending.sentAtMs >= CHAT_COMMAND_TIMEOUT_MS);
       return expired.reduce((next, pending) => fail(next, pending, "timeout", action.nowMs), state);

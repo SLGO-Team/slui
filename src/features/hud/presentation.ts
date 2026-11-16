@@ -65,12 +65,12 @@ export function loadoutToPlayerMeta(loadout: MatchPlayerLoadout): TopHudPlayerMe
   };
 }
 
-/** Equipment summaries for the viewer's team; the opponent team never carries a loadout. */
+/** Equipment summaries for the viewer's team (both teams for the omniscient replay observer); an opponent carries none. */
 export function topHudPlayerMetaForHud(hud: RoundHudViewModel): TopHudPlayerMetaById {
   if (!hud.hasSnapshot) return {};
   const meta: Record<string, TopHudPlayerMeta> = {};
   for (const team of hud.teams) {
-    if (team.relation !== "viewer") continue;
+    if (team.relation === "opponent") continue;
     for (const player of team.players) {
       if (player.loadout) meta[player.player_id] = loadoutToPlayerMeta(player.loadout);
     }

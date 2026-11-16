@@ -3,6 +3,7 @@ import { sameMessageZoneTime, type HudMessageView, type HudMessageZoneSlot, type
 import { useBackdropRef } from "../../platform/backdrop.ts";
 import { useClockSelector } from "../../shared/clock.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
+import { useHudTime, wallDelayUntil } from "../../shared/hudTime.ts";
 import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import type { Role } from "../../contracts/index.ts";
 import "./MessageZone.css";
@@ -67,11 +68,15 @@ type MessageSlotProps = { slot: HudMessageZoneSlot; view: HudMessageView | null;
 function MessageSlot({ slot, view, still }: MessageSlotProps) {
   const [expiredAtMs, setExpiredAtMs] = useState<number | null>(null);
   const expiresAtMs = view?.expiresAtMs ?? null;
+  // The expiry is HUD time: a paused demo replay never reaches it, a 4x one gets there 4x sooner.
+  const time = useHudTime();
   useEffect(() => {
     if (still || expiresAtMs === null) return undefined;
-    const timer = window.setTimeout(() => setExpiredAtMs(expiresAtMs), Math.max(0, expiresAtMs - Date.now()));
+    const delay = wallDelayUntil(time, expiresAtMs);
+    if (delay === null) return undefined;
+    const timer = window.setTimeout(() => setExpiredAtMs(expiresAtMs), delay);
     return () => window.clearTimeout(timer);
-  }, [expiresAtMs, still]);
+  }, [expiresAtMs, still, time]);
   const live = view !== null && !(expiresAtMs !== null && expiredAtMs === expiresAtMs) ? view : null;
 
   const [previous, setPrevious] = useState<HudMessageView | null>(live);
