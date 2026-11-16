@@ -79,7 +79,13 @@
   bottom: 0;
 }
 
-/* #Contents: hud-blur-bg-color (#000000a0, read as 0.5 like the killfeed) over the world blur; 45 / 96 px. */
+/* #Contents: hud-blur-bg-color (#000000a0, read as 0.5 like the killfeed) over the world blur; 45 / 96 px.
+   Panorama blends translucent colours in linear light, the browser in sRGB: a faint white over the dark bar reads
+   several times stronger in game (captures: #ffffff03 / #ffffff07 buttons +7 / +20 over a 52 bar, the #ffffff20 /
+   #ffffff50 bands 140 / 172 over 90). So every translucent white below is its sRGB equivalent over the bar (~60):
+   #ffffff03 0.037, #ffffff07 0.08, #ffffff10 0.16, #ffffff20 0.272, #ffffff28 0.318, #ffffff40 0.438, #ffffff50 0.506,
+   #ffffff60 / opacity 0.376 0.567, #cccccc20 0.245, #cccccc80 0.656; over the popups (~50) #ffffff10 0.175,
+   #ffffff20 0.289, opacity 0.4 0.6. */
 .replay-contents {
   position: relative;
   height: 45px;
@@ -138,16 +144,16 @@
 }
 
 .replay-round-marker--even {
-  background-color: rgba(255, 255, 255, 0.314);
+  background-color: rgba(255, 255, 255, 0.506);
 }
 
 .replay-round-marker--odd {
-  background-color: rgba(255, 255, 255, 0.125);
+  background-color: rgba(255, 255, 255, 0.272);
 }
 
 /* SLGO (P2): the warmup before round 1, a shade under the darker band. */
 .replay-round-marker--warmup {
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.16);
 }
 
 /* .highlight-icon 22px, wash #707070 with brightness 0.8 in the CSS, but in-game captures measure ~#6e6e6e (the
@@ -213,16 +219,21 @@
   height: 36px;
   margin: 0 1px;
   padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.027);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 2px;
-  background-color: rgba(255, 255, 255, 0.012);
+  background-color: rgba(255, 255, 255, 0.037);
   cursor: default;
 }
 
 .replay-interactive:hover:not(:disabled),
 .replay-play:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.25);
-  background-color: rgba(255, 255, 255, 0.157);
+  border-color: rgba(255, 255, 255, 0.438);
+  background-color: rgba(255, 255, 255, 0.318);
+}
+
+/* #PlayButton:hover is #ffffff40 fill, brighter than the other controls' #ffffff28. */
+.replay-play:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.438);
 }
 
 .replay-control-row button:disabled {
@@ -335,7 +346,7 @@
 
 .replay-speed__bar {
   height: 4px;
-  background-color: rgba(255, 255, 255, 0.376);
+  background-color: rgba(255, 255, 255, 0.567);
 }
 
 .replay-speed__pause {
@@ -343,7 +354,7 @@
   height: 12px;
   margin-bottom: -4px;
   background-color: #fff;
-  opacity: 0.376;
+  opacity: 0.567;
   mask: url("/assets/replay/pause.svg") center / contain no-repeat;
 }
 
@@ -351,7 +362,7 @@
   width: 5px;
   height: 10px;
   background-color: #fff;
-  opacity: 0.376;
+  opacity: 0.567;
   mask: url("/assets/replay/arrow.svg") center / 100% 100% no-repeat;
   transform: scaleX(-1);
 }
@@ -367,7 +378,7 @@
   right: 0;
   top: 8px;
   height: 8px;
-  background: linear-gradient(to right, rgba(204, 204, 204, 0.5) calc(var(--stop) * (100% - 16px) + 8px), rgba(204, 204, 204, 0.125) 0);
+  background: linear-gradient(to right, rgba(204, 204, 204, 0.656) calc(var(--stop) * (100% - 16px) + 8px), rgba(204, 204, 204, 0.245) 0);
 }
 
 .replay-speed__thumb {
@@ -509,7 +520,7 @@
 
 .replay-end[data-armed] {
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.438);
 }
 
 /* #PlayerList / #RoundMenu: stacked right above #Contents, #303030f0 with a #202020f0 border. */
@@ -548,15 +559,15 @@
 }
 
 .replay-popup__entry:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.125);
+  background-color: rgba(255, 255, 255, 0.289);
 }
 
 .replay-player-entry[data-dead] {
-  opacity: 0.4;
+  opacity: 0.6;
 }
 
 .replay-player-entry[data-selected] {
-  background-color: rgba(255, 255, 255, 0.063);
+  background-color: rgba(255, 255, 255, 0.175);
   font-weight: 700;
 }
 

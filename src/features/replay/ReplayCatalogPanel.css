@@ -1,5 +1,6 @@
 /* The recordings list: no CS2 counterpart in game, so the demo controller's popup style (#303030f0 fill, #202020f0
-   border, 3px corners, 18px #e0e0e0 entries, #ffffff20 hover) on a centred panel of the overlay canvas. */
+   border, 3px corners, 18px #e0e0e0 entries, #ffffff20 hover) on a centred panel of the overlay canvas. Translucent
+   whites are their sRGB equivalents over the ~50 panel (Panorama blends in linear light, see ReplayController.css). */
 .replay-catalog-overlay {
   position: fixed;
   inset: 0;
@@ -92,9 +93,9 @@
 .replay-catalog__button {
   height: 30px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.027);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 2px;
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.042);
   color: #e0e0e0;
   font: inherit;
   font-size: 16px;
@@ -102,8 +103,8 @@
 }
 
 .replay-catalog__button:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.25);
-  background-color: rgba(255, 255, 255, 0.157);
+  border-color: rgba(255, 255, 255, 0.454);
+  background-color: rgba(255, 255, 255, 0.336);
 }
 
 .replay-catalog__button:disabled {
@@ -131,7 +132,7 @@
 }
 
 .replay-catalog__row:hover:not(.replay-catalog__row--head) {
-  background-color: rgba(255, 255, 255, 0.125);
+  background-color: rgba(255, 255, 255, 0.289);
 }
 
 .replay-catalog__row--head {
@@ -140,7 +141,7 @@
 }
 
 .replay-catalog__row[data-playing] {
-  background-color: rgba(255, 255, 255, 0.063);
+  background-color: rgba(255, 255, 255, 0.175);
   font-weight: 700;
 }
 
