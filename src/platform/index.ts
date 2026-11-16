@@ -44,15 +44,16 @@ export interface SlgoConnection {
   getStatus(): ConnectionStatus;
 }
 
-// The configurable chat keys (Y and U by default, as in CS2) and the shop key.
-export type OverlayShortcut = "chat-global" | "chat-team" | "shop";
-const OVERLAY_SHORTCUTS: readonly string[] = ["chat-global", "chat-team", "shop"] satisfies readonly OverlayShortcut[];
+// The configurable chat keys (Y and U by default, as in CS2), the shop key and the demo replay console key.
+export type OverlayShortcut = "chat-global" | "chat-team" | "shop" | "replay";
+const OVERLAY_SHORTCUTS: readonly string[] = ["chat-global", "chat-team", "shop", "replay"] satisfies readonly OverlayShortcut[];
 
 /** The shortcut a key opens, matched like the Rust hook's `overlay_shortcut`. */
 export function overlayShortcutFor(code: string | null, hotkeys: HotkeySettings): OverlayShortcut | null {
   if (code === null) return null;
   if (code === hotkeys.chatGlobal) return "chat-global";
   if (code === hotkeys.chatTeam) return "chat-team";
+  if (code === hotkeys.replay) return "replay";
   return code === hotkeys.shop ? "shop" : null;
 }
 
@@ -131,12 +132,12 @@ export function createOverlayWindowController(): OverlayWindowController {
     async setHotkeys(next) {
       const normalized = normalizeHotkeys(next);
       const keys = HOTKEY_ACTIONS.map((action) => hotkeyVirtualKey(normalized[action]));
-      const [shop, scoreboard, chatGlobal, chatTeam] = keys;
+      const [shop, scoreboard, chatGlobal, chatTeam, replay] = keys;
       if (keys.includes(null)) throw new Error(`Unsupported hotkeys ${HOTKEY_ACTIONS.map((action) => normalized[action]).join(" / ")}`);
       hotkeys = normalized;
       if (!isTauri) return;
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("set_hotkeys", { shop, scoreboard, chatGlobal, chatTeam });
+      await invoke("set_hotkeys", { shop, scoreboard, chatGlobal, chatTeam, replay });
     },
     async setScoreboardCapture(capture) {
       scoreboardCapture = capture;
