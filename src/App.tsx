@@ -1018,12 +1018,13 @@ function App({ harness }: AppProps) {
         <TeamSelect view={teamSelect} onCommand={handleTeamCommand} initialHover={teamSelectHover}
           still={teamSelectDebug !== null && !teamSelectDebug.fade} />
       ) : <>
-        <HudTeamCounter
+        {/* An idle replay server has no match to show: the bar says nothing is loaded instead of "NO MATCH DATA". */}
+        {replayIdle ? null : <HudTeamCounter
           hud={hud}
           clockAt={hudClockAt}
           playerMeta={playerMeta}
           variant={hudVariant}
-        />
+        />}
         <WinPanel panelAt={winPanelAt} still={hudSceneStill} />
         <BottomHud view={bottomHud} still={hudSceneStill} />
         <ProgressCard card={progressCard} still={hudSceneStill} />

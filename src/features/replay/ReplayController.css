@@ -150,7 +150,8 @@
   background-color: rgba(255, 255, 255, 0.06);
 }
 
-/* .highlight-icon 22px, wash #707070, brightness 0.8; hover lifts 2px, scales 1.2 and brightens. */
+/* .highlight-icon 22px, wash #707070 with brightness 0.8 in the CSS, but in-game captures measure ~#6e6e6e (the
+   capture is the authority); hover lifts 2px, scales 1.2 and brightens. */
 .replay-highlight-icon {
   position: absolute;
   top: 14px;
@@ -159,7 +160,7 @@
   height: 22px;
   padding: 0;
   border: 0;
-  background-color: #5a5a5a;
+  background-color: #6e6e6e;
   mask: center / contain no-repeat;
   transition: transform 0.05s ease-out, background-color 0.05s ease-out;
 }

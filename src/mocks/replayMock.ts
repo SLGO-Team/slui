@@ -2,6 +2,8 @@ import {
   advanceReplayPosition,
   MAX_REPLAY_PIN_REASON_LENGTH,
   type CommandResult,
+  type HudKillKind,
+  type HudSpectatingSnapshot,
   type MatchSnapshot,
   type ReplayCatalog,
   type ReplayCatalogEntry,
@@ -17,7 +19,9 @@ import {
 // An in-memory demo replay server for `npm run dev:mock` (`?replay=playing|paused|idle|loading|error`), after
 // slgo-backend's fake-replay: one recording built from the 10-player mock match, a catalog of 27 entries (three pages;
 // one still recording, one test match, one pinned, one unreadable, one that fails to load), every replay command
-// answered like the plugin (state first, then the HUD at the new position, then the result).
+// answered like the plugin (state first, then the HUD at the new position, then the result). A preview starts in first
+// person on slot 0 (the plugin sends that target's `hud.spectating`, so the bottom HUD shows); a freshly loaded
+// recording starts in free view.
 
 export type MockReplayScenario = "playing" | "paused" | "idle" | "loading" | "error";
 const SCENARIOS: readonly MockReplayScenario[] = ["playing", "paused", "idle", "loading", "error"];
@@ -42,6 +46,8 @@ const STEP_MS = 16;
 const PAGE_SIZE = 10;
 const ERROR_MATCH_ID = "0193f1c2-0000-7000-8000-00000000000a";
 const PLAYED_MATCH_ID = "0193f1c2-0000-7000-8000-000000000002";
+/** First-person slot of a preview scenario (Nova, team-a). */
+const PREVIEW_POV_SLOT = 0;
 
 /** Index of the last item matching `test`, or -1 (Array.prototype.findLastIndex is ES2023). */
 function lastIndex<T>(items: readonly T[], test: (item: T) => boolean): number {
@@ -122,7 +128,7 @@ function buildCatalog(): ReplayCatalogEntry[] {
 /** The players each catalog entry "has" (for the player filter): two of the mock names plus a SteamID. */
 const entryPlayers = (index: number) => [MOCK_NAMES[index % MOCK_NAMES.length], MOCK_NAMES[(index + 2) % MOCK_NAMES.length], `7656119800000000${index % 10}`];
 
-type Emit = (type: "replay.state" | "replay.catalog" | "match.snapshot" | "command.result", payload: unknown) => void;
+type Emit = (type: "replay.state" | "replay.catalog" | "match.snapshot" | "hud.spectating" | "command.result", payload: unknown) => void;
 type Clock = { now(): number; later(callback: () => void, ms: number): void };
 
 export class MockReplayServer {
@@ -144,6 +150,7 @@ export class MockReplayServer {
       this.demo = buildDemo(PLAYED_MATCH_ID, snapshot, "competitive", false);
       this.playback = { playing: scenario === "playing", speed: 1, position_ms: roundStart(3) + BUY_MS + 40_000 };
       this.anchoredAt = clock.now();
+      this.povSlot = PREVIEW_POV_SLOT;
     }
     if (scenario === "loading") this.loading = { match_id: this.catalog[2].match_id };
     if (scenario === "error") this.loadError = { match_id: ERROR_MATCH_ID, reason: "录像文件损坏：FOOTER 校验失败" };
@@ -198,11 +205,39 @@ export class MockReplayServer {
     };
   }
 
+  /**
+   * `hud.spectating` of the first-person target at the current position: an NTF carries the mock E-11 SR, an SCP its
+   * role name; `round_kills` are the target's timeline kills since the round's buy phase. Free view watches nobody.
+   */
+  spectating(): HudSpectatingSnapshot {
+    const playback = this.current();
+    if (this.demo === null || playback === null || this.povSlot === null) return { target: null };
+    const player = this.demo.players.find((candidate) => candidate.slot === this.povSlot);
+    const team = this.snapshot.teams.find((candidate) => candidate.players.some((live) => live.player_id === player?.player_id));
+    const live = team?.players.find((candidate) => candidate.player_id === player?.player_id);
+    if (!player || !team || !live?.is_alive) return { target: null };
+    const position = playback.position_ms;
+    const marks = this.demo.timeline.rounds;
+    const roundStartAt = marks[lastIndex(marks, (mark) => mark.phase === "buy" && mark.at_ms <= position)]?.at_ms ?? 0;
+    const roundKills = this.demo.timeline.kills
+      .filter((kill) => kill.killer_slot === player.slot && kill.at_ms >= roundStartAt && kill.at_ms <= position)
+      .map((): HudKillKind => "default");
+    const scp = team.role === "scp";
+    return { target: {
+      player_id: player.player_id,
+      money: live.loadout?.money ?? 0,
+      item_name: scp ? "SCP-939" : "E-11-SR",
+      ammo: scp ? null : { clip: 40 - (Math.floor(position / 1_000) % 30), clip_max: 40, reserve: 120, reserve_icon: "bullet" },
+      round_kills: roundKills,
+    } };
+  }
+
   /** Replays the current state (connect, and every 5 s while playing like the plugin) followed by the HUD. */
   publish(emit: Emit) {
     emit("replay.state", this.state());
     const snapshot = this.matchSnapshot();
     if (snapshot) emit("match.snapshot", snapshot);
+    emit("hud.spectating", this.spectating());
   }
 
   /** Answers one replay command. */

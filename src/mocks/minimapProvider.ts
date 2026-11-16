@@ -84,6 +84,12 @@ export class RealtimeMockProvider extends MockSidecarConnection {
           else {
             const snapshot = replay.matchSnapshot();
             if (snapshot) this.emit("match.snapshot", snapshot);
+            // The first-person target's hud.spectating goes out whenever it changed (its kills, ammo).
+            const spectating = JSON.stringify(replay.spectating());
+            if (this.lastHudPayloads["hud.spectating"] !== spectating) {
+              this.lastHudPayloads["hud.spectating"] = spectating;
+              this.emit("hud.spectating", JSON.parse(spectating));
+            }
           }
         } else {
           const hud = this.initialEvents.find((event) => event.type === "match.snapshot");
@@ -200,6 +206,8 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     const frame = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
     for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result], ["hud.status", frame.status], ["hud.spectating", frame.spectating], ["hud.killfeed", frame.killfeed],
       ["scoreboard.snapshot", frame.scoreboard]] as const) {
+      // A replay viewer's hud.spectating is the replay server's first-person target, and they have no hud.status.
+      if (this.replay && (type === "hud.status" || type === "hud.spectating")) continue;
       // Like the plugin, hud.killfeed goes out when its entries change, not as their times run down.
       const json = type === "hud.killfeed" ? frame.killfeed.entries.map((entry) => entry.entry_id).join(",") : JSON.stringify(payload);
       if (this.lastHudPayloads[type] === json) continue;
