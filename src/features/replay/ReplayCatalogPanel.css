@@ -1,0 +1,186 @@
+/* The recordings list: no CS2 counterpart in game, so the demo controller's popup style (#303030f0 fill, #202020f0
+   border, 3px corners, 18px #e0e0e0 entries, #ffffff20 hover) on a centred panel of the overlay canvas. */
+.replay-catalog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 33;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.replay-catalog-overlay *,
+.replay-catalog-overlay *::before,
+.replay-catalog-overlay *::after {
+  box-sizing: border-box;
+}
+
+.replay-catalog-canvas {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(100vw / var(--replay-scale));
+  height: 1080px;
+  margin-left: calc(100vw / var(--replay-scale) / -2);
+  transform: scale(var(--replay-scale));
+  transform-origin: top center;
+}
+
+.replay-catalog {
+  position: absolute;
+  left: 50%;
+  top: 150px;
+  width: 1100px;
+  margin-left: -550px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border: 1px solid rgba(32, 32, 32, 0.94);
+  border-radius: 3px;
+  background-color: rgba(48, 48, 48, 0.94);
+  color: #e0e0e0;
+  font-family: "Noto Sans Replay", sans-serif;
+  font-size: 18px;
+  pointer-events: auto;
+}
+
+.replay-catalog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.replay-catalog__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 0 14px;
+  font-size: 16px;
+  color: #a0a0a0;
+}
+
+.replay-catalog__filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.replay-catalog input,
+.replay-catalog select {
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  background-color: rgba(0, 0, 0, 0.35);
+  color: #e0e0e0;
+  font: inherit;
+  color-scheme: dark;
+}
+
+.replay-catalog__filters input:not([type]) {
+  width: 150px;
+}
+
+.replay-catalog__check input {
+  height: auto;
+}
+
+.replay-catalog__button {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.027);
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #e0e0e0;
+  font: inherit;
+  font-size: 16px;
+  cursor: default;
+}
+
+.replay-catalog__button:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.25);
+  background-color: rgba(255, 255, 255, 0.157);
+}
+
+.replay-catalog__button:disabled {
+  opacity: 0.35;
+}
+
+.replay-catalog__error {
+  padding: 0 14px;
+  color: #ff7b7b;
+  font-size: 16px;
+}
+
+.replay-catalog__table {
+  display: flex;
+  flex-direction: column;
+}
+
+.replay-catalog__row {
+  display: grid;
+  grid-template-columns: 170px 150px 120px 80px 80px 60px 1fr 170px;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 2px 14px;
+}
+
+.replay-catalog__row:hover:not(.replay-catalog__row--head) {
+  background-color: rgba(255, 255, 255, 0.125);
+}
+
+.replay-catalog__row--head {
+  color: #a0a0a0;
+  font-size: 15px;
+}
+
+.replay-catalog__row[data-playing] {
+  background-color: rgba(255, 255, 255, 0.063);
+  font-weight: 700;
+}
+
+.replay-catalog__row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-catalog__tags {
+  color: #a0a0a0;
+  font-size: 15px;
+}
+
+.replay-catalog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.replay-catalog__pin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 14px 8px;
+}
+
+.replay-catalog__pin input {
+  width: 420px;
+}
+
+.replay-catalog__empty {
+  padding: 10px 14px;
+  color: #a0a0a0;
+}
+
+.replay-catalog__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 14px;
+}

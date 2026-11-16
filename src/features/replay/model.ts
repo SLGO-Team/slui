@@ -377,3 +377,58 @@ export function replayPlayerRows(demo: Pick<ReplayDemo, "players">, hud: RoundHu
   if (absent.length > 0) groups.push({ key: "absent", title: "不在场", role: null, rows: absent });
   return groups;
 }
+
+/** A timeline icon (CS2 `HighlightIcons`): the watched player's kills and deaths; every death with the free camera. */
+export type ReplayTimelineEvent = { at: number; atMs: number; kind: "kill" | "death" };
+
+/**
+ * CS2 draws the spectated player's own timeline events (`TimelineEvents` follow `nSpectatingPlayerId`): a kill
+ * (crosshair) or a death (skull). With the free camera SLUI marks every death, so the timeline stays useful.
+ */
+export function replayTimelineEvents(demo: Pick<ReplayDemo, "duration_ms" | "timeline">, povSlot: number | null): ReplayTimelineEvent[] {
+  const duration = Math.max(1, demo.duration_ms);
+  const at = (ms: number) => Math.min(1, Math.max(0, ms / duration));
+  const events: ReplayTimelineEvent[] = [];
+  for (const kill of demo.timeline.kills) {
+    if (povSlot === null) events.push({ at: at(kill.at_ms), atMs: kill.at_ms, kind: "death" });
+    else if (kill.killer_slot === povSlot) events.push({ at: at(kill.at_ms), atMs: kill.at_ms, kind: "kill" });
+    else if (kill.victim_slot === povSlot) events.push({ at: at(kill.at_ms), atMs: kill.at_ms, kind: "death" });
+  }
+  return events;
+}
+
+/** CS2 `TicksToRound`: how many rounds have started by the position (0 before the first: warmup). */
+export function roundCountAt(timeline: Pick<ReplayTimeline, "rounds">, positionMs: number): number {
+  return currentRoundAt(timeline, positionMs) ?? 0;
+}
+
+/** The `action` mark of the round under the position (CS2 round menu「动作开始」), or null. */
+export function actionStartAt(timeline: Pick<ReplayTimeline, "rounds">, positionMs: number): number | null {
+  const round = currentRoundAt(timeline, positionMs);
+  if (round === null) return null;
+  return timeline.rounds.find((mark) => mark.round === round && mark.phase === "action")?.at_ms ?? null;
+}
+
+/**
+ * CS2 「跳转到任意玩家的下一次击杀」: the first kill whose lead-in (2 s before it) is still ahead of the position, with
+ * its killer (null for a death without one).
+ */
+export function nextKillAfter(timeline: Pick<ReplayTimeline, "kills">, positionMs: number, leadMs: number): { seekMs: number; killerSlot: number | null } | null {
+  const kill = timeline.kills.find((candidate) => candidate.at_ms - leadMs > positionMs);
+  return kill ? { seekMs: Math.max(0, kill.at_ms - leadMs), killerSlot: kill.killer_slot } : null;
+}
+
+/**
+ * CS2's player list order (team, then name, case-insensitively) over the player rows, with the slot ◀ / ▶ moves to:
+ * the previous / next alive one, wrapping; from the free camera ▶ starts at the first and ◀ at the last.
+ */
+export function replayPlayerOrder(groups: readonly ReplayPlayerGroup[]): ReplayPlayerRow[] {
+  return groups.flatMap((group) => [...group.rows].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())));
+}
+export function cyclePlayer(order: readonly ReplayPlayerRow[], povSlot: number | null, step: 1 | -1): number | null {
+  const selectable = order.filter((row) => row.selectable);
+  if (selectable.length === 0) return null;
+  const index = selectable.findIndex((row) => row.slot === povSlot);
+  if (index < 0) return (step > 0 ? selectable[0] : selectable[selectable.length - 1]).slot;
+  return selectable[(index + step + selectable.length) % selectable.length].slot;
+}

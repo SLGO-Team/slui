@@ -164,6 +164,14 @@ export const FONT_FACES: readonly FontFaceSpec[] = [
   { family: "Stratum2 Spectator", weight: 500, pack: stratum("stratum2-medium.otf", CAP_CENTERED), fallback: barlow("Medium", CAP_CENTERED) },
   { family: "Stratum2 Spectator", weight: 700, pack: stratum("stratum2-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED) },
   { family: "Stratum2 Spectator Mono", weight: 700, pack: stratum("stratum2mono-bold.otf", CAP_CENTERED), fallback: barlow("Bold", CAP_CENTERED, true) },
+  // Demo replay controller (ReplayController.css): CS2's time and speed labels are Stratum2 Regular Monodigit; its
+  // other labels are Panorama's default notosans (Noto Sans SC, declared in that CSS).
+  {
+    family: "Stratum2 Replay Monodigit",
+    weight: 400,
+    pack: stratum("stratum2regular_monodigit.ttf", CAP_CENTERED),
+    fallback: barlow("Regular", CAP_CENTERED, true),
+  },
   // Team select (TeamSelect.css): bold-condensed titles, bold counts and names, condensed medium button labels.
   // Panorama's labels are top-aligned there, so the faces keep Stratum2's own metrics.
   { family: "Stratum2 TeamSelect", weight: 700, pack: stratum("stratum2-bold.otf", null), fallback: barlow("Bold", NATURAL) },

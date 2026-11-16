@@ -30,7 +30,10 @@ import { selectTeamSelect } from "./features/teamselect/presentation";
 import { useTeamSelectFeature } from "./features/teamselect/useTeamSelectFeature";
 import { replayLineAgeMs, selectReplayMode } from "./features/replay/model";
 import { useReplayFeature } from "./features/replay/useReplayFeature";
-import { replayCommandLabel } from "./features/replay/commands";
+import { catalogQuery, replayCatalog, replayCommandLabel, replayLoad, replayPin, replayUnpin } from "./features/replay/commands";
+import type { ReplayCatalogFilters } from "./features/replay/model";
+import { ReplayController } from "./features/replay/ReplayController";
+import { ReplayCatalogPanel } from "./features/replay/ReplayCatalogPanel";
 import { HudTimeContext, wallDelayUntil } from "./shared/hudTime";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
 import type * as DebugHarnessModule from "./mocks/harness";
@@ -145,7 +148,9 @@ function App({ harness }: AppProps) {
   // Both debug panels are suppressible from the URL so the shop can be captured
   // as it will ship when comparing against the baseline screenshot.
   const showShopDebugPanel = SHOP_DEBUG_ENABLED && previewParams.get("shopDebug") !== "0";
-  const previewBackground = showPreviewBackground ? debugOptions?.background : undefined;
+  // Replay previews keep the screenshot background (the HUD debug scene that normally picks it is off there).
+  const replayPreviewBackground = replayMockScenario ? previewParams.get("previewBackground") ?? "1" : undefined;
+  const previewBackground = showPreviewBackground ? debugOptions?.background ?? replayPreviewBackground : undefined;
   const previewViewerTeam = debugOptions?.viewerTeam === "team-b" ? "team-b" : "team-a";
   const previewShopRole = shopDebugOptions?.role === "scp079" ? "scp079" : "scp";
   // A 079 debug scenario always needs the SCP-side fixture, even when the HUD
@@ -197,10 +202,13 @@ function App({ harness }: AppProps) {
   const [chatKeys, setChatKeys] = useState<readonly string[]>(() => [DEFAULT_HOTKEYS.chatGlobal, DEFAULT_HOTKEYS.chatTeam]);
   const shopAvailableRef = useRef(false);
   const connectionLiveRef = useRef(false);
-  // The demo replay console (design 11-07-demo-replay-slui §5.1): opened with its key on a replay server only, it takes
-  // the mouse and keyboard like the shop.
+  // The demo replay bar (design 11-07-demo-replay-slui §12, CS2 DemoToggleUI): its key cycles minimal -> full -> hidden
+  // on a replay server only. The full bar (the console) takes the mouse and keyboard like the shop.
   const [replayConsoleOpen, setReplayConsoleOpen] = useState(false);
   const replayConsoleOpenRef = useRef(false);
+  const [replayBarHidden, setReplayBarHidden] = useState(false);
+  const replayBarHiddenRef = useRef(false);
+  const [replayCatalogOpen, setReplayCatalogOpen] = useState(false);
   const replayModeRef = useRef(false);
   const replayHeldForegroundRef = useRef(false);
   const chatOpenRef = useRef(false);
@@ -539,8 +547,8 @@ function App({ harness }: AppProps) {
       }
       return;
     }
-    // The replay console key: only on a replay server (R18), opens over the focused game and toggles. A press while a
-    // text field has the focus is typing (the hook cannot tell), never a close.
+    // The replay bar key: only on a replay server (R18); cycles minimal -> full (over the focused game) -> hidden ->
+    // minimal like CS2's Shift+F2. A press while a text field has the focus is typing (the hook cannot tell).
     if (shortcut === "replay") {
       if (!replayModeRef.current) {
         overlayController.log("replay key ignored: not on a replay server");
@@ -550,6 +558,15 @@ function App({ harness }: AppProps) {
         const typing = document.activeElement instanceof HTMLElement && document.activeElement.closest("input, textarea, select, [contenteditable]") !== null;
         if (typing) return;
         closeReplayConsole("replay key");
+        overlayController.log("replay bar hidden");
+        replayBarHiddenRef.current = true;
+        setReplayBarHidden(true);
+        return;
+      }
+      if (replayBarHiddenRef.current) {
+        overlayController.log("replay bar minimal");
+        replayBarHiddenRef.current = false;
+        setReplayBarHidden(false);
         return;
       }
       if (!(gameForeground ?? true) || !connectionLiveRef.current) {
@@ -681,6 +698,8 @@ function App({ harness }: AppProps) {
   const replayMode = selectReplayMode(replayFeature.state);
   replayModeRef.current = replayMode;
   const replayConsoleShown = replayMode && replayConsoleOpen && sessionLive && !inputBlocked;
+  // What the bar shows (null: none, the match-server overlay); the root's data-replay-bar lifts the bottom HUD.
+  const replayBarMode = !replayMode || !sessionLive || replayBarHidden ? null : replayConsoleShown ? "full" as const : "minimal" as const;
   const overlayInteractive = sessionLive && !inputBlocked
     && ((shopOpen && shopAvailable) || chatOpen || scoreboardMode === "cursor" || (teamSelectShown && overGame) || replayConsoleShown);
   const wasChatOpenRef = useRef(false);
@@ -774,10 +793,22 @@ function App({ harness }: AppProps) {
     else if (!sessionLive) closeReplayConsole("session not live");
     else if (inputBlocked) closeReplayConsole("input blocked");
   }, [closeReplayConsole, inputBlocked, replayConsoleOpen, replayMode, sessionLive]);
-  // Entering replay mode closes an open chat: replay servers take no chat input.
+  // Entering replay mode closes an open chat: replay servers take no chat input. Leaving it forgets the hidden bar.
   useEffect(() => {
     if (replayMode && chatOpenRef.current) handleChatClose("unavailable", "replay server");
+    if (!replayMode && replayBarHiddenRef.current) {
+      replayBarHiddenRef.current = false;
+      setReplayBarHidden(false);
+    }
   }, [handleChatClose, replayMode]);
+  // The catalog lives in the console: it closes with it, and opens with it while nothing is loaded.
+  useEffect(() => {
+    if (!replayConsoleShown && replayCatalogOpen) setReplayCatalogOpen(false);
+  }, [replayCatalogOpen, replayConsoleShown]);
+  const replayIdle = replayMode && replayFeature.state.current?.state.demo === null;
+  useEffect(() => {
+    if (replayConsoleShown && replayIdle) setReplayCatalogOpen(true);
+  }, [replayConsoleShown, replayIdle]);
   // A team.menu that arrived before the plugin saw the smaller feature list is dropped too, so reclaiming the feature
   // never shows a stale session: the plugin sends the current one when `team-select` is declared again.
   const teamMenuHeld = teamSelectFeature.state.menu !== null;
@@ -925,6 +956,31 @@ function App({ harness }: AppProps) {
       replayFeature.sendFailed(command.command_id, reason);
     });
   }, [connection, overlayController, replayFeature.beginCommand, replayFeature.sendFailed]);
+  // The recordings list: the first open queries page 1; an accepted pin or unpin re-queries the page shown.
+  const queryReplayCatalog = useCallback((page: number, filters: ReplayCatalogFilters): string | null => {
+    const built = catalogQuery(filters, page);
+    if (!built.ok) return built.error;
+    handleReplayCommand(replayCatalog(built.query));
+    return null;
+  }, [handleReplayCommand]);
+  const replayCatalogState = replayFeature.state.catalog;
+  const replayCatalogStateRef = useRef(replayCatalogState);
+  replayCatalogStateRef.current = replayCatalogState;
+  useEffect(() => {
+    const catalog = replayCatalogStateRef.current;
+    if (replayCatalogOpen && catalog.page === null && catalog.commandId === null) queryReplayCatalog(1, catalog.filters);
+  }, [queryReplayCatalog, replayCatalogOpen]);
+  const catalogRevision = replayCatalogState.revision;
+  useEffect(() => {
+    const catalog = replayCatalogStateRef.current;
+    if (catalogRevision > 0 && catalog.page !== null) queryReplayCatalog(catalog.page.page, catalog.filters);
+  }, [catalogRevision, queryReplayCatalog]);
+  const toggleReplayCatalog = useCallback(() => setReplayCatalogOpen((open) => !open), []);
+  const closeReplayCatalog = useCallback(() => setReplayCatalogOpen(false), []);
+  const leaveReplayConsole = useCallback(() => closeReplayConsole("escape"), [closeReplayConsole]);
+  const loadReplay = useCallback((matchId: string) => handleReplayCommand(replayLoad(matchId)), [handleReplayCommand]);
+  const pinReplay = useCallback((matchId: string, reason: string) => handleReplayCommand(replayPin(matchId, reason)), [handleReplayCommand]);
+  const unpinReplay = useCallback((matchId: string) => handleReplayCommand(replayUnpin(matchId)), [handleReplayCommand]);
   const replayStateRef = useRef(replayFeature.state);
   replayStateRef.current = replayFeature.state;
   useEffect(() => {
@@ -957,7 +1013,7 @@ function App({ harness }: AppProps) {
   const minimapControls = useMemo(() => ({ alternateZoomActive: minimapOptions.alternateZoomActive }), [minimapOptions.alternateZoomActive]);
   return (
     <HudTimeContext.Provider value={hudTime}>
-    <main id="SlgoOverlayRoot" data-preview-background={previewBackground}>
+    <main id="SlgoOverlayRoot" data-preview-background={previewBackground} data-replay-bar={replayBarMode ?? undefined}>
       {teamSelectShown && teamSelect !== null ? (
         <TeamSelect view={teamSelect} onCommand={handleTeamCommand} initialHover={teamSelectHover}
           still={teamSelectDebug !== null && !teamSelectDebug.fade} />
@@ -1000,6 +1056,16 @@ function App({ harness }: AppProps) {
           openingKeys={chatKeys}
           onDiagnostic={overlayController.log}
         />
+        {replayBarMode !== null ? (
+          <ReplayController mode={replayBarMode} replay={replayFeature.state} hud={hud} catalogOpen={replayCatalogOpen}
+            onCommand={handleReplayCommand} onToggleCatalog={toggleReplayCatalog} onLeaveFull={leaveReplayConsole} />
+        ) : null}
+        {replayBarMode === "full" && replayCatalogOpen ? (
+          <ReplayCatalogPanel catalog={replayCatalogState} pending={replayFeature.state.pending}
+            playingMatchId={replayFeature.state.current?.state.demo?.match_id ?? null}
+            onFilters={replayFeature.setFilters} onQuery={queryReplayCatalog} onLoad={loadReplay} onPin={pinReplay} onUnpin={unpinReplay}
+            onClose={closeReplayCatalog} />
+        ) : null}
       </>}
       {showShopDebugPanel && debug && shopDebugOptions ? <debug.ShopDebugPanel options={shopDebugOptions} shopVisible={shopOpen} onChange={setShopDebugOptions} onToggleShop={toggleShop} /> : null}
       {showHudDebugPanel && debug && debugOptions ? (
