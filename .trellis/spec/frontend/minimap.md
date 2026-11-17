@@ -77,8 +77,9 @@ last batched status can miss a connecting/baseline-required reset.
   original white image with its black outline (the wash rule `.minimap-marker img`
   must not outrank the `filter: none` on `__heading` / `__ghost`; give those a
   selector at least as specific, e.g. `.minimap-marker .minimap-marker__heading`).
-  The heading box is 9×9 at y=-10 so ~4px of white tip clears the 8px disc (8px
-  read as too thin, 11px as oversized). The source wedge's axis is at x=16.5 of
+  The heading box is 12.375×12.375 at top -13.75 over CS2's native 11px dot: the
+  9×9-over-8px ratio tuned in game (~4px of white tip beyond the disc), scaled to
+  the native dot when the markers moved to CS2 sizes plus the icon scale. The source wedge's axis is at x=16.5 of
   32, so it is centred with `transform: translateX(-51.5625%)`, never a
   fractional `left` (browsers snap that to device pixels and the tip drifts off
   the dot's axis).
