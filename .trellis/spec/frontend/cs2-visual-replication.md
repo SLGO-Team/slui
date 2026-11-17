@@ -177,7 +177,7 @@ cs2-radar-client-re.md`.
 
 | Flag | True when | Off: what CS2 draws instead |
 | --- | --- | --- |
-| `slots` | `mode_family` competitive and `player_limit <= 10`; either field absent (older plugin, demo replay) = true | radar: friendly markers (self and the death X too) in the side wash `ntf` / `scp`, the carried keycard orange `#ff9b25`; team counter: no 3px slot border, the avatar keeps a 2px pale side border (NTF `#b5d4ee` = CS2 `color-CT`; SCP `#ea8a92`, provisional) and the alive local player a 2.5px white one (`hud-player--plain` / `--self`, dead stays 2px black); chat: no dot (`dotColor: null`); scoreboard: no avatar frame (`slotColor: null`) |
+| `slots` | `mode_family` competitive and `player_limit <= 10`; either field absent (older plugin, demo replay) = true | radar: friendly markers (self and the death X too) in the side wash `ntf` / `scp`, the carried keycard in the neutral wash (CS2 orange `#ff9b25`, SLGO NTF Captain `#003dca`); team counter: no 3px slot border, the avatar keeps a 2px pale side border (NTF `#b5d4ee` = CS2 `color-CT`; SCP `#ea8a92`, provisional) and the alive local player a 2.5px white one (`hud-player--plain` / `--self`, dead stays 2px black); chat: no dot (`dotColor: null`); scoreboard: no avatar frame (`slotColor: null`) |
 | `pips` | `mode_family` is not casual (the player limit is not checked) | buy menu teammate pips all `SHOP_PIP_NO_SLOT_COLOR` `#787878`, still in slot order |
 | `numbers` | `player_limit <= 10`; without a limit, a match.snapshot roster of at most 10 | no observer numbers on the radar |
 

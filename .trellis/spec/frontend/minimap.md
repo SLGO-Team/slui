@@ -102,11 +102,12 @@ last batched status can miss a connecting/baseline-required reset.
   native size: the holder gets `KeycardNTFCommander.svg` (16×16 box, black drop shadow)
   centred *over* its dot like the CS2 bomb pack over its carrier, undoing the marker's
   icon scale (`scale(calc(1 / var(--radar-icon-scale)))`). Wash as CS2 `CreateBombPack`:
-  the carrier's marker wash (slot colour; red for an opponent), but orange `#ff9b25`
-  (`${id}-observer`, via `--pack-wash`) for a viewer on no team (`observer`) and for a
-  friendly carrier while teammate colours are off. The item is the same icon, white for
-  its own side (orange with teammate colours off), orange for observers and red when
-  `team_id` is not the viewer's team. On the ground it shows the `#DroppedBomb` pulse ring (110px,
+  the carrier's marker wash (slot colour; red for an opponent), but the neutral wash
+  (`${id}-commander`, via `--pack-wash`) for a viewer on no team (`observer`) and for a
+  friendly carrier while teammate colours are off. CS2's neutral wash is orange `#ff9b25`;
+  SLGO uses the SL NTF Captain (指挥官) role colour `#003dca` (user decision 2026-11-17).
+  The item is the same icon, white for its own side (neutral with teammate colours off),
+  neutral for observers and red when `team_id` is not the viewer's team. On the ground it shows the `#DroppedBomb` pulse ring (110px,
   2px `#880000`); once `planted` it adds the `#PlantedBomb` ring (70px, 2px `#D10000`),
   so a planted card shows both, as CS2's visibility mask does. Both screen blend with
   `DroppedBomb--Animate` 0.75s. A planted card also pulses CS2 `PlantedBombAnimateRed`

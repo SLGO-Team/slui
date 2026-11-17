@@ -35,8 +35,9 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
     <ColorWash id={`${id}-enemy`} rgb={[255, 25, 25]} />
     <ColorWash id={`${id}-self`} rgb={[255, 255, 255]} />
     <ColorWash id={`${id}-bombzone`} rgb={[255, 204, 0]} />
-    {/* CS2 CreateBombPack default wash, kept for a viewer on neither side. */}
-    <ColorWash id={`${id}-observer`} rgb={[255, 155, 37]} />
+    {/* The keycard's neutral wash where CS2 CreateBombPack keeps its orange #ff9b25 default: SLGO uses the SL NTF
+        Captain (指挥官) role colour #003dca instead (user decision 2026-11-17). */}
+    <ColorWash id={`${id}-commander`} rgb={[0, 61, 202]} />
     {SLOT_COLORS.map((color) => <ColorWash key={color} id={`${id}-${slotFilterKey(color)}`} rgb={rgbOf(color)} />)}
   </defs></svg>;
 });
@@ -90,9 +91,10 @@ function KeycardItem({ keycard, observer, teammateColors, filterPrefix }: { keyc
   // CS2 RI_BombDefuserPackage: the pack icon, plus the pulsing #DroppedBomb ring whenever it is on the ground and the red
   // #PlantedBomb ring as well once planted in a generator (client.dll shows both); a planted pack also pulses a red glow
   // (PlantedBombAnimateRed). A card no longer seen fades out at its last seen spot (m_fBombAlpha). Clamped to the edge it
-  // keeps only the icon. Wash as CS2 CreateBombPack: red for the opponent's card, orange for a viewer on neither side and
-  // whenever teammate colours are off (0x180ec16b0 keeps its #ff9b25 default), plain white for the owning side.
-  const wash = keycard.hostile ? "enemy" : observer || !teammateColors ? "observer" : null;
+  // keeps only the icon. Wash as CS2 CreateBombPack: red for the opponent's card, the neutral wash for a viewer on neither
+  // side and whenever teammate colours are off (where 0x180ec16b0 keeps its default; SLGO's is the NTF Captain blue),
+  // plain white for the owning side.
+  const wash = keycard.hostile ? "enemy" : observer || !teammateColors ? "commander" : null;
   const ground = keycard.state !== "carried" && !keycard.edge;
   return <span className="minimap-keycard-drop" data-edge={keycard.edge} data-status={keycard.status} data-state={keycard.state}
     data-hostile={keycard.hostile} data-observer={observer}
@@ -139,7 +141,7 @@ function PlayerMarker({ marker, filterPrefix, slotColor, observer, teammateColor
     data-player-id={marker.playerId} data-visibility={marker.visibility} data-role={marker.role} data-status={marker.status} data-edge={marker.edge}
     data-hostile={marker.hostile} data-followed={marker.followed} data-selected={marker.selected} data-keycard={marker.hasKeycard}
     style={{ left: marker.x, top: marker.y, "--marker-filter": `url(#${filterPrefix}-${wash})`,
-      ...((observer || !teammateColors) && !enemy && marker.hasKeycard ? { "--pack-wash": `url(#${filterPrefix}-observer)` } : {}) } as CSSProperties}>
+      ...((observer || !teammateColors) && !enemy && marker.hasKeycard ? { "--pack-wash": `url(#${filterPrefix}-commander)` } : {}) } as CSSProperties}>
     <span className="minimap-marker__direction" style={{ transform: `rotate(${marker.edge ? marker.edgeAngle : marker.yaw}deg)` }}>
       {facing && !marker.edge ? <img className="minimap-marker__view-angle" src="/assets/minimap/view-cone.svg" alt="" /> : null}
       {!marker.edge && (!enemy || facing) ? <img className="minimap-marker__heading" src="/assets/minimap/heading-arrow.svg" alt="" /> : null}
@@ -153,7 +155,7 @@ function PlayerMarker({ marker, filterPrefix, slotColor, observer, teammateColor
     </span> : null}
     {/* CS2 #PlayerNumber sits in #PI_NonRotated: always upright. */}
     {number !== null ? <span className="minimap-marker__number">{number}</span> : null}
-    {/* CS2 draws the bomb package over its carrier, tinted like the carrier (slot colour, red for an enemy; orange for
+    {/* CS2 draws the bomb package over its carrier, tinted like the carrier (slot colour, red for an enemy; NTF Captain blue for
         a viewer on neither side or with teammate colours off). */}
     {marker.hasKeycard ? <img className="minimap-marker__keycard" src={KEYCARD_ICON} alt="" /> : null}
   </span>;
