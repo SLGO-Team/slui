@@ -84,6 +84,26 @@ When static source and observed output disagree, the in-game screenshot wins.
   mock preview's stand-in for the world blur (`src/platform/backdrop.ts`, mock mode
   only), so reviews over the preview background compare like with like.
 
+### Translucent colours: Panorama blends in linear light
+
+Panorama composites translucent colours in linear light; the browser blends in sRGB. A faint white over a dark fill
+therefore reads several times brighter in game than its alpha suggests in CSS (demo controller captures: `#ffffff03` /
+`#ffffff07` buttons lift a 52 fill by +7 / +20; `#ffffff20` / `#ffffff50` bands over 90 read 140 / 172, the linear
+prediction, while sRGB blending gives ~108 / ~135). Copying the Panorama alpha makes such fills too faint.
+
+- When a Panorama colour is translucent and drawn over a known dark fill, write its **sRGB-equivalent alpha**: the
+  alpha that gives, blended in sRGB over that fill, the colour Panorama's linear blend gives. For a white over a fill
+  of sRGB value `b` (0-1), with `lin()` / `srgb()` the standard transfer functions:
+  `a_css = (srgb(a + (1 - a) * lin(b)) - b) / (1 - b)`.
+- Pick `b` from the capture (the fill the colour actually sits on), and record the table next to the rule that uses it
+  (`ReplayController.css` header: over the ~60 bar `#ffffff03` 0.037, `#ffffff07` 0.08, `#ffffff10` 0.16, `#ffffff20`
+  0.272, `#ffffff40` 0.438, `#ffffff50` 0.506; over the ~50 popups `#ffffff10` 0.175, `#ffffff20` 0.289).
+- Opaque colours, and black fills read from captures (a panel's own `rgba(0,0,0,a)` measured over the world), stay as
+  measured: the conversion is for translucent layers over a fill, not for values already read off a capture.
+- The capture still wins: if a converted value disagrees with a capture, measure the capture (the timeline icons read
+  `#6e6e6e`, not the CSS `#707070 * 0.8`).
+- Panels built before this rule were matched to captures directly and need no conversion.
+
 ### Assets, fonts and avatars
 
 - **No text shadows on new UI.** Do not add `text-shadow` (or a `drop-shadow`
@@ -754,3 +774,40 @@ captures of 2026-10-24 (hover T, hover CT, first join; kept locally); numbers ar
   `teamSelectHover=ntf|scp` (starts with that side highlighted for captures; the mouse still moves it),
   `teamSelectReject=ntf|scp` (the mock plugin refuses that side with CS2's "...队伍人数已满。"),
   `teamSelectFade=1` keeps the opening fade. The mock reopens the menu 1.5 s after a choice.
+
+## 17. Demo-controller-specific replication rules
+
+The demo replay bar is a hand-built React feature under `src/features/replay` (`ReplayController.tsx` / `.css`,
+`ReplayCatalogPanel.tsx` / `.css`, assets `public/assets/replay/*.svg`), recreating the current CS2
+`huddemocontroller.xml` / `.css` / `.js` (re-extracted from the CS2 VPK, 2026-11-16) and checked against the user's
+CS2 demo playback captures (2000x1250, kept locally). Mapping and deviations: task `11-07-demo-replay-slui`
+design §12; e2e: its `research/e2e.md`.
+
+- Display states: the replay key (F3) cycles minimal -> full -> hidden (CS2 `DemoToggleUI` cycles hidden -> minimal ->
+  full); entering replay mode shows minimal. `#Contents` is 45 px minimal / 96 px full, full width, bottom-anchored,
+  z-index 20 (over the HUD, under chat and menus), fill black 0.5 (read like the killfeed) with a 2 px black shadow,
+  0.1 s height transition.
+- HUD lift: like CS2's `hud.css`, the bottom-centre HUD, message zone and progress card move up 50 px over the minimal
+  bar and 86 px over the full one (`#SlgoOverlayRoot[data-replay-bar]`, `--replay-lift` times each canvas's scale);
+  the chat does not move.
+- Timeline: round bands alternate `#ffffff20` / `#ffffff50` (converted: 0.272 / 0.506), 8 px high, 30 px from the
+  top; a 16 px white thumb; the warmup is the darkest band. Above it, 22 px icons for the spectated player's kills
+  (crosshair) and deaths (skull), in the free camera every death as a skull; click seeks 2 s before the event. CS2 has
+  no pause / skip / generator marks, so none are drawn (`timelineGeometry` still computes them).
+- Control row: 82 px play button; speed slider with stops pause, 0.25, 0.5, 1, 2, 4 (CS2's 0.1 dropped: the protocol
+  minimum is 0.25) and its tick row; "时间： m:ss / m:ss" (no Tick field); **-10秒 / +10秒** (CS2 steps 15 s; SLGO
+  uses 10, task PRD R12); ⏮ 回合：N ⏭ with the 回合开始 / 动作开始 menu; ◀ player name ▶ with the player list; »⊕
+  next kill; the camera button toggles 第一人称 / 自由视角; CS2's highlights button is 录像列表 here (same film icon);
+  no settings button; 退出 (= unload for everyone) needs a second click within 3 s (确认退出？).
+- Text: Chinese strings from CS2's `CSGO_Demo_*` / `tooltip_demo_*` (step text changed to 10). Labels in Noto Sans SC
+  (CJK at 90%, CS2's fallback scale), times and speed in Stratum2 Regular Monodigit, colour `#cccccc` (captures read
+  ~`#dadada`, probably capture brightening; not changed).
+- Popups (player list, round menu) and the recordings panel: `#303030f0` fill, `#202020f0` border, radius 3, entries
+  18 px `#e0e0e0`, hover `#ffffff20` (converted 0.289); player names CT `#b5d4ee` / T `#eadbb1` (SCP on CS2's CT side,
+  NTF on T, `hudSideForRole`), the dead at 0.4 with a skull and not clickable. The recordings panel has no CS2
+  counterpart; it reuses the popup style, centred.
+- Status line (loading, load failure, rejected command; CS2 has none): one line in the popup style just above the
+  bar's left end.
+- No text shadow. Mock preview: `npm run dev:mock` with `?replay=playing|paused|idle|loading|error` (the preview
+  background on, first person on slot 0, HUD debug scenes off); in mock mode `window.__SLUI_REPLAY_DEBUG__.send(command)`
+  sends any replay command. Review set: minimal, full, recordings panel, loading, load failure, end, at 1920x1080.

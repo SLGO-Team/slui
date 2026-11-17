@@ -35,7 +35,7 @@ packages/
 src/
 ├── app/                 # application composition and lifecycle
 ├── contracts/           # client facade: re-exports @slgo/protocol + client-only types
-├── features/            # vertical UI slices: hud, shop, chat, minimap
+├── features/            # vertical UI slices: hud, shop, chat, minimap, replay, ...
 ├── platform/            # Tauri commands, events, and network adapters
 ├── shared/              # reusable UI primitives and pure utilities
 │   └── brand-tokens.css # --home-* colour/font tokens shared by home and installer
