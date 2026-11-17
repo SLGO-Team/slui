@@ -120,7 +120,7 @@ assert.equal(eventDigit({ keyCode: 0x30, code: "Digit0" }), null, "0 is no slot"
 assert.equal(eventDigit({ keyCode: 229, code: "Digit2" }), 2);
 
 // Scoreboard key (held): the shop's keys plus CapsLock (Rust is_bindable_scoreboard_hotkey).
-assert.deepEqual(DEFAULT_HOTKEYS, { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU", replay: "F3" });
+assert.deepEqual(DEFAULT_HOTKEYS, { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU", replay: "F6" });
 assert.deepEqual(HOTKEY_ACTIONS, ["shop", "scoreboard", "chatGlobal", "chatTeam", "replay"], "the order set_hotkeys takes them in");
 for (const code of ["CapsLock", "KeyA", "KeyT", "KeyY", "F1", "F12"]) assert.equal(isBindableScoreboardHotkey(code), true, code);
 for (const code of ["Tab", "KeyR", "Digit1", "ShiftLeft", "", null]) assert.equal(isBindableScoreboardHotkey(code), false, String(code));
@@ -134,8 +134,8 @@ const hotkeysOf = (hotkeys) => parseSettings({ version: SETTINGS_VERSION, hotkey
 const withKeys = (keys) => ({ ...DEFAULT_HOTKEYS, ...keys });
 assert.deepEqual(hotkeysOf({ shop: "KeyB", scoreboard: "KeyT" }), withKeys({ scoreboard: "KeyT" }), "files from before the chat keys");
 assert.deepEqual(hotkeysOf({ shop: "KeyT", scoreboard: "KeyT" }), withKeys({ shop: "KeyT" }), "a shared key goes back to CapsLock");
-assert.deepEqual(hotkeysOf({ shop: "F3", scoreboard: "Tab" }), withKeys({ shop: "F3", replay: "F5" }));
-assert.deepEqual(hotkeysOf({ shop: "F3" }), withKeys({ shop: "F3", replay: "F5" }), "files from before the scoreboard key");
+assert.deepEqual(hotkeysOf({ shop: "F6", scoreboard: "Tab" }), withKeys({ shop: "F6", replay: "F7" }));
+assert.deepEqual(hotkeysOf({ shop: "F6" }), withKeys({ shop: "F6", replay: "F7" }), "files from before the scoreboard key");
 assert.deepEqual(hotkeysOf(withKeys({ chatGlobal: "KeyT", chatTeam: "F2" })), withKeys({ chatGlobal: "KeyT", chatTeam: "F2" }));
 assert.deepEqual(hotkeysOf(withKeys({ shop: "KeyY", chatGlobal: "KeyT" })), withKeys({ shop: "KeyY", chatGlobal: "KeyT" }),
   "Y may open the shop once global chat moved");
@@ -145,13 +145,13 @@ assert.deepEqual(hotkeysOf({ shop: "KeyY", scoreboard: "KeyB" }), DEFAULT_HOTKEY
   "Y opens the shop, so global chat cannot have its default: every key goes back");
 assert.deepEqual(hotkeysOf(withKeys({ chatGlobal: "CapsLock" })), DEFAULT_HOTKEYS, "CapsLock is the scoreboard's alone");
 // The replay console key came after the others: a file without it (or with an unusable one) gets the first free key of
-// F3, F5, F6, ... and keeps every other key, even when one of them already sits on F3.
+// F6, F7, ... and keeps every other key, even when one of them already sits on F6.
 const fourKeys = { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU" };
-assert.deepEqual(hotkeysOf(fourKeys), DEFAULT_HOTKEYS, "an older file gets F3");
-assert.deepEqual(hotkeysOf({ ...fourKeys, chatTeam: "F3" }), { ...fourKeys, chatTeam: "F3", replay: "F5" }, "F3 taken: F5, the four kept");
-assert.deepEqual(hotkeysOf({ shop: "F3", scoreboard: "F5", chatGlobal: "F6", chatTeam: "F7" }), { shop: "F3", scoreboard: "F5", chatGlobal: "F6", chatTeam: "F7", replay: "F8" });
+assert.deepEqual(hotkeysOf(fourKeys), DEFAULT_HOTKEYS, "an older file gets F6");
+assert.deepEqual(hotkeysOf({ ...fourKeys, chatTeam: "F6" }), { ...fourKeys, chatTeam: "F6", replay: "F7" }, "F6 taken: F7, the four kept");
+assert.deepEqual(hotkeysOf({ shop: "F6", scoreboard: "F7", chatGlobal: "F8", chatTeam: "F9" }), { shop: "F6", scoreboard: "F7", chatGlobal: "F8", chatTeam: "F9", replay: "F10" });
 assert.deepEqual(hotkeysOf(withKeys({ replay: "KeyG" })), withKeys({ replay: "KeyG" }), "any bindable key");
-assert.deepEqual(hotkeysOf(withKeys({ replay: "KeyB" })), DEFAULT_HOTKEYS, "the shop's key: back to F3, the shop keeps B");
+assert.deepEqual(hotkeysOf(withKeys({ replay: "KeyB" })), DEFAULT_HOTKEYS, "the shop's key: back to F6, the shop keeps B");
 assert.deepEqual(hotkeysOf(withKeys({ replay: "CapsLock" })), DEFAULT_HOTKEYS, "CapsLock is the scoreboard's alone");
 assert.deepEqual(hotkeysOf(withKeys({ replay: "KeyR" })), DEFAULT_HOTKEYS, "R is the shop's");
 assert.equal(hotkeyVirtualKey("F3"), 0x72);

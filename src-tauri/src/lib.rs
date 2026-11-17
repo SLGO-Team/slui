@@ -68,12 +68,13 @@ fn overlay_may_show() -> bool {
 const VK_CAPITAL: u32 = 0x14;
 // Windows virtual-key codes of the configurable hotkeys, the defaults until settings load:
 // B opens the shop, CapsLock is held for the scoreboard, Y and U open global and team
-// chat as in CS2, and F3 toggles the demo replay console (replay servers only).
+// chat as in CS2, and F6 toggles the demo replay console (replay servers only; F3 is the
+// SCP:SL client's debug screen).
 static SHOP_HOTKEY: AtomicU32 = AtomicU32::new(0x42);
 static SCOREBOARD_HOTKEY: AtomicU32 = AtomicU32::new(VK_CAPITAL);
 static CHAT_GLOBAL_HOTKEY: AtomicU32 = AtomicU32::new(0x59);
 static CHAT_TEAM_HOTKEY: AtomicU32 = AtomicU32::new(0x55);
-static REPLAY_HOTKEY: AtomicU32 = AtomicU32::new(0x72);
+static REPLAY_HOTKEY: AtomicU32 = AtomicU32::new(0x75);
 
 // The open shop requests the hovered item for a teammate with R.
 const VK_R: u32 = 0x52;
@@ -350,7 +351,46 @@ fn describe_foreground(window: windows_sys::Win32::Foundation::HWND) -> String {
     } else {
         "unknown class".into()
     };
+    // Several applications draw through WebView2 (Windows 11's start and search panels among them); the window belongs
+    // to the runtime's browser process, so name the application that started it.
+    if executable.eq_ignore_ascii_case("msedgewebview2.exe") {
+        let host = parent_process_id(process_id)
+            .and_then(process_image_path)
+            .and_then(|path| path.rsplit(['\\', '/']).next().map(str::to_owned))
+            .unwrap_or_else(|| "unknown host".into());
+        return format!("{executable} of {host} (class {class})");
+    }
     format!("{executable} (class {class})")
+}
+
+/// The process that started `process_id`, from a process snapshot (no handle to either process is opened).
+#[cfg(windows)]
+fn parent_process_id(process_id: u32) -> Option<u32> {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
+        System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+            TH32CS_SNAPPROCESS,
+        },
+    };
+
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+    if snapshot == INVALID_HANDLE_VALUE {
+        return None;
+    }
+    let mut entry: PROCESSENTRY32W = unsafe { std::mem::zeroed() };
+    entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+    let mut parent = None;
+    let mut more = unsafe { Process32FirstW(snapshot, &mut entry) } != 0;
+    while more {
+        if entry.th32ProcessID == process_id {
+            parent = Some(entry.th32ParentProcessID).filter(|&id| id != 0);
+            break;
+        }
+        more = unsafe { Process32NextW(snapshot, &mut entry) } != 0;
+    }
+    unsafe { CloseHandle(snapshot) };
+    parent
 }
 
 #[cfg(windows)]
@@ -1572,6 +1612,20 @@ mod foreground_process_cache_tests {
     }
 }
 
+#[cfg(all(test, windows))]
+mod parent_process_tests {
+    use super::{parent_process_id, process_image_path};
+
+    #[test]
+    fn finds_the_process_that_started_this_one() {
+        // The test runner was started by cargo (or whatever launched it): a live parent with an image path.
+        let parent = parent_process_id(std::process::id()).expect("a parent process");
+        assert_ne!(parent, std::process::id());
+        assert!(process_image_path(parent).is_some_and(|path| path.to_ascii_lowercase().ends_with(".exe")));
+        assert_eq!(parent_process_id(0), None, "the idle process has no parent");
+    }
+}
+
 #[cfg(test)]
 mod hotkey_tests {
     use super::{is_bindable_hotkey, is_bindable_scoreboard_hotkey, overlay_shortcut, repeat_is_suspect, validate_hotkeys, ShortcutKeys};
@@ -1580,7 +1634,7 @@ mod hotkey_tests {
         shop: 0x42,
         chat_global: 0x59,
         chat_team: 0x55,
-        replay: 0x72,
+        replay: 0x75,
     };
 
     #[test]
@@ -1597,16 +1651,17 @@ mod hotkey_tests {
         assert_eq!(overlay_shortcut(0x59, DEFAULT_KEYS), Some("chat-global"));
         assert_eq!(overlay_shortcut(0x55, DEFAULT_KEYS), Some("chat-team"));
         assert_eq!(overlay_shortcut(0x42, DEFAULT_KEYS), Some("shop"));
-        assert_eq!(overlay_shortcut(0x72, DEFAULT_KEYS), Some("replay"), "F3 toggles the replay console");
+        assert_eq!(overlay_shortcut(0x75, DEFAULT_KEYS), Some("replay"), "F6 toggles the replay console");
+        assert_eq!(overlay_shortcut(0x72, DEFAULT_KEYS), None, "F3 stays the game's debug screen");
         assert_eq!(overlay_shortcut(0x31, DEFAULT_KEYS), None);
         let moved = ShortcutKeys {
             shop: 0x74,
             chat_global: 0x54,
             chat_team: 0x59,
-            replay: 0x75,
+            replay: 0x76,
         };
-        assert_eq!(overlay_shortcut(0x75, moved), Some("replay"), "F6 as the replay key");
-        assert_eq!(overlay_shortcut(0x72, moved), None, "F3 once the replay key moved");
+        assert_eq!(overlay_shortcut(0x76, moved), Some("replay"), "F7 as the replay key");
+        assert_eq!(overlay_shortcut(0x75, moved), None, "F6 once the replay key moved");
         assert_eq!(overlay_shortcut(0x74, moved), Some("shop"), "F5 as the shop key");
         assert_eq!(overlay_shortcut(0x42, moved), None, "B once the shop moved to F5");
         assert_eq!(overlay_shortcut(0x54, moved), Some("chat-global"), "T as the global chat key");
@@ -1638,7 +1693,7 @@ mod hotkey_tests {
 
     #[test]
     fn all_five_hotkeys_must_be_valid_and_different() {
-        assert!(validate_hotkeys(0x14, DEFAULT_KEYS).is_ok(), "B, CapsLock, Y, U and F3");
+        assert!(validate_hotkeys(0x14, DEFAULT_KEYS).is_ok(), "B, CapsLock, Y, U and F6");
         assert!(
             validate_hotkeys(
                 0x14,
@@ -1655,7 +1710,7 @@ mod hotkey_tests {
             validate_hotkeys(0x14, ShortcutKeys { replay: 0x42, ..DEFAULT_KEYS }).is_err(),
             "the replay console on the shop key"
         );
-        assert!(validate_hotkeys(0x72, DEFAULT_KEYS).is_err(), "the scoreboard on the replay key");
+        assert!(validate_hotkeys(0x75, DEFAULT_KEYS).is_err(), "the scoreboard on the replay key");
         assert!(
             validate_hotkeys(0x14, ShortcutKeys { replay: 0x14, ..DEFAULT_KEYS }).is_err(),
             "CapsLock cannot be the replay key"
