@@ -104,6 +104,13 @@
 .minimap-marker__heading { width: 12.375px; height: 12.375px; left: 0; top: -13.75px; transform: translateX(-51.5625%); }
 /* CS2 #ViewFrustrum: 128x64, centred, y -12px in the 100px PI_FirstRotated panel (top = -50 - 12). */
 .minimap-marker__view-angle { width: 128px; height: 64px; left: -64px; top: -62px; opacity: 0.08; }
+/* CS2 #Selected (map_view_selected): 42x36, centred, y -10px; white, never washed. The SLUI-drawn SVG keeps the source's
+   ring centre on the dot. Selector as specific as the wash rule above. */
+.minimap-marker .minimap-marker__selected { width: 42px; height: 36px; left: -21px; top: -28px; filter: none; }
+/* CS2 .PI_Text #PlayerNumber: Stratum2 medium 10px, black, centred on the dot with 1px top / 1px right margins (net
+   0.5px down, 0.5px left), in #PI_NonRotated, so it never turns. */
+.minimap-marker__number { position: absolute; left: -0.5px; top: 0.5px; transform: translate(-50%, -50%);
+  font: 500 10px/1 "Stratum2 Radar", sans-serif; color: #000; white-space: nowrap; pointer-events: none; }
 /* CS2 .PI_OffMap: 22x22, y -1px, opacity 0.8. */
 .minimap-marker__edge-icon { width: 22px; height: 22px; left: -11px; top: -12px; opacity: 0.8; }
 /* CS2 PI_Ghost (9x15, opacity 0.8) and PI_Death (19x19). The ghost PNG is already red, so it is not washed; the death X

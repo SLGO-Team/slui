@@ -63,7 +63,12 @@ last batched status can miss a connecting/baseline-required reset.
 - Friendly markers (self included, death X too) use the CS2 five-colour slot
   colour from `playerSlotColors` (hud/presentation.ts), the same source as the top
   HUD counter and the chat dot, so one player keeps one colour everywhere. The
-  role colours are only a fallback before a match snapshot. Opponents and
+  role colours are a fallback before a match snapshot, and what a team-less
+  observer sees (CS2 never washes an observer's dots with teammate colours; it
+  keeps the side colours, here SLGO's role colours NTF `#1ed2ff` / SCP `#ec6972`,
+  user decision 2026-11-17). CS2 also falls back to side colours for a playing
+  member outside competitive modes or on servers for more than 10 players; SLUI
+  does not know either yet (follow-up task). Opponents and
   last-known ghosts stay red. The heading tip is never washed: it keeps the
   original white image with its black outline (the wash rule `.minimap-marker img`
   must not outrank the `filter: none` on `__heading` / `__ghost`; give those a
@@ -170,6 +175,25 @@ last batched status can miss a connecting/baseline-required reset.
   feeds `--radar-icon-scale` on the marker layer; `.minimap-marker` scales from its
   0×0 origin, so positions and the edge clamp stay in unscaled radar pixels. The old
   "~0.73" marker scale was this formula at mapScale 0.25 (0.7625).
+- CS2 `#Selected` (client.dll, task `11-17-minimap-spectate-number`): `RadarMarker.selected` =
+  `followed && viewer.is_alive === false && !edge`. CS2 sets it only while the local player is an observer, on the
+  player it follows in first or third person (`GetLocalOrInEyeCSPlayer`), never in free roam, never on a death /
+  ghost / off-map icon. So a living viewer (whose followed marker is self) never has one, a dead team member
+  following a teammate, a team-less spectator and a replay viewer following a player do, and a v7 free camera
+  (`player_id: null`) follows and selects nobody. Drawn as the SLUI-drawn white `selected.svg` (teardrop ring on the
+  dot plus a forward glow), 42×36 at `left -21px; top -28px` (centred, y -10), in a second rotated
+  `minimap-marker__direction` after the dot (CS2 lists it last in `#PI_FirstRotated`: over the dot, turning with the
+  heading), `filter: none` with a selector as specific as the wash rule, scaled with the marker. `data-selected`.
+- CS2 `#PlayerNumber`: drawn only for a team-less observer (`MinimapViewModel.observer`; CS2: Spectator team, GOTV
+  or demo playback, never a playing alive or dead player) on live in-range markers (`radarMarkerNumber`). The
+  numbers come from `playerObserverNumbers(hud.teams)` (hud/presentation.ts), App passes them as `playerNumbers`:
+  CS2's team-counter list, CT side (SLGO SCP) then T side (NTF), each in match.snapshot order like the slot colours,
+  contiguous, position i = `(i + 1) % 10` (six SCP players: 1-6, NTF from 7). CS2 draws no number at all on a
+  server for more than 10 players; SLUI has no player limit, so a roster over 10 players gets none. No protocol
+  field. `.minimap-marker__number`: 500 10px `Stratum2 Radar`, black, no shadow, upright (outside any rotated
+  span), centred on the dot with CS2's 1px top / right margins (net 0.5px down, 0.5px left), scaled with the marker.
+  `PlayerLetter`, footstep rings and team-counter numbers are not drawn. Mock preview: `?minimapViewer=observer`
+  (team-less, every marker observed, opponents from the roster's SCP players, following `minimapSpectate`).
 - v6 init carries the plugin's actual layout and pins no game version:
   `coordinate_system: "unity-world-xz"`, `grid` `{ x, z }` (the game's room
   cell, finite and positive) and `rooms` (1-256 `{ room_id, zone, name, shape,

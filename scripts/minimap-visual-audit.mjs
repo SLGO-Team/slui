@@ -197,7 +197,21 @@ try {
         const markerElements=[...document.querySelectorAll('.minimap-marker')];
         return {name:${JSON.stringify(name)},viewport:[innerWidth,innerHeight],...root.dataset,
           frame:{x:r.x,y:r.y,width:r.width,height:r.height},circle:{x:v.x,y:v.y,width:v.width,height:v.height},
-          markers:markerElements.map(e=>({...e.dataset,x:e.style.left,y:e.style.top})),
+          markers:markerElements.map(e=>({...e.dataset,x:e.style.left,y:e.style.top,wash:e.style.getPropertyValue('--marker-filter')})),
+          selections:[...root.querySelectorAll('.minimap-marker__selected')].map(e=>{
+            const m=e.closest('.minimap-marker'), dot=m.querySelector('.minimap-marker__dot').getBoundingClientRect(), style=getComputedStyle(e);
+            return {playerId:m.dataset.playerId,selected:m.dataset.selected,followed:m.dataset.followed,width:e.offsetWidth,height:e.offsetHeight,
+              left:style.left,top:style.top,filter:style.filter,loaded:e.complete&&e.naturalWidth>0,rotation:e.parentElement.style.transform,
+              heading:m.querySelector('.minimap-marker__direction').style.transform,
+              afterDot:Boolean(m.querySelector('.minimap-marker__dot').compareDocumentPosition(e)&Node.DOCUMENT_POSITION_FOLLOWING),
+              dotCenter:[dot.x+dot.width/2,dot.y+dot.height/2]};
+          }),
+          numbers:[...root.querySelectorAll('.minimap-marker__number')].map(e=>{
+            const m=e.closest('.minimap-marker'), dot=m.querySelector('.minimap-marker__dot').getBoundingClientRect(), b=e.getBoundingClientRect(), style=getComputedStyle(e);
+            return {playerId:m.dataset.playerId,status:m.dataset.status,edge:m.dataset.edge,text:e.textContent,fontSize:style.fontSize,fontWeight:style.fontWeight,
+              fontFamily:style.fontFamily,color:style.color,textShadow:style.textShadow,upright:!e.closest('.minimap-marker__direction'),
+              offset:[b.x+b.width/2-(dot.x+dot.width/2),b.y+b.height/2-(dot.y+dot.height/2)],dotWidth:dot.width};
+          }),
           bombsites:[...document.querySelectorAll('.minimap-bombsite')].map(e=>{
             const glyph=e.querySelector('.minimap-bombsite__icon, .minimap-bombsite__letter'), b=glyph.getBoundingClientRect(), anchor=e.getBoundingClientRect();
             return {label:e.dataset.label,edge:e.dataset.edge,opacity:Number(getComputedStyle(e).opacity),
@@ -248,6 +262,27 @@ try {
       assert.ok(details.roomOpacities.length <= 1 && (details.roomOpacities[0] ?? "1") === "1", `${name}: both zones drawn alike`);
       assert.ok(!/^(Hcz|Ez|Unnamed|room-)/.test(details.location), "no internal room token is exposed");
       assert.equal(details.statusText, 0, `${name}: CS2 draws no status text on the radar`);
+      // CS2 #Selected: only an observer's followed player, 42x36 at y -10 (top -28), unwashed, over the dot, turning with it.
+      assert.equal(details.selections.length, details.markers.filter((m) => m.selected === "true").length, `${name}: one box per selected marker`);
+      if (details.viewerAlive === "true") assert.equal(details.selections.length, 0, `${name}: a living viewer selects nobody`);
+      for (const box of details.selections) {
+        assert.equal(box.followed, "true", `${name}: only the followed player is selected`);
+        assert.ok(box.loaded, `${name}: selection artwork decodes`);
+        assert.deepEqual([box.width, box.height, box.left, box.top, box.filter], [42, 36, "-21px", "-28px", "none"], `${name}: CS2 #Selected box`);
+        assert.equal(box.rotation, box.heading, `${name}: the box turns with the player's heading`);
+        assert.ok(box.afterDot, `${name}: the box paints over the dot`);
+      }
+      // CS2 #PlayerNumber: team-less observers only, live in-range dots, black 10px Stratum2 medium, upright, centred.
+      if (!name.startsWith("observer")) assert.equal(details.numbers.length, 0, `${name}: a viewer on a team sees no numbers`);
+      for (const label of details.numbers) {
+        assert.equal(label.status, "live", `${name}: numbers only on live dots`);
+        assert.equal(label.edge, "false", `${name}: no number on an edge arrow`);
+        assert.deepEqual([label.fontSize, label.fontWeight, label.color, label.textShadow], ["10px", "500", "rgb(0, 0, 0)", "none"], `${name}: .PI_Text style`);
+        assert.match(label.fontFamily, /^"Stratum2 Radar"/);
+        assert.ok(label.upright, `${name}: number never rotates`);
+        const unit = label.dotWidth / 11;
+        assert.ok(Math.abs(label.offset[0] + 0.5 * unit) < 1 && Math.abs(label.offset[1] - 0.5 * unit) < 1.5, `${name}: number centred on its dot ${label.offset}`);
+      }
       for (const icon of details.markerImages) { assert.ok(icon.loaded, `marker image decodes: ${icon.source}`); assert.equal(icon.mask, "none"); }
       assert.equal(details.pointerEvents, "none");
       assert.equal(details.generated, 0);
@@ -315,6 +350,21 @@ try {
     await configure({ scoreboard: false, spectate: 1 });
     const spectated = await capture("dead-spectate", { viewerAlive: "false", fullMap: "false" });
     assert.equal(spectated.markers.filter((m) => m.visibility === "spotted-by-teammate").length, 2);
+    assert.deepEqual(spectated.selections.map((box) => box.playerId), spectated.markers.filter((m) => m.followed === "true").map((m) => m.playerId),
+      "a dead viewer's followed teammate wears the CS2 selection box");
+    assert.equal(spectated.selections.length, 1);
+    // A team-less observer (spectator / demo replay viewer): CS2 numbers, SCP (CT) side first in snapshot order.
+    await configure({ viewer: "observer", spectate: 0 });
+    const observed = await capture("observer-spectate", { viewerAlive: "false", fullMap: "false" });
+    const observerNumbers = { "76561198000000006": "1", "76561198000000007": "2", "76561198000000002": "7", "76561198000000003": "8" };
+    const numbered = observed.markers.filter((m) => m.status === "live" && m.edge === "false");
+    assert.ok(numbered.length >= 2 && observed.numbers.some((label) => label.text === "1"), "the observer preview numbers in-range dots of both sides");
+    assert.deepEqual(Object.fromEntries(observed.numbers.map((label) => [label.playerId, label.text])),
+      Object.fromEntries(numbered.map((m) => [m.playerId, observerNumbers[m.playerId]])), "every live in-range dot carries its CS2 number");
+    assert.equal(observed.selections.length, 1, "the observer's followed player is selected");
+    // CS2 gives an observer no teammate colours: every dot wears its side colour (SLGO role colours), never a slot colour.
+    for (const marker of observed.markers) assert.ok(marker.wash.endsWith(`-${marker.role})`), `observer sees ${marker.playerId} in its role colour`);
+    await configure({ viewer: "member", spectate: 1 });
     await configure({ life: "no-viewpoint" });
     const noViewpoint = await capture("no-viewpoint", { availability: "waiting-viewpoint", camera: "overview" });
     await configure({ enemies: false });

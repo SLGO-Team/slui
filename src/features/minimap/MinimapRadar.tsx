@@ -1,6 +1,6 @@
 import { memo, useId, type CSSProperties } from "react";
 import { useOverlayScale } from "../../shared/overlay";
-import type { MinimapViewModel, RadarBombsite, RadarKeycard } from "./model";
+import { radarMarkerNumber, type MinimapViewModel, type RadarBombsite, type RadarKeycard } from "./model";
 import type { MapGeometry } from "./resolver";
 import { mapBlendLayers } from "./roomWash";
 import { cameraToRadar, roomArtworkToWorld, type RadarMarker } from "./camera";
@@ -120,20 +120,22 @@ function BombsiteIcon({ site, filterPrefix }: { site: RadarBombsite; filterPrefi
   </span>;
 }
 
-function PlayerMarker({ marker, filterPrefix, slotColor, observer }: { marker: RadarMarker; filterPrefix: string; slotColor?: string;
-  observer: boolean }) {
+function PlayerMarker({ marker, filterPrefix, slotColor, observer, number }: { marker: RadarMarker; filterPrefix: string; slotColor?: string;
+  observer: boolean; number: string | null }) {
   const enemy = marker.hostile;
   const self = marker.visibility === "self";
   // The followed marker (self, or the spectated teammate / observed player) shows its view sector and heading.
   const facing = self || marker.followed;
-  // Friendly players (self included) wear their slot colour like the HUD and chat; opponents stay CS2 red.
-  const slot = !enemy && slotColor && SLOT_COLORS.includes(slotColor.toLowerCase()) ? slotFilterKey(slotColor) : null;
+  // Friendly players (self included) wear their slot colour like the HUD and chat; opponents stay CS2 red. CS2 never
+  // applies teammate colours for an observer (client.dll 0x180ecd9b0 skips the wash in number mode), so a team-less
+  // observer sees the side colours, here SLGO's role colours (user decision 2026-11-17).
+  const slot = !enemy && !observer && slotColor && SLOT_COLORS.includes(slotColor.toLowerCase()) ? slotFilterKey(slotColor) : null;
   const wash = enemy ? "enemy" : slot ?? (self ? "self" : marker.role === "scp" ? "scp" : "ntf");
   if (marker.status === "last-known") return <FrozenMarker marker={marker} className="minimap-marker--last-known" wash={`url(#${filterPrefix}-enemy)`} />;
   if (marker.status === "dead") return <FrozenMarker marker={marker} className="minimap-marker--dead" wash={`url(#${filterPrefix}-${wash})`} />;
   return <span className={`minimap-marker${enemy ? " minimap-marker--enemy" : ""}${facing ? " minimap-marker--self" : ""}${marker.edge ? " minimap-marker--edge" : ""}`}
     data-player-id={marker.playerId} data-visibility={marker.visibility} data-role={marker.role} data-status={marker.status} data-edge={marker.edge}
-    data-hostile={marker.hostile} data-followed={marker.followed} data-keycard={marker.hasKeycard}
+    data-hostile={marker.hostile} data-followed={marker.followed} data-selected={marker.selected} data-keycard={marker.hasKeycard}
     style={{ left: marker.x, top: marker.y, "--marker-filter": `url(#${filterPrefix}-${wash})`,
       ...(observer && marker.hasKeycard ? { "--pack-wash": `url(#${filterPrefix}-observer)` } : {}) } as CSSProperties}>
     <span className="minimap-marker__direction" style={{ transform: `rotate(${marker.edge ? marker.edgeAngle : marker.yaw}deg)` }}>
@@ -143,14 +145,22 @@ function PlayerMarker({ marker, filterPrefix, slotColor, observer }: { marker: R
     </span>
     {!marker.edge ? <img className="minimap-marker__dot"
       src={`/assets/minimap/${enemy ? "marker-enemy.svg" : "marker-dot.svg"}`} alt="" /> : null}
+    {/* CS2 #Selected is the last child of #PI_FirstRotated: over the dot, turning with the heading, never washed. */}
+    {marker.selected ? <span className="minimap-marker__direction" style={{ transform: `rotate(${marker.yaw}deg)` }}>
+      <img className="minimap-marker__selected" src="/assets/minimap/selected.svg" alt="" />
+    </span> : null}
+    {/* CS2 #PlayerNumber sits in #PI_NonRotated: always upright. */}
+    {number !== null ? <span className="minimap-marker__number">{number}</span> : null}
     {/* CS2 draws the bomb package over its carrier, tinted like the carrier (slot colour, red for an enemy; orange for
         a viewer on neither side). */}
     {marker.hasKeycard ? <img className="minimap-marker__keycard" src={KEYCARD_ICON} alt="" /> : null}
   </span>;
 }
 
-export function MinimapRadar({ radar, playerColors = {}, role = null, generatorActive = false }: { radar: MinimapViewModel;
-  playerColors?: Readonly<Record<string, string>>; role?: Role | null;
+export function MinimapRadar({ radar, playerColors = {}, playerNumbers = {}, role = null, generatorActive = false }: { radar: MinimapViewModel;
+  playerColors?: Readonly<Record<string, string>>;
+  /** CS2 observer numbers (`playerObserverNumbers`); drawn only for a team-less observer (`radarMarkerNumber`). */
+  playerNumbers?: Readonly<Record<string, string>>; role?: Role | null;
   /** A generator overload is running (SLGO's planted bomb): the round frame pulses red like CS2 RadarBombPlantPulse. */
   generatorActive?: boolean }) {
   const scale = useOverlayScale();
@@ -188,7 +198,8 @@ export function MinimapRadar({ radar, playerColors = {}, role = null, generatorA
             {radar.bombsites.map((site) => <BombsiteIcon key={site.label} site={site} filterPrefix={id} />)}
             {radar.keycard ? <KeycardItem keycard={radar.keycard} observer={radar.observer} filterPrefix={id} /> : null}
             {radar.markers.map((marker) => <PlayerMarker key={marker.playerId} marker={marker} filterPrefix={id}
-              slotColor={playerColors[marker.playerId]} observer={radar.observer} />)}
+              slotColor={playerColors[marker.playerId]} observer={radar.observer}
+              number={radarMarkerNumber(marker, radar.observer, playerNumbers)} />)}
           </div>
           <div className="minimap-radar__border" />
         </div>
@@ -199,9 +210,10 @@ export function MinimapRadar({ radar, playerColors = {}, role = null, generatorA
 }
 
 /** The radar bound to the minimap store: its per-frame clock re-renders this subtree, not the overlay. */
-export function LiveMinimapRadar({ store, preferences, controls, playerColors, role, generatorActive }: { store: MinimapStore;
+export function LiveMinimapRadar({ store, preferences, controls, playerColors, playerNumbers, role, generatorActive }: { store: MinimapStore;
   preferences?: Partial<RadarPreferences>; controls?: Partial<RadarControls>;
-  playerColors?: Readonly<Record<string, string>>; role?: Role | null; generatorActive?: boolean }) {
-  return <MinimapRadar radar={useMinimapView(store, { preferences, controls })} playerColors={playerColors} role={role}
+  playerColors?: Readonly<Record<string, string>>; playerNumbers?: Readonly<Record<string, string>>; role?: Role | null;
+  generatorActive?: boolean }) {
+  return <MinimapRadar radar={useMinimapView(store, { preferences, controls })} playerColors={playerColors} playerNumbers={playerNumbers} role={role}
     generatorActive={generatorActive} />;
 }

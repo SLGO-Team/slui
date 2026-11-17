@@ -21,6 +21,7 @@ import {
   hudShieldPercent,
   hudVariantFor,
   loadoutToPlayerMeta,
+  playerObserverNumbers,
   topHudPlayerMetaForHud,
 } from "../src/features/hud/presentation.ts";
 
@@ -335,5 +336,20 @@ const scp079 = scpVitals({ health: null, shield: null, max_health: null, max_shi
 assert.deepEqual(hudAuxPower(scp079), { percent: 25, value: 50 }, "SCP-079 shows aux power");
 assert.equal(hudAuxPower({ ...scp079, is_alive: false }), null, "a dead SCP-079 has no aux bar");
 assert.equal(hudAuxPower(scpVitals({ aux_power: 50 })), null, "aux power needs its cap");
+
+// CS2 observer numbers (client.dll team-counter list): CT side (SLGO SCP) first, then T (NTF), contiguous, (i + 1) % 10;
+// none at all for more than ten players (CS2: a server for more than ten).
+{
+  const roster = (prefix, count) => Array.from({ length: count }, (_, index) => ({ player_id: `${prefix}${index + 1}` }));
+  const teams = (ntf, scp) => [{ role: "ntf", players: roster("n", ntf) }, { role: "scp", players: roster("s", scp) }];
+  assert.deepEqual(playerObserverNumbers(teams(5, 5)), { s1: "1", s2: "2", s3: "3", s4: "4", s5: "5",
+    n1: "6", n2: "7", n3: "8", n4: "9", n5: "0" }, "5v5: SCP (CT) 1-5, NTF (T) 6-9, 0, whatever the team order");
+  assert.deepEqual(playerObserverNumbers(teams(4, 6)), { s1: "1", s2: "2", s3: "3", s4: "4", s5: "5", s6: "6",
+    n1: "7", n2: "8", n3: "9", n4: "0" }, "a sixth SCP player takes 6 and NTF starts at 7");
+  assert.deepEqual(playerObserverNumbers(teams(5, 6)), {}, "eleven players: no numbers at all");
+  assert.deepEqual(playerObserverNumbers(teams(7, 7)), {}, "more than ten players: no numbers at all");
+  assert.deepEqual(playerObserverNumbers(teams(2, 0)), { n1: "1", n2: "2" }, "an empty SCP side lets NTF start at 1");
+  assert.deepEqual(playerObserverNumbers([]), {});
+}
 
 console.log("hud model smoke: ok");

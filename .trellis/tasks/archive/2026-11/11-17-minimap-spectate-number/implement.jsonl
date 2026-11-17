@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Radar marker contracts to extend (selection, numbers)"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "How CS2 visuals are replicated and verified"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Test and audit expectations"}
+{"file": ".trellis/tasks/archive/2026-11/11-17-minimap-cs2-slui/research/cs2-radar-client-re.md", "reason": "CS2 Selected / PlayerNumber RE findings"}

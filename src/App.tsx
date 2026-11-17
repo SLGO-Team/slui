@@ -9,7 +9,7 @@ import { useShopFeature } from "./features/shop/useShopFeature";
 import { ChatInput } from "./features/chat/ChatInput";
 import { createChatCommand, validateChatBody, type ChatCloseReason } from "./features/chat/model";
 import { resolveChatSelf } from "./features/chat/presentation";
-import { hudVariantFor, playerSlotColors, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
+import { hudVariantFor, playerObserverNumbers, playerSlotColors, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
 import { useChatFeature } from "./features/chat/useChatFeature";
 import { MessageZone } from "./features/hudmessages/MessageZone";
 import { HUD_MESSAGES_EVENT_TYPES, hudMessagesReducer, initialHudMessagesState, selectMessageZone, selectProgressCard } from "./features/hudmessages/model";
@@ -912,6 +912,8 @@ function App({ harness }: AppProps) {
   [bottomHudBase, hud, hudStatusState.spectating, sceneSelf, scoreboardSnapshot]);
   // One slot colour per player across the HUD: radar markers and the shop's teammate-inventory pips.
   const playerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
+  // CS2 observer numbers for the radar; the radar shows them only to a team-less observer.
+  const playerNumbers = useMemo(() => hud.hasSnapshot ? playerObserverNumbers(hud.teams) : {}, [hud]);
   // The viewer's team colour for the radar frame, as the bottom HUD uses; null for a team-less observer.
   const viewerRole = hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer")?.role ?? null : null;
   const chatSelf = useMemo(() => resolveChatSelf(
@@ -1047,7 +1049,7 @@ function App({ harness }: AppProps) {
           onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
         <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
           controls={minimapControls}
-          playerColors={playerColors} role={viewerRole}
+          playerColors={playerColors} playerNumbers={playerNumbers} role={viewerRole}
           generatorActive={hud.hasSnapshot && hud.clockMode === "generator"} />
         <ShopPanel
           shop={displayedShop}
