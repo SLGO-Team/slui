@@ -47,6 +47,15 @@ SLUI 雷达还有一些机制和外观和 CS2 不一致。这个任务按用户 
 - `.trellis/spec/frontend/minimap.md` 在每个子任务里同步更新，最终不留与实现矛盾的旧规则。
 - CS2 依据统一记录在 `11-17-minimap-cs2-slui/research/cs2-radar-client-re.md`，子任务往里追加，不另开文件。
 
+## 验收结果（2026-11-17）
+
+- 四个子任务都已单独合入：#116（11-17-minimap-cs2-slui）、#117（spectate-number）、#118（team-colour-mode）、
+  #119（speaking）；视觉类 PR 都经用户评审后合并。
+- `minimap.md` 和 `SOURCE-MAP.md` 已核对：父任务归档时修正了残留的旧描述（8/10px 标记、~0.73 卡包与圈、区域调暗 0.82、
+  9×9 朝向框，以及离屏箭头、幽灵、死亡 X 的旧尺寸）。
+- CS2 依据都追加在 `archive/2026-11/11-17-minimap-cs2-slui/research/cs2-radar-client-re.md`。
+- 未发版；插件和 backend 只合入了本地 main、尚未部署（说话功能部署时须先 backend 后插件）。
+
 ## Out of scope
 
 A3、A4、C9、C12、D14、脚步声圈，以及新发现的 `cl_radar_square_when_spectating` 和
