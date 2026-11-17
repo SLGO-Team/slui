@@ -12,7 +12,7 @@ import {
   type ReplayAction,
   type ReplayCatalogFilters,
 } from "./model";
-import { replayCommandLabel } from "./commands";
+import { createCommandBudget, REPLAY_COMMAND_BUDGET, replayCommandLabel } from "./commands";
 
 /** What one incoming event means for the other features, decided before they see it. */
 export type ReplayIntake = {
@@ -93,6 +93,10 @@ export function useReplayFeature() {
     apply({ type: "send-failed", commandId, reason, atMs: Date.now() });
   }, [apply]);
   const setFilters = useCallback((filters: ReplayCatalogFilters) => apply({ type: "filters", filters }), [apply]);
+  /** A local status-line notice (a command SLUI held back). */
+  const notify = useCallback((text: string) => apply({ type: "notice", text, atMs: Date.now() }), [apply]);
+  // The command budget (design 11-17 §2): one per overlay, like the sidecar's per-player bucket.
+  const [budget] = useState(() => createCommandBudget(REPLAY_COMMAND_BUDGET, Date.now));
 
   // Command timeouts and the notice's fade: the clock ticks the reducer only while one is pending.
   const timed = hasTimedReplayState(state);
@@ -105,5 +109,5 @@ export function useReplayFeature() {
   const hudTime = useMemo<HudTime>(() => clock.replay === null ? { now: Date.now, rate: 1, epoch: 0 }
     : { now: () => hudTimeAt(clockRef.current, Date.now()), rate: hudClockRate(clock, Date.now()), epoch: clock.wallMs }, [clock]);
 
-  return { state, clock, hudTime, hudTimeAtWall, intake, setConnectionStatus, beginCommand, sendFailed, setFilters };
+  return { state, clock, hudTime, hudTimeAtWall, intake, setConnectionStatus, beginCommand, sendFailed, setFilters, notify, budget };
 }

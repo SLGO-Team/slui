@@ -9,7 +9,10 @@ import { initialWinPanelState, selectWinPanel, winPanelReducer } from "../src/fe
 import { anchorHudClock, hudClockRate, hudTimeAt, WALL_HUD_CLOCK } from "../src/features/replay/clock.ts";
 import {
   catalogQuery,
+  createCommandBudget,
   createSeekPacer,
+  REPLAY_COMMAND_BUDGET,
+  SIDECAR_COMMAND_RATE_LIMIT,
   killSeekPositionMs,
   localDateBound,
   nextReplaySpeed,
@@ -26,6 +29,14 @@ import {
 import {
   currentRoundAt,
   EMPTY_CATALOG_FILTERS,
+  highlightIntervalAt,
+  REPLAY_TOO_FAST_TEXT,
+  replayFailureText,
+  replayHighlightIntervals,
+  replayHighlightStep,
+  replayIntervalIndexAt,
+  replayPlaybackOf,
+  replayTimelineEvents,
   inWarmupAt,
   initialReplayState,
   REPLAY_COMMAND_TIMEOUT_MS,
@@ -207,8 +218,8 @@ const enter = (event = stateEvent, at = T0) => replayReducer(replayReducer(live,
 }
 
 {
-  // Seek pacer: the first seek goes at once, later ones within 250 ms merge; relative steps add up, a zero sum
-  // sends nothing; an absolute target replaces what is queued; never more than 4 per second.
+  // Seek pacer: the first seek goes at once, later ones within 500 ms merge; relative steps add up, a zero sum
+  // sends nothing; an absolute target replaces what is queued; never more than 2 per second (the sidecar's rate).
   let now = 0;
   const timers = [];
   const sent = [];
@@ -238,25 +249,25 @@ const enter = (event = stateEvent, at = T0) => replayReducer(replayReducer(live,
   advance(50); pacer.seekBy(10_000);
   advance(50); pacer.seekBy(-10_000);
   assert.equal(sent.length, 1, "steps within the window wait");
-  advance(200);
-  assert.deepEqual(sent.at(-1), { at: 250, delta_ms: 10_000 }, "merged into one relative seek at the window's end");
-  advance(300); pacer.seekBy(10_000);
+  advance(350);
+  assert.deepEqual(sent.at(-1), { at: 500, delta_ms: 10_000 }, "merged into one relative seek at the window's end");
+  advance(600); pacer.seekBy(10_000);
   const before = sent.length;
   advance(10); pacer.seekBy(-10_000); advance(10); pacer.seekBy(10_000); advance(10); pacer.seekBy(-10_000); advance(10); pacer.seekBy(10_000);
   advance(500);
   assert.equal(sent.length, before, "a zero sum sends nothing");
   advance(1_000); pacer.seekBy(10_000); advance(10); pacer.seekTo(90_000); advance(10); pacer.seekBy(5_000);
-  advance(500);
+  advance(1_000);
   assert.deepEqual(sent.slice(-2).map(({ at, ...seek }) => seek), [{ delta_ms: 10_000 }, { position_ms: 95_000 }], "absolute replaces, a later step adds to it");
   pacer.seekTo(1_000); advance(10); pacer.seekTo(2_000); pacer.cancel(); advance(1_000);
   assert.deepEqual(sent.at(-1).position_ms, 1_000, "cancel drops the queued seek");
-  // Hammering for 3 seconds (auto-repeat every 30 ms) stays at <= 4 per second.
+  // Hammering for 3 seconds (auto-repeat every 30 ms) stays at <= 2 per second.
   const start = sent.length;
   const t0 = now;
   for (let i = 0; i < 100; i += 1) { pacer.seekBy(10_000); advance(30); }
-  advance(500);
+  advance(1_000);
   const burst = sent.slice(start);
-  for (const seek of burst) assert.ok(burst.filter((other) => other.at >= seek.at && other.at < seek.at + 1_000).length <= 4, "at most 4 seeks in any second");
+  for (const seek of burst) assert.ok(burst.filter((other) => other.at >= seek.at && other.at < seek.at + 1_000).length <= 2, "at most 2 seeks in any second");
   assert.equal(burst.reduce((sum, seek) => sum + seek.delta_ms, 0), 1_000_000, "no step is lost");
   assert.ok(burst.every((seek) => seek.at >= t0));
 }
@@ -425,4 +436,126 @@ const enter = (event = stateEvent, at = T0) => replayReducer(replayReducer(live,
   assert.equal(replayLineAgeMs(omniscientEvent), 0, "only chat lines");
 }
 
-console.log("replay model smoke: mode, position, timeline, players, commands, seek pacer, catalog, results, transitions, HUD clock, HUD reset and chat jump ok");
+
+{
+  // Command budget (design 11-17 §2): a token bucket inside the sidecar's (burst 10, 120 a minute, shared by every
+  // command); over it nothing is sent, and the seek pacer waits for a token instead of dropping a seek.
+  assert.ok(REPLAY_COMMAND_BUDGET.burst < SIDECAR_COMMAND_RATE_LIMIT.burst && REPLAY_COMMAND_BUDGET.perMinute < SIDECAR_COMMAND_RATE_LIMIT.perMinute);
+  let now = 0;
+  const budget = createCommandBudget({ burst: 3, perMinute: 60 }, () => now);
+  assert.deepEqual([budget.take(), budget.take(), budget.take(), budget.take()], [true, true, true, false], "the burst, then refused");
+  assert.equal(budget.waitMs(), 1_000, "one token a second");
+  now = 1_000;
+  assert.deepEqual([budget.waitMs(), budget.take(), budget.take()], [0, true, false]);
+  now = 100_000;
+  assert.deepEqual([budget.take(), budget.take(), budget.take(), budget.take()], [true, true, true, false], "refills to the burst, no more");
+  // Fifty presses of "." in five seconds: the sidecar's own bucket never refuses what the budget lets through.
+  now = 0;
+  const mirror = createCommandBudget(REPLAY_COMMAND_BUDGET, () => now);
+  const sidecar = createCommandBudget(SIDECAR_COMMAND_RATE_LIMIT, () => now);
+  let passed = 0;
+  for (let i = 0; i < 50; i += 1, now += 100) if (mirror.take()) { passed += 1; assert.equal(sidecar.take(), true, "never rate-limited"); }
+  assert.ok(passed >= 8 && passed < 50);
+  // The pacer holds a seek until the budget has a token, merging what comes meanwhile.
+  now = 0;
+  const timers = [];
+  const sent = [];
+  const tight = createCommandBudget({ burst: 1, perMinute: 60 }, () => now);
+  const pacer = createSeekPacer({
+    now: () => now,
+    schedule(callback, ms) { const timer = { at: now + ms, callback, cancelled: false }; timers.push(timer); return () => { timer.cancelled = true; }; },
+    send: (seek) => { assert.equal(tight.take(), true, "sent only with a token"); sent.push({ at: now, ...seek }); },
+    waitMs: () => tight.waitMs(),
+  });
+  const advance = (ms) => {
+    const until = now + ms;
+    for (;;) {
+      const next = timers.filter((timer) => !timer.cancelled && timer.at <= until).sort((a, b) => a.at - b.at)[0];
+      if (!next) break;
+      now = next.at; next.cancelled = true; next.callback();
+    }
+    now = until;
+  };
+  pacer.seekBy(10_000); advance(100); pacer.seekBy(10_000); advance(100); pacer.seekBy(10_000);
+  advance(2_000);
+  assert.deepEqual(sent.map(({ at, delta_ms }) => [at, delta_ms]), [[0, 10_000], [1_000, 20_000]], "waits for the token, nothing lost");
+  assert.equal(replayFailureText("单步", "rejected", "rate-limited"), REPLAY_TOO_FAST_TEXT, "the sidecar's refusal in Chinese");
+  const noticed = replayReducer(enter(), { type: "notice", text: REPLAY_TOO_FAST_TEXT, atMs: T0 });
+  assert.equal(noticed.notice.text, REPLAY_TOO_FAST_TEXT, "a local notice");
+}
+
+{
+  // Optimistic playback (design 11-17 §1, CS2 SetPlaybackSpeedStop): the bar shows a speed / pause / play at once and
+  // keeps it until the server shows it; a refusal or a timeout goes back to the server's.
+  const state = enter();
+  const result = (command, status = "accepted") => ({ ...fixture("command-result.example.json"),
+    payload: { command_id: command.command_id, command_kind: command.kind, status, ...(status === "accepted" ? {} : { reason: "no" }) } });
+  const send = (from, command, at = T0 + 100) => replayReducer(from, { type: "command", command, label: "x", sentAtMs: at });
+  const speed = replayControl({ action: "speed", speed: 4 });
+  const sped = send(state, speed);
+  assert.deepEqual(replayPlaybackOf(sped), { playing: true, speed: 4 }, "the new speed at once");
+  assert.equal(replayPositionAt(sped, T0 + 1_100).positionMs, 61_100 + 4_000, "advancing at it from the send");
+  // Result first (state not yet updated): kept, settled; the next replay.state ends it.
+  const accepted = replayReducer(sped, { type: "event", event: result(speed), receivedAtMs: T0 + 150 });
+  assert.equal(accepted.pendingPlayback.settled, true);
+  assert.deepEqual(replayPlaybackOf(accepted), { playing: true, speed: 4 }, "no snap back while the state is on its way");
+  const shown = replayReducer(accepted, { type: "event", event: withPlayback(stateEvent, { speed: 4, position_ms: 61_150 }), receivedAtMs: T0 + 160 });
+  assert.equal(shown.pendingPlayback, null);
+  assert.deepEqual(replayPlaybackOf(shown), { playing: true, speed: 4 });
+  // State first: kept (re-anchored) until the result, which then finds it shown.
+  const stateFirst = replayReducer(sped, { type: "event", event: withPlayback(stateEvent, { speed: 4, position_ms: 61_150 }), receivedAtMs: T0 + 150 });
+  assert.deepEqual([stateFirst.pendingPlayback.fromMs, stateFirst.pendingPlayback.atMs], [61_150, T0 + 150]);
+  assert.equal(replayReducer(stateFirst, { type: "event", event: result(speed), receivedAtMs: T0 + 160 }).pendingPlayback, null);
+  // An older state arriving before the result does not undo it.
+  const stale = replayReducer(sped, { type: "event", event: stateEvent, receivedAtMs: T0 + 120 });
+  assert.deepEqual(replayPlaybackOf(stale), { playing: true, speed: 4 });
+  // Refused or timed out: back to the server's.
+  assert.deepEqual(replayPlaybackOf(replayReducer(sped, { type: "event", event: result(speed, "rejected"), receivedAtMs: T0 + 150 })), { playing: true, speed: 1 });
+  assert.equal(replayReducer(sped, { type: "tick", nowMs: T0 + 100 + REPLAY_COMMAND_TIMEOUT_MS }).pendingPlayback, null);
+  // Pause freezes the playhead; step pauses; speed + play from a pause (the slider leaving the pause stop) both show.
+  const pausedAt = send(state, replayControl({ action: "pause" }));
+  assert.deepEqual([replayPlaybackOf(pausedAt).playing, replayPositionAt(pausedAt, T0 + 5_000).positionMs], [false, 61_100]);
+  assert.equal(replayPlaybackOf(send(state, replayControl({ action: "step" }))).playing, false);
+  const resumed = send(send(pausedAt, replayControl({ action: "speed", speed: 2 }), T0 + 200), replayControl({ action: "play" }), T0 + 200);
+  assert.deepEqual(replayPlaybackOf(resumed), { playing: true, speed: 2 });
+  assert.equal(resumed.pendingPlayback.ids.length, 3);
+  assert.deepEqual(replayPlaybackOf(send(state, replayControl({ action: "toggle" }))), { playing: false, speed: 1 });
+  // A seek keeps the optimistic playback, from its target.
+  const seekWhile = replayReducer(pausedAt, { type: "command", command: replayControl({ action: "seek", position_ms: 300_000 }), label: "跳转", sentAtMs: T0 + 300, seekMs: 300_000 });
+  assert.equal(seekWhile.pendingPlayback.fromMs, 300_000);
+  assert.equal(replayReducer(sped, { type: "event", event: baseline, receivedAtMs: T0 + 200 }).pendingPlayback, null, "a baseline drops it");
+}
+
+{
+  // Timeline icons follow the watched player; the free camera has none (CS2: no observer target in roaming).
+  assert.deepEqual(replayTimelineEvents(demo, null), []);
+  assert.deepEqual(replayTimelineEvents(demo, 2).map((event) => [event.atMs, event.kind]), [[61_234, "kill"]]);
+  assert.deepEqual(replayTimelineEvents(demo, 3).map((event) => [event.atMs, event.kind]), [[75_000, "death"]]);
+}
+
+{
+  // Highlight intervals (CS2 client.dll): 6 s before to 2 s after each kill / death of the player; an event starting
+  // at or before the current end extends it; clamped to 0 and the duration.
+  const kills = (list) => ({ duration_ms: 40_000, timeline: { ...demo.timeline, kills: list.map(([at_ms, killer_slot, victim_slot]) => ({ at_ms, killer_slot, victim_slot })) } });
+  // Slot 5: 3 s (from 0), 10 s and 14 s merge (to 16 s); 22 s starts at 16 s, touching, so merges (to 24 s);
+  // 30 s starts at 24 s, touching again (to 32 s); 39 s starts at 33 s, past 32 s: a new interval, clamped to 40 s.
+  const recording = kills([[3_000, 5, 1], [14_000, 2, 5], [10_000, 5, 2], [22_000, null, 5], [30_000, 5, 3], [31_000, 1, 2], [39_000, 5, 4]]);
+  assert.deepEqual(replayHighlightIntervals(recording, 5).map(({ startMs, endMs }) => [startMs, endMs]), [[0, 32_000], [33_000, 40_000]],
+    "time order; touching merges; clamped to 0 and the duration");
+  assert.deepEqual(replayHighlightIntervals(kills([[20_000, 5, 1], [29_000, 5, 2]]), 5).map(({ startMs, endMs }) => [startMs, endMs]),
+    [[14_000, 22_000], [23_000, 31_000]], "a gap splits");
+  assert.deepEqual(replayHighlightIntervals(recording, 9), [], "no events, no intervals");
+  assert.deepEqual(replayHighlightIntervals(demo, 2), [{ startMs: 55_234, endMs: 63_234 }]);
+  const list = [{ startMs: 10_000, endMs: 20_000 }, { startMs: 30_000, endMs: 40_000 }];
+  assert.deepEqual([5_000, 10_000, 19_999, 20_000, 35_000].map((at) => highlightIntervalAt(list, at)), [-1, 0, 0, -1, 1]);
+  assert.deepEqual([5_000, 10_000, 25_000, 50_000].map((at) => replayIntervalIndexAt(list, at)), [-1, 0, 0, 1], "CS2 GetIntervalIndexAtTick");
+  // The driver: wait to the end then jump; jump at once from a gap; pause after the last; nothing while paused.
+  assert.deepEqual(replayHighlightStep(list, { positionMs: 15_000, playing: true, speed: 2 }), { waitMs: 2_500, jump: 1 });
+  assert.deepEqual(replayHighlightStep(list, { positionMs: 25_000, playing: true, speed: 1 }), { waitMs: 0, jump: 1 });
+  assert.deepEqual(replayHighlightStep(list, { positionMs: 5_000, playing: true, speed: 1 }), { waitMs: 0, jump: 0 });
+  assert.deepEqual(replayHighlightStep(list, { positionMs: 35_000, playing: true, speed: 1 }), { waitMs: 5_000, jump: -1 });
+  assert.deepEqual(replayHighlightStep(list, { positionMs: 45_000, playing: true, speed: 1 }), { waitMs: 0, jump: -1 });
+  assert.equal(replayHighlightStep(list, { positionMs: 15_000, playing: false, speed: 1 }), null);
+  assert.equal(replayHighlightStep([], { positionMs: 15_000, playing: true, speed: 1 }), null);
+}
+console.log("replay model smoke: mode, position, timeline, players, commands, seek pacer, command budget, optimistic playback, catalog, results, transitions, HUD clock, HUD reset, chat jump and highlights ok");

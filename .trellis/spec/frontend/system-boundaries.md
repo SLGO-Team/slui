@@ -389,14 +389,31 @@ instead of a match; the same session, sidecar and HUD features serve it.
   A jump (`jump`) clears the chat lines; the plugin republishes the recorded chat around the new position. The chat
   keys do nothing on a replay server.
 - Commands (`replay/commands.ts`): `command.replay.catalog | load | unload | control | pov | pin | unpin`, all through
-  `handleReplayCommand`, which records them as pending (`beginCommand`: busy buttons, an 8 s timeout `REPLAY_COMMAND_TIMEOUT_MS`, the seek target
+  `handleReplayCommand`. It first spends a token of the command budget (`createCommandBudget`,
+  `REPLAY_COMMAND_BUDGET` burst 8, 100 a minute): the sidecar limits every player to one bucket shared by all commands
+  (`SIDECAR_COMMAND_RATE_LIMIT`, slgo-backend `DEFAULT_COMMAND_RATE_LIMIT`: burst 10, 120 a minute) and answers
+  `rejected` / `rate-limited` over it, so SLUI keeps inside it: over budget a command is not sent and the status line
+  says 操作过于频繁，请稍候 (`REPLAY_TOO_FAST_TEXT`; also the text for a sidecar `rate-limited`). Then it records the
+  command as pending (`beginCommand`: busy buttons, an 8 s timeout `REPLAY_COMMAND_TIMEOUT_MS`, the seek target
   the playhead shows) before sending. A rejected or failed result sets `notice` (status line, 6 s,
   `replayFailureText`: `<label>被拒绝：<plugin reason>`; `reason: "unsupported"` = 当前服务器不支持回放). An
   accepted pin / unpin bumps `catalog.revision`, which re-queries the page shown (the protocol does not push a new
   page). A late `replay.catalog` for an older query is dropped (`command_id` must equal `catalog.commandId`).
-- Seek pacing (`createSeekPacer`, `REPLAY_SEEK_WINDOW_MS` 250): ±10 s buttons and held arrow keys merge into one
-  `seek delta_ms` per window (at most 4 per second; a sum of 0 sends nothing); a timeline drag sends one absolute
+- Seek pacing (`createSeekPacer`, `REPLAY_SEEK_WINDOW_MS` 500): ±10 s buttons and held arrow keys merge into one
+  `seek delta_ms` per window (at most 2 per second, the sidecar's sustained rate; a sum of 0 sends nothing), and a
+  seek also waits for a budget token, merging meanwhile, so none is ever dropped; a timeline drag sends one absolute
   `seek` on release and nothing on Escape or pointer cancel.
+- Optimistic playback (`pendingPlayback`, `replayPlaybackOf`): `play / pause / toggle / speed / step` change what the
+  bar shows at once (CS2 `SetPlaybackSpeedStop`), advancing the playhead from the send at the new speed. It ends when
+  every one of its commands was accepted and a `replay.state` shows it (in either order), and at once on a refusal,
+  a failed send, a timeout or a baseline; a `replay.state` while results are outstanding only re-anchors it.
+- Highlights (`useReplayHighlights`, App-owned so it runs with the bar hidden): CS2's highlight intervals for the
+  watched player (`replayHighlightIntervals`: each kill or death −6 s / +2 s, merged when the next starts at or before
+  the current end; client.dll `demo_highlight_seconds_before / _after`). While on and playing, SLUI seeks from an
+  interval's end to the next start (`replayHighlightStep`), jumps out of a gap at once and pauses after the last: one
+  command per interval. The playback is the server's, so every viewer sees the jumps; only this viewer's bar is in
+  highlights mode. Off with the free camera, another recording or an unload. WebView2 may throttle timers while the
+  overlay is hidden, so a jump can come late there.
 - Playback edges are SLUI's: play after a speed change sends `speed 1` then `play` (CS2's "resume at 1x"); play at the
   end sends `seek 0` then `play`; round stepping is clamped to the first and last round (CS2 `OnStepInterval`), so
   the UI never asks for a round that does not exist.
@@ -1128,7 +1145,9 @@ signature }`) plus `min_version`. The control plane serves it at
 - Demo replay (`scripts/replay-model-smoke.mjs`, `event-routing-smoke`, `hud-model-smoke`, `scoreboard-model-smoke`,
   `settings-smoke`): replay mode enters on `replay.state` and leaves on a baseline without one; `endsMatch` clears;
   late catalog pages dropped; result before / after page; pending timeout; the seek pacer (release-only drag, merged
-  arrow repeats, at most 4 per second, zero sum not sent, Escape cancels); HUD clock pause / speed / skip / end and
+  arrow repeats, at most 2 per second, zero sum not sent, Escape cancels, waits for the budget); the command budget
+  never lets the sidecar refuse; optimistic playback in both result / state orders; highlight intervals and the
+  driver's steps; no timeline icons in the free camera; HUD clock pause / speed / skip / end and
   continuity across anchors; omniscient snapshots give both teams `observer` with money; old settings files get the
   replay key without losing theirs. End to end: fake-plugin `--replay` checklist in task `11-07-demo-replay-slui`
   `research/e2e.md`.

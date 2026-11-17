@@ -781,7 +781,8 @@ The demo replay bar is a hand-built React feature under `src/features/replay` (`
 `ReplayCatalogPanel.tsx` / `.css`, assets `public/assets/replay/*.svg`), recreating the current CS2
 `huddemocontroller.xml` / `.css` / `.js` (re-extracted from the CS2 VPK, 2026-11-16) and checked against the user's
 CS2 demo playback captures (2000x1250, kept locally). Mapping and deviations: task `11-07-demo-replay-slui`
-design §12; e2e: its `research/e2e.md`.
+design §12 and task `11-17-demo-replay-bar-fixes` (CS2 behaviour read from the disassembled client.dll: its
+`research/cs2-check.md`); e2e: `11-07-demo-replay-slui` `research/e2e.md`.
 
 - Display states: the replay key (F6) cycles minimal -> full -> hidden (CS2 `DemoToggleUI` cycles hidden -> minimal ->
   full); entering replay mode shows minimal. `#Contents` is 45 px minimal / 96 px full, full width, bottom-anchored,
@@ -792,13 +793,29 @@ design §12; e2e: its `research/e2e.md`.
   the chat does not move.
 - Timeline: round bands alternate `#ffffff20` / `#ffffff50` (converted: 0.272 / 0.506), 8 px high, 30 px from the
   top; a 16 px white thumb; the warmup is the darkest band. Above it, 22 px icons for the spectated player's kills
-  (crosshair) and deaths (skull), in the free camera every death as a skull; click seeks 2 s before the event. CS2 has
-  no pause / skip / generator marks, so none are drawn (`timelineGeometry` still computes them).
+  (crosshair) and deaths (skull); none in the free camera (client.dll: the observer target is null in
+  `OBS_MODE_ROAMING`, so `TimelineEvents` is empty and the name reads 无玩家); click seeks 2 s before the event. CS2
+  has no pause / skip / generator marks, so none are drawn (`timelineGeometry` still computes them).
 - Control row: 82 px play button; speed slider with stops pause, 0.25, 0.5, 1, 2, 4 (CS2's 0.1 dropped: the protocol
   minimum is 0.25) and its tick row; "时间： m:ss / m:ss" (no Tick field); **-10秒 / +10秒** (CS2 steps 15 s; SLGO
   uses 10, task PRD R12); ⏮ 回合：N ⏭ with the 回合开始 / 动作开始 menu; ◀ player name ▶ with the player list; »⊕
-  next kill; the camera button toggles 第一人称 / 自由视角; CS2's highlights button is 录像列表 here (same film icon);
-  no settings button; 退出 (= unload for everyone) needs a second click within 3 s (确认退出？).
+  next kill; the camera button toggles 第一人称 / 自由视角; the film button is CS2's highlights toggle (切换高光时刻回放);
+  SLGO's 录像列表 sits in CS2's settings button's place (36 px, own list icon, white like the captured gear: the
+  CSS `color: #808080` does not tint a Panorama image; no settings popup); 退出 (= unload for everyone) needs a second click within 3 s (确认退出？).
+- Immediate feedback like CS2: the speed slider applies every stop it crosses while pressed (a click on a tick
+  included; the whole 36 px container takes the pointer), and the slider, its label, the play button and the play
+  tooltip show the new playback at once (optimistic until the server's `replay.state`), so nothing snaps back.
+- Highlights mode (`.highlightsActive`, here `data-highlights`): intervals −6 s / +2 s around the watched player's
+  kills and deaths drawn as white 8 px bars on the band row; bands at 0.2; icons white, scaled 1.1 and lifted 4 px
+  (hover 6 px, 1.2); 回合：N becomes 高光时刻 (number hidden) with only 高光开始 in its menu; ⏮ / ⏭ and PageUp / PageDown
+  step intervals; »⊕ goes to the watched player's next kill or death; player controls and the camera button at 0.2;
+  the film button white while on and 0.2 (no hover) in the free camera. Between intervals the game fades to black
+  and back, 0.25 s each (`demo_highlight_fade_duration`), under every HUD element.
+- Speed ticks (#SpeedTicks): bottom-aligned with CS2's own margins (tick 4 px at 3, pause 12 px at -1, arrows 10 px
+  at 0), so all their centres sit on one line 5 px above the container's bottom.
+- Keys: CS2's demo bar has no keyboard controls of its own (Shift+F2 cycles it; the rest are the game's spectator
+  binds). SLGO's space / ← → / ↑ ↓ / PageUp PageDown / `.` / Esc act only in the full bar, which holds the keyboard;
+  in the minimal or hidden bar the keyboard belongs to the game (space jumps in SL, the plugin binds the arrows).
 - Text: Chinese strings from CS2's `CSGO_Demo_*` / `tooltip_demo_*` (step text changed to 10). Labels in Noto Sans SC
   (CJK at 90%, CS2's fallback scale), times and speed in Stratum2 Regular Monodigit, colour `#cccccc` (captures read
   ~`#dadada`, probably capture brightening; not changed).

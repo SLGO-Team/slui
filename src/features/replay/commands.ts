@@ -64,8 +64,47 @@ export const REPLAY_STEP_MS = 10_000;
 export const REPLAY_KILL_LEAD_MS = 2_000;
 export const killSeekPositionMs = (killAtMs: number) => Math.max(0, killAtMs - REPLAY_KILL_LEAD_MS);
 
-/** At most one seek per window: 4 per second, well inside the sidecar's per-player limit (burst 10, 120 a minute). */
-export const REPLAY_SEEK_WINDOW_MS = 250;
+/**
+ * The sidecar's command limit (slgo-backend `DEFAULT_COMMAND_RATE_LIMIT`): one token bucket per player shared by every
+ * command, burst 10, 120 a minute; a command over it is answered `rejected` / `rate-limited`.
+ */
+export const SIDECAR_COMMAND_RATE_LIMIT = { burst: 10, perMinute: 120 } as const;
+/** SLUI's own budget for replay commands, a little inside the sidecar's so it never refuses one. */
+export const REPLAY_COMMAND_BUDGET = { burst: 8, perMinute: 100 } as const;
+
+export type CommandBudget = {
+  /** Spends one token; false = over budget, do not send. */
+  take(): boolean;
+  /** How long until a token is available (0 = now). */
+  waitMs(): number;
+};
+
+/** A token bucket like the sidecar's (`RateLimiter`), on an injected clock. */
+export function createCommandBudget(limit: { burst: number; perMinute: number }, now: () => number): CommandBudget {
+  const refillPerMs = limit.perMinute / 60_000;
+  let tokens: number = limit.burst;
+  let updatedAt = now();
+  const refill = () => {
+    const at = now();
+    tokens = Math.min(limit.burst, tokens + Math.max(0, at - updatedAt) * refillPerMs);
+    updatedAt = at;
+  };
+  return {
+    take() {
+      refill();
+      if (tokens < 1) return false;
+      tokens -= 1;
+      return true;
+    },
+    waitMs() {
+      refill();
+      return tokens >= 1 ? 0 : Math.ceil((1 - tokens) / refillPerMs);
+    },
+  };
+}
+
+/** At most one seek per window: 2 per second, the sidecar's sustained rate; the budget may hold one back longer. */
+export const REPLAY_SEEK_WINDOW_MS = 500;
 
 export type SeekPacerOptions = {
   now(): number;
@@ -73,6 +112,8 @@ export type SeekPacerOptions = {
   schedule(callback: () => void, ms: number): () => void;
   send(seek: { position_ms: number } | { delta_ms: number }): void;
   minIntervalMs?: number;
+  /** Extra wait before the next send (the command budget); 0 = none. */
+  waitMs?(): number;
 };
 
 export type SeekPacer = {
@@ -85,8 +126,9 @@ export type SeekPacer = {
 };
 
 /**
- * Coalesces seeks so at most one leaves per window: the first goes at once, later ones within the window are merged
- * (an absolute target replaces what is queued, a relative step adds to it) and sent when the window ends.
+ * Coalesces seeks so at most one leaves per window and none over the budget: the first goes at once, later ones are
+ * merged while they wait (an absolute target replaces what is queued, a relative step adds to it) and sent when both
+ * the window and the budget allow. A seek is never dropped.
  */
 export function createSeekPacer(options: SeekPacerOptions): SeekPacer {
   const window = options.minIntervalMs ?? REPLAY_SEEK_WINDOW_MS;
@@ -94,6 +136,7 @@ export function createSeekPacer(options: SeekPacerOptions): SeekPacer {
   let queued: { position_ms: number } | { delta_ms: number } | null = null;
   let cancelTimer: (() => void) | null = null;
 
+  const waitMs = () => Math.max(lastSentAt + window - options.now(), options.waitMs?.() ?? 0);
   const emit = (seek: { position_ms: number } | { delta_ms: number }) => {
     if ("delta_ms" in seek && Math.round(seek.delta_ms) === 0) return;
     lastSentAt = options.now();
@@ -101,18 +144,23 @@ export function createSeekPacer(options: SeekPacerOptions): SeekPacer {
   };
   const flush = () => {
     cancelTimer = null;
+    const wait = waitMs();
+    if (wait > 0) {
+      cancelTimer = options.schedule(flush, wait);
+      return;
+    }
     const seek = queued;
     queued = null;
     if (seek) emit(seek);
   };
   const submit = (merge: (current: typeof queued) => NonNullable<typeof queued>) => {
-    const waitMs = lastSentAt + window - options.now();
-    if (waitMs <= 0 && queued === null) {
+    const wait = waitMs();
+    if (wait <= 0 && queued === null) {
       emit(merge(null));
       return;
     }
     queued = merge(queued);
-    cancelTimer ??= options.schedule(flush, Math.max(0, waitMs));
+    cancelTimer ??= options.schedule(flush, Math.max(0, wait));
   };
   return {
     seekTo: (positionMs) => submit(() => ({ position_ms: positionMs })),
