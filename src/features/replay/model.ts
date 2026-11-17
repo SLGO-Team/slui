@@ -6,6 +6,7 @@ import {
   type ConnectionStatus,
   type ReplayCatalog,
   type ReplayCommand,
+  type ReplayControlCommand,
   type ReplayDemo,
   type ReplayState,
   type ReplayTimeline,
@@ -67,6 +68,23 @@ export type ReplayFeatureState = {
   notice: { text: string; atMs: number } | null;
   /** A seek sent and not yet answered by a new `replay.state`: the playhead shows this instead of jumping back. */
   pendingSeekMs: number | null;
+  /**
+   * Play / pause / speed / step sent and not yet shown by a `replay.state`: the bar shows this playback at once (CS2
+   * `SetPlaybackSpeedStop` changes the slider, the label and the play button before the demo does).
+   */
+  pendingPlayback: PendingPlayback | null;
+};
+
+export type PendingPlayback = {
+  playing: boolean;
+  speed: number;
+  /** The position at `atMs` (wall clock) the optimistic playback advances from. */
+  fromMs: number;
+  atMs: number;
+  /** The commands still waiting for their result. */
+  ids: readonly string[];
+  /** Every command was accepted: the next `replay.state` shows the outcome and ends the optimistic playback. */
+  settled: boolean;
 };
 
 export const initialReplayState: ReplayFeatureState = {
@@ -76,6 +94,7 @@ export const initialReplayState: ReplayFeatureState = {
   pending: {},
   notice: null,
   pendingSeekMs: null,
+  pendingPlayback: null,
 };
 
 export type ReplayAction =
@@ -86,7 +105,9 @@ export type ReplayAction =
   /** The send itself failed (no session): resolves the pending command locally. */
   | { type: "send-failed"; commandId: string; reason: string; atMs: number }
   | { type: "tick"; nowMs: number }
-  | { type: "filters"; filters: ReplayCatalogFilters };
+  | { type: "filters"; filters: ReplayCatalogFilters }
+  /** A local notice for the status line (a command SLUI held back). */
+  | { type: "notice"; text: string; atMs: number };
 
 const without = <T>(record: Readonly<Record<string, T>>, key: string): Record<string, T> => {
   const next = { ...record };
@@ -95,8 +116,12 @@ const without = <T>(record: Readonly<Record<string, T>>, key: string): Record<st
 };
 
 /** Status-line text for a refused or failed command; `unsupported` is the sidecar's answer on a match server. */
+/** The status line when a command is over the budget (SLUI's own, or the sidecar's `rate-limited`). */
+export const REPLAY_TOO_FAST_TEXT = "操作过于频繁，请稍候";
+
 export function replayFailureText(label: string, status: CommandResult["status"], reason: string | undefined): string {
   if (reason === "unsupported") return "当前服务器不支持回放";
+  if (reason === "rate-limited") return REPLAY_TOO_FAST_TEXT;
   if (status === "failed") return `${label}未送达${reason ? `：${reason}` : ""}`;
   return `${label}被拒绝${reason ? `：${reason}` : ""}`;
 }
@@ -117,6 +142,13 @@ function resolve(state: ReplayFeatureState, result: CommandResult, atMs: number)
   const next: ReplayFeatureState = { ...state, pending: without(state.pending, result.command_id) };
   const ok = result.status === "accepted" || result.status === "duplicate";
   if (pending.kind === "command.replay.control" && !ok) next.pendingSeekMs = null;
+  const playback = state.pendingPlayback;
+  if (playback?.ids.includes(result.command_id)) {
+    const ids = playback.ids.filter((id) => id !== result.command_id);
+    if (!ok) next.pendingPlayback = null;
+    else if (ids.length > 0) next.pendingPlayback = { ...playback, ids };
+    else next.pendingPlayback = showsPlayback(state.current?.state.playback ?? null, playback) ? null : { ...playback, ids, settled: true };
+  }
   if (pending.kind === "command.replay.catalog" && result.command_id === state.catalog.commandId) {
     next.catalog = ok ? state.catalog : { ...state.catalog, commandId: null, rejected: replayFailureText(pending.label, result.status, result.reason) };
   }
@@ -137,6 +169,8 @@ export function replayReducer(state: ReplayFeatureState, action: ReplayAction): 
       return { ...state, connectionStatus: action.status };
     case "filters":
       return { ...state, catalog: { ...state.catalog, filters: action.filters } };
+    case "notice":
+      return { ...state, notice: { text: action.text, atMs: action.atMs } };
     case "command": {
       const { command, label, sentAtMs } = action;
       const next: ReplayFeatureState = {
@@ -145,6 +179,7 @@ export function replayReducer(state: ReplayFeatureState, action: ReplayAction): 
       };
       if (command.kind === "command.replay.catalog") next.catalog = { ...state.catalog, commandId: command.command_id, rejected: null };
       if (action.seekMs != null) next.pendingSeekMs = action.seekMs;
+      if (command.kind === "command.replay.control") next.pendingPlayback = optimisticPlayback(state, command, sentAtMs, action.seekMs ?? null);
       return next;
     }
     case "send-failed":
@@ -157,6 +192,7 @@ export function replayReducer(state: ReplayFeatureState, action: ReplayAction): 
       for (const [id, pending] of expired) {
         next = { ...next, pending: without(next.pending, id), notice: { text: `${pending.label}：命令无响应`, atMs: action.nowMs } };
         if (pending.kind === "command.replay.control") next.pendingSeekMs = null;
+        if (next.pendingPlayback?.ids.includes(id)) next.pendingPlayback = null;
         if (id === next.catalog.commandId && next.catalog.page?.command_id !== id) {
           next.catalog = { ...next.catalog, commandId: null, rejected: "录像列表：命令无响应" };
         }
@@ -168,9 +204,14 @@ export function replayReducer(state: ReplayFeatureState, action: ReplayAction): 
       switch (event.type) {
         // Every connection starts outside replay mode; the sidecar replays replay.state right after the baseline.
         case "sidecar.baseline":
-          return { ...state, current: null, pending: {}, pendingSeekMs: null, notice: null, catalog: { ...state.catalog, commandId: null, page: null, rejected: null } };
-        case "replay.state":
-          return { ...state, current: { state: event.payload, receivedAtMs }, pendingSeekMs: null };
+          return { ...state, current: null, pending: {}, pendingSeekMs: null, pendingPlayback: null, notice: null, catalog: { ...state.catalog, commandId: null, page: null, rejected: null } };
+        case "replay.state": {
+          // Still waiting for a result: keep the optimistic playback, from the position this state reports.
+          const playback = state.pendingPlayback;
+          const pendingPlayback = playback === null || playback.settled || event.payload.playback === null ? null
+            : { ...playback, fromMs: event.payload.playback.position_ms, atMs: receivedAtMs };
+          return { ...state, current: { state: event.payload, receivedAtMs }, pendingSeekMs: null, pendingPlayback };
+        }
         case "replay.catalog":
           // Only the page of the latest query; it may come before or after the command's result.
           if (event.payload.command_id !== state.catalog.commandId) return state;
@@ -182,6 +223,41 @@ export function replayReducer(state: ReplayFeatureState, action: ReplayAction): 
       }
     }
   }
+}
+
+const SPEED_EPSILON = 1e-6;
+/** Whether the server's playback is what the optimistic one shows. */
+function showsPlayback(server: ReplayState["playback"], optimistic: Pick<PendingPlayback, "playing" | "speed">): boolean {
+  if (server === null) return false;
+  return server.playing === optimistic.playing && Math.abs(server.speed - optimistic.speed) < SPEED_EPSILON;
+}
+
+/** The playback a control command will lead to, from the one shown when it is sent (a jump only moves its anchor). */
+function optimisticPlayback(state: ReplayFeatureState, command: ReplayControlCommand, sentAtMs: number, seekMs: number | null): PendingPlayback | null {
+  const previous = state.pendingPlayback;
+  const shown = replayPositionAt(state, sentAtMs);
+  if (shown === null) return previous;
+  let playing = shown.playing;
+  let speed = shown.speed;
+  switch (command.action) {
+    case "play": playing = true; break;
+    case "pause":
+    case "step": playing = false; break;
+    case "toggle": playing = !shown.playing; break;
+    case "speed": speed = command.speed; break;
+    case "seek":
+    case "round":
+      return previous === null ? null : { ...previous, fromMs: seekMs ?? shown.positionMs, atMs: sentAtMs };
+  }
+  return { playing, speed, fromMs: shown.positionMs, atMs: sentAtMs, ids: [...(previous?.ids ?? []), command.command_id], settled: false };
+}
+
+/** The playback the bar shows: the optimistic one while its commands are on their way, else the server's. */
+export function replayPlaybackOf(state: ReplayFeatureState): { playing: boolean; speed: number } | null {
+  const server = state.current?.state.playback ?? null;
+  if (server === null) return null;
+  const optimistic = state.pendingPlayback;
+  return optimistic ? { playing: optimistic.playing, speed: optimistic.speed } : { playing: server.playing, speed: server.speed };
 }
 
 /** Whether a replay command still waits for its result (the reducer then needs the clock for timeouts). */
@@ -227,18 +303,24 @@ export type ReplayPosition = {
   atEnd: boolean;
 };
 
-/** The playback position at `nowMs` (wall clock), interpolated from the receive time; a pending seek wins. */
+/**
+ * The playback position at `nowMs` (wall clock), interpolated from the receive time; an optimistic playback advances
+ * from its own anchor; a pending seek wins.
+ */
 export function replayPositionAt(state: ReplayFeatureState, nowMs: number): ReplayPosition | null {
   const current = state.current;
   if (current === null || current.state.demo === null || current.state.playback === null) return null;
-  const { demo, playback } = current.state;
-  const advanced = advanceReplayPosition(playback, demo.timeline.skips, demo.duration_ms, nowMs - current.receivedAtMs);
+  const { demo } = current.state;
+  const optimistic = state.pendingPlayback;
+  const advanced = optimistic
+    ? advanceReplayPosition({ position_ms: optimistic.fromMs, playing: optimistic.playing, speed: optimistic.speed }, demo.timeline.skips, demo.duration_ms, nowMs - optimistic.atMs)
+    : advanceReplayPosition(current.state.playback, demo.timeline.skips, demo.duration_ms, nowMs - current.receivedAtMs);
   const positionMs = state.pendingSeekMs !== null ? Math.min(demo.duration_ms, Math.max(0, state.pendingSeekMs)) : advanced.position_ms;
   return {
     positionMs,
     durationMs: demo.duration_ms,
     playing: advanced.playing,
-    speed: playback.speed,
+    speed: optimistic?.speed ?? current.state.playback.speed,
     atEnd: !advanced.playing && positionMs >= demo.duration_ms,
   };
 }
@@ -378,23 +460,69 @@ export function replayPlayerRows(demo: Pick<ReplayDemo, "players">, hud: RoundHu
   return groups;
 }
 
-/** A timeline icon (CS2 `HighlightIcons`): the watched player's kills and deaths; every death with the free camera. */
+/** A timeline icon (CS2 `HighlightIcons`): the watched player's kills and deaths. */
 export type ReplayTimelineEvent = { at: number; atMs: number; kind: "kill" | "death" };
 
 /**
  * CS2 draws the spectated player's own timeline events (`TimelineEvents` follow `nSpectatingPlayerId`): a kill
- * (crosshair) or a death (skull). With the free camera SLUI marks every death, so the timeline stays useful.
+ * (crosshair) or a death (skull). The free camera has no spectated player and so no icons (client.dll: the observer
+ * target is null in OBS_MODE_ROAMING, and the events are looked up by its account id).
  */
 export function replayTimelineEvents(demo: Pick<ReplayDemo, "duration_ms" | "timeline">, povSlot: number | null): ReplayTimelineEvent[] {
+  if (povSlot === null) return [];
   const duration = Math.max(1, demo.duration_ms);
   const at = (ms: number) => Math.min(1, Math.max(0, ms / duration));
   const events: ReplayTimelineEvent[] = [];
   for (const kill of demo.timeline.kills) {
-    if (povSlot === null) events.push({ at: at(kill.at_ms), atMs: kill.at_ms, kind: "death" });
-    else if (kill.killer_slot === povSlot) events.push({ at: at(kill.at_ms), atMs: kill.at_ms, kind: "kill" });
+    if (kill.killer_slot === povSlot) events.push({ at: at(kill.at_ms), atMs: kill.at_ms, kind: "kill" });
     else if (kill.victim_slot === povSlot) events.push({ at: at(kill.at_ms), atMs: kill.at_ms, kind: "death" });
   }
   return events;
+}
+
+/** CS2 `demo_highlight_seconds_before` / `_after` (client.dll defaults 6 and 2). */
+export const REPLAY_HIGHLIGHT_BEFORE_MS = 6_000;
+export const REPLAY_HIGHLIGHT_AFTER_MS = 2_000;
+/** CS2 `demo_highlight_fade_duration`: the fade out before a highlight jump and the fade in after it, each. */
+export const REPLAY_HIGHLIGHT_FADE_MS = 250;
+
+export type ReplayHighlightInterval = { startMs: number; endMs: number };
+
+/**
+ * CS2's highlight intervals for a player (client.dll, the builder of `HighlightIntervals`): each of their kills and
+ * deaths, in time order, spans 6 s before to 2 s after it; an event starting at or before the current interval's end
+ * extends it to its own end, else the interval is closed and a new one starts. The first interval begins no earlier
+ * than 0 and the last ends no later than the recording.
+ */
+export function replayHighlightIntervals(demo: Pick<ReplayDemo, "duration_ms" | "timeline">, slot: number): ReplayHighlightInterval[] {
+  const times = demo.timeline.kills.filter((kill) => kill.killer_slot === slot || kill.victim_slot === slot)
+    .map((kill) => kill.at_ms).sort((a, b) => a - b);
+  const intervals: ReplayHighlightInterval[] = [];
+  let startMs = 0;
+  let endMs = 0;
+  const close = () => {
+    const end = Math.min(demo.duration_ms, endMs);
+    if (end > startMs) intervals.push({ startMs, endMs: end });
+  };
+  for (const atMs of times) {
+    const from = atMs - REPLAY_HIGHLIGHT_BEFORE_MS;
+    const to = atMs + REPLAY_HIGHLIGHT_AFTER_MS;
+    if (from <= endMs) {
+      endMs = Math.max(endMs, to);
+      continue;
+    }
+    close();
+    startMs = from;
+    endMs = to;
+  }
+  close();
+  return intervals;
+}
+
+/** CS2 `GetIntervalIndexAtTick`: the last interval starting at or before the position; -1 before the first. */
+export function replayIntervalIndexAt(intervals: readonly ReplayHighlightInterval[], positionMs: number): number {
+  const next = intervals.findIndex((interval) => interval.startMs > positionMs);
+  return (next < 0 ? intervals.length : next) - 1;
 }
 
 /** CS2 `TicksToRound`: how many rounds have started by the position (0 before the first: warmup). */
@@ -431,4 +559,23 @@ export function cyclePlayer(order: readonly ReplayPlayerRow[], povSlot: number |
   const index = selectable.findIndex((row) => row.slot === povSlot);
   if (index < 0) return (step > 0 ? selectable[0] : selectable[selectable.length - 1]).slot;
   return selectable[(index + step + selectable.length) % selectable.length].slot;
+}
+
+/** The highlight interval holding the position (start inclusive, end exclusive), or -1. */
+export function highlightIntervalAt(intervals: readonly ReplayHighlightInterval[], positionMs: number): number {
+  return intervals.findIndex((interval) => interval.startMs <= positionMs && positionMs < interval.endMs);
+}
+
+/**
+ * What highlights mode does next while playing: wait (wall ms) until the current interval's end and then `jump` to
+ * the interval after it; from a gap jump to the next interval at once; past the last one, pause. `jump` index -1 =
+ * pause. Null while paused or with no intervals.
+ */
+export function replayHighlightStep(intervals: readonly ReplayHighlightInterval[], position: Pick<ReplayPosition, "positionMs" | "playing" | "speed">):
+  { waitMs: number; jump: number } | null {
+  if (intervals.length === 0 || !position.playing) return null;
+  const inside = highlightIntervalAt(intervals, position.positionMs);
+  if (inside < 0) return { waitMs: 0, jump: intervals.findIndex((interval) => interval.startMs > position.positionMs) };
+  const jump = inside + 1 < intervals.length ? inside + 1 : -1;
+  return { waitMs: (intervals[inside].endMs - position.positionMs) / Math.max(0.01, position.speed), jump };
 }

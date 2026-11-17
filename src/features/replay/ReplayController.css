@@ -185,6 +185,46 @@
   background-color: #e0e0e0;
 }
 
+/* #HighlightMarkers (highlights mode): white 8px bars over the round bands, placed like them. */
+.replay-highlight-markers {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 0;
+  height: 50px;
+}
+
+.replay-highlight-marker {
+  position: absolute;
+  top: 30px;
+  height: 8px;
+  left: calc(var(--start) * (100% - 16px) + 8px);
+  width: calc((var(--end) - var(--start)) * (100% - 16px));
+  background-color: #fff;
+}
+
+/* .highlightsActive: round bands at 0.2; icons scaled 1.1, lifted 4px and brightness 4 (#707070 x 4 clips to white),
+   hover lifts 6px at 1.2; the player and camera controls at 0.2. */
+.replay-canvas[data-highlights] .replay-round-marker {
+  opacity: 0.2;
+}
+
+.replay-canvas[data-highlights] .replay-highlight-icon {
+  background-color: #fff;
+  transform: translateY(-4px) scale(1.1);
+  transition: transform 0.1s ease-out, background-color 0.1s ease-out;
+}
+
+.replay-canvas[data-highlights][data-mode="full"] .replay-highlight-icon:hover {
+  transform: translateY(-6px) scale(1.2);
+  background-color: #fff;
+}
+
+.replay-canvas[data-highlights] .replay-player-controls,
+.replay-canvas[data-highlights] .replay-camera {
+  opacity: 0.2;
+}
+
 /* #SliderThumb: 16px tall, white, 2px corners, centred on the slider (10px down, 50px tall). */
 .replay-slider-thumb {
   position: absolute;
@@ -421,6 +461,11 @@
   text-align: center;
 }
 
+/* CS2 SetRoundNumberLabel: the number is hidden in highlights mode. */
+.replay-round-number[hidden] {
+  display: none;
+}
+
 /* #PlayerControls: 32px arrows around a 190px name, team-coloured like CS2's CT / T. */
 .replay-player-step {
   width: 32px;
@@ -495,12 +540,13 @@
   padding: 5px;
 }
 
-/* #HighlightsButton (36px, wash #a0a0a0, white when active), in SLGO the recordings list. */
+/* #HighlightsButton / #SettingsButton: 36px, 8px apart. */
 .replay-square {
   width: 36px;
   margin-left: 8px;
 }
 
+/* #HighlightsButton: wash #a0a0a0, white while highlights play; .disabled (free camera) at 0.2 without a hover. */
 .replay-icon--film {
   width: 24px;
   height: 24px;
@@ -508,7 +554,28 @@
   background-color: #a0a0a0;
 }
 
-.replay-square[data-active] .replay-icon--film {
+.replay-highlights[data-active] .replay-icon--film {
+  background-color: #fff;
+}
+
+.replay-highlights[data-disabled] {
+  opacity: 0.2;
+}
+
+.replay-highlights[data-disabled]:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(255, 255, 255, 0.037);
+}
+
+/* SLGO's recordings list in #SettingsButton's place: #808080, white while its panel is open. */
+.replay-icon--list {
+  width: 24px;
+  height: 24px;
+  mask-image: url("/assets/replay/list.svg");
+  background-color: #808080;
+}
+
+.replay-catalog-button[data-active] .replay-icon--list {
   background-color: #fff;
 }
 
@@ -616,4 +683,14 @@
   white-space: nowrap;
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 8px));
+}
+
+/* CS2 demo_highlight_fade_duration: black over the game around a highlight jump, under every HUD element. */
+.replay-highlight-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-color: #000;
+  opacity: 0;
+  pointer-events: none;
 }

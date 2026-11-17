@@ -10,7 +10,11 @@ import {
   actionStartAt,
   currentRoundAt,
   cyclePlayer,
+  highlightIntervalAt,
   nextKillAfter,
+  REPLAY_HIGHLIGHT_FADE_MS,
+  replayIntervalIndexAt,
+  replayPlaybackOf,
   replayPlayerOrder,
   replayPlayerRows,
   replayPositionAt,
@@ -21,12 +25,14 @@ import {
   type ReplayFeatureState,
   type ReplayPlayerRow,
 } from "./model.ts";
+import type { ReplayHighlights } from "./useReplayHighlights.ts";
 import { formatDemoTime, formatSpeedLabel, REPLAY_SPEED_STOP_NORMAL, REPLAY_SPEED_STOPS, REPLAY_TEXT, speedStopFor } from "./presentation.ts";
 import "./ReplayController.css";
 
 // A manual React recreation of CS2's demo controller (panorama/layout/hud/huddemocontroller.xml / .css / .js, the
-// current game version) on the overlay canvas; ids follow the Panorama ones. Design 11-07-demo-replay-slui §12 lists
-// what SLGO changes (10 s step, no tick / highlights / settings, the recordings button, the double-confirmed quit).
+// current game version) on the overlay canvas; ids follow the Panorama ones. Design 11-07-demo-replay-slui §12 and
+// 11-17-demo-replay-bar-fixes list what SLGO changes (10 s step, no tick or settings, the recordings button in the
+// settings button's place, highlights driven by SLUI, the double-confirmed quit).
 
 export type ReplayBarMode = "minimal" | "full";
 
@@ -35,6 +41,9 @@ export type ReplayControllerProps = {
   replay: ReplayFeatureState;
   hud: RoundHudViewModel;
   catalogOpen: boolean;
+  highlights: ReplayHighlights;
+  /** How long until the command budget allows another command (the seek pacer waits for it). */
+  commandWaitMs(): number;
   onCommand(command: ReplayCommand, seekMs?: number | null): void;
   onToggleCatalog(): void;
   /** Esc with nothing else to close: back to the minimal bar. */
@@ -47,8 +56,10 @@ const THUMB_PX = 16;
 const SPEED_THUMB_PX = 16;
 const QUIT_CONFIRM_MS = 3_000;
 
+/** `text` PLAY_TIP: the play button's, read when drawn (CS2 `ShowPlayButtonTooltip` updates it on a click). */
 type Tooltip = { text: string; x: number; y: number };
 type TipHandlers = { onMouseEnter(event: ReactMouseEvent<HTMLElement>): void; onMouseLeave(): void };
+const PLAY_TIP = "play";
 type Popup = "players" | "round" | null;
 
 /** The element's box in canvas units (the canvas is scaled by the overlay scale). */
@@ -58,7 +69,7 @@ function canvasBox(element: Element, canvas: HTMLElement | null, scale: number) 
   return { left: (box.left - origin.left) / scale, top: (box.top - origin.top) / scale, width: box.width / scale, height: box.height / scale };
 }
 
-export const ReplayController = memo(function ReplayController({ mode, replay, hud, catalogOpen, onCommand, onToggleCatalog, onLeaveFull }: ReplayControllerProps) {
+export const ReplayController = memo(function ReplayController({ mode, replay, hud, catalogOpen, highlights, commandWaitMs, onCommand, onToggleCatalog, onLeaveFull }: ReplayControllerProps) {
   const scale = useOverlayScale();
   const visible = useOverlayVisible();
   const full = mode === "full";
@@ -67,8 +78,10 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
   const current = replay.current?.state ?? null;
   const demo: ReplayDemo | null = current?.demo ?? null;
   const povSlot = current?.pov_slot ?? null;
-  const playback = current?.playback ?? null;
+  // The playback shown: optimistic while play / pause / speed commands are on their way (no snap back).
+  const playback = useMemo(() => replayPlaybackOf(replay), [replay]);
   const paused = playback === null || !playback.playing;
+  const highlightsOn = highlights.active;
 
   // --- Position: painted every animation frame while playing (never through React state) -------------------------
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -98,11 +111,14 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
     return () => cancelAnimationFrame(frame);
   }, [paint, running]);
 
-  // --- Seeks: drags send on release; steps are merged (≤ 4 seeks a second) ---------------------------------------
+  // --- Seeks: drags send on release; steps are merged (≤ 2 seeks a second, within the command budget) --------------
   const positionRef = useRef(positionNow);
   positionRef.current = positionNow;
+  const waitRef = useRef(commandWaitMs);
+  waitRef.current = commandWaitMs;
   const pacer = useMemo(() => createSeekPacer({
     now: Date.now,
+    waitMs: () => waitRef.current(),
     schedule(callback, ms) {
       const timer = window.setTimeout(callback, ms);
       return () => window.clearTimeout(timer);
@@ -230,6 +246,13 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
     const target = starts[Math.min(starts.length - 1, Math.max(0, currentIndex + step))];
     onCommand(replayControl({ action: "round", round: target.round }), target.atMs);
   }, [demo, onCommand, positionNow]);
+  // Highlights mode (CS2 `bIsPlayingHighlights`): the round controls step through the highlight intervals.
+  const stepHighlight = (step: -1 | 0 | 1) => {
+    const list = highlights.intervals;
+    if (list.length === 0) return;
+    const index = replayIntervalIndexAt(list, position());
+    pacer.seekTo(list[Math.min(list.length - 1, Math.max(0, index + step))].startMs);
+  };
   const restartRound = () => {
     if (!demo) return;
     const round = currentRoundAt(demo.timeline, position());
@@ -238,6 +261,13 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
   };
   const nextEvent = () => {
     if (!demo) return;
+    if (highlightsOn) {
+      // CS2 OnGotoNextHighlightEvent: the watched player's next kill or death, 2 s before it, without changing player.
+      const at = position();
+      const next = events.find((event) => event.atMs - REPLAY_KILL_LEAD_MS > at);
+      if (next) pacer.seekTo(killSeekPositionMs(next.atMs));
+      return;
+    }
     const next = nextKillAfter(demo.timeline, position(), REPLAY_KILL_LEAD_MS);
     if (!next) return;
     pacer.seekTo(next.seekMs);
@@ -279,8 +309,8 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
           setSpeedStop(Math.min(REPLAY_SPEED_STOPS.length - 1, Math.max(0, stop + (event.key === "ArrowUp" ? 1 : -1))));
           return true;
         }
-        case "PageUp": if (!event.repeat) stepRound(-1); return true;
-        case "PageDown": if (!event.repeat) stepRound(1); return true;
+        case "PageUp": if (!event.repeat) { if (highlightsOn) stepHighlight(-1); else stepRound(-1); } return true;
+        case "PageDown": if (!event.repeat) { if (highlightsOn) stepHighlight(1); else stepRound(1); } return true;
         case ".": if (!event.repeat) onCommand(replayControl({ action: "step" })); return true;
         default: return false;
       }
@@ -309,7 +339,7 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
 
   return (
     <section className="replay-overlay" aria-label="回放控制">
-      <div ref={canvasRef} className="replay-canvas" data-mode={mode} style={{ "--replay-scale": scale } as CSSProperties}>
+      <div ref={canvasRef} className="replay-canvas" data-mode={mode} data-highlights={highlightsOn || undefined} style={{ "--replay-scale": scale } as CSSProperties}>
         <div className="replay-root">
           {status ? <div className="replay-status" role="status">{status}</div> : null}
           {full && popup.kind === "players" ? (
@@ -320,8 +350,10 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
           ) : null}
           {full && popup.kind === "round" ? (
             <div className="replay-popup replay-round-menu" style={{ left: popup.left }}>
-              <button type="button" className="replay-popup__entry" onClick={() => { restartRound(); setPopup({ kind: null, left: 0 }); }}>{REPLAY_TEXT.roundStart}</button>
-              {actionStart !== null ? (
+              {highlightsOn ? (
+                <button type="button" className="replay-popup__entry" onClick={() => { stepHighlight(0); setPopup({ kind: null, left: 0 }); }}>{REPLAY_TEXT.highlightStart}</button>
+              ) : <button type="button" className="replay-popup__entry" onClick={() => { restartRound(); setPopup({ kind: null, left: 0 }); }}>{REPLAY_TEXT.roundStart}</button>}
+              {!highlightsOn && actionStart !== null ? (
                 <button type="button" className="replay-popup__entry" onClick={() => { pacer.seekTo(actionStart); setPopup({ kind: null, left: 0 }); }}>{REPLAY_TEXT.actionStart}</button>
               ) : null}
             </div>
@@ -339,6 +371,15 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
                     style={{ "--start": band.start, "--end": band.end } as CSSProperties} />
                 ))}
               </div>
+              {highlightsOn && demo ? (
+                <div className="replay-highlight-markers">
+                  {highlights.intervals.map((interval) => (
+                    <span key={interval.startMs} className="replay-highlight-marker" style={{
+                      "--start": interval.startMs / Math.max(1, demo.duration_ms), "--end": interval.endMs / Math.max(1, demo.duration_ms),
+                    } as CSSProperties} />
+                  ))}
+                </div>
+              ) : null}
               <div className="replay-highlight-icons">
                 {events.map((event, index) => (
                   <button key={`${event.atMs}-${index}`} type="button" tabIndex={-1} className={`replay-highlight-icon replay-highlight-icon--${event.kind}`}
@@ -352,8 +393,7 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
             {full ? (
               <div className="replay-control-row">
                 <button type="button" className="replay-play" data-paused={paused || undefined} disabled={disabled}
-                  aria-label={paused ? REPLAY_TEXT.tooltip.play : REPLAY_TEXT.tooltip.pause} onClick={onPlay}
-                  {...tip(paused ? REPLAY_TEXT.tooltip.play : REPLAY_TEXT.tooltip.pause)}>
+                  aria-label={paused ? REPLAY_TEXT.tooltip.play : REPLAY_TEXT.tooltip.pause} onClick={onPlay} {...tip(PLAY_TIP)}>
                   <span className="replay-play__icon replay-play__icon--play" />
                   <span className="replay-play__icon replay-play__icon--pause" />
                 </button>
@@ -373,14 +413,18 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
                     onClick={() => pacer.seekBy(REPLAY_STEP_MS)} />
                 </div>
                 <div className="replay-group replay-round-controls">
-                  <Interactive icon="skip" mirrored disabled={disabled || rounds.length === 0} label={REPLAY_TEXT.tooltip.roundPrev} iconOnly
-                    tip={tip(REPLAY_TEXT.tooltip.roundPrev)} onClick={() => stepRound(-1)} />
+                  <Interactive icon="skip" mirrored disabled={disabled || (highlightsOn ? highlights.intervals.length === 0 : rounds.length === 0)}
+                    label={REPLAY_TEXT.tooltip.roundPrev} iconOnly tip={tip(REPLAY_TEXT.tooltip.roundPrev)}
+                    onClick={() => highlightsOn ? stepHighlight(-1) : stepRound(-1)} />
                   <button type="button" className="replay-interactive replay-round-restart" disabled={disabled}
                     onClick={(event) => openPopup("round", event.currentTarget)}>
-                    <span>{REPLAY_TEXT.round}</span><span ref={roundRef} className="replay-round-number" />
+                    {/* CS2 #IntervalLabel: 「高光时刻」 with the number hidden in highlights mode. */}
+                    <span>{highlightsOn ? REPLAY_TEXT.highlight : REPLAY_TEXT.round}</span>
+                    <span ref={roundRef} className="replay-round-number" hidden={highlightsOn} />
                   </button>
-                  <Interactive icon="skip" disabled={disabled || rounds.length === 0} label={REPLAY_TEXT.tooltip.roundNext} iconOnly
-                    tip={tip(REPLAY_TEXT.tooltip.roundNext)} onClick={() => stepRound(1)} />
+                  <Interactive icon="skip" disabled={disabled || (highlightsOn ? highlights.intervals.length === 0 : rounds.length === 0)}
+                    label={REPLAY_TEXT.tooltip.roundNext} iconOnly tip={tip(REPLAY_TEXT.tooltip.roundNext)}
+                    onClick={() => highlightsOn ? stepHighlight(1) : stepRound(1)} />
                 </div>
                 <div className="replay-group replay-player-controls">
                   <button ref={playerPrevRef} type="button" className="replay-interactive replay-player-step" disabled={disabled} aria-label={REPLAY_TEXT.tooltip.playerPrev}
@@ -407,9 +451,15 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
                   <span className="replay-icon replay-icon--camera" />
                   <span className="replay-camera__label">{povSlot === null ? REPLAY_TEXT.cameraFree : REPLAY_TEXT.cameraFirstPerson}</span>
                 </button>
-                <button type="button" className="replay-interactive replay-square" data-active={catalogOpen || undefined} aria-label={REPLAY_TEXT.tooltip.catalog}
-                  {...tip(REPLAY_TEXT.tooltip.catalog)} onClick={onToggleCatalog}>
+                <button type="button" className="replay-interactive replay-square replay-highlights" data-active={highlightsOn || undefined}
+                  data-disabled={disabled || highlights.disabled || undefined} aria-label={REPLAY_TEXT.tooltip.highlights} aria-pressed={highlightsOn}
+                  {...tip(REPLAY_TEXT.tooltip.highlights)} onClick={() => { if (!disabled && !highlights.disabled) highlights.toggle(); }}>
                   <span className="replay-icon replay-icon--film" />
+                </button>
+                {/* SLGO's recordings list where CS2 has its settings button (SLUI has no settings popup). */}
+                <button type="button" className="replay-interactive replay-square replay-catalog-button" data-active={catalogOpen || undefined} aria-label={REPLAY_TEXT.tooltip.catalog}
+                  {...tip(REPLAY_TEXT.tooltip.catalog)} onClick={onToggleCatalog}>
+                  <span className="replay-icon replay-icon--list" />
                 </button>
                 <button type="button" className="replay-interactive replay-end" data-armed={quitArmed || undefined} disabled={disabled}
                   {...tip(REPLAY_TEXT.tooltip.endPlaybackAll)} onClick={quit}>
@@ -419,7 +469,11 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
             ) : null}
           </div>
         </div>
-        {full && tooltip ? <div className="replay-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.text}</div> : null}
+        {full && tooltip ? (
+          <div className="replay-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
+            {tooltip.text === PLAY_TIP ? (paused ? REPLAY_TEXT.tooltip.play : REPLAY_TEXT.tooltip.pause) : tooltip.text}
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -452,11 +506,19 @@ function PlayerEntry({ row, side, onSelect }: { row: ReplayPlayerRow; side: "ct"
   );
 }
 
-/** CS2 #SpeedSliderContainer: a stop slider with its tick row (pause glyph, widening ticks, 1 / 2 / 4 arrows). */
+/**
+ * CS2 #SpeedSliderContainer: a stop slider with its tick row (pause glyph, widening ticks, 1 / 2 / 4 arrows). Like
+ * CS2's `SliderValueChanged`, every new stop under the pointer applies at once (a click on a tick included); the bar
+ * then shows the optimistic playback, so releasing never snaps back.
+ */
 function SpeedSlider({ stop, disabled, scale, onStop }: { stop: number; disabled: boolean; scale: number; onStop(stop: number): void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState<number | null>(null);
   const shown = preview ?? stop;
+  const choose = (next: number) => {
+    setPreview(next);
+    if (next !== shown) onStop(next);
+  };
   const last = REPLAY_SPEED_STOPS.length - 1;
   const stopAt = (clientX: number) => {
     const box = ref.current?.getBoundingClientRect();
@@ -469,15 +531,10 @@ function SpeedSlider({ stop, disabled, scale, onStop }: { stop: number; disabled
       onPointerDown={(event) => {
         if (disabled || event.button !== 0) return;
         event.currentTarget.setPointerCapture(event.pointerId);
-        setPreview(stopAt(event.clientX));
+        choose(stopAt(event.clientX));
       }}
-      onPointerMove={(event) => { if (preview !== null) setPreview(stopAt(event.clientX)); }}
-      onPointerUp={(event) => {
-        if (preview === null) return;
-        const next = stopAt(event.clientX);
-        setPreview(null);
-        if (next !== stop) onStop(next);
-      }}
+      onPointerMove={(event) => { if (preview !== null) choose(stopAt(event.clientX)); }}
+      onPointerUp={() => setPreview(null)}
       onPointerCancel={() => setPreview(null)}>
       <div className="replay-speed__ticks" aria-hidden="true">
         {REPLAY_SPEED_STOPS.map((speed, index) => (
@@ -492,4 +549,45 @@ function SpeedSlider({ stop, disabled, scale, onStop }: { stop: number; disabled
       <span className="replay-speed__thumb" />
     </div>
   );
+}
+
+/**
+ * CS2 `demo_highlight_fade_duration` (0.25 s): black over the game before a highlight jump and back after it, under
+ * every HUD element. Painted per frame from the playback position while highlights play; clear when paused.
+ */
+export function ReplayHighlightFade({ replay, highlights }: { replay: ReplayFeatureState; highlights: ReplayHighlights }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const visible = useOverlayVisible();
+  const running = highlights.active && highlights.intervals.length > 0 && visible;
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+    if (!running) {
+      element.style.opacity = "0";
+      return undefined;
+    }
+    const list = highlights.intervals;
+    let frame = 0;
+    const tick = () => {
+      const position = replayPositionAt(replay, Date.now());
+      let opacity = 0;
+      if (position !== null && position.playing) {
+        const index = highlightIntervalAt(list, position.positionMs);
+        const speed = Math.max(0.01, position.speed);
+        if (index < 0) opacity = 1;
+        else {
+          const sinceStart = (position.positionMs - list[index].startMs) / speed;
+          const untilEnd = (list[index].endMs - position.positionMs) / speed;
+          const fadeIn = 1 - sinceStart / REPLAY_HIGHLIGHT_FADE_MS;
+          const fadeOut = index + 1 < list.length ? 1 - untilEnd / REPLAY_HIGHLIGHT_FADE_MS : 0;
+          opacity = Math.min(1, Math.max(0, fadeIn, fadeOut));
+        }
+      }
+      element.style.opacity = String(opacity);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [highlights.intervals, replay, running]);
+  return <div ref={ref} className="replay-highlight-fade" aria-hidden="true" />;
 }

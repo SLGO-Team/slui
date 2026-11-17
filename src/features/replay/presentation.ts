@@ -68,6 +68,8 @@ export const REPLAY_TEXT = {
   timeLabel: "时间：",
   round: "回合：",
   roundStart: "回合开始",
+  highlight: "高光时刻",
+  highlightStart: "高光开始",
   actionStart: "动作开始",
   playerNone: "无玩家",
   cameraFirstPerson: "第一人称",
@@ -89,7 +91,8 @@ export const REPLAY_TEXT = {
     nextEvent: "跳转到任意玩家的下一次击杀",
     cameraMode: "切换镜头模式",
     endPlayback: "结束回放",
-    // SLGO's own (CS2's highlights button takes this place).
+    highlights: "切换高光时刻回放",
+    // SLGO's own (in CS2's settings button's place).
     catalog: "录像列表",
     endPlaybackAll: "结束回放（所有观众）",
   },

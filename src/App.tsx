@@ -28,11 +28,12 @@ import { winPanelRosterFromHud } from "./features/winpanel/presentation";
 import { TeamSelect } from "./features/teamselect/TeamSelect";
 import { selectTeamSelect } from "./features/teamselect/presentation";
 import { useTeamSelectFeature } from "./features/teamselect/useTeamSelectFeature";
-import { replayLineAgeMs, selectReplayMode } from "./features/replay/model";
+import { REPLAY_TOO_FAST_TEXT, replayLineAgeMs, selectReplayMode } from "./features/replay/model";
 import { useReplayFeature } from "./features/replay/useReplayFeature";
+import { useReplayHighlights } from "./features/replay/useReplayHighlights";
 import { catalogQuery, replayCatalog, replayCommandLabel, replayLoad, replayPin, replayUnpin } from "./features/replay/commands";
 import type { ReplayCatalogFilters } from "./features/replay/model";
-import { ReplayController } from "./features/replay/ReplayController";
+import { ReplayController, ReplayHighlightFade } from "./features/replay/ReplayController";
 import { ReplayCatalogPanel } from "./features/replay/ReplayCatalogPanel";
 import { HudTimeContext, wallDelayUntil } from "./shared/hudTime";
 import { createOverlayWindowController, type SlgoConnection } from "./platform";
@@ -945,9 +946,16 @@ function App({ harness }: AppProps) {
       shopFeature.resolveCommand({ command_id: command.command_id, command_kind: command.kind, status: "failed", reason });
     });
   }, [connection, overlayController, shopFeature.beginCommand, shopFeature.resolveCommand, shopFeature.availability]);
-  // Replay commands: recorded as pending (busy buttons, timeout, the seek target on the playhead), then sent; a send
-  // that fails resolves at once. Diagnostics: every command and its result go to the desktop log.
-  const handleReplayCommand = useCallback((command: ReplayCommand, seekMs: number | null = null) => {
+  // Replay commands: within the command budget (the sidecar's per-player limit, design 11-17 §2; over it the command
+  // is held back with a notice), recorded as pending (busy buttons, timeout, the seek target on the playhead), then
+  // sent; a send that fails resolves at once. Diagnostics: every command and its result go to the desktop log.
+  const replayBudget = replayFeature.budget;
+  const handleReplayCommand = useCallback((command: ReplayCommand, seekMs: number | null = null): boolean => {
+    if (!replayBudget.take()) {
+      overlayController.log(`replay command ${replayCommandLabel(command)} held back: over the command budget`);
+      replayFeature.notify(REPLAY_TOO_FAST_TEXT);
+      return false;
+    }
     replayFeature.beginCommand(command, seekMs);
     overlayController.log(`replay command ${replayCommandLabel(command)} sent`);
     void connection.send(command).catch((error: unknown) => {
@@ -955,7 +963,11 @@ function App({ harness }: AppProps) {
       overlayController.log(`replay command ${replayCommandLabel(command)} not sent: ${reason}`);
       replayFeature.sendFailed(command.command_id, reason);
     });
-  }, [connection, overlayController, replayFeature.beginCommand, replayFeature.sendFailed]);
+    return true;
+  }, [connection, overlayController, replayBudget, replayFeature.beginCommand, replayFeature.notify, replayFeature.sendFailed]);
+  const replayCommandWaitMs = useCallback(() => replayBudget.waitMs(), [replayBudget]);
+  // Highlights mode (CS2's film button): App drives it, so it keeps playing the intervals while the bar is hidden.
+  const replayHighlights = useReplayHighlights(replayFeature.state, handleReplayCommand);
   // The recordings list: the first open queries page 1; an accepted pin or unpin re-queries the page shown.
   const queryReplayCatalog = useCallback((page: number, filters: ReplayCatalogFilters): string | null => {
     const built = catalogQuery(filters, page);
@@ -1018,6 +1030,7 @@ function App({ harness }: AppProps) {
         <TeamSelect view={teamSelect} onCommand={handleTeamCommand} initialHover={teamSelectHover}
           still={teamSelectDebug !== null && !teamSelectDebug.fade} />
       ) : <>
+        {replayMode ? <ReplayHighlightFade replay={replayFeature.state} highlights={replayHighlights} /> : null}
         {/* An idle replay server has no match to show: the bar says nothing is loaded instead of "NO MATCH DATA". */}
         {replayIdle ? null : <HudTeamCounter
           hud={hud}
@@ -1059,7 +1072,7 @@ function App({ harness }: AppProps) {
         />
         {replayBarMode !== null ? (
           <ReplayController mode={replayBarMode} replay={replayFeature.state} hud={hud} catalogOpen={replayCatalogOpen}
-            onCommand={handleReplayCommand} onToggleCatalog={toggleReplayCatalog} onLeaveFull={leaveReplayConsole} />
+            highlights={replayHighlights} commandWaitMs={replayCommandWaitMs} onCommand={handleReplayCommand} onToggleCatalog={toggleReplayCatalog} onLeaveFull={leaveReplayConsole} />
         ) : null}
         {replayBarMode === "full" && replayCatalogOpen ? (
           <ReplayCatalogPanel catalog={replayCatalogState} pending={replayFeature.state.pending}
