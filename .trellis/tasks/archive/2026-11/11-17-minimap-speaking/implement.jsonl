@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "radar marker rules, icon scale, washes, v6/v7 contract"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "CS2 replication rules for SLUI-drawn icons and colours"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "protocol package boundary and contract changes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "protocol parser validation style"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "plugin -> sidecar -> SLUI field flow and version negotiation"}
+{"file": ".trellis/tasks/11-17-minimap-speaking/research/sl-voice-speaking.md", "reason": "SL voice path and the confirmed speaking mapping"}
+{"file": ".trellis/tasks/archive/2026-11/11-17-minimap-cs2-slui/research/cs2-radar-client-re.md", "reason": "CS2 speaking icon RE (section Speaking icons)"}

@@ -38,6 +38,8 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
     {/* The keycard's neutral wash where CS2 CreateBombPack keeps its orange #ff9b25 default: SLGO uses the SL NTF
         Captain (指挥官) role colour #003dca instead (user decision 2026-11-17). */}
     <ColorWash id={`${id}-commander`} rgb={[0, 61, 202]} />
+    {/* CS2 #SpeakingOnMap / #SpeakingOffMap wash-color #78ff00 over the source's #68ac4b fill. */}
+    <ColorWash id={`${id}-speaking`} rgb={[120, 255, 0]} />
     {SLOT_COLORS.map((color) => <ColorWash key={color} id={`${id}-${slotFilterKey(color)}`} rgb={rgbOf(color)} />)}
   </defs></svg>;
 });
@@ -140,10 +142,16 @@ function PlayerMarker({ marker, filterPrefix, slotColor, observer, teammateColor
   return <span className={`minimap-marker${enemy ? " minimap-marker--enemy" : ""}${facing ? " minimap-marker--self" : ""}${marker.edge ? " minimap-marker--edge" : ""}`}
     data-player-id={marker.playerId} data-visibility={marker.visibility} data-role={marker.role} data-status={marker.status} data-edge={marker.edge}
     data-hostile={marker.hostile} data-followed={marker.followed} data-selected={marker.selected} data-keycard={marker.hasKeycard}
+    data-speaking={marker.speaking}
     style={{ left: marker.x, top: marker.y, "--marker-filter": `url(#${filterPrefix}-${wash})`,
       ...((observer || !teammateColors) && !enemy && marker.hasKeycard ? { "--pack-wash": `url(#${filterPrefix}-commander)` } : {}) } as CSSProperties}>
     <span className="minimap-marker__direction" style={{ transform: `rotate(${marker.edge ? marker.edgeAngle : marker.yaw}deg)` }}>
       {facing && !marker.edge ? <img className="minimap-marker__view-angle" src="/assets/minimap/view-cone.svg" alt="" /> : null}
+      {/* CS2 #SpeakingOnMap / #SpeakingOffMap follow #ViewFrustrum in #PI_FirstRotated: under the dot and the edge arrow,
+          turning with them. The plugin sends `speaking` only for live teammates (v8). */}
+      {marker.speaking ? <img className={marker.edge ? "minimap-marker__speaking-offmap" : "minimap-marker__speaking"}
+        src={`/assets/minimap/${marker.edge ? "speaking-offmap.svg" : "speaking-onmap.svg"}`} alt=""
+        style={{ filter: `url(#${filterPrefix}-speaking)` }} /> : null}
       {!marker.edge && (!enemy || facing) ? <img className="minimap-marker__heading" src="/assets/minimap/heading-arrow.svg" alt="" /> : null}
       {marker.edge ? <img className="minimap-marker__edge-icon" src="/assets/minimap/offmap-arrow.svg" alt="" /> : null}
     </span>

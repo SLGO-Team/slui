@@ -20,7 +20,8 @@ minimap events stay on the sidecar connection.
 ## Compatibility
 
 - `protocol_version`: `0`
-- Envelope `schema_version`: `1`; minimap payload `minimap_schema_version`: `6`.
+- Envelope `schema_version`: `1`; minimap payload `minimap_schema_version`: `6`, `7` (demo replay) or `8`
+  (match servers with the speaking flag; see "Speaking (v8)").
 - No game version is pinned: since minimap v6 the plugin sends the actual map
   layout, so a game update does not change this protocol.
 - `schema_version` is an integer and must be rejected when unknown.
@@ -752,6 +753,30 @@ can be the first-person target). Only a demo replay server sends v7 (init and po
 the sidecar delivers it only to clients that declared 7 in `session.open`; a
 v6 frame never carries a free-camera viewpoint.
 
+### Speaking (v8)
+
+v8 adds one boolean per marker and nothing else; `minimap.init` only bumps its
+version and every other rule is the v6 one (a v8 frame never carries a
+free-camera viewpoint). Every v8 marker carries `speaking`; v6 and v7 markers
+must not. `speaking` is `true` when the server delivered this player's voice to
+the viewer within the last 0.2 s, which is what lights the CS2 radar speaker
+(`SpeakingOnMap` in range, `SpeakingOffMap` at the edge): the client is
+playing that player's voice and the server's voice mask lets it hear them. The
+plugin reads it per viewer after its own voice routing, so an observer mute or
+a block counts, and leaves out SCP-939 mimicry (a recorded voice, not the
+player talking). It may be `true` only on a `live` `teammate` marker: CS2 draws
+it for living teammates of a viewer on a team (alive or dead), never on the
+viewer, an opponent, an observed player, a death `X` or a ghost, and never for
+a team-less viewer or a demo replay.
+
+`speaking` is not part of the authorization set: it starts and stops without a
+new `visibility_revision`.
+
+Match servers send v8 (older plugins v6). The sidecar delivers a v8 event as is
+to a client that declared 8; to a client that declared 6 but not 8 it delivers
+a v6 copy (`minimap_schema_version` 6, every `speaking` removed); otherwise not
+at all.
+
 ### Bombsites (v5)
 
 v5 adds the bombsites (SLGO generator sites, the CS2 radar `BombZoneA/B`) to
@@ -780,7 +805,7 @@ also validates cross-object identity and pose relationships.
 
 `visibility_revision` is a non-negative safe integer. It increases when the
 authorized member/relationship/status set, the keycard holder or drop visibility,
-or the viewer team changes; movement, heading and
+or the viewer team changes; movement, heading, `speaking` and
 same-team spectating changes may reuse it. It does not replace the instance-wide
 safe-integer `sequence`. Frame receipt uses a local monotonic clock; only accepted
 new positions refresh age. Stale, disconnected or invalid frames clear all
@@ -892,8 +917,10 @@ frame must be [session-open.schema.json](./session-open.schema.json)
 `session_token`, never in the URL. `minimap_schema_versions` lists the minimap
 payload versions the client can render. The sidecar sends a `minimap.*` event
 only to connections whose list includes that event's `minimap_schema_version`
-(match servers send 6, a demo replay server 7), so a client without `6` gets
-no minimap from a match server. This is the minimap capability negotiation.
+(match servers send 8, or 6 from an older plugin; a demo replay server 7), except
+that a v8 event reaches a client that lists 6 but not 8 as a v6 copy without
+`speaking` (see "Speaking (v8)"). A client without `6` or `8` gets no minimap
+from a match server. This is the minimap capability negotiation.
 
 The token binds SteamID64, `server_id`, `instance_id` and identity mode. On
 success the sidecar sends `sidecar.baseline` for the routed instance, then

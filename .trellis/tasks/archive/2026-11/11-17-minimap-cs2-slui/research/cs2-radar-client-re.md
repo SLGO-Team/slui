@@ -214,3 +214,41 @@ but the value slot was not decoded). SLUI keeps colouring both teams on the coun
 - Player limit = 2 x `max_players_per_team` (competitive 10, casual 20). The literal SL `max_players` is not used:
   local competitive servers run 20 slots for spectators, which would turn slot colours off everywhere.
 - Side colour = SLGO role colours (the HUD already re-skins CS2's CT / T palettes as SCP / NTF).
+
+## Speaking icons (2026-11-17, child 11-17-minimap-speaking)
+
+Same build (`client.dll` 2026-11-12, disassembly approved by the user).
+
+- **Mask** (`0x180ec2150`, live on-map branch `0x180ec2461`): bit 2 SpeakingOnMap is added when icon flag
+  `+0x17c & 0x10` is set. The death (`+0x17c & 0x20`), ghost (`+0x17d & 1` clear) and type-0 branches never add it,
+  so only a living player's icon can carry a speaker. For an off-map icon the mask is doubled (`0x180ec24f4` /
+  `0x180ec24ab`), which turns bit 2 into bit 3 SpeakingOffMap together with OnMap -> OffMap.
+- **Flag** (player loop `0x180eb88f0`, `0x180eb90b6`-`0x180eb9116`): `+0x17c` bit 0x10 is rewritten every update as
+  `voice->IsTalking(slot) && voice->m_AudiblePlayers[slot] && (+0x17d & 0x08)`; the "not connected / not playing"
+  path (`0x180eb8b04`) clears it.
+  - `0x180c01b10` returns the client's `CVoiceStatus` (`0x18255a010`). `0x180c07e70(voice, slot)`: bit `slot` of
+    `+0x94` (set / cleared by `CVoiceStatus::UpdateSpeakerStatus`, `0x180c13c00`, as the engine starts / stops
+    playing that player's voice) and `0x180b32c10(slot) > 0`, which is the last voice level of that player, read as 0
+    once more than 0.2 s have passed since its last voice data. So the icon stays for 0.2 s after the last packet.
+  - `+0x9c` is `m_AudiblePlayers` (named by the `voice_clientdebug` print in `CVoiceStatus::HandleVoiceMaskMsg`,
+    `0x180c03aa0`): the server's per-listener mask of players this client may hear (sv_talk / deadtalk rules).
+  - `+0x17d & 0x08` (`0x180eb9058`-`0x180eb9090`): the local pawn's team is 2 (T) or 3 (CT), the player is on that
+    same team, and `mp_teammates_are_enemies` is 0 (ConVar at `0x1824ab348`, registered at `0x18008a690`; `+8` is its
+    value block, `+0x58` the value). A Spectator-team viewer, GOTV and demo playback (team 1) never get speakers;
+    opponents never get them.
+  - The local player's own voice goes through `UpdateSpeakerStatus(-1, ...)` (stored at `+0xd0`, not in the bitset),
+    so the local icon has no speaker (except with `voice_loopback`).
+- **Layout** (`hudradar.xml` / `hudradar.css`): `#SpeakingOnMap` (`map_speaking_onmap.vsvg`, 18x18, centred) and
+  `#SpeakingOffMap` (`map_speaking_offmap.vsvg`, 26x24, centred, y -3px) are the 2nd and 3rd children of
+  `#PI_FirstRotated` (after `#ViewFrustrum`, before every dot / arrow), so they turn with the heading, sit under the
+  dot / off-map arrow and get the icon scale; both `wash-color: #78ff00`. No mode, player-limit or casual check: the
+  only mode switch is `mp_teammates_are_enemies`.
+- Sources: `panorama/images/icons/ui/map_speaking_onmap.vsvg_c` / `map_speaking_offmap.vsvg_c` in `pak01`, whose
+  resource data embeds the Illustrator SVG (read 2026-11-17 with a minimal VPK reader; kept locally in
+  `D:/Temp/slui-speaking`, not in the repository). Both fill `#68AC4B`.
+  - OnMap (27.885 square): a ring centred (14.012, 14.080), outer r ~13.43, inner r ~11.43, plus a speaker polygon
+    `8.322,17.154 8.322,11.006 11.771,11.006 17.027,6.319 17.027,21.842 11.77,17.154` (horn opening right). At 18 px the
+    ring (~17.3 px across, ~1.3 px wide) circles the 11 px dot, which hides most of the speaker.
+  - OffMap (66 x 56.115): an upward triangle outline (outer 33.245,0.919 / 0.669,55.196 / 65.821,55.196; inner
+    33.245,8.241 / 7.325,51.429 / 59.166,51.429) around a speaker polygon
+    `25.247,40.304 25.247,31.513 30.178,31.513 37.696,24.81 37.696,47.007 30.177,40.304`.

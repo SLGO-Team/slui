@@ -44,7 +44,9 @@ last batched status can miss a connecting/baseline-required reset.
 ## 3. Contracts
 
 - Envelope remains protocol 0 / schema 1. Both minimap events require nonempty
-  `round_id`, valid `sent_at`, and payload `minimap_schema_version: 6`.
+  `round_id`, valid `sent_at`, and payload `minimap_schema_version` 6, 7 (demo replay, free camera) or 8 (match
+  servers, `speaking`). SLUI declares all three in `session.open` (`MINIMAP_SCHEMA_VERSIONS`); the sidecar sends a
+  client that lacks 8 a v6 copy without `speaking`.
 - Markers (since v3) carry `status` (`live` / `last-known` / `dead`) and
   `status_age_ms` instead of `is_alive`. The SLGO plugin runs the CS2 radar
   state machine (last-known 6000 ms, death 4000 ms); the client never keeps an
@@ -198,6 +200,20 @@ last batched status can miss a connecting/baseline-required reset.
   span), centred on the dot with CS2's 1px top / right margins (net 0.5px down, 0.5px left), scaled with the marker.
   `PlayerLetter`, footstep rings and team-counter numbers are not drawn. Mock preview: `?minimapViewer=observer`
   (team-less, every marker observed, opponents from the roster's SCP players, following `minimapSpectate`).
+- CS2 `#SpeakingOnMap` / `#SpeakingOffMap` (client.dll, task `11-17-minimap-speaking`): v8 markers carry a required
+  boolean `speaking`, which the parser allows to be true only on a `live` `teammate` (never self, an opponent, an
+  observed player, a death X or a ghost, so never for a team-less viewer or a replay). The plugin sets it when the
+  server delivered that teammate's voice to this viewer within 0.2 s (CS2: playing their voice and allowed by
+  `m_AudiblePlayers`; SL: `VoiceTransceiver.OnVoiceMessageReceiving` after SLGO's voice routing; SCP-939 mimicry
+  excluded). It is not authorization: it stays out of `authorizationKey` (and the plugin `Signature`) and toggles
+  under one `visibility_revision`. `RadarMarker.speaking` comes from the newest frame, never interpolated or faded
+  (CS2 just sets the mask bit). Drawn in the marker's first rotated `minimap-marker__direction`, after the view
+  sector and before the heading / dot / edge arrow (CS2 lists them right after `#ViewFrustrum`): in range
+  `speaking-onmap.svg` 18×18 at `left/top -9px`, at the edge `speaking-offmap.svg` 26×24 at `left -13px; top -15px`
+  (y -3) under the edge arrow, turning with the edge angle. Both keep their source fill `#68ac4b` and get the
+  `${id}-speaking` wash `#78ff00` (sRGB multiply, inline `filter` so it beats the marker wash), scaled with the
+  marker. `data-speaking`. Mock preview: `?minimapSpeaking=on|off`; the default `cycle` (1.5 s on / off) runs only
+  while the preview moves, so still audits stay deterministic.
 - v6 init carries the plugin's actual layout and pins no game version:
   `coordinate_system: "unity-world-xz"`, `grid` `{ x, z }` (the game's room
   cell, finite and positive) and `rooms` (1-256 `{ room_id, zone, name, shape,
@@ -406,6 +422,7 @@ last batched status can miss a connecting/baseline-required reset.
 | Invalid baseline payload | Do not activate the sequence guard's baseline eligibility |
 | Valid envelope, invalid minimap payload | Consume sequence; publish a safe local diagnostic; clear dynamic data |
 | Unknown minimap version | Local incompatible state; later valid HUD/shop remain usable |
+| `speaking` on a v6 / v7 marker, missing on a v8 marker, or true off a live teammate | The parser rejects the frame (`invalid-payload`) |
 | Unknown envelope version or wrong authenticated viewer | Revoke connection eligibility; require a new authenticated connection |
 | Invalid JSON/route while connected | Publish global status; require a new baseline |
 | Invalid room while geometry loads | Reject on resolution without committing its visibility revision |

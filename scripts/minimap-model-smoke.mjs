@@ -908,4 +908,22 @@ for (const time of [200, 232, 267]) {
     "a frame later than the playout delay never extrapolates: the camera holds the newest capture until it arrives");
 }
 
-console.log("minimap model smoke: 4 static layouts, 29 SVGs/110 mappings and zone+shape fallback; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, blur preference, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout, observation-right following and CS2 spectate selection / observer numbers passed");
+// v8 speaking (CS2 SpeakingOnMap / SpeakingOffMap): the flag reaches the radar marker from the newest frame and is not
+// authorization, so it toggles under one visibility revision.
+{
+  const quiet = (position) => ({ ...position, speaking: false });
+  const v8 = (talking) => ({ ...positions, minimap_schema_version: 8,
+    positions: positions.positions.map((position) => position === teammate || position === teammate2 ? { ...position, speaking: talking } : quiet(position)) });
+  let talk = event(ready(), "minimap.positions", v8(true), 3, 100);
+  assert.ok(talk.frame, "a v8 frame commits");
+  // The view is built in another module realm: copy into a local array before comparing.
+  const speakers = (view) => Array.from(view.markers.filter((marker) => marker.speaking), (marker) => marker.playerId).sort();
+  assert.deepEqual(speakers(selectMinimap(talk, 110)), [teammate.player_id, teammate2.player_id].sort());
+  talk = event(talk, "minimap.positions", v8(false), 4, 167);
+  assert.ok(talk.frame, "stopping to talk under the same revision is not an authorization change");
+  assert.deepEqual(speakers(selectMinimap(talk, 180)), [], "the newest frame decides, with no fade");
+  const v6 = selectMinimap(event(ready(), "minimap.positions", positions, 3, 100), 110);
+  assert.ok(v6.markers.every((marker) => marker.speaking === false), "a v6 frame never shows a speaker");
+}
+
+console.log("minimap model smoke: 4 static layouts, 29 SVGs/110 mappings and zone+shape fallback; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, blur preference, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout, observation-right following and CS2 spectate selection / observer numbers, v8 speaking passed");

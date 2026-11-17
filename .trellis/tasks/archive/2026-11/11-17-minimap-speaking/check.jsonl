@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "test and lint expectations"}
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "radar rules must match the implementation"}
+{"file": ".trellis/tasks/archive/2026-11/11-17-minimap-cs2-slui/research/cs2-radar-client-re.md", "reason": "verify visibility, layering and edge swap against the RE"}

@@ -37,10 +37,12 @@ export type RadarCamera = {
  * `hostile` = on the other team than the viewer (red enemy style); `followed` = the camera follows this marker.
  * `hasKeycard` = carries the commander keycard (the plugin only sends it on live friendly / observed markers).
  * `selected` = CS2 `#Selected`: the followed player of a viewer who is not alive (an observer), drawn in range only.
+ * `speaking` = v8 `speaking` (CS2 SpeakingOnMap / SpeakingOffMap): the plugin only sets it on a live teammate whose voice
+ * reached this viewer in the last 0.2 s; taken from the newest frame, never interpolated or faded (CS2 toggles the bit).
  */
 export type RadarMarker = RadarPoint & { playerId: string; visibility: MinimapPosition["visibility"]; role: MinimapPosition["role"];
   status: MinimapPosition["status"]; opacity: number; hostile: boolean; followed: boolean; selected: boolean; hasKeycard: boolean;
-  yaw: number };
+  speaking: boolean; yaw: number };
 /** A radar-space point clamped to the edge band like CS2 offmap icons; `edgeAngle` points outward when clamped. */
 export type RadarPoint = { x: number; y: number; edge: boolean; edgeAngle: number };
 export function radarShape(preferences: RadarPreferences, fullMap: boolean): RadarShape {
@@ -189,6 +191,6 @@ export function clampToRadar(point: WorldPoint, camera: RadarCamera): RadarPoint
 export function positionMarker(position: MinimapPosition, camera: RadarCamera, opacity = 1): RadarMarker {
   return { ...clampToRadar(position, camera), playerId: position.player_id, visibility: position.visibility, role: position.role,
     status: position.status, opacity, hostile: position.visibility.startsWith("spotted-"), followed: false, selected: false,
-    hasKeycard: position.has_commander_keycard, yaw: position.yaw_degrees - camera.yaw };
+    hasKeycard: position.has_commander_keycard, speaking: position.speaking === true, yaw: position.yaw_degrees - camera.yaw };
 }
 
