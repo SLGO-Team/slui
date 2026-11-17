@@ -1684,3 +1684,32 @@ Follow-up to the world blur restore crash: the reporter was on SL's 'Borderless 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 73: 小地图 CS2 对齐：SLUI 侧
+<!-- trellis-session: v=2 fp=05b5581ac22c8046 -->
+
+**Date**: 2026-11-17
+**Task**: 小地图 CS2 对齐：SLUI 侧
+**Branch**: `feat/minimap-cs2-parity`
+
+### Summary
+
+Planned the minimap CS2 parity parent task with three children and reverse-engineered the CS2 radar in client.dll (convar defaults, dynamic zoom, icon scale, bomb package, frame pulse, 98% edge clamp). Child 1 implemented: CS2 icon scale, native-size keycard with planted glow and both rings, orange observer pack, red frame pulse during a generator overload, CS2 dynamic zoom (95% fill, 4 s hold, 13.2 m/s, round radar only), 98% edge clamp with an unclipped marker layer, no zone dimming, no square frame, 0.1 s fade-in, measured location title, removed SLUI status text. Children 2 (speaking) and 3 (spectate box, player numbers) remain in planning.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9d1cf31` | chore(trellis): plan minimap CS2 parity tasks |
+| `6e7dbaf` | chore(trellis): plan and research minimap CS2 parity SLUI child |
+| `9929c3f` | feat(minimap): drop SLUI status text, zone dimming and the square frame; fade the radar in |
+| `b1af712` | feat(minimap): CS2 dynamic zoom (smoothed distance, 4 s hold, 95 % fill) and 98 % edge clamp |
+| `489c8dd` | feat(minimap): scale player icons with the radar zoom like CS2 PlayerIcons |
+| `ee126e9` | feat(minimap): CS2 planted keycard glow and rings, observer pack colour, red frame pulse during a generator overload |
+| `4d3f265` | feat(minimap): size and place the location title from an in-game measurement |
+| `06506f3` | test(minimap): CS2 parity audits, local-only dynamic zoom preview layout and spec update |
+
+### Status
+
+[OK] **Completed**
