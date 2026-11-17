@@ -8,7 +8,10 @@ export const RADAR_PANEL_SIZE = 300;
 export const RADAR_VIEW_SIZE = 250;
 export const RADAR_RADIUS = RADAR_VIEW_SIZE / 2;
 export const RADAR_NORMAL_WORLD_RADIUS = 45;
+/** Inset of the SLUI full-map fit (the overview camera), in design pixels. */
 export const RADAR_EDGE_PADDING = 12;
+/** CS2 clamps radar items to 98 % of the radius (client.dll: (VisSize * 0.98 * 0.5)^2); off-map icons sit there. */
+export const RADAR_EDGE_CLAMP = 0.98;
 export type RadarShape = "circle" | "square";
 export type RadarCamera = {
   center: WorldPoint; yaw: number; scale: number; mode: "follow" | "overview"; zone: MinimapZone | null;
@@ -160,8 +163,9 @@ export function clampToRadar(point: WorldPoint, camera: RadarCamera): RadarPoint
   const radius = camera.viewSize / 2;
   const dx = projected.x - radius, dy = projected.y - radius;
   const distance = camera.shape === "circle" ? Math.hypot(dx, dy) : Math.max(Math.abs(dx), Math.abs(dy));
-  const edge = distance > radius - RADAR_EDGE_PADDING;
-  const ratio = edge ? (radius - RADAR_EDGE_PADDING) / distance : 1;
+  const limit = radius * RADAR_EDGE_CLAMP;
+  const edge = distance > limit;
+  const ratio = edge ? limit / distance : 1;
   return { x: radius + dx * ratio, y: radius + dy * ratio, edge, edgeAngle: Math.atan2(dy, dx) * 180 / Math.PI + 90 };
 }
 

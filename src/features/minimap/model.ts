@@ -3,7 +3,7 @@ import { endsMatch, MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN
 import { assertSupportedMap, mapDescriptorKey, type MapGeometry } from "./resolver.ts";
 import { clampToRadar, createRadarCamera, positionMarker, radarShape, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
 import { normalizeRadarPreferences, type RadarPreferences, type RadarControls } from "./preferences.ts";
-import { advanceDynamicZoom, dynamicZoomTarget, dynamicZoomTargets, type DynamicZoomState } from "./dynamicZoom.ts";
+import { advanceDynamicZoom, dynamicZoomDistance, dynamicZoomScale, type DynamicZoomState } from "./dynamicZoom.ts";
 
 type Source = { serverId: string; instanceId: string };
 type MapIdentity = Source & { roundId: string; mapId: string };
@@ -255,10 +255,17 @@ function radarContext(state: MinimapState, nowMs: number, preferences: RadarPref
   const alternateZoomActive = Boolean(frame && viewpoint && state.focused && !fullMap
     && state.alternateZoomArmed && state.alternateZoomRequested);
   const selectedScale = alternateZoomActive ? preferences.alternateMapScale : preferences.mapScale;
-  const dynamicZoomActive = Boolean(preferences.dynamicZoom && state.focused && frame && viewpoint && state.geometry && !fullMap);
-  const identity = JSON.stringify([state.identity, frame?.payload.viewer.player_id, frame?.payload.viewer.team_id, viewpoint?.player_id, viewpoint?.zone,
+  // CS2 zooms dynamically only on the round radar (client.dll checks the round flag before cl_radar_scale_dynamic).
+  const dynamicZoomActive = Boolean(preferences.dynamicZoom && state.focused && frame && viewpoint && state.geometry && !fullMap
+    && radarShape(preferences, fullMap) === "circle");
+  const identity = JSON.stringify([state.identity, frame?.payload.viewer.player_id, frame?.payload.viewer.team_id, viewpoint?.player_id,
     radarShape(preferences, fullMap), preferences.orientation, preferences.alwaysCentered, selectedScale]);
-  return { frame, positions, fading, fullMap, viewpoint, alternateZoomActive, selectedScale, dynamicZoomActive, identity };
+  // CS2 fits every element it draws: live markers at their displayed poses, fading last-known / death markers and the
+  // keycard item while it shows. No zone filter (both zones are one level).
+  const keycard = frame?.payload.commander_keycard;
+  const zoomDistance = dynamicZoomActive && viewpoint && frame ? dynamicZoomDistance(viewpoint, [...positions, ...fading.map(({ position }) => position),
+    ...(keycard && keycardOpacity(keycard, frame.receivedAtMs, nowMs) !== null ? [keycard] : [])]) : 0;
+  return { frame, positions, fading, fullMap, viewpoint, alternateZoomActive, selectedScale, dynamicZoomActive, identity, zoomDistance };
 }
 
 // One pure transition coordinates camera-only timers with the authoritative map
@@ -279,14 +286,8 @@ export function minimapReducer(state: MinimapState, action: MinimapAction): Mini
     if (next === state && action.type !== "tick") return state;
   }
   const context = radarContext(next, nowMs, next.preferences);
-  const dynamicZoom = context.dynamicZoomActive && next.geometry && context.viewpoint && context.frame
-    ? advanceDynamicZoom(next.dynamicZoom, {
-      identity: context.identity,
-      targets: JSON.stringify(dynamicZoomTargets(context.positions, context.viewpoint)
-        .map((position) => [position.player_id, position.team_id, position.visibility]).sort((a, b) => a[0].localeCompare(b[0]))),
-      targetScale: dynamicZoomTarget(next.geometry, context.viewpoint, context.positions, next.preferences, context.selectedScale),
-      selectedScale: context.selectedScale, nowMs,
-    }) : null;
+  const dynamicZoom = context.dynamicZoomActive
+    ? advanceDynamicZoom(next.dynamicZoom, { identity: context.identity, target: context.zoomDistance, nowMs }) : null;
   const playout = context.frame ? advancePlayout(next, nowMs) : null;
   return { ...next, dynamicZoom, playout, frames: playout ? playableFrames(next.frames, playout.renderAtMs) : next.frames,
     radarUpdatedAtMs: nowMs };
@@ -389,11 +390,11 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
   const context = radarContext(state, nowMs, normalized);
   const { fullMap, alternateZoomActive, dynamicZoomActive } = context;
   const shape = radarShape(normalized, fullMap);
-  const targetMapScale = dynamicZoomActive && state.geometry && context.viewpoint
-    ? dynamicZoomTarget(state.geometry, context.viewpoint, context.positions, normalized, context.selectedScale)
-    : context.selectedScale;
-  const activeMapScale = dynamicZoomActive && state.dynamicZoom?.identity === context.identity
-    ? Math.min(targetMapScale, state.dynamicZoom.scale) : targetMapScale;
+  // The reducer's smoothed distance holds a shrinking extent; a growing one applies at once, even between ticks.
+  const zoomDistance = state.dynamicZoom?.identity === context.identity
+    ? Math.max(context.zoomDistance, state.dynamicZoom.distance) : context.zoomDistance;
+  const activeMapScale = dynamicZoomActive
+    ? dynamicZoomScale(zoomDistance, shape === "square" ? 290 : 250, context.selectedScale) : context.selectedScale;
   // Dynamic fitting, camera and markers share the same displayed poses. A newly
   // authorized target is included even while the followed viewpoint interpolates.
   const { positions, viewpoint } = context;
