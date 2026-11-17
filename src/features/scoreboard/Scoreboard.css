@@ -394,7 +394,8 @@
   height: 16px;
 }
 
-/* Avatar 24x24 framed in the player's slot colour (Panorama's player-color image over the avatar). */
+/* Avatar 24x24 framed in the player's slot colour (Panorama's player-color image over the avatar); no frame with
+   teammate colours off, where GetPlayerColor returns "" and scoreboard.js hides player-color. */
 .sb-cell--avatar img {
   display: block;
   width: 24px;
@@ -402,7 +403,7 @@
   object-fit: cover;
 }
 
-.sb-row .sb-cell--avatar::after {
+.sb-row .sb-cell--avatar[data-slot="true"]::after {
   content: "";
   position: absolute;
   inset: 0;

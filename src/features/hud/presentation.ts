@@ -116,20 +116,43 @@ export function playerSlotColors(teams: readonly Pick<HudTeamView, "role" | "pla
   return colors;
 }
 
+/** CS2's player limit for teammate colours and observer numbers (client.dll 0x180758180 `<= 10`). */
+export const TEAMMATE_COLOR_PLAYER_LIMIT = 10;
+
+/**
+ * Where CS2's teammate colours apply (cl_teammate_colors_show; task research cs2-teammate-colour-rule.md):
+ * - `slots`: the five slot colours on the radar, the radar keycard, the team counter avatars, the chat dot and the
+ *   scoreboard ring (0x18089fd20): a competitive-family mode and a player limit of at most 10.
+ * - `pips`: the buy menu teammate pips (0x180db3790), which only check the mode; grey otherwise.
+ * - `numbers`: the observer numbers on the radar (0x180ecd9b0), a player limit of at most 10.
+ * A field the plugin did not send (older plugin, demo replay) keeps today's behaviour: colours on, numbers while the
+ * match.snapshot roster has at most 10 players.
+ */
+export type TeammateColorRule = Readonly<{ slots: boolean; pips: boolean; numbers: boolean }>;
+
+export function teammateColorRule(hud: Pick<Extract<RoundHudViewModel, { hasSnapshot: true }>, "modeFamily" | "playerLimit" | "teams">): TeammateColorRule {
+  const competitive = hud.modeFamily !== "casual";
+  const limit = hud.playerLimit ?? hud.teams.reduce((count, team) => count + team.players.length, 0);
+  const withinLimit = limit <= TEAMMATE_COLOR_PLAYER_LIMIT;
+  return {
+    slots: hud.modeFamily === null || hud.playerLimit === null ? true : competitive && withinLimit,
+    pips: competitive,
+    numbers: withinLimit,
+  };
+}
+
 /**
  * CS2's observer player numbers (spec_player keys, team counter and radar `#PlayerNumber`; client.dll): one list, the
  * CT side's players then the T side's, each in team-counter order; position i gets (i + 1) % 10, so a six-player CT
  * side takes 1-6 and T starts at 7. The radar draws no number at all on a server for more than 10 players
- * (0x180ecd9b0); SLUI has no player limit, so a match.snapshot roster over 10 players stands in for it (user decision
- * 2026-11-17). SLGO's SCP side plays CT (`hudSideForRole`), and the order within a side is the match.snapshot list, the
- * same as `playerSlotColors`.
+ * (0x180ecd9b0): `show` is `teammateColorRule(hud).numbers`. SLGO's SCP side plays CT (`hudSideForRole`), and the order
+ * within a side is the match.snapshot list, the same as `playerSlotColors`.
  */
-export function playerObserverNumbers(teams: readonly Pick<HudTeamView, "role" | "players">[]): Readonly<Record<string, string>> {
-  const ordered = [...teams.filter((team) => hudSideForRole(team.role) === "ct"), ...teams.filter((team) => hudSideForRole(team.role) === "t")];
-  const players = ordered.flatMap((team) => team.players);
+export function playerObserverNumbers(teams: readonly Pick<HudTeamView, "role" | "players">[], show: boolean): Readonly<Record<string, string>> {
   const numbers: Record<string, string> = {};
-  if (players.length > 10) return numbers;
-  players.forEach((player, index) => { numbers[player.player_id] = String((index + 1) % 10); });
+  if (!show) return numbers;
+  const ordered = [...teams.filter((team) => hudSideForRole(team.role) === "ct"), ...teams.filter((team) => hudSideForRole(team.role) === "t")];
+  ordered.flatMap((team) => team.players).forEach((player, index) => { numbers[player.player_id] = String((index + 1) % 10); });
   return numbers;
 }
 

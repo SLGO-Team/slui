@@ -247,4 +247,14 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   assert.equal(cell(view.top.rows.find((row) => row.playerId === ECHO), "money"), "$2700", "the other team's money too");
 }
 
+{
+  // Teammate colours (teammateColorRule): slot rings in competitive 5v5, none in casual (scoreboard.js hides player-color).
+  const rowsOf = (view) => { const rows = [...view.top.rows, ...view.bottom.rows]; assert.ok(rows.length > 0); return rows; };
+  assert.ok(rowsOf(select()).every((row) => typeof row.slotColor === "string"), "an older plugin keeps the rings");
+  const withMode = (patch) => parsed({ ...match(), payload: { ...match().payload, ...patch } });
+  assert.ok(rowsOf(select({ hud: hudFor(withMode({ mode_family: "competitive", player_limit: 10 })) })).every((row) => typeof row.slotColor === "string"));
+  assert.ok(rowsOf(select({ hud: hudFor(withMode({ mode_family: "casual", player_limit: 20 })) })).every((row) => row.slotColor === null), "casual: no ring");
+  assert.ok(rowsOf(select({ hud: hudFor(withMode({ mode_family: "competitive", player_limit: 12 })) })).every((row) => row.slotColor === null), "over 10 players: no ring");
+}
+
 console.log("scoreboard model smoke: source rules, visibility, derived stats, blanks, money, sort chain, side switch and timeline ok");

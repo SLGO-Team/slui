@@ -247,6 +247,8 @@ assert.equal(parseEvent(makeMatchEvent()).ok, true);
     assert.equal(parsed.ok, true, "the slgo-backend publish-match-snapshot payload parses");
     assert.equal(parsed.value.generator_remaining_ms, 31_000);
     assert.equal(parsed.value.pause_remaining_ms, null);
+    assert.equal(parsed.value.mode_family, "competitive");
+    assert.equal(parsed.value.player_limit, 10);
     const viewerTeam = parsed.value.teams.find((team) => team.team_id === parsed.value.viewer_team_id);
     const otherTeam = parsed.value.teams.find((team) => team.team_id !== parsed.value.viewer_team_id);
     assert.deepEqual(viewerTeam.players[0].loadout, {
@@ -261,6 +263,21 @@ assert.equal(parseEvent(makeMatchEvent()).ok, true);
     assert.equal(otherTeam.players.some((player) => Object.hasOwn(player, "loadout")), false);
   } else {
     console.log("contract smoke: slgo-backend checkout not found, backend match.snapshot fixture skipped");
+  }
+
+  // Teammate-colour rule inputs (README "Teammate colours"): optional, validated when present.
+  assert.equal(v0Parsed.value.payload.mode_family, "competitive");
+  assert.equal(v0Parsed.value.payload.player_limit, 10);
+  assert.equal("mode_family" in parseMatchSnapshot(validSnapshot).value, false, "older plugins omit mode_family");
+  assert.equal(parseMatchSnapshot({ ...validSnapshot, mode_family: "casual", player_limit: 20 }).ok, true);
+  assert.equal(parseMatchSnapshot({ ...validSnapshot, mode_family: "competitive" }).ok, true, "each field is optional on its own");
+  assert.equal(parseMatchSnapshot({ ...validSnapshot, player_limit: 2 }).ok, true);
+  assert.equal(parseMatchSnapshot({ ...validSnapshot, player_limit: 128 }).ok, true);
+  for (const bad of ["Casual", "deathmatch", "", null, 0, true]) {
+    assert.equal(parseMatchSnapshot({ ...validSnapshot, mode_family: bad }).ok, false, `mode_family ${JSON.stringify(bad)} is rejected`);
+  }
+  for (const bad of [1, 129, 10.5, "10", null, -2]) {
+    assert.equal(parseMatchSnapshot({ ...validSnapshot, player_limit: bad }).ok, false, `player_limit ${JSON.stringify(bad)} is rejected`);
   }
 
   const loadout = { money: 3100, primary_item_id: "Scp173", utility_item_ids: ["HealthUpgrade2"], armor: null, has_commander_keycard: false, has_generator_upgrade: true };

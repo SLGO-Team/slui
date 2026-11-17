@@ -67,8 +67,10 @@ last batched status can miss a connecting/baseline-required reset.
   observer sees (CS2 never washes an observer's dots with teammate colours; it
   keeps the side colours, here SLGO's role colours NTF `#1ed2ff` / SCP `#ec6972`,
   user decision 2026-11-17). CS2 also falls back to side colours for a playing
-  member outside competitive modes or on servers for more than 10 players; SLUI
-  does not know either yet (follow-up task). Opponents and
+  member outside competitive modes or on servers for more than 10 players:
+  `teammateColorRule(hud).slots` false (cs2-visual-replication.md "Teammate
+  colours") reaches `MinimapRadar` as `teammateColors={false}`, and every friendly
+  marker, self included, takes the `ntf` / `scp` wash (no white `self`). Opponents and
   last-known ghosts stay red. The heading tip is never washed: it keeps the
   original white image with its black outline (the wash rule `.minimap-marker img`
   must not outrank the `filter: none` on `__heading` / `__ghost`; give those a
@@ -101,9 +103,10 @@ last batched status can miss a connecting/baseline-required reset.
   centred *over* its dot like the CS2 bomb pack over its carrier, undoing the marker's
   icon scale (`scale(calc(1 / var(--radar-icon-scale)))`). Wash as CS2 `CreateBombPack`:
   the carrier's marker wash (slot colour; red for an opponent), but orange `#ff9b25`
-  (`${id}-observer`, via `--pack-wash`) for a viewer on no team (`observer`). The item is
-  the same icon, white for its own side, orange for observers and red when `team_id` is
-  not the viewer's team. On the ground it shows the `#DroppedBomb` pulse ring (110px,
+  (`${id}-observer`, via `--pack-wash`) for a viewer on no team (`observer`) and for a
+  friendly carrier while teammate colours are off. The item is the same icon, white for
+  its own side (orange with teammate colours off), orange for observers and red when
+  `team_id` is not the viewer's team. On the ground it shows the `#DroppedBomb` pulse ring (110px,
   2px `#880000`); once `planted` it adds the `#PlantedBomb` ring (70px, 2px `#D10000`),
   so a planted card shows both, as CS2's visibility mask does. Both screen blend with
   `DroppedBomb--Animate` 0.75s. A planted card also pulses CS2 `PlantedBombAnimateRed`
@@ -189,8 +192,8 @@ last batched status can miss a connecting/baseline-required reset.
   numbers come from `playerObserverNumbers(hud.teams)` (hud/presentation.ts), App passes them as `playerNumbers`:
   CS2's team-counter list, CT side (SLGO SCP) then T side (NTF), each in match.snapshot order like the slot colours,
   contiguous, position i = `(i + 1) % 10` (six SCP players: 1-6, NTF from 7). CS2 draws no number at all on a
-  server for more than 10 players; SLUI has no player limit, so a roster over 10 players gets none. No protocol
-  field. `.minimap-marker__number`: 500 10px `Stratum2 Radar`, black, no shadow, upright (outside any rotated
+  server for more than 10 players: `playerObserverNumbers(teams, teammateColorRule(hud).numbers)`, which reads
+  match.snapshot `player_limit`, or the roster size from a plugin without it. `.minimap-marker__number`: 500 10px `Stratum2 Radar`, black, no shadow, upright (outside any rotated
   span), centred on the dot with CS2's 1px top / right margins (net 0.5px down, 0.5px left), scaled with the marker.
   `PlayerLetter`, footstep rings and team-counter numbers are not drawn. Mock preview: `?minimapViewer=observer`
   (team-less, every marker observed, opponents from the roster's SCP players, following `minimapSpectate`).

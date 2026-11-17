@@ -89,11 +89,32 @@ export function scpMockVitals(playerId: string, vitals: Pick<MatchPlayer, "healt
 
 const withMockLoadout = (player: MatchPlayer): MatchPlayer => ({ ...player, loadout: projectMockLoadout(player.player_id, player) });
 
+/**
+ * `?matchMode=` for previews of CS2's teammate-colour rule (`teammateColorRule`): `competitive` (default, a 5v5 plugin
+ * profile: mode_family competitive, player_limit 10), `casual` (casual, 20) or `legacy` (an older plugin without either
+ * field).
+ */
+export type MockMatchMode = "competitive" | "casual" | "legacy";
+
+export function readMockMatchMode(search: string = typeof window === "undefined" ? "" : window.location.search): MockMatchMode {
+  const mode = new URLSearchParams(search).get("matchMode");
+  return mode === "casual" || mode === "legacy" ? mode : "competitive";
+}
+
+/** The match.snapshot with the mode fields of `mode` (absent for `legacy`). */
+export function withMockMatchMode(snapshot: MatchSnapshot, mode: MockMatchMode = readMockMatchMode()): MatchSnapshot {
+  const { mode_family: _family, player_limit: _limit, ...rest } = snapshot;
+  if (mode === "legacy") return rest;
+  return { ...rest, mode_family: mode, player_limit: mode === "casual" ? 20 : 10 };
+}
+
 export const mockMatchSnapshot: MatchSnapshot = {
   viewer_team_id: "team-a",
   state: "ActionPhase",
   round: 7,
   max_rounds: 15,
+  mode_family: "competitive",
+  player_limit: 10,
   phase_remaining_ms: 93_000,
   phase_paused: false,
   generator_remaining_ms: null,
@@ -331,8 +352,9 @@ function mockSnapshotForViewer(viewerTeamId: "team-a" | "team-b"): MatchSnapshot
 
 /** A demo replay viewer's snapshot: no team, both teams with vitals and loadouts (README "Demo replay"). */
 export function mockOmniscientSnapshot(): MatchSnapshot {
+  // Demo replay writes no mode fields (the demo header has no max_players_per_team).
   return {
-    ...mockMatchSnapshot,
+    ...withMockMatchMode(mockMatchSnapshot, "legacy"),
     viewer_team_id: null,
     omniscient: true,
     teams: [mockSnapshotForViewer("team-a").teams[0], mockSnapshotForViewer("team-b").teams[1]],
@@ -340,7 +362,7 @@ export function mockOmniscientSnapshot(): MatchSnapshot {
 }
 
 export function createMockProvider(viewerTeamId: "team-a" | "team-b" = "team-a", shopRole: MockShopRole = "scp", replay: MockReplayScenario | null = null) {
-  const snapshot = mockSnapshotForViewer(viewerTeamId);
+  const snapshot = withMockMatchMode(mockSnapshotForViewer(viewerTeamId));
   const shopSnapshot = mockShopSnapshotFor(viewerTeamId, shopRole);
   const events = mockEvents.map((event) => (
     event.type === "match.snapshot"

@@ -36,7 +36,8 @@ function Mask({ src, className }: { src: string; className: string }) {
 
 function Avatar({ row }: { row: ScoreboardRowView }) {
   const [failed, setFailed] = useState(false);
-  return <span className="sb-cell sb-cell--avatar" style={{ "--sb-slot": row.slotColor } as CSSProperties}>
+  return <span className="sb-cell sb-cell--avatar" data-slot={row.slotColor !== null}
+    style={row.slotColor === null ? undefined : { "--sb-slot": row.slotColor } as CSSProperties}>
     <img src={failed ? row.fallbackAvatarUrl : row.avatarUrl} alt="" onError={() => setFailed(true)} />
   </span>;
 }

@@ -9,7 +9,7 @@ import { useShopFeature } from "./features/shop/useShopFeature";
 import { ChatInput } from "./features/chat/ChatInput";
 import { createChatCommand, validateChatBody, type ChatCloseReason } from "./features/chat/model";
 import { resolveChatSelf } from "./features/chat/presentation";
-import { hudVariantFor, playerObserverNumbers, playerSlotColors, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
+import { hudVariantFor, playerObserverNumbers, playerSlotColors, teammateColorRule, topHudPlayerMetaForHud, type HudPresentationVariant } from "./features/hud/presentation";
 import { useChatFeature } from "./features/chat/useChatFeature";
 import { MessageZone } from "./features/hudmessages/MessageZone";
 import { HUD_MESSAGES_EVENT_TYPES, hudMessagesReducer, initialHudMessagesState, selectMessageZone, selectProgressCard } from "./features/hudmessages/model";
@@ -910,15 +910,21 @@ function App({ harness }: AppProps) {
     : !sceneSelf.alive ? selectWatchedHud(hud, hudStatusState.spectating, scoreboardSnapshot)
       : sceneSelf.money === null || sceneSelf.money === bottomHudBase.balance ? bottomHudBase : { ...bottomHudBase, balance: sceneSelf.money },
   [bottomHudBase, hud, hudStatusState.spectating, sceneSelf, scoreboardSnapshot]);
-  // One slot colour per player across the HUD: radar markers and the shop's teammate-inventory pips.
+  // One slot colour per player across the HUD: radar markers and the shop's teammate-inventory pips. CS2 applies them
+  // only in a competitive-family mode for at most 10 players (teammateColorRule); the team counter and the scoreboard
+  // read the same rule from the HUD view.
+  const colorRule = hud.hasSnapshot ? teammateColorRule(hud) : null;
+  const teammateColors = colorRule?.slots ?? true;
+  const pipColors = colorRule?.pips ?? true;
+  const showObserverNumbers = colorRule?.numbers ?? false;
   const playerColors = useMemo(() => hud.hasSnapshot ? playerSlotColors(hud.teams) : {}, [hud]);
   // CS2 observer numbers for the radar; the radar shows them only to a team-less observer.
-  const playerNumbers = useMemo(() => hud.hasSnapshot ? playerObserverNumbers(hud.teams) : {}, [hud]);
+  const playerNumbers = useMemo(() => hud.hasSnapshot ? playerObserverNumbers(hud.teams, showObserverNumbers) : {}, [hud, showObserverNumbers]);
   // The viewer's team colour for the radar frame, as the bottom HUD uses; null for a team-less observer.
   const viewerRole = hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer")?.role ?? null : null;
   const chatSelf = useMemo(() => resolveChatSelf(
-    hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId,
-  ), [hud, localSteamId]);
+    hud.hasSnapshot ? hud.teams.find((team) => team.relation === "viewer") ?? null : null, localSteamId, teammateColors,
+  ), [hud, localSteamId, teammateColors]);
   const handleShopCommand = useCallback((command: ShopCommand) => {
     // Diagnostics: the command's round trip (sent, result with latency, no result within the timeout, send failure).
     const label = shopCommandTarget(command);
@@ -1039,6 +1045,7 @@ function App({ harness }: AppProps) {
           clockAt={hudClockAt}
           playerMeta={playerMeta}
           variant={hudVariant}
+          selfPlayerId={progressPlayerId}
         />}
         <WinPanel panelAt={winPanelAt} still={hudSceneStill} />
         <BottomHud view={bottomHud} still={hudSceneStill} />
@@ -1049,12 +1056,13 @@ function App({ harness }: AppProps) {
           onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
         <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
           controls={minimapControls}
-          playerColors={playerColors} playerNumbers={playerNumbers} role={viewerRole}
+          playerColors={playerColors} teammateColors={teammateColors} playerNumbers={playerNumbers} role={viewerRole}
           generatorActive={hud.hasSnapshot && hud.clockMode === "generator"} />
         <ShopPanel
           shop={displayedShop}
           role={shopRole}
           playerColors={playerColors}
+          pipColors={pipColors}
           localPlayerId={progressPlayerId}
           open={shopOpen}
           volume={shopVolume}
@@ -1066,6 +1074,7 @@ function App({ harness }: AppProps) {
         <ChatInput
           chat={chatFeature.state}
           self={chatSelf}
+          teammateColors={teammateColors}
           onDraft={chatFeature.setDraft}
           onToggleScope={chatFeature.toggleScope}
           onSubmit={handleChatSubmit}

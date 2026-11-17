@@ -19,6 +19,7 @@ import {
   hudSideForRole,
   PLAYER_COLORS,
   resolveHudTeams,
+  teammateColorRule,
   type HudPresentationVariant,
   type HudSide,
   type TopHudArmor,
@@ -36,11 +37,16 @@ export type HudTeamCounterProps = {
   clockAt: (nowMs: number) => RoundHudClockView | null;
   playerMeta?: TopHudPlayerMetaById;
   variant?: HudPresentationVariant;
+  /** The local player: with teammate colours off CS2 outlines their alive avatar in white. */
+  selfPlayerId?: string | null;
 };
 
 type PlayerSlotProps = {
   side: HudSide;
   index: number;
+  /** `teammateColorRule(hud).slots`: the slot-colour border, or CS2's plain side border when false. */
+  teammateColors: boolean;
+  self: boolean;
   meta?: TopHudPlayerMeta;
   showEquipment: boolean;
   shieldType: "ahp" | "hume";
@@ -150,15 +156,16 @@ function PlayerSlot(props: PlayerSlotProps) {
   // The detailed bars print the absolute values; the caps only scale the fill.
   const healthValue = aux ? aux.value : props.showHealth ? props.player.health ?? 0 : 0;
   const shieldValue = props.showHealth ? props.player.shield ?? 0 : 0;
+  const { teammateColors, self } = props;
   const style = {
-    "--hud-player-color": PLAYER_COLORS[side][index % PLAYER_COLORS[side].length],
+    ...(teammateColors ? { "--hud-player-color": PLAYER_COLORS[side][index % PLAYER_COLORS[side].length] } : {}),
     ...(healthPercent === null ? {} : { "--hud-health": `${healthPercent}%` }),
     ...(shieldPercent === null ? {} : { "--hud-shield": `${shieldPercent}%` }),
   } as CSSProperties;
 
   return (
     <div
-      className={`hud-player hud-player--${side} hud-player--${state} hud-player--${variant}${healthUnknown ? " hud-player--health-unknown" : ""}`}
+      className={`hud-player hud-player--${side} hud-player--${state} hud-player--${variant}${healthUnknown ? " hud-player--health-unknown" : ""}${teammateColors ? "" : " hud-player--plain"}${self ? " hud-player--self" : ""}`}
       data-player-state={state}
       data-health={props.showHealth ? (healthUnknown ? "unknown" : "visible") : "hidden"}
       data-shield={showShield ? shieldType : "hidden"}
@@ -219,11 +226,15 @@ function TeamPlayers({
   team,
   placement,
   variant,
+  teammateColors,
+  selfPlayerId,
 }: {
   playerMeta?: TopHudPlayerMetaById;
   team: HudTeamView;
   placement: "left" | "right";
   variant: HudPresentationVariant;
+  teammateColors: boolean;
+  selfPlayerId: string | null;
 }) {
   const side = hudSideForRole(team.role);
   const shieldType = team.role === "scp" ? "hume" : "ahp";
@@ -241,6 +252,8 @@ function TeamPlayers({
             side={side}
             index={index}
             meta={playerMeta?.[player.player_id]}
+            teammateColors={teammateColors}
+            self={player.player_id === selfPlayerId}
             showEquipment
             shieldType={shieldType}
             showHealth
@@ -254,6 +267,8 @@ function TeamPlayers({
             side={side}
             index={index}
             meta={playerMeta?.[player.player_id]}
+            teammateColors={teammateColors}
+            self={player.player_id === selfPlayerId}
             showEquipment={false}
             shieldType={shieldType}
             showHealth={false}
@@ -316,7 +331,7 @@ function PlayerCount({ side, alive }: { side: HudSide; alive: number }) {
   );
 }
 
-export const HudTeamCounter = memo(function HudTeamCounter({ hud, clockAt, playerMeta, variant = "compact" }: HudTeamCounterProps) {
+export const HudTeamCounter = memo(function HudTeamCounter({ hud, clockAt, playerMeta, variant = "compact", selfPlayerId = null }: HudTeamCounterProps) {
   const scale = useOverlayScale();
 
   if (!hud.hasSnapshot) {
@@ -330,6 +345,7 @@ export const HudTeamCounter = memo(function HudTeamCounter({ hud, clockAt, playe
   }
 
   const teams = resolveHudTeams(hud);
+  const teammateColors = teammateColorRule(hud).slots;
   const leftSide = hudSideForRole(teams.left.role);
   const rightSide = hudSideForRole(teams.right.role);
 
@@ -342,6 +358,8 @@ export const HudTeamCounter = memo(function HudTeamCounter({ hud, clockAt, playe
             team={teams.left}
             placement="left"
             variant={variant}
+            teammateColors={teammateColors}
+            selfPlayerId={selfPlayerId}
           />
           <div className="hud-scoreboard">
             <RoundClock clockAt={clockAt} paused={hud.paused} />
@@ -359,6 +377,8 @@ export const HudTeamCounter = memo(function HudTeamCounter({ hud, clockAt, playe
             team={teams.right}
             placement="right"
             variant={variant}
+            teammateColors={teammateColors}
+            selfPlayerId={selfPlayerId}
           />
         </div>
       </div>

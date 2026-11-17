@@ -216,6 +216,9 @@ Required boundary rules:
   traffic stay on the sidecar data plane.
 - `sequence` is monotonic within an instance. The client ignores older
   sequences and never merges snapshots from different instances.
+- `match.snapshot.mode_family` / `player_limit` are optional, validated when
+  present (`competitive` / `casual`; integer 2-128), and only feed
+  `teammateColorRule`; absent means "as before" (older plugin, demo replay).
 - `match.snapshot.viewer_team_id` is the stable `team-a` / `team-b` identity
   authorized for viewer-only fields, or `null` for a spectator. Only players
   on that team may include a `health` key. Opponent health is rejected by
@@ -519,7 +522,8 @@ request", "Sidecar session handshake", "Security boundary").
 - `owner_player_ids` (plugin: every alive holder on the viewer's team, the
   viewer included) draws the CS2 teammate-inventory pips, one per holder in
   team slot order, coloured by `playerSlotColors` (the colour the top HUD, chat
-  and radar use); `shopOwnerPipColors` falls back to the viewer's own
+  and radar use), or all grey `#787878` when `teammateColorRule(hud).pips` is
+  false (casual); `shopOwnerPipColors` falls back to the viewer's own
   `owned_quantity` for plugins without the field. A refused click or number
   key on an unavailable card puts its `unavailable_reason` in the yellow
   failure banner above the details card, the same banner a plugin rejection

@@ -16,6 +16,8 @@ export type ShopPanelProps = {
   role?: Role;
   /** HUD-wide player slot colours (playerSlotColors); they colour the teammate-inventory pips. */
   playerColors?: Readonly<Record<string, string>>;
+  /** `teammateColorRule(hud).pips`: false greys the pips (casual), keeping their slot order. */
+  pipColors?: boolean;
   /** The local player: the only holder an older plugin (no owner_player_ids) can report. */
   localPlayerId?: string | null;
   /** Player-opened via the shop hotkey; shown only while the buy window is open too. */
@@ -170,6 +172,7 @@ export const ShopPanel = memo(function ShopPanel({
   shop,
   role = "scp",
   playerColors = NO_PLAYER_COLORS,
+  pipColors = true,
   localPlayerId = null,
   open,
   volume = DEFAULT_AUDIO_SETTINGS.shopVolume,
@@ -405,7 +408,7 @@ export const ShopPanel = memo(function ShopPanel({
                       <span>{column.label}</span>
                     </div>
                     <div className="shop-column__items">
-                      {column.items.map((item, itemIndex) => <ShopCard key={item.item_id} item={item as ShopItemView} slot={itemIndex + 1} wash={wash} pips={shopOwnerPipColors(item, playerColors, localPlayerId)} onPurchase={handleItemPurchase} onRequest={handleItemRequest} onRefund={handleItemRefund} onRefundHover={handleRefundHover} onHover={handleItemHover} onPreview={setPreviewItemId} />)}
+                      {column.items.map((item, itemIndex) => <ShopCard key={item.item_id} item={item as ShopItemView} slot={itemIndex + 1} wash={wash} pips={shopOwnerPipColors(item, playerColors, localPlayerId, pipColors)} onPurchase={handleItemPurchase} onRequest={handleItemRequest} onRefund={handleItemRefund} onRefundHover={handleRefundHover} onHover={handleItemHover} onPreview={setPreviewItemId} />)}
                     </div>
                   </div>
                 ))}

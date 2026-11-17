@@ -110,6 +110,12 @@ export type MatchTeam = {
   players: MatchPlayer[];
 };
 
+export const MATCH_MODE_FAMILIES = ["competitive", "casual"] as const;
+export type MatchModeFamily = (typeof MATCH_MODE_FAMILIES)[number];
+/** Bounds of `match.snapshot.player_limit`: 2 x the plugin's `max_players_per_team` (1-64). */
+export const MATCH_PLAYER_LIMIT_MIN = 2;
+export const MATCH_PLAYER_LIMIT_MAX = 128;
+
 export type MatchSnapshot = {
   viewer_team_id: TeamId | null;
   /**
@@ -120,6 +126,13 @@ export type MatchSnapshot = {
   state: RoundState;
   round: number;
   max_rounds: number;
+  /**
+   * The game mode's family for CS2's teammate-colour rule (README "match.snapshot top-HUD fields"): `casual` for the
+   * casual profile, `competitive` for every other profile. Absent from older plugins and from demo replay.
+   */
+  mode_family?: MatchModeFamily;
+  /** The match's player cap, 2 x the profile's players per team (`MATCH_PLAYER_LIMIT_MIN`..`MAX`). Absent like `mode_family`. */
+  player_limit?: number;
   phase_remaining_ms: number;
   phase_paused: boolean;
   /** Generator overload time left (smallest over all activating generators); null/absent when none runs. */
@@ -1393,6 +1406,8 @@ export function parseMatchSnapshot(payload: unknown): ParseResult<MatchSnapshot>
   if (!isRecord(payload) || (payload.viewer_team_id !== null && !isTeamId(payload.viewer_team_id)) || !["Idle", "WaitingForPlayers", "PreRoundWait", "BuyPhase", "ActionPhase", "RoundEnd", "MatchEnd"].includes(String(payload.state)) || !Number.isInteger(payload.round) || Number(payload.round) < 0 || !Number.isInteger(payload.max_rounds) || Number(payload.max_rounds) < 1 || !Number.isInteger(payload.phase_remaining_ms) || Number(payload.phase_remaining_ms) < 0 || typeof payload.phase_paused !== "boolean" || !Array.isArray(payload.teams) || payload.teams.length !== 2) return error("invalid-payload", "Match snapshot is invalid");
   if (!isOptionalRemainingMs(payload.generator_remaining_ms) || !isOptionalRemainingMs(payload.pause_remaining_ms)) return error("invalid-payload", "Match snapshot clocks are invalid");
   if (payload.omniscient !== undefined && typeof payload.omniscient !== "boolean") return error("invalid-payload", "Match snapshot omniscient flag is invalid");
+  if (payload.mode_family !== undefined && !(MATCH_MODE_FAMILIES as readonly unknown[]).includes(payload.mode_family)) return error("invalid-payload", "Match snapshot mode family is invalid");
+  if (payload.player_limit !== undefined && (!Number.isInteger(payload.player_limit) || Number(payload.player_limit) < MATCH_PLAYER_LIMIT_MIN || Number(payload.player_limit) > MATCH_PLAYER_LIMIT_MAX)) return error("invalid-payload", "Match snapshot player limit is invalid");
   const omniscient = payload.omniscient === true;
   if (omniscient && payload.viewer_team_id !== null) return error("invalid-payload", "An omniscient match snapshot has no viewer team");
   // An omniscient (demo replay) viewer may see both teams' vitals and loadouts; everyone else only their own team's.

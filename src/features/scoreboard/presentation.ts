@@ -1,6 +1,6 @@
 import type { Role, RoundState, ScoreboardPlayer, ScoreboardRoundReason, ScoreboardSideStats, TeamId } from "../../contracts/index.ts";
 import type { HudPlayerView, HudTeamView, HudViewerPlayerView, RoundHudViewModel } from "../hud/model.ts";
-import { DEFAULT_AVATAR_BY_SIDE, hudPlayerState, hudSideForRole, playerSlotColors, type HudPlayerState, type HudSide } from "../hud/presentation.ts";
+import { DEFAULT_AVATAR_BY_SIDE, hudPlayerState, hudSideForRole, playerSlotColors, teammateColorRule, type HudPlayerState, type HudSide } from "../hud/presentation.ts";
 import { formatScoreboardElapsed, scoreboardElapsedMs, type ScoreboardFrame, type ScoreboardStat, type ScoreboardViewState } from "./model.ts";
 
 /**
@@ -60,7 +60,8 @@ export type ScoreboardRowView = Readonly<{
   name: string;
   avatarUrl: string;
   fallbackAvatarUrl: string;
-  slotColor: string;
+  /** The avatar frame's slot colour; null with teammate colours off (scoreboard.js hides `player-color`). */
+  slotColor: string | null;
   state: HudPlayerState;
   local: boolean;
   bot: boolean;
@@ -212,7 +213,7 @@ export function selectScoreboard({ hud, frame, view, localPlayerId }: SelectInpu
   const showingOtherSide = sideSwitchAvailable && view.side === "other";
   const columns = [...SCOREBOARD_PAGES[view.page], SCOREBOARD_DAMAGE_COLUMN];
   const statsById = new Map<string, ScoreboardPlayer>(board.players.map((player) => [player.player_id, player]));
-  const slotColors = playerSlotColors(hud.teams);
+  const slotColors = teammateColorRule(hud).slots ? playerSlotColors(hud.teams) : null;
   const topTeam = hud.teams.find((team) => team.role === SCOREBOARD_TOP_ROLE) ?? hud.teams[0];
   const bottomTeam = hud.teams.find((team) => team !== topTeam) ?? hud.teams[1];
 
@@ -236,7 +237,7 @@ export function selectScoreboard({ hud, frame, view, localPlayerId }: SelectInpu
         name: player.display_name,
         avatarUrl: player.avatar_url ?? DEFAULT_AVATAR_BY_SIDE[side],
         fallbackAvatarUrl: DEFAULT_AVATAR_BY_SIDE[side],
-        slotColor: slotColors[player.player_id] ?? "#ffffff",
+        slotColor: slotColors === null ? null : slotColors[player.player_id] ?? "#ffffff",
         state: hudPlayerState(player),
         local: player.player_id === localPlayerId,
         bot,

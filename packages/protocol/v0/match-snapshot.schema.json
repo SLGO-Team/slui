@@ -20,6 +20,16 @@
     },
     "round": { "type": "integer", "minimum": 0 },
     "max_rounds": { "type": "integer", "minimum": 1 },
+    "mode_family": {
+      "description": "Game mode family for the teammate-colour rule: casual for the casual profile, competitive for every other. Absent from older plugins and demo replay.",
+      "enum": ["competitive", "casual"]
+    },
+    "player_limit": {
+      "description": "Match player cap: 2 x the profile's max_players_per_team. Absent from older plugins and demo replay.",
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 128
+    },
     "phase_remaining_ms": { "type": "integer", "minimum": 0 },
     "phase_paused": { "type": "boolean" },
     "generator_remaining_ms": {
