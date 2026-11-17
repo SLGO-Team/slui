@@ -1735,3 +1735,26 @@ Traced CS2 client.dll: #Selected marks an observer's in-eye/chase target; #Playe
 ### Status
 
 [OK] **Completed**
+
+
+## Session 75: 小地图 CS2 对齐：成员槽位色按模式与人数
+<!-- trellis-session: v=2 fp=587abf28faf0aeb5 -->
+
+**Date**: 2026-11-17
+**Task**: 小地图 CS2 对齐：成员槽位色按模式与人数
+**Branch**: `feat/minimap-team-colour-mode`
+
+### Summary
+
+逆向核实顶部头像回落（#PlayerColor 挪进 #Invisible，只剩 2px 浅阵营色底框，自己白框）。match.snapshot 新增可选 mode_family / player_limit（协议 + contract、backend 夹具与 README、插件 ModeFamily/PlayerLimit 与测试，均本地合入未部署）。SLUI teammateColorRule 统一决定雷达、钥匙卡、头像、聊天圆点、计分板色圈、商店小点与观众编号；mock ?matchMode=；小地图视觉审计加竞技/休闲场景；spec 与 research 归档已更新。SCP 头像回落色 #ea8a92 暂定，待视觉评审。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `78e745f` | chore(task): verify CS2 team counter avatar fallback |
+| `0187177` | feat(hud): follow CS2 teammate colour rule by game mode and player limit |
+
+### Status
+
+[OK] **Completed**

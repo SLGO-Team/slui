@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 74
+- **Total Sessions**: 75
 - **Last Active**: 2026-11-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1737 | Active |
+| `journal-1.md` | ~1760 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 75 | 2026-11-17 | 小地图 CS2 对齐：成员槽位色按模式与人数 | `78e745f`, `0187177` | `feat/minimap-team-colour-mode` |
 | 74 | 2026-11-17 | Minimap CS2 spectate selection box and observer numbers | `44cf626` | `feat/minimap-spectate-number` |
 | 73 | 2026-11-17 | 小地图 CS2 对齐：SLUI 侧 | `9d1cf31`, `6e7dbaf`, `9929c3f`, `b1af712`, `489c8dd`, `ee126e9`, `4d3f265`, `06506f3` | `feat/minimap-cs2-parity` |
 | 72 | 2026-11-08 | Warn on SL hide-when-unfocused display mode | `6ddb8a1` | `feat/hide-when-unfocused-hint` |
