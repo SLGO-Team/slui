@@ -44,4 +44,14 @@ Each step is its own commit on the branch; revert the step's commit. No settings
 
 ## Notes
 
-- (filled during implementation: screenshot used for R7, research step 1 answers)
+- Step 1: the bomb package is translated only (not icon-scaled), so keycard 16x16, rings 110 / 70 px and bombsites
+  keep native sizes; the 10-05 recording shows the red frame after the plant and no frame on the square full map
+  (research file, "Follow-up").
+- Found while implementing: CS2 clamps items at 98 % of the radius and fits dynamic zoom at 95 %; dynamic zoom runs
+  only on the round radar; the square radar's icon zoom is the fixed 1 / 2.4. All three are in the PRD and spec.
+- R7: measured on a 1080p frame of the 10-05 recording at 140 s (radar HUD scale 1): "T起始点" inks 66x17, top 31 px
+  below the circle -> 18px, top 299px.
+- The mock's default layout keeps a teammate and an enemy in the other zone; with no zone filter they pinned the
+  dynamic-zoom preview, so `dynamicTargets` gained a `default` layout and near / far keep everyone local.
+- Visual audit (mock on 1430, `MINIMAP_PREVIEW_URL=http://127.0.0.1:1430/`) passed with the new icon-scale, planted
+  keycard and frame-pulse assertions; its screenshots were moved out of the repo.

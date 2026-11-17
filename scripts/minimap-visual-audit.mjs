@@ -596,6 +596,46 @@ try {
     await until('document.querySelector(".minimap-radar")?.dataset.availability === "live" && !!window.__SLUI_MINIMAP_DEBUG__');
     const transparent = await capture("transparent-background", { blurBackground: "true" });
     assert.equal(transparent.backdropFilter, "none", "the radar's blur is the world blur, never a page backdrop-filter");
+
+    // CS2 PlayerIcons scale, the planted keycard (both rings, red glow, native size) and the red frame pulse while a
+    // generator overload runs (task 11-17-minimap-cs2-slui).
+    await request("Page.navigate", { url: `${previewUrl}?hudDebug=0&shopDebug=0&background=0&minimapMotion=0&minimapKeycard=planted&hudClock=generator&minimapMapScale=0.7` });
+    await until('document.querySelector(".minimap-radar")?.dataset.availability === "live" && !!document.querySelector(".minimap-keycard-drop")');
+    const planted = await evaluate(`(() => {
+      const r = document.querySelector('.minimap-radar');
+      const s = r.getBoundingClientRect().width / 300;
+      const box = (e) => e.getBoundingClientRect().width / s;
+      const border = r.querySelector('.minimap-radar__border');
+      const item = r.querySelector('.minimap-keycard-drop');
+      const samples = [];
+      return new Promise((done) => {
+        const sample = () => {
+          samples.push(Number(getComputedStyle(border).opacity));
+          if (samples.length < 12) setTimeout(sample, 60); else done({
+            iconScale: Number(r.dataset.iconScale), dot: box(r.querySelector('.minimap-marker:not(.minimap-marker--enemy) .minimap-marker__dot')),
+            enemy: box(r.querySelector('.minimap-marker--enemy .minimap-marker__dot')), card: box(item.querySelector('.minimap-keycard-drop__icon')),
+            rings: [...item.querySelectorAll('.minimap-keycard-drop__pulse')].map((e) => [e.classList.contains('minimap-keycard-drop__pulse--planted') ? 'planted' : 'dropped', e.offsetWidth]),
+            glow: getComputedStyle(item.querySelector('img')).animationName, generator: r.dataset.generatorActive,
+            borderColor: getComputedStyle(border).borderTopColor, borderAnimation: getComputedStyle(border).animationName, samples });
+        };
+        sample();
+      });
+    })()`);
+    assert.ok(Math.abs(planted.iconScale - 1.055) < 1e-9, "icon scale = 0.6 + 0.65 x 0.7");
+    assert.ok(Math.abs(planted.dot - 11 * 1.055) < 0.05 && Math.abs(planted.enemy - 13 * 1.055) < 0.05, `player icons scale with the zoom: ${planted.dot} / ${planted.enemy}`);
+    assert.ok(Math.abs(planted.card - 16) < 0.05, "the keycard package keeps its native size");
+    assert.deepEqual(planted.rings, [["dropped", 110], ["planted", 70]], "a planted card shows both CS2 rings");
+    assert.equal(planted.glow, "minimap-keycard-planted", "a planted card pulses the red glow");
+    assert.equal(planted.generator, "true");
+    assert.equal(planted.borderColor, "rgb(255, 0, 0)");
+    assert.equal(planted.borderAnimation, "minimap-plant-pulse");
+    assert.ok(Math.max(...planted.samples) - Math.min(...planted.samples) > 0.3, `the red frame pulses: ${planted.samples.join()}`);
+    await request("Page.navigate", { url: `${previewUrl}?hudDebug=0&shopDebug=0&background=0&minimapMotion=0&minimapMapScale=0.25` });
+    await until('document.querySelector(".minimap-radar")?.dataset.availability === "live"');
+    const far = await evaluate(`(() => { const r = document.querySelector('.minimap-radar');
+      return { iconScale: Number(r.dataset.iconScale), border: getComputedStyle(r.querySelector('.minimap-radar__border')).borderTopColor !== 'rgb(255, 0, 0)' }; })()`);
+    assert.ok(Math.abs(far.iconScale - 0.7625) < 1e-9, "icon scale at mapScale 0.25");
+    assert.ok(far.border, "no generator overload, no red frame");
   }
   assert.deepEqual([...bombsiteTiers].sort(), ["false", "true"], "both bombsite tiers (on-map and edge) were rendered");
   assert.deepEqual(runtimeErrors, [], "Browser runtime/resource errors");

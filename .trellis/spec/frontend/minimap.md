@@ -90,24 +90,34 @@ last batched status can miss a connecting/baseline-required reset.
   `authorizationKey` (holder flag per marker + item `[status, state]`), mirroring the plugin `Signature`, so a
   change needs a new `visibility_revision`; age changes reuse it. The item room
   must belong to its zone (`validRooms`).
-- Keycard rendering follows CS2 `RI_BombDefuserPackage`: the holder gets
-  `KeycardNTFCommander.svg` (12×12 box, black drop shadow) centred *over* its dot
-  like the CS2 bomb pack over its carrier, washed with the carrier's marker wash
-  (slot colour; red for an opponent), as confirmed in CS2. The item is the same
-  icon, white for its own side and team-less observers and washed red when
-  `team_id` is not the viewer's team, plus the
-  `#DroppedBomb` pulse ring (80px = 110px × ~0.73, 2px `#880000`) when `dropped`
-  or the `#PlantedBomb` ring (51px = 70px × ~0.73, 2px `#D10000`) when `planted`,
-  both screen blend with `DroppedBomb--Animate` 0.75s; a `last-known` item fades as
+- Keycard rendering follows CS2 `RI_BombDefuserPackage` (client.dll, task
+  `11-17-minimap-cs2-slui` research). That package is not icon-scaled, so it keeps its
+  native size: the holder gets `KeycardNTFCommander.svg` (16×16 box, black drop shadow)
+  centred *over* its dot like the CS2 bomb pack over its carrier, undoing the marker's
+  icon scale (`scale(calc(1 / var(--radar-icon-scale)))`). Wash as CS2 `CreateBombPack`:
+  the carrier's marker wash (slot colour; red for an opponent), but orange `#ff9b25`
+  (`${id}-observer`, via `--pack-wash`) for a viewer on no team (`observer`). The item is
+  the same icon, white for its own side, orange for observers and red when `team_id` is
+  not the viewer's team. On the ground it shows the `#DroppedBomb` pulse ring (110px,
+  2px `#880000`); once `planted` it adds the `#PlantedBomb` ring (70px, 2px `#D10000`),
+  so a planted card shows both, as CS2's visibility mask does. Both screen blend with
+  `DroppedBomb--Animate` 0.75s. A planted card also pulses CS2 `PlantedBombAnimateRed`
+  (red drop-shadow 1px `#71060666` / 2px `#af0707aa` / 3px `#d50808ee`, 0.65s). The
+  24px `BombPlantedIcon*` panels are never shown by CS2 and are not drawn. A `last-known` item fades as
   `1 - age/8000` with age advanced by the local clock (`keycardOpacity`) and is not
   drawn once expired. It uses the markers' projection and edge clamp
   (`clampToRadar`), shows only the icon at the edge, renders beneath every player
-  marker and never drives the camera or dynamic zoom. The item wash goes through
+  marker and never drives the camera; dynamic zoom fits it while it shows. The item wash goes through
   `--keycard-wash` with an empty fallback (`var(--keycard-wash,)`), never `none`:
   `none drop-shadow(...)` is an invalid filter list and silently drops the
   shadow. Mock preview:
   `?minimapKeycard=carried`, `=dropped`, `=planted` or `=lost` (8 s fade loop); with
   `viewerTeam=team-b` the carried card sits on the spotted NTF enemy.
+- While a generator overload runs (HUD `clockMode === "generator"`, SLGO's planted and
+  not defused bomb; App passes `generatorActive`), the round frame turns `#ff0000` and
+  pulses CS2 `RadarBombPlantPulse` (opacity 0.1 / 0.6 / 0.8 / 0.6 / 0.1, 0.65s linear). It
+  is HUD knowledge every player has, like CS2's game-rules flag, not radar visibility.
+  Mock preview: `?hudClock=generator`.
 - v5 bombsites (CS2 radar `BombZoneA/B`, SLGO generator sites) live in
   `minimap.init.bombsites`: a required array (empty allowed, at most 26) of
   `{ label, x, y, z, zone, room_id }`, a heading-less pose with the marker
@@ -148,7 +158,18 @@ last batched status can miss a connecting/baseline-required reset.
   `status_age_ms` + local monotonic time since receipt; an expired marker is not
   drawn even while its frame is fresh. At the edge a ghost uses the offscreen
   arrow, a death `X` stays an `X`. Frozen markers render beneath live ones, are
-  never interpolated, and never drive the camera, viewpoint or dynamic zoom.
+  never interpolated, and never drive the camera or viewpoint; dynamic zoom fits them
+  while they fade (they are drawn elements).
+- Player markers are CS2 `PlayerIcons` at native Panorama sizes (OnMap 11, EnemyOnMap
+  13, OffMap 22 at y -1, Death 19, Ghost 9×15, ViewFrustrum 128×64 at y -12; the
+  heading tip keeps its tuned ratio to the disc) scaled as one by
+  `radarIconScale(zoom) = 0.6 + 0.65 · clamp(zoom, 0, 1)` (CS2
+  `cl_radar_icon_scale_min` default 0.6, not a setting). `zoom` (`radarZoom`) is the
+  active map scale when following, the overview's equivalent map scale on a round
+  overview, and CS2's fixed `1 / 2.4` on the square radar. `selectMinimap().iconScale`
+  feeds `--radar-icon-scale` on the marker layer; `.minimap-marker` scales from its
+  0×0 origin, so positions and the edge clamp stay in unscaled radar pixels. The old
+  "~0.73" marker scale was this formula at mapScale 0.25 (0.7625).
 - v6 init carries the plugin's actual layout and pins no game version:
   `coordinate_system: "unity-world-xz"`, `grid` `{ x, z }` (the game's room
   cell, finite and positive) and `rooms` (1-256 `{ room_id, zone, name, shape,
@@ -193,7 +214,13 @@ last batched status can miss a connecting/baseline-required reset.
   within the shared 1920x1080 overlay scale, multiplied by radar-only `hudScale`.
   Shape is `forceSquare || (fullMap && squareWithScoreboard)`. Camera projection,
   SVG clipping, offscreen markers and full-map fitting must share that shape
-  and view size. Full map fits both zones with 12px inset and never changes
+  and view size. Items clamp to the edge at 98 % of the half size (CS2
+  `(VisSize · 0.98 · 0.5)²`, `RADAR_EDGE_CLAMP`; the square keeps its Chebyshev metric).
+  The marker layer is not clipped to the viewport (CS2 clips only the 300px panel at
+  `rect(4px, 295px, 295px, 4px)`), so an off-map icon may reach past the round frame.
+  Only the round radar draws its 1px frame (CS2 `#Radar__Square--Border` is
+  collapsed). The radar fades in over 0.1s linear on mount (CS2 `.hud-radar`).
+  Full map fits both zones with 12px inset (SLUI's own fit) and never changes
   overlay input mode. At mapScale=0.70 the circular radius is 45 world units;
   otherwise it is `45 * 0.70 / mapScale`. Square mode preserves the same
   world-to-design-pixel scale and uses the additional visible area.
@@ -262,18 +289,23 @@ last batched status can miss a connecting/baseline-required reset.
   visibility and not a mutation of base mapScale. Focus loss/stale/source reset
   suppress it; an old held-true input must not silently reactivate on recovery.
   Full-map/absent-viewpoint overview takes precedence over manual/dynamic zoom.
-- Dynamic zoom uses only fresh, already-authorized markers in the viewpoint's
-  zone. Fit with 12px edge padding within [0.25,user-selected scale], expand
-  immediately, and after 2s of sustained smaller target extent restore at
-  0.35 scale units/s. These constants are SLUI behavior, not recovered native
-  CS2 values. Keep only camera scalar/time state, never retained enemy poses;
-  clear transient recovery when its source/context stops applying.
-  Target identity and recovery timing use the same same-zone/alive filter as
-  fitting; an unrelated off-zone change must not postpone local recovery.
-  Fit the displayed interpolated poses shared by the camera and markers, not
-  the raw latest pose alone, so new targets enter immediately during movement.
-- Camera cost: `createRadarCamera` runs on every displayed frame, and dynamic zoom
-  builds up to 22 cameras per fit in both the reducer and `selectMinimap`. So
+- Dynamic zoom is CS2 `cl_radar_scale_dynamic` (client.dll; `dynamicZoom.ts`). It runs
+  only on the round radar, while focused, with a fresh frame and a viewpoint, never on
+  the full map. Target = the largest horizontal distance from the viewpoint to every
+  drawn element: live markers at their displayed (interpolated) poses, fading
+  last-known / death markers and the keycard item while it shows; no zone filter
+  (Entrance and Heavy Containment are one level); bombsites are not fitted. The
+  reducer keeps a smoothed distance: a target at or above it applies at once and
+  clears the hold; a smaller one starts a 4 s hold at its first frame (not restarted
+  by later smaller targets), after which the distance approaches the target at
+  13.208 m/s (CS2 520 units/s at 1 unit = 0.0254 m). The selector uses
+  `max(target, stored)`, so growth never waits for a tick. Scale =
+  `dynamicZoomScale`: the farthest element at 95 % of the half size, within
+  [0.25, selected scale]. Identity (viewer, team, followed player, shape,
+  orientation, centring, selected scale) or a backwards clock restarts it; the
+  followed player crossing zones does not. Keep only scalar/time state, never
+  retained enemy poses; clear it when its source/context stops applying.
+- Camera cost: `createRadarCamera` runs on every displayed frame. So
   `camera.ts` caches, per `MapGeometry` object (`WeakMap`), each zone's corners in
   projected `(x, -z)` (`Float64Array`) and the overview `farthest` per shape.
   `MapGeometry` is immutable once `resolveMinimapSync` built it: derive a new
@@ -308,6 +340,12 @@ last batched status can miss a connecting/baseline-required reset.
   comes out at most 3/255 brighter. Outside rooms the fill stays a either way.
   With `mapBlend` off the rooms cover the fill opaquely as before. No filters (task
   `11-03-radar-map-blend`).
+- The radar draws no SLUI status text (no live/sync/stale/offline row, no
+  "队伍视野", no centred empty-state text, no zone caption): CS2 has none. The
+  availability stays in `data-availability` and diagnostics.
+- The location title is CS2 `#DashboardLabel`, sized from an in-game 1080p measurement
+  rather than Panorama's 22px (its CJK fallback inks smaller): 18px, `top: 299px`, so
+  "T起始点" inks 64×17 with its top 31px below the circle, as in game.
 - Do not globally fade markers/text for background alpha. Background alpha remains independently
   configurable.
 - Freshness uses local `performance.now()` and
@@ -406,7 +444,12 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
 - Configuration regressions cover all numeric bounds/invalid inputs, partial
   compatibility, circle/square projection and fitting, non-centered rotated
   cameras, base/alternate/dynamic precedence and focus/stale/permission resets.
-  `minimap-model-smoke` also compares every camera mode and `dynamicZoomTarget`
+  Dynamic zoom tests cover instant growth, the 4 s hold and its boundary, the
+  13.208 m/s shrink, a running timer kept by smaller targets, 95 % fill, the
+  [0.25, selected] clamp, the round-only rule, fading markers and the keycard item
+  fitted, no zone filter and identity / stale / reconnect resets. Icon-scale tests
+  cover the formula at 0.25 / 0.7 / 1, clamping, square and round overview zoom.
+  `minimap-model-smoke` also compares every camera mode
   bit-exactly (`deepStrictEqual`, i.e. `Object.is`) with an in-test copy of the
   uncached algorithm over all four layouts plus a single-zone layout, twice so
   warm caches of other geometries are read; include a yaw (13.7) where angle

@@ -13,7 +13,12 @@ export type MinimapPreviewOptions = RadarPreferences & {
   paused: boolean;
   motion: boolean;
   enemies: boolean;
-  dynamicTargets: "near" | "far";
+  /**
+   * Preview-only dynamic-zoom layout. `default` keeps a teammate and an enemy in the other zone. CS2 dynamic zoom fits
+   * every drawn element whatever its zone, so `near` / `far` move those two into rooms next to the viewer and only the
+   * first enemy decides the extent: two rooms away (`near`) or at least 60 m away (`far`).
+   */
+  dynamicTargets: "default" | "near" | "far";
   spectate: 0 | 1;
   /** Preview-only: the second enemy is a plugin-authored last-known marker whose age loops over 6 s. */
   lastKnown: boolean;
@@ -31,7 +36,7 @@ export type MinimapPreviewOptions = RadarPreferences & {
 
 export const defaultMinimapPreviewOptions: MinimapPreviewOptions = {
   ...DEFAULT_RADAR_PREFERENCES, zone: "HeavyContainment", life: "alive", alternateZoomActive: false,
-  scoreboard: false, paused: false, motion: true, enemies: true, dynamicTargets: "near", spectate: 0,
+  scoreboard: false, paused: false, motion: true, enemies: true, dynamicTargets: "default", spectate: 0,
   lastKnown: false, deaths: false, keycard: "none", bombsites: true,
 };
 
@@ -60,7 +65,7 @@ export function readMinimapPreviewOptions(search = window.location.search): Mini
     paused: params.get("minimapPaused") === "1",
     motion: params.get("minimapMotion") !== "0",
     enemies: params.get("minimapEnemies") !== "0",
-    dynamicTargets: params.get("minimapDynamicTargets") === "far" ? "far" : "near",
+    dynamicTargets: (["near", "far"] as const).find((value) => value === params.get("minimapDynamicTargets")) ?? "default",
     spectate: params.get("minimapSpectate") === "1" ? 1 : 0,
     lastKnown: params.get("minimapLastKnown") === "1",
     deaths: params.get("minimapDeaths") === "1",
@@ -129,6 +134,9 @@ export function createMinimapFrame(
   const nearby = [...zoneRooms].sort((a, b) =>
     Math.hypot(a.position.x - anchor.position.x, a.position.z - anchor.position.z)
     - Math.hypot(b.position.x - anchor.position.x, b.position.z - anchor.position.z));
+  // Rooms for the two markers that otherwise sit in the other zone (see `dynamicTargets`).
+  const localOnly = options.dynamicTargets !== "default";
+  const awayRoom = (index: number) => localOnly ? (nearby[index] ?? anchor) : otherRooms[index === 3 ? Math.floor(otherRooms.length / 2) : 0];
   const enemyRoom = options.dynamicTargets === "far"
     ? nearby.find((room) => Math.hypot(room.position.x - anchor.position.x, room.position.z - anchor.position.z) >= 60)
       ?? nearby[nearby.length - 1]
@@ -154,13 +162,13 @@ export function createMinimapFrame(
   const markers: Omit<MinimapPosition, "has_commander_keycard">[] = [
     ...(alive ? [{ ...pose(anchor, 0), player_id: viewerId, team_id: team, role: friendlyRole, visibility: "self", status: "live", status_age_ms: 0 } as MinimapPosition] : []),
     { ...pose(nearby[1] ?? anchor, 1), player_id: ids[0], team_id: team, role: friendlyRole, visibility: "teammate", status: "live", status_age_ms: 0 },
-    { ...pose(otherRooms[Math.floor(otherRooms.length / 2)], 2), player_id: ids[1], team_id: team, role: friendlyRole, visibility: "teammate", status: "live", status_age_ms: 0 },
+    { ...pose(awayRoom(3), 2), player_id: ids[1], team_id: team, role: friendlyRole, visibility: "teammate", status: "live", status_age_ms: 0 },
     ...(options.enemies ? [
       { ...pose(enemyRoom, 3), player_id: ids[2], team_id: enemyTeam, role: enemyTeam === "team-a" ? "ntf" : "scp", visibility: "spotted-by-teammate", status: "live", status_age_ms: 0 } as MinimapPosition,
       options.lastKnown
         ? { ...pose(enemyRoom, 4), x: pose(enemyRoom, 4).x + 6, player_id: ids[3], team_id: enemyTeam, role: enemyTeam === "team-a" ? "ntf" : "scp",
           visibility: "spotted-by-teammate", status: "last-known", status_age_ms: Math.floor(elapsedMs % MINIMAP_LAST_KNOWN_MS) } as MinimapPosition
-        : { ...pose(otherRooms[0], 4), player_id: ids[3], team_id: enemyTeam, role: enemyTeam === "team-a" ? "ntf" : "scp", visibility: "spotted-by-teammate", status: "live", status_age_ms: 0 } as MinimapPosition,
+        : { ...pose(awayRoom(4), 4), player_id: ids[3], team_id: enemyTeam, role: enemyTeam === "team-a" ? "ntf" : "scp", visibility: "spotted-by-teammate", status: "live", status_age_ms: 0 } as MinimapPosition,
     ] : []),
     ...(options.deaths && ids[4] ? [{ ...pose(nearby[3] ?? anchor, 5), player_id: ids[4], team_id: team, role: friendlyRole,
       visibility: "teammate", status: "dead", status_age_ms: Math.floor(elapsedMs % MINIMAP_DEAD_MS) } as MinimapPosition] : []),
