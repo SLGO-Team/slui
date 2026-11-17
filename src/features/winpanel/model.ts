@@ -23,7 +23,9 @@ export const initialWinPanelState: WinPanelState = { source: null, frame: null, 
 
 export type WinPanelAction =
   | { type: "event"; event: SlgoEvent; receivedAtMs: number }
-  | { type: "connection"; status: ConnectionStatus };
+  | { type: "connection"; status: ConnectionStatus }
+  /** Demo replay: the recording changed (another one, or unloaded); its frames go (design 11-07-demo-replay-slui §11.6). */
+  | { type: "replay-reset" };
 
 const sameSource = (a: WinPanelSource | null, serverId: string, instanceId: string) =>
   a !== null && a.serverId === serverId && a.instanceId === instanceId;
@@ -47,6 +49,8 @@ export const WIN_PANEL_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<Slg
 export function winPanelReducer(state: WinPanelState, action: WinPanelAction): WinPanelState {
   // Only an ended instance clears the panel; other drops keep it for a reconnect to the same instance.
   if (action.type === "connection") return endsMatch(action.status) && state !== initialWinPanelState ? initialWinPanelState : state;
+  // A late copy of the dropped panel must not bring it back.
+  if (action.type === "replay-reset") return state.frame === null ? state : { ...state, frame: null, endedResultId: state.frame.panel.result_id };
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     // A reconnect to the same instance keeps the panel until the replayed snapshot arrives.

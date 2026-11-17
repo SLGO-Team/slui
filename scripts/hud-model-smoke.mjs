@@ -245,6 +245,24 @@ assert.deepEqual(HUD_GENERATOR_PULSE_SECONDS, { slow: 0.8, medium: 0.5, fast: 0.
   assert.deepEqual(meta.orion, { money: 1900, utility: [], hasC4: false, hasDefuser: false }, "a dead teammate shows money only");
 }
 
+// Demo replay: an omniscient snapshot (no viewer team) shows both teams in full as `observer`, never `viewer`.
+{
+  const kestrelLoadout = { ...deadLoadout, money: 2700 };
+  const omniscient = hudFor({
+    viewer_team_id: null,
+    omniscient: true,
+    teams: makeSnapshot().teams.map((team) => team.team_id === "team-b"
+      ? { ...team, players: [{ ...team.players[0], health: 900, shield: 120, max_health: 1800, max_shield: 300, loadout: kestrelLoadout }] }
+      : team),
+  }).hud;
+  assert.deepEqual(omniscient.teams.map((team) => team.relation), ["observer", "observer"]);
+  assert.equal(omniscient.teams[1].players[0].health, 900, "the other team's vitals reach the observer");
+  assert.deepEqual(Object.keys(topHudPlayerMetaForHud(omniscient)).sort(), ["kestrel", "nova", "orion"], "both teams' equipment");
+  assert.equal(hudVariantFor(omniscient, "nova"), "detailed", "no viewer team: the observer sees the detailed HUD");
+  const plain = hudFor({}).hud;
+  assert.deepEqual(hudFor({ omniscient: false }).hud, plain, "omniscient false is the match-server view");
+}
+
 assert.deepEqual(topHudPlayerMetaForHud({ hasSnapshot: false }), {});
 assert.deepEqual(loadoutToPlayerMeta({ ...ntfLoadout, primary_item_id: "Jailbird", utility_item_ids: [] }).weapon, undefined, "an unknown primary id draws no weapon");
 assert.deepEqual(loadoutToPlayerMeta({

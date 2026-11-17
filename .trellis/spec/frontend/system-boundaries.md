@@ -224,7 +224,13 @@ Required boundary rules:
   the viewer team (`null` for an offline teammate) and never in the spectator
   variant. The top HUD derives its equipment summaries from these loadouts
   (`topHudPlayerMetaForHud`); mocks feed the same adapter through
-  `loadout` in their snapshots, never through a side channel.
+  `loadout` in their snapshots, never through a side channel. The one
+  exception is a demo replay's omniscient snapshot (`omniscient: true`, which
+  requires `viewer_team_id: null`): both teams may carry vitals and loadouts,
+  and `selectRoundHud` gives both teams `relation: "observer"` (drawn like the
+  viewer's team: detailed rows, health, equipment, scoreboard money). Code that
+  hides data from the other side tests `relation === "opponent"`, never
+  `relation !== "viewer"`, so an observer sees everything.
 - Viewer-team vitals are absolute values on the plugin's scale (SCP health
   runs into the thousands). Bars divide by the snapshot caps `max_health` /
   `max_shield` (`hudHealthPercent` / `hudShieldPercent`); only an older plugin
@@ -358,6 +364,48 @@ Required boundary rules:
 - The control plane issues a short-lived, server-scoped session token; the
   sidecar validates it locally so real-time updates do not require a
   central-server round trip.
+
+### Demo replay (`src/features/replay`)
+
+Wire rules: `packages/protocol/v0/README.md` "Demo replay". A replay server is an SLGO server that plays recordings
+instead of a match; the same session, sidecar and HUD features serve it.
+
+- Declaration: `replay` (`CLIENT_FEATURE_REPLAY`) is in `OVERLAY_CLIENT_FEATURES`. It is not an input feature, so it
+  stays declared while input is blocked (elevated game, exclusive fullscreen): the passive bar and the HUD keep
+  working. A replay server sends `replay.state`, `replay.catalog` and the omniscient HUD only to players declaring it.
+- Mode: replay mode is entered by the first `replay.state` and is a property of the connection, not a setting. After a
+  `sidecar.baseline` the next event decides: the sidecar replays the cached `replay.state` first on a replay server;
+  any other event first means a match server, and the HUD clock goes back to the wall clock. `endsMatch` statuses
+  clear the replay state (filters survive). Outside replay mode no replay UI renders and the replay key is ignored
+  (`replay key ignored: not on a replay server`), so a match server looks exactly like before the feature.
+- HUD clock (`replay/clock.ts`, `HudClock`, `hudTimeAt`, `anchorHudClock`): every HUD reducer stamps frames with
+  `intake(...).hudMs` and every HUD selector reads HUD time, so `remaining = value - (now - receivedAt)` runs on
+  recording time: frozen while paused or with nothing loaded, scaled by the speed, across intro skips, stopped at the
+  end. Each `replay.state` re-anchors at its receipt so HUD time is continuous and never goes backwards; a seek does not
+  move it (the plugin republishes the HUD at the new position). Components that count down themselves read
+  `HudTimeContext` (`MessageZone`, `ProgressCard`, `ChatInput`), never `Date.now()`.
+- Recording change (`replayTransition(...).hudReset`: another `match_id`, load or unload) dispatches `replay-reset`
+  to the HUD, win panel, killfeed and scoreboard reducers, so the old recording's frames never show over the new one.
+  A jump (`jump`) clears the chat lines; the plugin republishes the recorded chat around the new position. The chat
+  keys do nothing on a replay server.
+- Commands (`replay/commands.ts`): `command.replay.catalog | load | unload | control | pov | pin | unpin`, all through
+  `handleReplayCommand`, which records them as pending (`beginCommand`: busy buttons, an 8 s timeout `REPLAY_COMMAND_TIMEOUT_MS`, the seek target
+  the playhead shows) before sending. A rejected or failed result sets `notice` (status line, 6 s,
+  `replayFailureText`: `<label>被拒绝：<plugin reason>`; `reason: "unsupported"` = 当前服务器不支持回放). An
+  accepted pin / unpin bumps `catalog.revision`, which re-queries the page shown (the protocol does not push a new
+  page). A late `replay.catalog` for an older query is dropped (`command_id` must equal `catalog.commandId`).
+- Seek pacing (`createSeekPacer`, `REPLAY_SEEK_WINDOW_MS` 250): ±10 s buttons and held arrow keys merge into one
+  `seek delta_ms` per window (at most 4 per second; a sum of 0 sends nothing); a timeline drag sends one absolute
+  `seek` on release and nothing on Escape or pointer cancel.
+- Playback edges are SLUI's: play after a speed change sends `speed 1` then `play` (CS2's "resume at 1x"); play at the
+  end sends `seek 0` then `play`; round stepping is clamped to the first and last round (CS2 `OnStepInterval`), so
+  the UI never asks for a round that does not exist.
+- Exit (退出) is `unload`, which affects every viewer of the server: it needs a second click within 3 s.
+- Bar and console: the replay key cycles minimal → full → hidden; only the full bar (the console) takes the mouse and
+  keyboard, like the shop (`overlayInteractive`). The key opens it only while the game holds the foreground (the
+  hook's rule for every overlay key); losing the foreground, Escape (after any open popup or the recordings panel)
+  and input becoming blocked close it back to minimal. With no recording loaded, opening the console opens the
+  recordings panel, which queries page 1 on its first open.
 
 ### 3.0 Real backend adapters
 
@@ -750,7 +798,7 @@ by window label (`?window=home` in a browser preview).
   know their game is elevated (inherited from Steam or a launcher). An elevated retry while a non-elevated SLUI still
   sits in the tray only hands off to it and exits without a log line: quit from the tray first.
 - Settings live in `app_config_dir()/settings.json` as
-  `{ "version": 1, "overlay": { "autoEnableOnConnect": boolean }, "radar": RadarPreferences, "hotkeys": { "shop": HotkeyCode, "scoreboard": HotkeyCode, "chatGlobal": HotkeyCode, "chatTeam": HotkeyCode }, "audio": { "shopVolume": number } }`.
+  `{ "version": 1, "overlay": { "autoEnableOnConnect": boolean }, "radar": RadarPreferences, "hotkeys": { "shop": HotkeyCode, "scoreboard": HotkeyCode, "chatGlobal": HotkeyCode, "chatTeam": HotkeyCode, "replay": HotkeyCode }, "audio": { "shopVolume": number } }`.
   A block missing from an older version-1 file falls back to its defaults.
   `autoEnableOnConnect` (default `true`; a file without the block, older ones included, gets it on) lets the overlay window, which owns
   the session, switch the overlay on through the same `set_overlay_enabled`
@@ -764,13 +812,21 @@ by window label (`?window=home` in a browser preview).
   object and atomic replacement, backing up unreadable files as
   `settings.json.bad-<unix-seconds>`. The frontend parses with
   `parseSettings()`, which delegates to `normalizeRadarPreferences()` and
-  `normalizeHotkeys()`. Four keys are configurable: shop (B), scoreboard
-  (CapsLock), global chat (Y) and team chat (U). The shop and chat keys are
+  `normalizeHotkeys()`. Five keys are configurable: shop (B), scoreboard
+  (CapsLock), global chat (Y), team chat (U) and the demo replay console (F3).
+  The shop, chat and replay keys are
   letters except R and F1-F12; digits (item selection) and R (teammate
   request) are reserved for the open shop. The
-  scoreboard key adds CapsLock (Tab is the SCP:SL inventory). All four differ: a
+  scoreboard key adds CapsLock (Tab is the SCP:SL inventory). All five differ: a
   key that is invalid or taken by an earlier action (`HOTKEY_ACTIONS` order)
   recovers to its default, and if that default is taken too every key recovers.
+  A key added after release must not cost a player their existing keys: the
+  replay key, missing from older files, is not under that rule but takes the
+  first key of `REPLAY_HOTKEY_FALLBACKS` (F3, F5-F11) no other action uses, so a
+  file that already put another action on F3 keeps it and gets F5. A future
+  key follows the same pattern (its own fallback list, appended last to
+  `HOTKEY_ACTIONS`, a `settings-smoke` case for an old file and for a file
+  whose user took its default).
   `hotkeys.ts` and the Rust `is_bindable_hotkey()` /
   `is_bindable_scoreboard_hotkey()` / `validate_hotkeys()` must accept the same
   sets, and `overlayShortcutFor()` must match the hook's `overlay_shortcut()`.
@@ -807,7 +863,7 @@ by window label (`?window=home` in a browser preview).
 | `set_overlay_enabled(enabled)` / `get_overlay_state()` | home | `{ enabled, interactive }` |
 | `set_overlay_interactive(interactive)` | overlay | error while disabled; called only from derived UI state |
 | `set_overlay_keyboard_focus(focused)` | overlay | `true` errors unless interactive or when Windows refuses the foreground |
-| `set_hotkeys(shop, scoreboard)` | overlay | virtual-key codes; error for keys outside the bindable sets or one key for both |
+| `set_hotkeys(shop, scoreboard, chatGlobal, chatTeam, replay)` | overlay | virtual-key codes; error for keys outside the bindable sets or any key used twice |
 | `set_overlay_session_live(live)` | overlay | `live` = session status `live`; an enabled overlay is shown only while true |
 | `set_scoreboard_capture(capture)` | overlay | right-click goes to the scoreboard while true and the game is foreground |
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
@@ -1007,6 +1063,9 @@ signature }`) plus `min_version`. The control plane serves it at
 | Saving settings fails | Keep the edit applied for this run, show the error on the home page, retry on the next edit |
 | Overlay is disabled | Keep it hidden and click-through; ignore overlay shortcuts; reject interactive mode; close the shop and chat |
 | Shop hotkey pressed outside the game or buy window | Ignore it; never take the mouse |
+| Replay key on a match server, or while the game is not in front | Ignore it (logged); no replay UI renders outside replay mode |
+| Replay command rejected / failed / unanswered in 8 s | Status line `<label>被拒绝：<reason>` (or 未送达 / 命令无响应) for 6 s; a pending seek target is dropped |
+| `replay.catalog` for an older query | Drop it; only the page of `catalog.commandId` is shown |
 | Saved shop hotkey is not bindable | Fall back to `B` via `normalizeHotkeys()` |
 | Update endpoint unreachable, non-2xx, or manifest malformed | `failed { network }` in the 关于 row only; keep the last known `required`; retry at the next check |
 | Update signature does not verify, or its signed `file:` is not `SLUI-Setup-<version>.exe` | `failed { signature }`; never write or run the file |
@@ -1058,6 +1117,13 @@ signature }`) plus `min_version`. The control plane serves it at
   slgo-backend publish fixture parses, wrong-typed clocks/loadouts and
   opponent/spectator loadouts are rejected, clock-mode priority and
   interpolation, and the loadout-to-equipment adapter.
+- Demo replay (`scripts/replay-model-smoke.mjs`, `event-routing-smoke`, `hud-model-smoke`, `scoreboard-model-smoke`,
+  `settings-smoke`): replay mode enters on `replay.state` and leaves on a baseline without one; `endsMatch` clears;
+  late catalog pages dropped; result before / after page; pending timeout; the seek pacer (release-only drag, merged
+  arrow repeats, at most 4 per second, zero sum not sent, Escape cancels); HUD clock pause / speed / skip / end and
+  continuity across anchors; omniscient snapshots give both teams `observer` with money; old settings files get the
+  replay key without losing theirs. End to end: fake-plugin `--replay` checklist in task `11-07-demo-replay-slui`
+  `research/e2e.md`.
 - Visibility boundary: an unauthorized minimap marker is rejected before the
   React map component receives it.
 - Multi-instance routing: events from two server instances sharing one sidecar

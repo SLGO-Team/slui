@@ -13,3 +13,25 @@ body,
 html:not([data-world-blur="on"]) .slui-backdrop-standin {
   display: none;
 }
+
+/* Demo replay bar (CS2 hud.css DemoControllerMinimal / Full): the bottom-centre, lower-left and bottom-right HUD go up
+   50px over the minimal bar and 86px over the full one; the chat stays. Each canvas is scaled, so the lift is too. */
+#SlgoOverlayRoot[data-replay-bar="minimal"] {
+  --replay-lift: 50px;
+}
+
+#SlgoOverlayRoot[data-replay-bar="full"] {
+  --replay-lift: 86px;
+}
+
+#SlgoOverlayRoot[data-replay-bar] .bhud-canvas {
+  translate: 0 calc(-1 * var(--replay-lift) * var(--bhud-scale));
+}
+
+#SlgoOverlayRoot[data-replay-bar] .hudmsg-canvas {
+  translate: 0 calc(-1 * var(--replay-lift) * var(--hudmsg-scale));
+}
+
+#SlgoOverlayRoot[data-replay-bar] .hudprogress-canvas {
+  translate: 0 calc(-1 * var(--replay-lift) * var(--hudprogress-scale));
+}

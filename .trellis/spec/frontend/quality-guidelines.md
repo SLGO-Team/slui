@@ -73,6 +73,13 @@ values.
     holds the HUD timers, `scoreboardElapsedText` the match time).
   - Reducer ticks (command timeouts) subscribe only while a command is pending.
   - Debug frames are built once per option change and read at their build time.
+  - HUD time is not wall time on a demo replay server: HUD reducers stamp frames with the replay intake's `hudMs`
+    and HUD selectors take HUD time (`replayFeature.hudTimeAtWall(nowMs)`); a component that counts down by itself
+    reads `HudTimeContext`. A new HUD panel that calls `Date.now()` for a countdown keeps running while a replay is
+    paused (system-boundaries "Demo replay").
+- Per-frame UI that follows the server between frames (the replay playhead) is painted from
+  `requestAnimationFrame` into a ref'd element (style or text), not React state, and only while visible; the React
+  tree re-renders on events and clock ticks only.
 - A `useReducer` dispatch re-runs `App` even when the reducer returns the same
   state (no eager bailout). `handleEvent` dispatches an event only to the
   reducers whose `*_EVENT_TYPES` list it; a reducer reading a new event type

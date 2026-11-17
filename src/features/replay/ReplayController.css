@@ -1,0 +1,619 @@
+/* CS2 demo controller (panorama/styles/hud/huddemocontroller.css, current game version) on the overlay canvas: the
+   bar is the full screen width, bottom-anchored, scaled with the overlay. Geometry from the Panorama CSS, checked
+   against the user's 2000x1250 captures of CS2's demo playback (local only); see
+   .trellis/spec/frontend/cs2-visual-replication.md and task 11-07-demo-replay-slui design §12.
+   Labels: Panorama's default notosans, here Noto Sans SC (Latin and CJK; CJK at CS2's 0.9 fallback scale); the time
+   and speed labels Stratum2 Regular Monodigit. No text shadows. */
+@font-face {
+  font-family: "Noto Sans Replay";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-light.woff2") format("woff2");
+  unicode-range: U+0000-2E7F;
+}
+
+@font-face {
+  font-family: "Noto Sans Replay";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-light.woff2") format("woff2");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Noto Sans Replay";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-bold.woff2") format("woff2");
+  size-adjust: 90%;
+  unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "Noto Sans Replay";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/notosanssc-bold.woff2") format("woff2");
+  unicode-range: U+0000-2E7F;
+}
+
+.replay-overlay {
+  position: fixed;
+  inset: 0;
+  /* CSGOHudDemoController z-index 20: over the HUD, under the chat and menus. */
+  z-index: 20;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.replay-overlay *,
+.replay-overlay *::before,
+.replay-overlay *::after {
+  box-sizing: border-box;
+}
+
+.replay-canvas {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(100vw / var(--replay-scale));
+  height: calc(100vh / var(--replay-scale));
+  transform: scale(var(--replay-scale));
+  transform-origin: bottom left;
+  color: #cccccc;
+  font-family: "Noto Sans Replay", sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.replay-root {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* #Contents: hud-blur-bg-color (#000000a0, read as 0.5 like the killfeed) over the world blur; 45 / 96 px.
+   Panorama blends translucent colours in linear light, the browser in sRGB: a faint white over the dark bar reads
+   several times stronger in game (captures: #ffffff03 / #ffffff07 buttons +7 / +20 over a 52 bar, the #ffffff20 /
+   #ffffff50 bands 140 / 172 over 90). So every translucent white below is its sRGB equivalent over the bar (~60):
+   #ffffff03 0.037, #ffffff07 0.08, #ffffff10 0.16, #ffffff20 0.272, #ffffff28 0.318, #ffffff40 0.438, #ffffff50 0.506,
+   #ffffff60 / opacity 0.376 0.567, #cccccc20 0.245, #cccccc80 0.656; over the popups (~50) #ffffff10 0.175,
+   #ffffff20 0.289, opacity 0.4 0.6. */
+.replay-contents {
+  position: relative;
+  height: 45px;
+  background-color: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 2px 0 #000;
+  transition: height 0.1s ease-out;
+}
+
+.replay-canvas[data-mode="full"] .replay-contents {
+  height: 96px;
+}
+
+.replay-canvas[data-mode="full"] .replay-contents,
+.replay-canvas[data-mode="full"] .replay-popup {
+  pointer-events: auto;
+}
+
+/* #SliderRow 50px; #Slider margin 0 10px, positioned 10px down; markers 8px at 30px. */
+.replay-slider-row {
+  position: relative;
+  height: 50px;
+  touch-action: none;
+}
+
+.replay-round-markers,
+.replay-highlight-icons {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 0;
+  height: 50px;
+}
+
+.replay-highlight-icons {
+  top: -10px;
+  z-index: 1;
+}
+
+/* JS: left = start x (width - thumb) + thumb / 2; the first band reaches 0, the last the end. */
+.replay-round-marker {
+  position: absolute;
+  top: 30px;
+  height: 8px;
+  left: calc(var(--start) * (100% - 16px) + 8px);
+  width: calc((var(--end) - var(--start)) * (100% - 16px));
+}
+
+.replay-round-marker[data-first],
+.replay-round-marker--warmup {
+  left: 0;
+  width: calc(var(--end) * (100% - 16px) + 8px);
+}
+
+.replay-round-marker[data-last] {
+  width: calc((var(--end) - var(--start)) * (100% - 16px) + 8px);
+}
+
+.replay-round-marker--even {
+  background-color: rgba(255, 255, 255, 0.506);
+}
+
+.replay-round-marker--odd {
+  background-color: rgba(255, 255, 255, 0.272);
+}
+
+/* SLGO (P2): the warmup before round 1, a shade under the darker band. */
+.replay-round-marker--warmup {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+/* .highlight-icon 22px, wash #707070 with brightness 0.8 in the CSS, but in-game captures measure ~#6e6e6e (the
+   capture is the authority); hover lifts 2px, scales 1.2 and brightens. */
+.replay-highlight-icon {
+  position: absolute;
+  top: 14px;
+  left: calc(var(--at) * (100% - 16px) + 8px - 11px);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background-color: #6e6e6e;
+  mask: center / contain no-repeat;
+  transition: transform 0.05s ease-out, background-color 0.05s ease-out;
+}
+
+.replay-highlight-icon--kill {
+  mask-image: url("/assets/replay/crosshair.svg");
+}
+
+.replay-highlight-icon--death {
+  mask-image: url("/assets/hud/skull.svg");
+}
+
+.replay-canvas[data-mode="full"] .replay-highlight-icon:hover {
+  z-index: 1;
+  transform: translateY(-2px) scale(1.2);
+  background-color: #e0e0e0;
+}
+
+/* #SliderThumb: 16px tall, white, 2px corners, centred on the slider (10px down, 50px tall). */
+.replay-slider-thumb {
+  position: absolute;
+  top: 27px;
+  left: calc(10px + var(--replay-progress, 0) * (100% - 20px - 16px));
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  background-color: #fff;
+  pointer-events: none;
+}
+
+/* #ControlRow 41px, margin 0 5px 5px. */
+.replay-control-row {
+  display: flex;
+  align-items: center;
+  height: 41px;
+  margin: 0 5px 5px;
+  white-space: nowrap;
+}
+
+.replay-control-row button {
+  font: inherit;
+  color: inherit;
+}
+
+.replay-interactive,
+.replay-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  margin: 0 1px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.037);
+  cursor: default;
+}
+
+.replay-interactive:hover:not(:disabled),
+.replay-play:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.438);
+  background-color: rgba(255, 255, 255, 0.318);
+}
+
+/* #PlayButton:hover is #ffffff40 fill, brighter than the other controls' #ffffff28. */
+.replay-play:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.438);
+}
+
+.replay-control-row button:disabled {
+  opacity: 0.35;
+}
+
+/* #PlayButton 82 x 41, 3px corners. */
+.replay-play {
+  position: relative;
+  width: 82px;
+  height: 41px;
+  margin: 0;
+  border-radius: 3px;
+}
+
+.replay-play__icon {
+  position: absolute;
+  left: 30px;
+  top: 9px;
+  width: 22px;
+  height: 22px;
+  background-color: #fff;
+  mask: center / contain no-repeat;
+  transition: opacity 0.1s;
+}
+
+.replay-play__icon--play {
+  mask-image: url("/assets/replay/play.svg");
+  opacity: 0;
+}
+
+.replay-play__icon--pause {
+  mask-image: url("/assets/replay/pause.svg");
+}
+
+.replay-play[data-paused] .replay-play__icon--play {
+  opacity: 1;
+}
+
+.replay-play[data-paused] .replay-play__icon--pause {
+  opacity: 0;
+}
+
+.replay-group {
+  display: flex;
+  align-items: center;
+  margin-left: 30px;
+}
+
+.replay-icon {
+  display: inline-block;
+  flex: none;
+  background-color: #cccccc;
+  mask: center / contain no-repeat;
+}
+
+.replay-icon--clock {
+  width: 32px;
+  height: 32px;
+  mask-image: url("/assets/replay/clock.svg");
+  background-color: #fff;
+}
+
+.replay-icon--skip {
+  width: 22px;
+  height: 22px;
+  mask-image: url("/assets/replay/skip.svg");
+  background-color: #fff;
+}
+
+.replay-icon--skip[data-mirrored] {
+  transform: rotate(180deg);
+}
+
+.replay-interactive--icon {
+  width: 36px;
+}
+
+/* #SpeedControls: margin-left 15; 140px slider over its tick row; the label 70px, left-aligned. */
+.replay-speed {
+  display: flex;
+  align-items: center;
+  margin-left: 15px;
+}
+
+.replay-speed__slider {
+  position: relative;
+  width: 140px;
+  height: 36px;
+  touch-action: none;
+}
+
+.replay-speed__slider[data-disabled] {
+  opacity: 0.35;
+}
+
+.replay-speed__ticks {
+  position: absolute;
+  inset: 0;
+}
+
+.replay-speed__tick {
+  position: absolute;
+  bottom: 3px;
+  left: calc(var(--at) * (100% - 16px) + 8px);
+  display: flex;
+  align-items: flex-end;
+  transform: translateX(-50%);
+}
+
+.replay-speed__bar {
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.567);
+}
+
+.replay-speed__pause {
+  width: 12px;
+  height: 12px;
+  margin-bottom: -4px;
+  background-color: #fff;
+  opacity: 0.567;
+  mask: url("/assets/replay/pause.svg") center / contain no-repeat;
+}
+
+.replay-speed__arrow {
+  width: 5px;
+  height: 10px;
+  background-color: #fff;
+  opacity: 0.567;
+  mask: url("/assets/replay/arrow.svg") center / 100% 100% no-repeat;
+  transform: scaleX(-1);
+}
+
+.replay-speed__arrow + .replay-speed__arrow {
+  margin-left: -2px;
+}
+
+/* HorizontalSlider track 8px (#cccccc20, progress #cccccc80), thumb 16 x 12 baseText; translateY(-6px). */
+.replay-speed__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;
+  height: 8px;
+  background: linear-gradient(to right, rgba(204, 204, 204, 0.656) calc(var(--stop) * (100% - 16px) + 8px), rgba(204, 204, 204, 0.245) 0);
+}
+
+.replay-speed__thumb {
+  position: absolute;
+  top: 6px;
+  left: calc(var(--stop) * (100% - 16px));
+  width: 16px;
+  height: 12px;
+  border-radius: 2px;
+  background-color: #cccccc;
+}
+
+.replay-speed__label,
+.replay-time {
+  font-family: "Stratum2 Replay Monodigit", "Noto Sans Replay", sans-serif;
+}
+
+.replay-speed__label {
+  width: 70px;
+  padding: 5px;
+}
+
+/* #TimeLabel: margin-left 20px; the tick is hidden (no ticks in SLGO recordings: CS2's own hide-tick). */
+.replay-time {
+  display: flex;
+  margin-left: 20px;
+}
+
+.replay-time > span {
+  padding: 5px;
+}
+
+.replay-round-restart {
+  gap: 0;
+}
+
+.replay-round-number {
+  display: inline-block;
+  width: 22px;
+  text-align: center;
+}
+
+/* #PlayerControls: 32px arrows around a 190px name, team-coloured like CS2's CT / T. */
+.replay-player-step {
+  width: 32px;
+}
+
+.replay-icon--arrow {
+  width: 12px;
+  height: 24px;
+  mask-image: url("/assets/replay/arrow.svg");
+  background-color: #fff;
+}
+
+.replay-player-step--next .replay-icon--arrow {
+  transform: scaleX(-1);
+}
+
+.replay-player-name {
+  width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-side="ct"].replay-player-name,
+[data-side="ct"] .replay-player-entry__name {
+  color: #b5d4ee;
+}
+
+[data-side="t"].replay-player-name,
+[data-side="t"] .replay-player-entry__name {
+  color: #eadbb1;
+}
+
+.replay-next-event {
+  margin-left: 10px;
+  padding: 0 6px 0 0;
+}
+
+.replay-icon--double-arrows {
+  width: 15px;
+  height: 16px;
+  margin-left: 8px;
+  mask-image: url("/assets/replay/double-arrows.svg");
+  background-color: #fff;
+  transform: scaleX(-1);
+}
+
+.replay-icon--crosshair {
+  width: 24px;
+  height: 24px;
+  margin-left: 6px;
+  mask-image: url("/assets/replay/crosshair.svg");
+  background-color: #fff;
+}
+
+.replay-spacer {
+  flex: 1;
+}
+
+.replay-camera {
+  margin-left: 30px;
+  padding: 0 5px 0 0;
+}
+
+.replay-icon--camera {
+  width: 36px;
+  height: 24px;
+  mask-image: url("/assets/replay/camera.svg");
+  background-color: #fff;
+}
+
+.replay-camera__label {
+  padding: 5px;
+}
+
+/* #HighlightsButton (36px, wash #a0a0a0, white when active), in SLGO the recordings list. */
+.replay-square {
+  width: 36px;
+  margin-left: 8px;
+}
+
+.replay-icon--film {
+  width: 24px;
+  height: 24px;
+  mask-image: url("/assets/replay/film.svg");
+  background-color: #a0a0a0;
+}
+
+.replay-square[data-active] .replay-icon--film {
+  background-color: #fff;
+}
+
+.replay-end {
+  margin-left: 25px;
+  margin-right: 10px;
+  padding: 5px 10px;
+}
+
+.replay-end[data-armed] {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.438);
+}
+
+/* #PlayerList / #RoundMenu: stacked right above #Contents, #303030f0 with a #202020f0 border. */
+.replay-popup {
+  position: absolute;
+  bottom: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  border: 1px solid rgba(32, 32, 32, 0.94);
+  border-radius: 3px;
+  background-color: rgba(48, 48, 48, 0.94);
+}
+
+.replay-round-menu {
+  width: 180px;
+}
+
+.replay-player-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.replay-popup__entry {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  background: none;
+  color: #e0e0e0;
+  font: inherit;
+  font-size: 18px;
+  text-align: left;
+  cursor: default;
+}
+
+.replay-popup__entry:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.289);
+}
+
+.replay-player-entry[data-dead] {
+  opacity: 0.6;
+}
+
+.replay-player-entry[data-selected] {
+  background-color: rgba(255, 255, 255, 0.175);
+  font-weight: 700;
+}
+
+.replay-player-entry__skull {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  background-color: #e0e0e0;
+  mask: url("/assets/hud/skull.svg") center / contain no-repeat;
+  opacity: 0;
+}
+
+.replay-player-entry[data-dead] .replay-player-entry__skull {
+  opacity: 1;
+}
+
+.replay-player-entry__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* SLGO's status line (loading, a failed load, a refused command): the popup style, at the bar's top left. */
+.replay-status {
+  position: absolute;
+  left: 5px;
+  bottom: calc(100% + 4px);
+  padding: 4px 10px;
+  border: 1px solid rgba(32, 32, 32, 0.94);
+  border-radius: 3px;
+  background-color: rgba(48, 48, 48, 0.94);
+  color: #e0e0e0;
+  white-space: nowrap;
+}
+
+/* Text tooltip (UiToolkitAPI.ShowTextTooltip) over the hovered control. */
+.replay-tooltip {
+  position: absolute;
+  z-index: 2;
+  padding: 10px 16px;
+  border-radius: 4px;
+  background-color: rgba(20, 20, 20, 0.92);
+  color: #e6e6e6;
+  font-size: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 8px));
+}

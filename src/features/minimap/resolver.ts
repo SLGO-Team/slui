@@ -1,4 +1,4 @@
-import { MINIMAP_SCHEMA_VERSION, type MinimapInit, type MinimapZone } from "../../contracts/index.ts";
+import { MINIMAP_SCHEMA_VERSIONS, type MinimapInit, type MinimapZone } from "../../contracts/index.ts";
 import labels from "./special-room-labels.json" with { type: "json" };
 import { createRoomArtwork, roomCorners, type RoomArtwork } from "./room-artwork.ts";
 import { BLEND_WASH, svgDataUrl, washSvg, ZONE_WASH } from "./roomWash.ts";
@@ -38,7 +38,8 @@ export function mapDescriptorKey(init: MinimapInit): string {
 }
 
 export function assertSupportedMap(init: MinimapInit): void {
-  if (init.minimap_schema_version !== MINIMAP_SCHEMA_VERSION || init.coordinate_system !== "unity-world-xz") {
+  // v7 (demo replay) only adds the free-camera viewpoint to positions; its init is v6's.
+  if (!(MINIMAP_SCHEMA_VERSIONS as readonly number[]).includes(init.minimap_schema_version) || init.coordinate_system !== "unity-world-xz") {
     throw new Error("incompatible-map");
   }
 }

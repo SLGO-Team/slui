@@ -25,7 +25,9 @@ export const initialKillfeedState: KillfeedState = { source: null, items: [] };
 
 export type KillfeedAction =
   | { type: "event"; event: SlgoEvent; receivedAtMs: number }
-  | { type: "connection"; status: ConnectionStatus };
+  | { type: "connection"; status: ConnectionStatus }
+  /** Demo replay: the recording changed (another one, or unloaded); its frames go (design 11-07-demo-replay-slui §11.6). */
+  | { type: "replay-reset" };
 
 const sameSource = (a: KillfeedSource | null, serverId: string, instanceId: string) =>
   a !== null && a.serverId === serverId && a.instanceId === instanceId;
@@ -43,6 +45,7 @@ export const KILLFEED_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<Slgo
 export function killfeedReducer(state: KillfeedState, action: KillfeedAction): KillfeedState {
   // Only an ended instance clears the feed; other drops keep it for a reconnect to the same instance.
   if (action.type === "connection") return endsMatch(action.status) && state !== initialKillfeedState ? initialKillfeedState : state;
+  if (action.type === "replay-reset") return state.items.length === 0 ? state : { ...state, items: [] };
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     if (sameSource(state.source, event.server_id, event.instance_id)) return state;

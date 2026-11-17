@@ -7,17 +7,27 @@
 
 export type HotkeyCode = string;
 
-export type HotkeyAction = "shop" | "scoreboard" | "chatGlobal" | "chatTeam";
+export type HotkeyAction = "shop" | "scoreboard" | "chatGlobal" | "chatTeam" | "replay";
 
 export type HotkeySettings = Readonly<Record<HotkeyAction, HotkeyCode>>;
 
-/** Every configurable key, in the order normalizeHotkeys keeps them when two collide. */
-export const HOTKEY_ACTIONS: readonly HotkeyAction[] = ["shop", "scoreboard", "chatGlobal", "chatTeam"];
+/**
+ * Every configurable key, in the order normalizeHotkeys keeps them when two collide; also the argument order of the
+ * Rust `set_hotkeys` command.
+ */
+export const HOTKEY_ACTIONS: readonly HotkeyAction[] = ["shop", "scoreboard", "chatGlobal", "chatTeam", "replay"];
 
 // CS2 opens its buy menu with B and its chats with Y (all) and U (team). It holds Tab
 // for the scoreboard, which SCP:SL uses for the inventory, so the scoreboard takes
-// CapsLock like the plugin's own binding.
-export const DEFAULT_HOTKEYS: HotkeySettings = { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU" };
+// CapsLock like the plugin's own binding. The demo replay console (replay servers only) takes F3: no SCP:SL default,
+// no plugin key and none of the others; CS2's demo UI sits nearby on Shift+F2.
+export const DEFAULT_HOTKEYS: HotkeySettings = { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU", replay: "F3" };
+
+/**
+ * Where the replay key goes when a settings file has none (it predates the key) or an unusable one: the first of these
+ * no other action uses. A file whose user already put another action on F3 keeps all its keys.
+ */
+export const REPLAY_HOTKEY_FALLBACKS: readonly HotkeyCode[] = ["F3", "F5", "F6", "F7", "F8", "F9", "F10", "F11"];
 
 const LETTER = /^Key([A-Z])$/;
 const FUNCTION = /^F([1-9]|1[0-2])$/;
@@ -45,15 +55,22 @@ export function hotkeyOwner(hotkeys: HotkeySettings, code: HotkeyCode, except?: 
 }
 
 /**
- * Each key valid for its action and all four different. A key that is invalid, or taken by
- * an earlier action, falls back to its default; when that default is taken too (only a
- * hand-edited file gets there), every key falls back.
+ * Each key valid for its action and all different. A key that is invalid, or taken by an earlier action, falls back
+ * to its default; when that default is taken too (only a hand-edited file gets there), every key falls back. The
+ * replay key, added after the others, instead takes the first free key of REPLAY_HOTKEY_FALLBACKS, so an older file
+ * never loses its other keys over it.
  */
 export function normalizeHotkeys(value: Partial<Record<HotkeyAction, unknown>> | null | undefined): HotkeySettings {
   const keys: Partial<Record<HotkeyAction, HotkeyCode>> = {};
   const used = new Set<HotkeyCode>();
   for (const action of HOTKEY_ACTIONS) {
     const stored = value?.[action];
+    if (action === "replay") {
+      const key = isBindableFor(action, stored) && !used.has(stored) ? stored : REPLAY_HOTKEY_FALLBACKS.find((candidate) => !used.has(candidate));
+      // Eight fallbacks against four other keys: one is always free.
+      keys.replay = key ?? DEFAULT_HOTKEYS.replay;
+      continue;
+    }
     const key = isBindableFor(action, stored) && !used.has(stored) ? stored : DEFAULT_HOTKEYS[action];
     if (used.has(key)) return DEFAULT_HOTKEYS;
     used.add(key);

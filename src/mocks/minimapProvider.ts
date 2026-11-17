@@ -1,8 +1,10 @@
-import type { ChatSendCommand, MinimapInit, Role, ServerRoute, SlgoCommand, SlgoEvent, SteamIdentity, TeamCommand } from "../contracts/index.ts";
+import type { ChatSendCommand, MinimapInit, ReplayCommand, Role, ServerRoute, SlgoCommand, SlgoEvent, SteamIdentity, TeamCommand } from "../contracts/index.ts";
 import { MockSidecarConnection } from "../platform/connection.ts";
 import { MAX_CHAT_LENGTH, chatLength } from "../features/chat/model.ts";
 import { createMinimapFrame, createMockMinimapInit, defaultMinimapPreviewOptions, mockMinimapInit, type MinimapPreviewOptions } from "./minimapFixtures.ts";
 import { createHudSceneFrame, hudSceneLoopMs, type HudScene, type HudSceneSelf } from "./hudScenes.ts";
+import type { MockReplayServer } from "./replayMock.ts";
+import { isReplayCommandKind } from "../contracts/index.ts";
 
 /** The debug team select scene's plugin side: a forced (first-join) session, and a side whose join it refuses. */
 export type MockTeamMenuOptions = Readonly<{ forced: boolean; reject: Role | null }>;
@@ -36,10 +38,14 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   private teamMenuSession = 0;
   private teamMenuTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(events: SlgoEvent[], viewerTeam: "team-a" | "team-b") {
+  /** `?replay=`: the stream is a demo replay server's (replay.state first, omniscient HUD, no shop or team menu). */
+  private readonly replay: MockReplayServer | null;
+
+  constructor(events: SlgoEvent[], viewerTeam: "team-a" | "team-b", replay: MockReplayServer | null = null) {
     super();
     this.initialEvents = events;
     this.viewerTeam = viewerTeam;
+    this.replay = replay;
   }
 
   override async connect(route: ServerRoute, identity: SteamIdentity) {
@@ -51,25 +57,49 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     this.sequence = 0;
     this.frame = 0;
     this.revision = 1;
+    const replay = this.replay;
     for (const event of this.initialEvents) {
+      // A replay server: replay.state right after the baseline, then its omniscient snapshot; no shop.
+      if (replay && event.type === "sidecar.baseline") {
+        this.emit(event.type, event.payload);
+        replay.publish((type, payload) => this.emit(type, payload));
+        continue;
+      }
+      if (replay && (event.type === "match.snapshot" || event.type === "shop.snapshot")) continue;
       if (event.type === "minimap.init") this.emit("minimap.init", this.mapInit);
       else if (event.type === "minimap.positions") this.publishFrame(false);
       // The scripted scene replaces the fixtures' empty board and panel.
       else if (event.type === "hud.messages") this.restartHudScene();
       else if (event.type !== "round.result") this.emit(event.type, event.payload);
     }
-    this.openTeamMenu();
+    if (!replay) this.openTeamMenu();
     this.timer = setInterval(() => {
       this.frame += 1;
       if (!this.previewOptions.paused) this.publishFrame();
       // Other traffic continues while positions pause, exercising independent freshness.
       if (this.frame % this.mapInit.position_update_hz === 0) {
-        const hud = this.initialEvents.find((event) => event.type === "match.snapshot");
-        if (hud) this.emit(hud.type, hud.payload);
+        if (replay) {
+          // The plugin republishes replay.state at least every 5 s while playing.
+          if (replay.playing() && this.frame % (this.mapInit.position_update_hz * 5) === 0) replay.publish((type, payload) => this.emit(type, payload));
+          else {
+            const snapshot = replay.matchSnapshot();
+            if (snapshot) this.emit("match.snapshot", snapshot);
+            // The first-person target's hud.spectating goes out whenever it changed (its kills, ammo).
+            const spectating = JSON.stringify(replay.spectating());
+            if (this.lastHudPayloads["hud.spectating"] !== spectating) {
+              this.lastHudPayloads["hud.spectating"] = spectating;
+              this.emit("hud.spectating", JSON.parse(spectating));
+            }
+          }
+        } else {
+          const hud = this.initialEvents.find((event) => event.type === "match.snapshot");
+          if (hud) this.emit(hud.type, hud.payload);
+        }
         this.tickHudScene();
       }
     }, 1000 / this.mapInit.position_update_hz);
-    this.statusTimer = setInterval(() => this.publishHudStatus(), 25);
+    // A replay viewer has no hud.status of their own (the plugin sends hud.spectating of the first-person target).
+    if (!replay) this.statusTimer = setInterval(() => this.publishHudStatus(), 25);
   }
 
   override async disconnect() {
@@ -176,6 +206,8 @@ export class RealtimeMockProvider extends MockSidecarConnection {
     const frame = createHudSceneFrame(this.hudScene, this.viewerRole(), elapsedMs, this.hudSceneRun);
     for (const [type, payload] of [["hud.messages", frame.messages], ["round.result", frame.result], ["hud.status", frame.status], ["hud.spectating", frame.spectating], ["hud.killfeed", frame.killfeed],
       ["scoreboard.snapshot", frame.scoreboard]] as const) {
+      // A replay viewer's hud.spectating is the replay server's first-person target, and they have no hud.status.
+      if (this.replay && (type === "hud.status" || type === "hud.spectating")) continue;
       // Like the plugin, hud.killfeed goes out when its entries change, not as their times run down.
       const json = type === "hud.killfeed" ? frame.killfeed.entries.map((entry) => entry.entry_id).join(",") : JSON.stringify(payload);
       if (this.lastHudPayloads[type] === json) continue;
@@ -220,6 +252,20 @@ export class RealtimeMockProvider extends MockSidecarConnection {
   /** Answers chat like the plugin's ChatManager: 120 text elements, one second between sends. */
   override async send(command: SlgoCommand) {
     await super.send(command);
+    if (isReplayCommandKind(command.kind)) {
+      const attempt = this.attempt;
+      // A match server's sidecar answers replay commands itself: rejected, `unsupported`.
+      setTimeout(() => {
+        if (attempt !== this.attempt) return;
+        if (this.replay) this.replay.answer(command as ReplayCommand, (type, payload) => this.emit(type, payload));
+        else this.emit("command.result", { command_id: command.command_id, command_kind: command.kind, status: "rejected", reason: "unsupported" });
+      }, 120);
+      return;
+    }
+    if (this.replay && command.kind === "command.chat.send") {
+      this.emit("command.result", { command_id: command.command_id, command_kind: command.kind, status: "rejected", reason: "回放服不能发送聊天" });
+      return;
+    }
     if (command.kind === "command.team.select" || command.kind === "command.team.close") {
       this.answerTeamCommand(command);
       return;

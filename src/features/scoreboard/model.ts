@@ -18,7 +18,9 @@ export const initialScoreboardState: ScoreboardState = { source: null, frame: nu
 
 export type ScoreboardAction =
   | { type: "event"; event: SlgoEvent; receivedAtMs: number }
-  | { type: "connection"; status: ConnectionStatus };
+  | { type: "connection"; status: ConnectionStatus }
+  /** Demo replay: the recording changed (another one, or unloaded); its frames go (design 11-07-demo-replay-slui §11.6). */
+  | { type: "replay-reset" };
 
 const sameSource = (source: ScoreboardSource | null, serverId: string, instanceId: string) =>
   source !== null && source.serverId === serverId && source.instanceId === instanceId;
@@ -33,6 +35,7 @@ export const SCOREBOARD_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<Sl
  */
 export function scoreboardReducer(state: ScoreboardState, action: ScoreboardAction): ScoreboardState {
   if (action.type === "connection") return endsMatch(action.status) && state !== initialScoreboardState ? initialScoreboardState : state;
+  if (action.type === "replay-reset") return state.frame === null ? state : { ...state, frame: null };
   const { event, receivedAtMs } = action;
   if (event.type === "sidecar.baseline") {
     if (sameSource(state.source, event.server_id, event.instance_id)) return state;

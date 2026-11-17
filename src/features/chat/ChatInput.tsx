@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { sameItems, useClockSelector } from "../../shared/clock";
 import { useOverlayScale } from "../../shared/overlay";
+import { useHudTime } from "../../shared/hudTime";
 import { hotkeyFromEvent } from "../../platform/hotkeys";
 import { CHAT_LINE_FADE_MS, chatLineFadeDelayMs, visibleChatLines, type ChatCloseReason, type ChatInputState, type ChatLine } from "./model";
 import {
@@ -32,10 +33,20 @@ type ChatInputProps = {
 // CS2 row: "[ALL] ● Name:  body" or "[T] ● Name@Place: body"; every player, the local
 // one included, uses this format. Plugin notices are coloured segments without tag or dot.
 // A lingering row fades with a compositor animation; its delay is fixed when the row
-// mounts, so the 250ms clock that removes finished rows never makes the fade step.
+// mounts, so the 250ms clock that removes finished rows never makes the fade step. Rows run on the HUD clock: on a
+// demo replay server the fade follows the replay speed and stands still while paused (the row remounts, keyed by the
+// clock's epoch, when the rate changes).
 function ChatRow({ line, self, lingering }: { line: ChatLine; self: ChatRowStyle; lingering: boolean }) {
-  const [fadeDelayMs] = useState(() => chatLineFadeDelayMs(line, Date.now()));
-  const fade: CSSProperties = lingering ? { animationDelay: `${fadeDelayMs}ms`, animationDuration: `${CHAT_LINE_FADE_MS}ms` } : {};
+  const time = useHudTime();
+  const [fade] = useState((): CSSProperties => {
+    if (!lingering) return {};
+    const rate = time.rate > 0 ? time.rate : 1;
+    return {
+      animationDelay: `${chatLineFadeDelayMs(line, time.now()) / rate}ms`,
+      animationDuration: `${CHAT_LINE_FADE_MS / rate}ms`,
+      ...(time.rate > 0 ? {} : { animationPlayState: "paused" }),
+    };
+  });
   if (line.kind === "system") return <p className="chat-line" data-kind="system" style={fade}>{line.text}</p>;
   if (line.kind === "notice") {
     return (
@@ -65,7 +76,8 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
   const mainRef = useRef<HTMLDivElement>(null);
   const openingKeyHeldRef = useRef(false);
   // Closed, rows leave as their fade ends: selected on the overlay clock, so only the chat re-renders.
-  const lines = useClockSelector(useCallback((nowMs: number) => visibleChatLines(chat, nowMs), [chat]), sameItems);
+  const time = useHudTime();
+  const lines = useClockSelector(useCallback(() => visibleChatLines(chat, time.now()), [chat, time]), sameItems);
   const newestLineId = chat.lines[chat.lines.length - 1]?.id;
 
   useEffect(() => {
@@ -131,7 +143,7 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
     }
   };
 
-  const rows = lines.map((line) => <ChatRow key={line.id} line={line} self={self} lingering={!chat.open} />);
+  const rows = lines.map((line) => <ChatRow key={`${line.id}:${time.epoch}`} line={line} self={self} lingering={!chat.open} />);
   return (
     <section className="chat-overlay" data-open={chat.open} aria-label="聊天" style={{ "--chat-scale": scale } as CSSProperties}>
       {chat.open ? (

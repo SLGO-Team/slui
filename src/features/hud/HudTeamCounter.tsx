@@ -233,7 +233,7 @@ function TeamPlayers({
       data-team-id={team.teamId}
       data-current-role={team.role}
     >
-      {team.relation === "viewer"
+      {team.relation !== "opponent"
         ? team.players.map((player, index) => (
           <PlayerSlot
             key={player.player_id}

@@ -4,10 +4,10 @@ import type { ShopViewModel } from "./model.ts";
  * Why an open shop closed, one `shop closed:` line each in slui.log: the shop key, a chat key (Y/U by default), Escape, the
  * navbar's 返回, the overlay losing the system foreground it held, the shop no longer available (session, snapshot or
  * buy window), the team menu opening, the overlay switched off, SLUI's input handed back to the game (an elevated or
- * exclusive-fullscreen game).
+ * exclusive-fullscreen game), the demo replay console key.
  */
 export type ShopCloseReason = "shop-key" | "chat-key" | "escape" | "button" | "foreground" | "unavailable" | "team-select" | "overlay-disabled"
-  | "input-blocked";
+  | "input-blocked" | "replay-key";
 
 /** What ShopPanel itself closes on. */
 export type ShopPanelCloseReason = Extract<ShopCloseReason, "escape" | "button">;

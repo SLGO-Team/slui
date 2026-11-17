@@ -232,4 +232,19 @@ const ids = (team) => team.rows.map((row) => row.playerId);
   assert.equal(cell(view.bottom.rows.find((row) => row.playerId === NOVA), "kills"), "0");
 }
 
+{
+  // Demo replay: the omniscient observer sees both teams' money (CS2's demo scoreboard), still only on the current side.
+  const omniscient = parsed(envelope("match.snapshot", 2, {
+    ...match().payload,
+    viewer_team_id: null,
+    omniscient: true,
+    teams: match().payload.teams.map((team) => team.team_id === "team-b"
+      ? { ...team, players: team.players.map((player, index) => ({ ...player, loadout: index === 0 ? { money: 2700, primary_item_id: null, utility_item_ids: [], armor: null, has_commander_keycard: false, has_generator_upgrade: false } : null })) }
+      : team),
+  }));
+  const view = select({ hud: hudFor(omniscient) });
+  assert.equal(cell(view.bottom.rows.find((row) => row.playerId === NOVA), "money"), "$4250");
+  assert.equal(cell(view.top.rows.find((row) => row.playerId === ECHO), "money"), "$2700", "the other team's money too");
+}
+
 console.log("scoreboard model smoke: source rules, visibility, derived stats, blanks, money, sort chain, side switch and timeline ok");

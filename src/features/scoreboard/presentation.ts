@@ -219,8 +219,9 @@ export function selectScoreboard({ hud, frame, view, localPlayerId }: SelectInpu
   const teamView = (team: HudTeamView): ScoreboardTeamView => {
     const bucket: Role = showingOtherSide ? otherRole(team.role) : team.role;
     const side = hudSideForRole(team.role);
-    // Money is the viewer's own team only (match.snapshot never carries the enemy's) and only for the current side.
-    const showMoney = team.relation === "viewer" && !showingOtherSide;
+    // Money is the viewer's own team only (match.snapshot never carries the enemy's), both teams for the omniscient
+    // replay observer (CS2's demo scoreboard shows everyone's), and only for the current side.
+    const showMoney = team.relation !== "opponent" && !showingOtherSide;
     const sortable = team.players.map((player, index): SortableRow => {
       const scoreboardPlayer = statsById.get(player.player_id);
       const stats = scoreboardPlayer?.[bucket] ?? EMPTY_STATS;

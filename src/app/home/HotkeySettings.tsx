@@ -7,6 +7,7 @@ const ACTION_NAMES: Readonly<Record<HotkeyAction, string>> = {
   scoreboard: "计分板",
   chatGlobal: "全体聊天",
   chatTeam: "队伍聊天",
+  replay: "回放控制台",
 };
 
 const ROWS: readonly { action: HotkeyAction; label: string; note: string }[] = [
@@ -14,6 +15,7 @@ const ROWS: readonly { action: HotkeyAction; label: string; note: string }[] = [
   { action: "scoreboard", label: "计分板（按住）", note: "游戏处于前台时按住显示，松开隐藏；显示时按鼠标右键启用光标，可排序、切换统计页。" },
   { action: "chatGlobal", label: "全体聊天", note: "打开聊天框并发送给所有玩家；Enter 发送，Esc 关闭。" },
   { action: "chatTeam", label: "队伍聊天", note: "打开聊天框并只发送给队友。" },
+  { action: "replay", label: "回放控制台", note: "仅在回放服生效：打开 / 关闭回放控制台，打开时 UI 接管鼠标。" },
 ];
 
 export function HotkeySettings({ id, value, onChange, onReset }: {
