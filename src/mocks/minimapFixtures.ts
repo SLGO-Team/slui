@@ -20,6 +20,12 @@ export type MinimapPreviewOptions = RadarPreferences & {
    */
   dynamicTargets: "default" | "near" | "far";
   spectate: 0 | 1;
+  /**
+   * Preview-only viewer: `observer` is a team-less viewer who is not alive (a team-less spectator or a demo replay
+   * viewer, `?minimapViewer=observer`): every marker is `observed`, the opponents are the mock roster's SCP players, and
+   * the camera follows `spectate`. It shows CS2's observer numbers and selection box.
+   */
+  viewer: "member" | "observer";
   /** Preview-only: the second enemy is a plugin-authored last-known marker whose age loops over 6 s. */
   lastKnown: boolean;
   /** Preview-only: a dead teammate death marker whose age loops over 4 s. */
@@ -36,7 +42,7 @@ export type MinimapPreviewOptions = RadarPreferences & {
 
 export const defaultMinimapPreviewOptions: MinimapPreviewOptions = {
   ...DEFAULT_RADAR_PREFERENCES, zone: "HeavyContainment", life: "alive", alternateZoomActive: false,
-  scoreboard: false, paused: false, motion: true, enemies: true, dynamicTargets: "default", spectate: 0,
+  scoreboard: false, paused: false, motion: true, enemies: true, dynamicTargets: "default", spectate: 0, viewer: "member",
   lastKnown: false, deaths: false, keycard: "none", bombsites: true,
 };
 
@@ -67,6 +73,7 @@ export function readMinimapPreviewOptions(search = window.location.search): Mini
     enemies: params.get("minimapEnemies") !== "0",
     dynamicTargets: (["near", "far"] as const).find((value) => value === params.get("minimapDynamicTargets")) ?? "default",
     spectate: params.get("minimapSpectate") === "1" ? 1 : 0,
+    viewer: params.get("minimapViewer") === "observer" ? "observer" : "member",
     lastKnown: params.get("minimapLastKnown") === "1",
     deaths: params.get("minimapDeaths") === "1",
     keycard: (["carried", "dropped", "planted", "lost"] as const).find((value) => value === params.get("minimapKeycard")) ?? "none",
@@ -153,8 +160,11 @@ export function createMinimapFrame(
   });
   const friendlyRole = team === "team-a" ? "ntf" : "scp";
   const enemyTeam = team === "team-a" ? "team-b" : "team-a";
-  const alive = options.life === "alive";
-  const ids = ["76561198000000002", "76561198000000003", "76561198000000004", "76561198000000010", "76561198000000005"]
+  const observer = options.viewer === "observer";
+  const alive = options.life === "alive" && !observer;
+  // An observer's opponents are real roster players of the other team, so the HUD snapshot numbers them consistently.
+  const ids = (observer ? ["76561198000000002", "76561198000000003", "76561198000000006", "76561198000000007", "76561198000000005"]
+    : ["76561198000000002", "76561198000000003", "76561198000000004", "76561198000000010", "76561198000000005"])
     .filter((id) => id !== viewerId);
   // CS2 bomb: the NTF side always knows its holder; the SCP side sees the card on the NTF holder it has spotted.
   const holder = options.keycard !== "carried" ? null : friendlyRole === "ntf" ? ids[0] : options.enemies ? ids[2] : null;
@@ -165,7 +175,7 @@ export function createMinimapFrame(
     { ...pose(awayRoom(3), 2), player_id: ids[1], team_id: team, role: friendlyRole, visibility: "teammate", status: "live", status_age_ms: 0 },
     ...(options.enemies ? [
       { ...pose(enemyRoom, 3), player_id: ids[2], team_id: enemyTeam, role: enemyTeam === "team-a" ? "ntf" : "scp", visibility: "spotted-by-teammate", status: "live", status_age_ms: 0 } as MinimapPosition,
-      options.lastKnown
+      options.lastKnown && !observer
         ? { ...pose(enemyRoom, 4), x: pose(enemyRoom, 4).x + 6, player_id: ids[3], team_id: enemyTeam, role: enemyTeam === "team-a" ? "ntf" : "scp",
           visibility: "spotted-by-teammate", status: "last-known", status_age_ms: Math.floor(elapsedMs % MINIMAP_LAST_KNOWN_MS) } as MinimapPosition
         : { ...pose(awayRoom(4), 4), player_id: ids[3], team_id: enemyTeam, role: enemyTeam === "team-a" ? "ntf" : "scp", visibility: "spotted-by-teammate", status: "live", status_age_ms: 0 } as MinimapPosition,
@@ -173,7 +183,9 @@ export function createMinimapFrame(
     ...(options.deaths && ids[4] ? [{ ...pose(nearby[3] ?? anchor, 5), player_id: ids[4], team_id: team, role: friendlyRole,
       visibility: "teammate", status: "dead", status_age_ms: Math.floor(elapsedMs % MINIMAP_DEAD_MS) } as MinimapPosition] : []),
   ];
-  const positions: MinimapPosition[] = markers.map((position) => ({ ...position, has_commander_keycard: position.player_id === holder }));
+  // A team-less observer receives only observed markers (never last-known, never self).
+  const positions: MinimapPosition[] = markers.map((position) => ({ ...position, has_commander_keycard: position.player_id === holder,
+    ...(observer ? { visibility: "observed" as const } : {}) }));
   const target = options.life === "no-viewpoint" ? null : alive ? positions[0] : positions[options.spectate];
   const viewpoint = target ? {
     player_id: target.player_id, x: target.x, y: target.y, z: target.z,
@@ -181,7 +193,7 @@ export function createMinimapFrame(
   } : null;
   return {
     minimap_schema_version: MINIMAP_SCHEMA_VERSION, map_id: init.map_id, visibility_revision: visibilityRevision,
-    viewer: { player_id: viewerId, team_id: team, is_alive: alive },
+    viewer: { player_id: viewerId, team_id: observer ? null : team, is_alive: alive },
     viewpoint, scoreboard_visible: options.scoreboard, positions,
     commander_keycard: drop ? { x: drop.position.x + 3, y: drop.position.y, z: drop.position.z - 2, zone: drop.zone, room_id: drop.id,
       team_id: friendlyRole === "ntf" ? team : enemyTeam,

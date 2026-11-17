@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="42" height="36" viewBox="0 0 79.381 66.417">
+  <defs>
+    <radialGradient id="glow" cx="40.37" cy="76.06" r="68.1" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset=".3172" stop-color="#fff" stop-opacity=".7"/>
+      <stop offset=".6344" stop-color="#fff" stop-opacity=".42"/>
+      <stop offset=".8602" stop-color="#fff" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path fill="url(#glow)" d="M40.13 52.73 94.77 5.19 40.13-39.65-14.51 5.19Z"/>
+  <path fill="#fff" fill-rule="evenodd" d="M40.13 29.68 50.55 39.43A15.52 15.52 0 1 1 29.71 39.43ZM52.5 50.9A12.37 12.37 0 1 0 27.76 50.9 12.37 12.37 0 1 0 52.5 50.9Z"/>
+</svg>

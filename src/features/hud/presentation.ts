@@ -116,6 +116,19 @@ export function playerSlotColors(teams: readonly Pick<HudTeamView, "role" | "pla
   return colors;
 }
 
+/**
+ * CS2's observer player numbers (spec_player keys, team counter and radar `#PlayerNumber`; client.dll): one list, the
+ * CT side's players then the T side's, each in team-counter order; position i gets (i + 1) % 10 while i <= 9 and the
+ * eleventh player on has none, so a six-player CT side takes 1-6 and T starts at 7. SLGO's SCP side plays CT
+ * (`hudSideForRole`), and the order within a side is the match.snapshot list, the same as `playerSlotColors`.
+ */
+export function playerObserverNumbers(teams: readonly Pick<HudTeamView, "role" | "players">[]): Readonly<Record<string, string>> {
+  const ordered = [...teams.filter((team) => hudSideForRole(team.role) === "ct"), ...teams.filter((team) => hudSideForRole(team.role) === "t")];
+  const numbers: Record<string, string> = {};
+  ordered.flatMap((team) => team.players).slice(0, 10).forEach((player, index) => { numbers[player.player_id] = String((index + 1) % 10); });
+  return numbers;
+}
+
 export function resolveHudTeams(hud: Extract<RoundHudViewModel, { hasSnapshot: true }>): { left: HudTeamView; right: HudTeamView } {
   return {
     left: hud.teams.find((team) => team.teamId === "team-a") ?? hud.teams[0],

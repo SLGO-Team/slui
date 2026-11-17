@@ -37,7 +37,7 @@ const context = {};
 runInNewContext(result.outputFiles[0].text, context);
 const { resolveMinimapSync, mapDescriptorKey, minimapReducer, initialMinimapState,
   selectMinimap, createRadarCamera, worldToRadar, roomArtworkToWorld, cameraToRadar, createRoomArtwork,
-  positionMarker, shortestAngle, parseEvent, normalizeRadarPreferences, DEFAULT_RADAR_PREFERENCES,
+  positionMarker, shortestAngle, parseEvent, radarMarkerNumber, normalizeRadarPreferences, DEFAULT_RADAR_PREFERENCES,
   CS2_REFERENCE_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES, advanceDynamicZoom, dynamicZoomScale, radarIconScale } = context.minimapTest;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const init = { minimap_schema_version: 6, map_id: "map-1", coordinate_system: "unity-world-xz", grid: layouts[0].grid,
@@ -833,6 +833,48 @@ for (const time of [200, 232, 267]) {
   assert.equal(overview.markers.length, 2);
   assert.equal(overview.markers.every((m) => m.hostile === false), true, "a team-less spectator has no enemies, only team colors");
 }
+// CS2 #Selected (client.dll): only an observer selects, and only the living player it follows; never a living viewer's
+// own marker, never a free camera. CS2 #PlayerNumber: only for a team-less observer, on live in-range icons.
+{
+  const alive = selectMinimap(event(ready(), "minimap.positions", positions, 3, 1000), 1000);
+  assert.equal(alive.markers.find((m) => m.playerId === self.player_id).followed, true);
+  assert.equal(alive.markers.some((m) => m.selected), false, "a living viewer selects nobody, not even self");
+  const deadFollow = { ...positions, visibility_revision: 2, viewer: { ...positions.viewer, is_alive: false },
+    viewpoint: pose(teammate), positions: [teammate, teammate2, enemy2] };
+  const dead = selectMinimap(event(ready(), "minimap.positions", deadFollow, 3, 1000), 1000);
+  assert.deepEqual(plain(dead.markers.filter((m) => m.selected).map((m) => m.playerId)), [teammate.player_id],
+    "a dead viewer's box marks the followed teammate only");
+  const deadTeammate = { ...teammate2, status: "dead", status_age_ms: 100 };
+  const withDeath = selectMinimap(event(ready(), "minimap.positions", { ...deadFollow, positions: [teammate, deadTeammate] }, 3, 1000), 1000);
+  assert.equal(withDeath.markers.find((m) => m.playerId === deadTeammate.player_id).selected, false, "a death X is never selected");
+  const observedTeammate = { ...teammate, visibility: "observed" }, observedEnemy = { ...enemy, visibility: "observed" };
+  const spectating = { ...deadFollow, viewer: { ...deadFollow.viewer, team_id: null }, viewpoint: pose(observedEnemy),
+    positions: [observedTeammate, observedEnemy] };
+  const observer = selectMinimap(event(ready(), "minimap.positions", spectating, 3, 1000), 1000);
+  assert.equal(observer.observer, true);
+  assert.deepEqual(plain(observer.markers.filter((m) => m.selected).map((m) => m.playerId)), [observedEnemy.player_id],
+    "a team-less observer's box marks whoever it follows");
+  const overview = selectMinimap(event(ready(), "minimap.positions", { ...spectating, viewpoint: null }, 3, 1000), 1000);
+  assert.equal(overview.markers.some((m) => m.selected), false, "no viewpoint, no selection");
+  const freeInit = { ...init, minimap_schema_version: 7 };
+  let free = minimapReducer(initialMinimapState, { type: "connection", status: "connecting" });
+  free = event(free, "sidecar.baseline", { baseline: true }, 1);
+  free = resolved(event(free, "minimap.init", freeInit, 2), 30, resolveMinimapSync(freeInit));
+  free = minimapReducer(minimapReducer(free, { type: "connection", status: "live" }), { type: "focus", focused: true, revision: 1 });
+  free = event(free, "minimap.positions", { ...spectating, minimap_schema_version: 7, viewpoint: { ...pose(observedEnemy), player_id: null } }, 3, 1000);
+  const freeView = selectMinimap(free, 1000);
+  assert.equal(freeView.markers.length, 2);
+  assert.equal(freeView.markers.some((m) => m.selected || m.followed), false, "a replay free camera follows and selects nobody");
+
+  const numbers = { [observedTeammate.player_id]: "6", [observedEnemy.player_id]: "1" };
+  const live = observer.markers.find((m) => m.playerId === observedEnemy.player_id);
+  assert.equal(radarMarkerNumber(live, true, numbers), "1");
+  assert.equal(radarMarkerNumber(live, false, numbers), null, "a viewer on a team (alive or dead) never sees numbers");
+  assert.equal(radarMarkerNumber({ ...live, edge: true }, true, numbers), null, "an edge arrow carries no number");
+  assert.equal(radarMarkerNumber({ ...live, status: "dead" }, true, numbers), null, "a death X carries no number");
+  assert.equal(radarMarkerNumber({ ...live, playerId: "76561198000000099" }, true, numbers), null, "a player beyond ten has none");
+  assert.equal(radarMarkerNumber({ ...live, playerId: "constructor" }, true, numbers), null, "own keys only");
+}
 // Playout: poses follow the plugin's capture time (`sent_at`), not arrival. Captures every 67 ms at a constant
 // 150 deg/s turn, arriving in the 61/61/79 ms pattern measured in game: every 240 Hz frame turns the same angle.
 {
@@ -865,4 +907,4 @@ for (const time of [200, 232, 267]) {
     "a frame later than the playout delay never extrapolates: the camera holds the newest capture until it arrives");
 }
 
-console.log("minimap model smoke: 4 static layouts, 29 SVGs/110 mappings and zone+shape fallback; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, blur preference, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout and observation-right following passed");
+console.log("minimap model smoke: 4 static layouts, 29 SVGs/110 mappings and zone+shape fallback; permissions/lifecycle; 11 preferences, circle/square fit, centering, manual/dynamic zoom, blur preference, location title, CS2 last-known/death fades, commander keycard holder/drop, bombsites, capture-time playout, observation-right following and CS2 spectate selection / observer numbers passed");

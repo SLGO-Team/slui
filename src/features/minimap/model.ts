@@ -386,6 +386,17 @@ function interpolatedRadarPoses(state: MinimapState, frame: Frame | null, nowMs:
   return { positions, fading, viewpoint };
 }
 
+/**
+ * CS2 `#PlayerNumber` (client.dll): only a viewer on the Spectator team, GOTV or demo playback sees numbers, here a
+ * team-less observer (`MinimapViewModel.observer`), and only on live in-range icons (the death, ghost and off-map
+ * branches never draw it). `numbers` comes from `playerObserverNumbers` (hud/presentation.ts).
+ */
+export function radarMarkerNumber(marker: Pick<RadarMarker, "playerId" | "status" | "edge">, observer: boolean,
+  numbers: Readonly<Record<string, string>>): string | null {
+  if (!observer || marker.status !== "live" || marker.edge) return null;
+  return Object.prototype.hasOwnProperty.call(numbers, marker.playerId) ? numbers[marker.playerId] : null;
+}
+
 export function selectMinimap(state: MinimapState, nowMs: number, preferences?: Partial<RadarPreferences>): MinimapViewModel {
   const stale = state.frame !== null && nowMs - state.frame.receivedAtMs > minimapStaleAfterMs(state.init);
   const frame = stale ? null : state.frame;
@@ -407,9 +418,14 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
   // Frozen last-known / death markers render beneath live markers. Observed players of the other team keep the
   // enemy style; a team-less spectator sees every observed player in its team color.
   const viewerTeam = frame?.payload.viewer.team_id ?? null;
-  const decorate = (marker: RadarMarker, teamId: string): RadarMarker => ({ ...marker,
-    hostile: viewerTeam !== null && teamId !== viewerTeam,
-    followed: Boolean(viewpoint && marker.status === "live" && marker.playerId === viewpoint.player_id) });
+  // CS2 #Selected (client.dll): only an observer (here: a viewer who is not alive) selects, and only the player it
+  // follows; a free camera follows nobody. The off-map branch never draws it.
+  const observing = frame?.payload.viewer.is_alive === false;
+  const decorate = (marker: RadarMarker, teamId: string): RadarMarker => {
+    const followed = Boolean(viewpoint && marker.status === "live" && marker.playerId === viewpoint.player_id);
+    return { ...marker, hostile: viewerTeam !== null && teamId !== viewerTeam, followed,
+      selected: followed && observing && !marker.edge };
+  };
   const markers = camera ? [...context.fading.map(({ position, opacity }) => decorate(positionMarker(position, camera, opacity), position.team_id)),
     ...positions.map((position) => decorate(positionMarker(position, camera), position.team_id))] : [];
   const item = frame?.payload.commander_keycard;

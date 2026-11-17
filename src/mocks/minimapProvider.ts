@@ -110,11 +110,11 @@ export class RealtimeMockProvider extends MockSidecarConnection {
 
   configureMinimap(options: Partial<MinimapPreviewOptions>) {
     const next = { ...this.previewOptions, ...options };
-    const frameChanged = (["zone", "life", "scoreboard", "paused", "motion", "enemies", "spectate", "dynamicTargets", "lastKnown", "deaths", "keycard"] as const)
+    const frameChanged = (["zone", "life", "scoreboard", "paused", "motion", "enemies", "spectate", "viewer", "dynamicTargets", "lastKnown", "deaths", "keycard"] as const)
       .some((key) => next[key] !== this.previewOptions[key]);
     if (next.life !== this.previewOptions.life || next.enemies !== this.previewOptions.enemies
       || next.lastKnown !== this.previewOptions.lastKnown || next.deaths !== this.previewOptions.deaths
-      || next.keycard !== this.previewOptions.keycard) this.revision += 1;
+      || next.keycard !== this.previewOptions.keycard || next.viewer !== this.previewOptions.viewer) this.revision += 1;
     const bombsitesChanged = next.bombsites !== this.previewOptions.bombsites;
     this.previewOptions = next;
     // Bombsites are static init data: changing them is a new map generation, like the plugin's next round.

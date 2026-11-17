@@ -81,3 +81,50 @@ and 11-17-minimap-spectate-number).
   carried pack in the carrier's slot colour; after the plant the round border turns red and pulses and the pack shows
   red; after the defuse the pack is green and the border returns to the HUD colour; the scoreboard full map is
   square with no border. Rings are too small to read at that sampling.
+
+## Selected and PlayerNumber (2026-11-17, child 11-17-minimap-spectate-number)
+
+Same build. Two more local helper scripts (not in the repository): a linear disassembler that skips undecodable
+bytes, and a pointer-table dumper.
+
+- Per-icon visibility: `0x180ebe320` (per player icon, icon scale) tail-calls `0x180ec2150`, which builds the bit mask
+  over the name table at `0x182236620` and hands it to `0x180ec0ef0` (applies `mask & 0x1fffffff` to the child panels).
+  Icon state: `+0x16c` icon type (= table index: 9 CT, 13 T, 17 Enemy, 21 Hostage; +1 OffMap, +2 Death, +3 Ghost),
+  `+0x17c` / `+0x17d` flag bytes.
+- **Selected (bit 27)**: in the live on-map branch the mask gets bit 27 when flag `+0x17c & 0x08` is set; the death,
+  ghost and off-map branches never set it. The player loop `0x180eb88f0` sets that flag on exactly one player:
+  the one whose pawn equals `0x180c71d70()`, and only while the local pawn's `IsObserver()` (vtable `+0xac0`; the
+  same call precedes `GetObserverMode` / `GetObserverTarget` at `0x18084f0c0` / `0x18084f160` elsewhere) is true.
+  `0x180c71d70` is "local or in-eye player": the local pawn while alive, else the observer target when the observer
+  mode is 2 (in-eye) or 3 (chase) and the target is a living player; free roam returns null.
+  So the box marks the player an observer is following (first or third person); a living player never has one and
+  a free camera selects nobody.
+- `#Selected` is inside `#PI_FirstRotated`, so it turns with the player's heading; 42x36 at y -10px, centred. Source
+  `map_view_selected.vsvg` (79.381x66.417): a white teardrop ring (centre 40.13, 50.90; outer r 15.52, inner r 12.37,
+  tip at y 29.68) plus two white radial glows fanning forward (up). The ring centre lands on the dot
+  (y -10 + (50.90/66.417 - 0.5) * 36 = -0.4 px). No wash class: it stays white.
+- **PlayerNumber (bit 0)**: same live branch, when the icon mode `+0x178` is not 6, either
+  (a) the local pawn's controller (handle at pawn `+0x14bc`) passes `0x180898260`: its team byte (`+0x3e7`) is 1
+  (Spectator) with a further flag check, or a second flag pair with a global counter <= 0 (looks like the HLTV / full
+  view path), or (b) the engine interface `0x18254f4c0` vtable `+0x2b0` returns true (engine-side HLTV / demo check).
+  Otherwise the icon may get PlayerLetter (bit 1) instead. So numbers are drawn only for a viewer on the Spectator
+  team, GOTV or demo playback, never for a playing (alive or dead) competitive player.
+- The label text is set elsewhere (not traced); CS2 shares the PlayerNumber concept with the team counter avatars
+  (`hudteamcounter.xml` `#PlayerNumber`), i.e. the spectator slot keys 1-9, 0.
+- `.PI_Text`: Stratum2 medium 10px, `#000000FF`, centred (`center_nopixelsnap`), margin-top 1px / margin-right 1px,
+  in `#PI_NonRotated` (never rotates), scaled with the rest of `PlayerIcons`.
+- The user's local CS2 recordings (10-05 to 10-07) are offline bot sessions played as a
+  team member: no numbers on any dot (as expected from the condition above) and no segment spent following a
+  teammate, so they neither confirm nor contradict the Selected box.
+- **Number assignment** (the user asked to confirm teams larger than five): `0x180eae320` (player -> number, used by
+  the name prefix `0x180e7de30` on the `CCSGO_HudTeamCounter` object) and its inverse `0x180eb02a0` (number ->
+  player, the spec_player key path) walk one ordered list: the counter's CT array (`+0x160c`, count `+0x1288`, filled
+  for team 3 at `0x180ec97b5`) followed by its T array (`+0x128c`, count `+0x1284`, team 2); a non-team mode
+  (`+0x127c == 1`) uses one sorted list instead. A player at list position `i` gets `(i + 1) % 10` while `i <= 9`,
+  else no number. So numbering is contiguous across the two teams, CT first: 5v5 gives CT 1-5 and T 6-9, 0; with
+  six CTs the sixth CT is 6 and T starts at 7; the eleventh player and later have none. Each team list holds at
+  most 16 entries. The radar label's own SetText was not located; that it shows this same number is inferred from
+  the shared PlayerNumber concept (team counter avatars, spec_player keys).
+- Off-map quirk: the live branch builds the extras (number, speaking, selected) and, for an off-map icon, doubles the
+  whole mask (`add ebx, ebx` at `0x180ec24f4`), which turns OnMap into OffMap but also moves PlayerNumber to
+  PlayerLetter and Selected to ViewFrustrum. Neither the number nor the selection box is drawn on an edge arrow.
