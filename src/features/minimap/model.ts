@@ -97,6 +97,7 @@ function matchesSource(state: MinimapState, serverId: string, instanceId: string
 }
 
 // Same shape as the plugin's Signature: the keycard holder and the keycard item's status are authorization too.
+// v8 `speaking` is deliberately left out: it is not authorization and changes without a new visibility_revision.
 function authorizationKey(payload: MinimapPositions): string {
   const keycard = payload.commander_keycard;
   return JSON.stringify([payload.viewer.player_id, payload.viewer.team_id,

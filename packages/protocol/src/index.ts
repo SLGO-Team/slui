@@ -7,8 +7,13 @@ export const MINIMAP_SCHEMA_VERSION = 6 as const;
  * sends. The sidecar delivers a minimap event only to clients whose `session.open` declared its version.
  */
 export const MINIMAP_FREE_VIEWPOINT_SCHEMA_VERSION = 7 as const;
+/**
+ * v8 = v6 plus a `speaking` flag on every marker (CS2 SpeakingOnMap / SpeakingOffMap), which match servers send. The
+ * sidecar downgrades it to v6 (dropping the flag) for a client that did not declare 8.
+ */
+export const MINIMAP_SPEAKING_SCHEMA_VERSION = 8 as const;
 /** Every minimap payload version the parsers accept. */
-export const MINIMAP_SCHEMA_VERSIONS = [MINIMAP_SCHEMA_VERSION, MINIMAP_FREE_VIEWPOINT_SCHEMA_VERSION] as const;
+export const MINIMAP_SCHEMA_VERSIONS = [MINIMAP_SCHEMA_VERSION, MINIMAP_FREE_VIEWPOINT_SCHEMA_VERSION, MINIMAP_SPEAKING_SCHEMA_VERSION] as const;
 export type MinimapSchemaVersion = (typeof MINIMAP_SCHEMA_VERSIONS)[number];
 /** At most one bombsite per letter A-Z. */
 export const MINIMAP_MAX_BOMBSITES = 26 as const;
@@ -225,6 +230,12 @@ export type MinimapPosition = MinimapPose & {
    * carrier, an opponent spotted while holding it reveals the card too.
    */
   has_commander_keycard: boolean;
+  /**
+   * v8 only (required there): the server delivered this player's voice to the viewer within the last 0.2 s (CS2
+   * `CVoiceStatus` talking + `m_AudiblePlayers`). Only ever true on a live teammate; never part of the authorization set,
+   * so it changes without a new `visibility_revision`.
+   */
+  speaking?: boolean;
 };
 /**
  * Where the commander keycard was when seen: on a holder, lying on the ground, or planted in a generator the NTF
@@ -1476,6 +1487,7 @@ const MINIMAP_VIEWER_KEYS = new Set(["player_id", "team_id", "is_alive"]);
 const MINIMAP_POSE_KEYS = ["x", "y", "z", "yaw_degrees", "zone", "room_id"] as const;
 const MINIMAP_VIEWPOINT_KEYS = new Set<string>(["player_id", ...MINIMAP_POSE_KEYS]);
 const MINIMAP_POSITION_KEYS = new Set<string>(["player_id", "team_id", "role", "visibility", "status", "status_age_ms", "has_commander_keycard", ...MINIMAP_POSE_KEYS]);
+const MINIMAP_SPEAKING_POSITION_KEYS = new Set<string>([...MINIMAP_POSITION_KEYS, "speaking"]);
 const MINIMAP_KEYCARD_KEYS = new Set<string>(["x", "y", "z", "zone", "room_id", "team_id", "status", "status_age_ms", "state"]);
 
 const isMinimapSchemaVersion = (value: unknown): value is MinimapSchemaVersion => (MINIMAP_SCHEMA_VERSIONS as readonly unknown[]).includes(value);
@@ -1510,8 +1522,10 @@ export function parseMinimapPositions(payload: unknown): ParseResult<MinimapPosi
   const viewerTeam = viewer.team_id;
   const ids = new Set<string>();
   const positions: MinimapPosition[] = [];
+  const speakingVersion = payload.minimap_schema_version === MINIMAP_SPEAKING_SCHEMA_VERSION;
+  const positionKeys = speakingVersion ? MINIMAP_SPEAKING_POSITION_KEYS : MINIMAP_POSITION_KEYS;
   for (const position of payload.positions) {
-    if (!isRecord(position) || !hasOnlyKeys(position, MINIMAP_POSITION_KEYS) || !isNonEmptyString(position.player_id) || !isTeamId(position.team_id) || !isRole(position.role) || typeof position.visibility !== "string" || !["self", "teammate", "spotted-by-self", "spotted-by-teammate", "observed"].includes(position.visibility) || typeof position.status !== "string" || !isMarkerStatusAge(position.status, position.status_age_ms) || typeof position.has_commander_keycard !== "boolean" || !isMinimapPose(position)) return error("invalid-payload", "Minimap positions contain an invalid marker");
+    if (!isRecord(position) || !hasOnlyKeys(position, positionKeys) || (speakingVersion && typeof position.speaking !== "boolean") || !isNonEmptyString(position.player_id) || !isTeamId(position.team_id) || !isRole(position.role) || typeof position.visibility !== "string" || !["self", "teammate", "spotted-by-self", "spotted-by-teammate", "observed"].includes(position.visibility) || typeof position.status !== "string" || !isMarkerStatusAge(position.status, position.status_age_ms) || typeof position.has_commander_keycard !== "boolean" || !isMinimapPose(position)) return error("invalid-payload", "Minimap positions contain an invalid marker");
     if (ids.has(position.player_id)) return error("invalid-payload", "Minimap player ids must be unique");
     ids.add(position.player_id);
     const isViewer = position.player_id === viewer.player_id;
@@ -1529,6 +1543,8 @@ export function parseMinimapPositions(payload: unknown): ParseResult<MinimapPosi
       return error("invalid-payload", "Minimap enemy visibility is invalid");
     }
     if (position.has_commander_keycard && position.status !== "live") return error("invalid-payload", "Only a live marker may carry the commander keycard");
+    // CS2 draws a speaker only on a living teammate's icon (client.dll 0x180ec2150 / 0x180eb88f0).
+    if (position.speaking === true && (position.visibility !== "teammate" || position.status !== "live")) return error("invalid-payload", "Only a live teammate may be speaking");
     positions.push(position as unknown as MinimapPosition);
   }
   const holders = positions.filter((position) => position.has_commander_keycard).length;

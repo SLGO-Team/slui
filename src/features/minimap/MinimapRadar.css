@@ -111,6 +111,9 @@
    0.5px down, 0.5px left), in #PI_NonRotated, so it never turns. */
 .minimap-marker__number { position: absolute; left: -0.5px; top: 0.5px; transform: translate(-50%, -50%);
   font: 500 10px/1 "Stratum2 Radar", sans-serif; color: #000; white-space: nowrap; pointer-events: none; }
+/* CS2 #SpeakingOnMap 18x18 centred and #SpeakingOffMap 26x24 centred at y -3px, both washed #78ff00 (inline filter). */
+.minimap-marker__speaking { width: 18px; height: 18px; left: -9px; top: -9px; }
+.minimap-marker__speaking-offmap { width: 26px; height: 24px; left: -13px; top: -15px; }
 /* CS2 .PI_OffMap: 22x22, y -1px, opacity 0.8. */
 .minimap-marker__edge-icon { width: 22px; height: 22px; left: -11px; top: -12px; opacity: 0.8; }
 /* CS2 PI_Ghost (9x15, opacity 0.8) and PI_Death (19x19). The ghost PNG is already red, so it is not washed; the death X

@@ -110,7 +110,7 @@ export class RealtimeMockProvider extends MockSidecarConnection {
 
   configureMinimap(options: Partial<MinimapPreviewOptions>) {
     const next = { ...this.previewOptions, ...options };
-    const frameChanged = (["zone", "life", "scoreboard", "paused", "motion", "enemies", "spectate", "viewer", "dynamicTargets", "lastKnown", "deaths", "keycard"] as const)
+    const frameChanged = (["zone", "life", "scoreboard", "paused", "motion", "enemies", "spectate", "viewer", "dynamicTargets", "lastKnown", "deaths", "keycard", "speaking"] as const)
       .some((key) => next[key] !== this.previewOptions[key]);
     if (next.life !== this.previewOptions.life || next.enemies !== this.previewOptions.enemies
       || next.lastKnown !== this.previewOptions.lastKnown || next.deaths !== this.previewOptions.deaths

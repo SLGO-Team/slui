@@ -1,4 +1,4 @@
-import { MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, MINIMAP_SCHEMA_VERSION, type MinimapBombsite, type MinimapInit, type MinimapPose,
+import { MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, MINIMAP_SCHEMA_VERSION, MINIMAP_SPEAKING_SCHEMA_VERSION, type MinimapBombsite, type MinimapInit, type MinimapPose,
   type MinimapPosition, type MinimapPositions, type MinimapRoom, type MinimapZone } from "../contracts/index.ts";
 import { resolveMinimapSync } from "../features/minimap/resolver.ts";
 import layouts from "./minimap-layouts.json" with { type: "json" };
@@ -38,12 +38,17 @@ export type MinimapPreviewOptions = RadarPreferences & {
   keycard: "none" | "carried" | "dropped" | "planted" | "lost";
   /** Preview-only: `false` sends the init with an empty bombsite list (`?minimapBombsites=0`). */
   bombsites: boolean;
+  /**
+   * Preview-only v8 speaking (`?minimapSpeaking=on|off`): `cycle` alternates 1.5 s talking / 1.5 s quiet on the two
+   * live teammates (the second half a cycle later) while the preview moves, `on` / `off` hold it. Only live teammates of a viewer on a team.
+   */
+  speaking: "cycle" | "on" | "off";
 };
 
 export const defaultMinimapPreviewOptions: MinimapPreviewOptions = {
   ...DEFAULT_RADAR_PREFERENCES, zone: "HeavyContainment", life: "alive", alternateZoomActive: false,
   scoreboard: false, paused: false, motion: true, enemies: true, dynamicTargets: "default", spectate: 0, viewer: "member",
-  lastKnown: false, deaths: false, keycard: "none", bombsites: true,
+  lastKnown: false, deaths: false, keycard: "none", bombsites: true, speaking: "cycle",
 };
 
 export function readMinimapPreviewOptions(search = window.location.search): MinimapPreviewOptions {
@@ -78,6 +83,7 @@ export function readMinimapPreviewOptions(search = window.location.search): Mini
     deaths: params.get("minimapDeaths") === "1",
     keycard: (["carried", "dropped", "planted", "lost"] as const).find((value) => value === params.get("minimapKeycard")) ?? "none",
     bombsites: params.get("minimapBombsites") !== "0",
+    speaking: (["on", "off"] as const).find((value) => value === params.get("minimapSpeaking")) ?? "cycle",
   };
 }
 
@@ -183,8 +189,13 @@ export function createMinimapFrame(
     ...(options.deaths && ids[4] ? [{ ...pose(nearby[3] ?? anchor, 5), player_id: ids[4], team_id: team, role: friendlyRole,
       visibility: "teammate", status: "dead", status_age_ms: Math.floor(elapsedMs % MINIMAP_DEAD_MS) } as MinimapPosition] : []),
   ];
+  // v8 speaking: the plugin sets it only on live teammates of a viewer on a team (CS2 SpeakingOnMap).
+  // `cycle` runs only with motion, so a still preview (`?minimapMotion=0`, the audits) is deterministic.
+  const talking = (index: number) => options.speaking === "on"
+    || (options.speaking === "cycle" && options.motion && Math.floor(elapsedMs / 1500 + index / 2) % 2 === 0);
   // A team-less observer receives only observed markers (never last-known, never self).
   const positions: MinimapPosition[] = markers.map((position) => ({ ...position, has_commander_keycard: position.player_id === holder,
+    speaking: !observer && position.visibility === "teammate" && position.status === "live" && talking(ids.indexOf(position.player_id)),
     ...(observer ? { visibility: "observed" as const } : {}) }));
   const target = options.life === "no-viewpoint" ? null : alive ? positions[0] : positions[options.spectate];
   const viewpoint = target ? {
@@ -192,7 +203,7 @@ export function createMinimapFrame(
     yaw_degrees: target.yaw_degrees, zone: target.zone, room_id: target.room_id,
   } : null;
   return {
-    minimap_schema_version: MINIMAP_SCHEMA_VERSION, map_id: init.map_id, visibility_revision: visibilityRevision,
+    minimap_schema_version: MINIMAP_SPEAKING_SCHEMA_VERSION, map_id: init.map_id, visibility_revision: visibilityRevision,
     viewer: { player_id: viewerId, team_id: observer ? null : team, is_alive: alive },
     viewpoint, scoreboard_visible: options.scoreboard, positions,
     commander_keycard: drop ? { x: drop.position.x + 3, y: drop.position.y, z: drop.position.z - 2, zone: drop.zone, room_id: drop.id,

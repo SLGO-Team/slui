@@ -707,6 +707,46 @@ try {
     const casual = await washes("casual");
     assert.ok(casual.every((marker) => marker.wash === "ntf"), `casual: side colour for every friendly marker, self included ${JSON.stringify(casual)}`);
     assert.equal(casual.find((marker) => marker.keycard === "true").pack, "commander", "casual: the NTF Captain blue");
+
+    // CS2 SpeakingOnMap / SpeakingOffMap (task 11-17-minimap-speaking): the two live teammates talk, one in range and one
+    // pushed to the edge; the speaker sits under the dot / edge arrow in the rotating group, scaled with the icons.
+    const speaking = async (state) => {
+      await request("Page.navigate", { url: `${previewUrl}?hudDebug=0&shopDebug=0&background=0&minimapMotion=0&minimapMapScale=0.7&minimapSpeaking=${state}` });
+      await until('document.querySelector(".minimap-radar")?.dataset.availability === "live"');
+      return evaluate(`(() => {
+        const r = document.querySelector('.minimap-radar');
+        return [...r.querySelectorAll('.minimap-marker')].map((e) => {
+          const icon = e.querySelector('.minimap-marker__speaking, .minimap-marker__speaking-offmap');
+          const order = [...e.querySelectorAll('img')].map((img) => img.className);
+          return { visibility: e.dataset.visibility, status: e.dataset.status, edge: e.dataset.edge, speaking: e.dataset.speaking,
+            icon: icon && { className: icon.className, src: icon.getAttribute('src'), filter: icon.style.filter,
+              width: icon.offsetWidth, height: icon.offsetHeight, markerScale: new DOMMatrix(getComputedStyle(e).transform).a,
+              rotated: icon.parentElement.classList.contains('minimap-marker__direction'),
+              beforeDot: order.indexOf(icon.className) < Math.max(order.indexOf('minimap-marker__dot'), order.indexOf('minimap-marker__edge-icon')) },
+            iconScale: Number(r.dataset.iconScale) };
+        });
+      })()`);
+    };
+    const talking = await speaking("on");
+    await capture("speaking-on");
+    const speakers = talking.filter((marker) => marker.icon);
+    assert.deepEqual(talking.filter((marker) => marker.speaking === "true").map((marker) => marker.visibility), ["teammate", "teammate"],
+      `only the two live teammates speak ${JSON.stringify(talking)}`);
+    assert.equal(speakers.length, 2);
+    const onMap = speakers.find((marker) => marker.edge === "false");
+    const offMap = speakers.find((marker) => marker.edge === "true");
+    assert.ok(onMap && offMap, `one speaker in range and one at the edge ${JSON.stringify(speakers)}`);
+    assert.equal(onMap.icon.src, "/assets/minimap/speaking-onmap.svg");
+    assert.deepEqual([onMap.icon.width, onMap.icon.height], [18, 18], "CS2 #SpeakingOnMap 18x18");
+    assert.equal(offMap.icon.src, "/assets/minimap/speaking-offmap.svg");
+    assert.deepEqual([offMap.icon.width, offMap.icon.height], [26, 24], "CS2 #SpeakingOffMap 26x24");
+    for (const marker of speakers) {
+      assert.match(marker.icon.filter, /-speaking"?\)$/, "washed #78ff00");
+      assert.ok(marker.icon.rotated && marker.icon.beforeDot, "in the rotating group, under the dot / edge arrow");
+      assert.ok(Math.abs(marker.icon.markerScale - marker.iconScale) < 1e-6, `scaled with the icons: ${marker.icon.markerScale}`);
+    }
+    const quiet = await speaking("off");
+    assert.ok(quiet.every((marker) => marker.speaking === "false" && !marker.icon), "no speaker while nobody talks");
   }
   assert.deepEqual([...bombsiteTiers].sort(), ["false", "true"], "both bombsite tiers (on-map and edge) were rendered");
   assert.deepEqual(runtimeErrors, [], "Browser runtime/resource errors");

@@ -148,14 +148,14 @@ for (const [label, payload] of invalidFrames) {
   assert.equal(result.ok, false, label);
   assert.equal(result.error.code, "invalid-payload", label);
 }
-for (const minimap_schema_version of [undefined, 1, 2, 3, 4, 5, 8, "7"]) {
+for (const minimap_schema_version of [undefined, 1, 2, 3, 4, 5, 9, "7", "8"]) {
   assert.equal(parseMinimapInit({ ...init, minimap_schema_version }).error.code, "unsupported-minimap-schema");
   assert.equal(parseMinimapPositions({ ...frame, minimap_schema_version }).error.code, "unsupported-minimap-schema");
 }
 assert.equal(parseMinimapInit({ ...init, coordinate_system: "unknown" }).error.code, "unsupported-minimap-map");
 
 // v7 (demo replay): the v6 rules plus a free-camera viewpoint for a team-less viewer.
-assert.deepEqual(MINIMAP_SCHEMA_VERSIONS, [6, 7]);
+assert.deepEqual(MINIMAP_SCHEMA_VERSIONS, [6, 7, 8]);
 assert.equal(parseMinimapInit({ ...init, minimap_schema_version: 7 }).ok, true, "a v7 init is the v6 layout");
 assert.equal(parseMinimapPositions({ ...frame, minimap_schema_version: 7 }).ok, true, "v7 keeps every v6 frame valid");
 const freeExample = JSON.parse(readFileSync(new URL("../packages/protocol/v0/minimap-positions-free-viewpoint.example.json", import.meta.url), "utf8"));
@@ -424,3 +424,38 @@ for (const attack of ["viewer", "schema", "protocol"]) {
 }
 
 console.log(`minimap contract smoke: ok (${invalidFrames.length} malformed frame cases, adapter/session lifecycle and compatibility)`);
+
+// v8 (match servers): the v6 rules plus a required `speaking` flag on every marker, true only on a live teammate
+// (CS2 SpeakingOnMap / SpeakingOffMap, client.dll 0x180ec2150).
+{
+  const speakingExample = JSON.parse(readFileSync(new URL("../packages/protocol/v0/minimap-positions-speaking.example.json", import.meta.url), "utf8"));
+  assert.equal(parseEvent(speakingExample).ok, true, "public v8 example matches runtime contract");
+  const v8 = speakingExample.payload;
+  assert.equal(v8.minimap_schema_version, 8);
+  assert.ok(v8.positions.some((position) => position.speaking === true && position.visibility === "teammate"));
+  assert.equal(parseMinimapInit({ ...init, minimap_schema_version: 8 }).ok, true, "a v8 init is the v6 layout");
+  const quiet = (position) => ({ ...position, speaking: false });
+  const talking = (position) => ({ ...position, speaking: true });
+  const asV8 = (payload) => ({ ...payload, minimap_schema_version: 8, positions: payload.positions.map(quiet) });
+  assert.equal(parseMinimapPositions(asV8(sharedFrame)).ok, true, "every v6 frame is valid as v8 with nobody speaking");
+  assert.equal(parseMinimapPositions({ ...asV8(sharedFrame), positions: [quiet(self), talking(teammate), talking(teammate2), quiet(enemy)] }).ok, true,
+    "live teammates may speak");
+  assert.equal(parseMinimapPositions({ ...asV8(deadFrame), positions: [talking(teammate), quiet(teammate2), quiet(enemy)] }).ok, true,
+    "a dead viewer still on a team sees teammates speak (CS2: the local team stays T / CT)");
+  const parsed = parseMinimapPositions({ ...asV8(sharedFrame), positions: [quiet(self), talking(teammate)] });
+  assert.equal(parsed.ok && parsed.value.positions[1].speaking, true, "the flag reaches the parsed frame");
+  for (const [label, payload] of [
+    ["v8 marker without speaking", { ...asV8(sharedFrame), positions: [self] }],
+    ["v8 speaking that is not a boolean", { ...asV8(sharedFrame), positions: [{ ...self, speaking: 1 }] }],
+    ["self speaking", { ...asV8(sharedFrame), positions: [talking(self)] }],
+    ["spotted enemy speaking", { ...asV8(sharedFrame), positions: [quiet(self), talking(enemy)] }],
+    ["observed player speaking", { ...asV8(frame), viewer: spectatorViewer, viewpoint: null, positions: [talking(observedFriendly)] }],
+    ["dead teammate speaking", { ...asV8(frame), positions: [quiet(self), talking(deadTeammate)] }],
+    ["v6 marker with speaking", { ...sharedFrame, positions: [quiet(self)] }],
+    ["v7 marker with speaking", { ...freeFrame, positions: freeFrame.positions.map(quiet) }],
+  ]) {
+    const result = parseMinimapPositions(payload);
+    assert.equal(result.ok, false, label);
+    assert.equal(result.error.code, "invalid-payload", label);
+  }
+}
