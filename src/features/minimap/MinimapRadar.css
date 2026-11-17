@@ -74,6 +74,15 @@
 .minimap-radar__border { box-sizing: border-box; border: 1px solid var(--radar-accent); }
 /* CS2 #Radar__Square--Border is `visibility: collapse`: only the round radar has a frame. */
 .minimap-radar[data-shape="square"] .minimap-radar__border { display: none; }
+/* CS2 RadarBombPlantPulse on #Radar__Round--Border while the bomb is planted and not defused; SLGO: a generator
+   overload is running. */
+.minimap-radar[data-generator-active="true"] .minimap-radar__border { border-color: #ff0000;
+  animation: minimap-plant-pulse 0.65s linear infinite; }
+@keyframes minimap-plant-pulse {
+  0%, 100% { opacity: 0.1; }
+  25%, 75% { opacity: 0.6; }
+  50% { opacity: 0.8; }
+}
 
 /* CS2 scales the whole PlayerIcons panel by cl_radar_icon_scale_min + (1.25 - min) x the current radar scale (min 0.6;
    camera.ts radarIconScale). A marker is a 0x0 box at its point, so scaling from its origin scales every child about
@@ -110,19 +119,26 @@
    is added, so the outline stays black. */
 .minimap-marker .minimap-marker__keycard { width: 16px; height: 16px; left: -8px; top: -8px;
   transform: scale(calc(1 / var(--radar-icon-scale, 1))); transform-origin: 8px 8px;
-  filter: var(--marker-filter) drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
+  filter: var(--pack-wash, var(--marker-filter)) drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
 /* The radar item (a dropped or planted card, or one fading at its last seen spot) renders under every player marker.
-   CS2 #DroppedBomb: 110px ring (~80px here), 2px #880000; #PlantedBomb: 70px (~51px here), 2px #D10000; both screen
-   blend with DroppedBomb--Animate over 0.75s. */
+   CS2 native sizes (RI_BombDefuserPackage is not icon-scaled): #DroppedBomb 110px ring, 2px #880000, shown whenever the
+   card is on the ground; #PlantedBomb 70px, 2px #D10000, added once planted; both screen blend with DroppedBomb--Animate
+   over 0.75s. */
 .minimap-keycard-drop { position: absolute; width: 0; height: 0; }
-.minimap-keycard-drop__icon { position: absolute; display: block; width: 12px; height: 12px; left: -6px; top: -6px;
+.minimap-keycard-drop__icon { position: absolute; display: block; width: 16px; height: 16px; left: -8px; top: -8px;
   /* Empty fallback, not `none`: "none drop-shadow(...)" is an invalid filter list and would drop the shadow too. */
   filter: var(--keycard-wash,) drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
-.minimap-keycard-drop__pulse { position: absolute; box-sizing: border-box; width: 80px; height: 80px; left: -40px; top: -40px;
-  border: 2px solid #880000; border-radius: 50%; mix-blend-mode: screen; opacity: 0;
-  animation: minimap-keycard-dropped 0.75s linear infinite; }
-.minimap-keycard-drop[data-state="planted"] .minimap-keycard-drop__pulse { width: 51px; height: 51px; left: -25.5px; top: -25.5px;
-  border-color: #d10000; }
+/* CS2 PlantedBombAnimateRed: a red img-shadow (1px #71060666 -> 2px #af0707AA -> 3px #d50808EE) over 0.65s. */
+.minimap-keycard-drop__icon--planted { animation: minimap-keycard-planted 0.65s linear infinite; }
+@keyframes minimap-keycard-planted {
+  0%, 100% { filter: var(--keycard-wash,) drop-shadow(0 0 1px #71060666) drop-shadow(0 0 1px #000); }
+  25%, 75% { filter: var(--keycard-wash,) drop-shadow(0 0 2px #af0707aa) drop-shadow(0 0 1px #000); }
+  50% { filter: var(--keycard-wash,) drop-shadow(0 0 3px #d50808ee) drop-shadow(0 0 1px #000); }
+}
+.minimap-keycard-drop__pulse { position: absolute; box-sizing: border-box; border: 2px solid; border-radius: 50%;
+  mix-blend-mode: screen; opacity: 0; animation: minimap-keycard-dropped 0.75s linear infinite; }
+.minimap-keycard-drop__pulse--dropped { width: 110px; height: 110px; left: -55px; top: -55px; border-color: #880000; }
+.minimap-keycard-drop__pulse--planted { width: 70px; height: 70px; left: -35px; top: -35px; border-color: #d10000; }
 @keyframes minimap-keycard-dropped {
   0% { opacity: 1; transform: scale(0.01); }
   20% { opacity: 1; transform: scale(0.1); }

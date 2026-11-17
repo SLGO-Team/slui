@@ -573,6 +573,11 @@ assert.equal(zoom.preferences.mapScale, 0.4);
   close(overview.iconScale, radarIconScale(overview.camera.scale * 45 * 0.7 / 125), "round overview uses its equivalent zoom");
   assert.equal(selectMinimap(initialMinimapState, 0).iconScale, 1, "no camera, no scale");
 }
+// CS2 leaves the bomb pack orange for a viewer on neither side: the view model flags a team-less viewer.
+assert.equal(selectMinimap(live, 150).observer, false);
+assert.equal(selectMinimap(event(live, "minimap.positions", { ...positions, visibility_revision: 2,
+  viewer: { ...positions.viewer, team_id: null, is_alive: false }, positions: [], viewpoint: null }, 4, 160), 160).observer, true);
+assert.equal(selectMinimap(initialMinimapState, 0).observer, false, "no frame, no viewer");
 // CS2 cl_radar_scale_dynamic (research/cs2-radar-client-re.md): a smoothed distance that grows at once and, after a
 // 4 s hold from the first smaller target, shrinks at 520 Source units/s (13.208 m/s); the farthest element sits at 95 %.
 const near = (a, b, message) => assert.ok(Math.abs(a - b) < 1e-9, `${message ?? ""} ${a} != ${b}`);

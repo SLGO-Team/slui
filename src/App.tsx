@@ -1047,7 +1047,8 @@ function App({ harness }: AppProps) {
           onSort={handleScoreboardSort} onCyclePage={handleScoreboardPage} onToggleSide={handleScoreboardSide} /> : null}
         <LiveMinimapRadar store={minimapFeature.store} preferences={minimapOptions}
           controls={minimapControls}
-          playerColors={playerColors} role={viewerRole} />
+          playerColors={playerColors} role={viewerRole}
+          generatorActive={hud.hasSnapshot && hud.clockMode === "generator"} />
         <ShopPanel
           shop={displayedShop}
           role={shopRole}

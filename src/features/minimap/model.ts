@@ -309,6 +309,8 @@ export type MinimapViewModel = {
   shape: RadarShape;
   viewSize: 250 | 290;
   preferences: RadarPreferences;
+  /** The viewer is on no team (an authorized observer): CS2 leaves the bomb pack in its default orange for them. */
+  observer: boolean;
   fullMap: boolean;
   viewerAlive: boolean | null;
   locationLabel: string;
@@ -425,5 +427,5 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
     shape, viewSize: shape === "square" ? 290 : 250, locationLabel,
     effects: { mapBlend: normalized.mapBlend, blurBackground: normalized.blurBackground },
     activeMapScale, iconScale: camera ? radarIconScale(radarZoom(camera, activeMapScale)) : 1, alternateZoomActive, dynamicZoomActive,
-    preferences: normalized, fullMap, viewerAlive: frame?.payload.viewer.is_alive ?? null };
+    preferences: normalized, observer: Boolean(frame) && viewerTeam === null, fullMap, viewerAlive: frame?.payload.viewer.is_alive ?? null };
 }
