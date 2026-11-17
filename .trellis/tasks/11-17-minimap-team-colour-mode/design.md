@@ -51,7 +51,7 @@ export function teammateColorRule(hud): TeammateColorRule
 | --- | --- | --- |
 | 雷达标记 `PlayerMarker` | `slots` | 己方（含自己、死亡 X）用身份色 wash（`ntf` / `scp`），不再用白色 `self`；对手红色；观众沿用 #117 |
 | 雷达携带的钥匙卡 `--pack-wash` | `slots` | 橙色 `observer` wash（CS2 默认 `#ff9b25`）；对手红色不变 |
-| 顶部头像边框 `--hud-player-color` | `slots` | NTF `#6f9ce6`（SLGO NTF 在头像上沿用 CS2 CT 配色：`#a7e3ff` 名字、`#7289a3` 底色，所以取 CS2 CT 边框原值）；SCP `#d94652`（头像组现有的 SCP 强调色，计分数字同色）。视觉评审确认 |
+| 顶部头像边框 `--hud-player-color` | `slots` | CS2 把 3px 槽位边框藏掉，只剩头像底框 `bordertype`（research「Team counter avatar fallback」）：活着的玩家 2px 浅阵营色——NTF `#b5d4ee`（CS2 `color-CT` 原值，NTF 头像沿用 CS2 CT 配色），SCP `#ea8a92`（CS2 `color-T` `#ead18a` 换到 SCP 名字色相，暂定，视觉评审确认）；活着的自己 2.5px 白色；死亡沿用现有 2px 黑 |
 | 聊天圆点 | `slots` | 不画圆点（`dotColor: null`） |
 | 计分板色圈 `--sb-slot` | `slots` | 不画边框（`slotColor: null`，CSS 走透明 / 隐藏） |
 | 商店队友小点 | `pips` | 灰色 `#787878`（`SHOP_PIP_NO_SLOT_COLOR`）；规则开启但不知道颜色时仍是白色 `SHOP_PIP_FALLBACK_COLOR` |
@@ -69,5 +69,5 @@ export function teammateColorRule(hud): TeammateColorRule
 
 ## 6. 风险
 
-- SCP 头像边框颜色是 SLGO 自定的对应色，CS2 无原值，视觉评审时可能要调。
+- SCP 头像回落边框 `#ea8a92` 是 SLGO 自定的对应色，CS2 无原值，视觉评审时可能要调。
 - 自定义 profile 一律算竞技类（和计分板图标一致）；若以后要更细，可再加 cvar。
