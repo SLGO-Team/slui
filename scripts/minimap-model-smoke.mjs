@@ -573,7 +573,8 @@ assert.equal(zoom.preferences.mapScale, 0.4);
   close(overview.iconScale, radarIconScale(overview.camera.scale * 45 * 0.7 / 125), "round overview uses its equivalent zoom");
   assert.equal(selectMinimap(initialMinimapState, 0).iconScale, 1, "no camera, no scale");
 }
-// CS2 leaves the bomb pack orange for a viewer on neither side: the view model flags a team-less viewer.
+// CS2 leaves the bomb pack in its neutral wash (SLGO: NTF Captain blue) for a viewer on neither side: the view model
+// flags a team-less viewer.
 assert.equal(selectMinimap(live, 150).observer, false);
 assert.equal(selectMinimap(event(live, "minimap.positions", { ...positions, visibility_revision: 2,
   viewer: { ...positions.viewer, team_id: null, is_alive: false }, positions: [], viewpoint: null }, 4, 160), 160).observer, true);

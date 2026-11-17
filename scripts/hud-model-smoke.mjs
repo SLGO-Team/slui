@@ -22,6 +22,7 @@ import {
   hudVariantFor,
   loadoutToPlayerMeta,
   playerObserverNumbers,
+  teammateColorRule,
   topHudPlayerMetaForHud,
 } from "../src/features/hud/presentation.ts";
 
@@ -342,14 +343,39 @@ assert.equal(hudAuxPower(scpVitals({ aux_power: 50 })), null, "aux power needs i
 {
   const roster = (prefix, count) => Array.from({ length: count }, (_, index) => ({ player_id: `${prefix}${index + 1}` }));
   const teams = (ntf, scp) => [{ role: "ntf", players: roster("n", ntf) }, { role: "scp", players: roster("s", scp) }];
-  assert.deepEqual(playerObserverNumbers(teams(5, 5)), { s1: "1", s2: "2", s3: "3", s4: "4", s5: "5",
+  const numbersOf = (list) => playerObserverNumbers(list, teammateColorRule({ modeFamily: null, playerLimit: null, teams: list }).numbers);
+  assert.deepEqual(numbersOf(teams(5, 5)), { s1: "1", s2: "2", s3: "3", s4: "4", s5: "5",
     n1: "6", n2: "7", n3: "8", n4: "9", n5: "0" }, "5v5: SCP (CT) 1-5, NTF (T) 6-9, 0, whatever the team order");
-  assert.deepEqual(playerObserverNumbers(teams(4, 6)), { s1: "1", s2: "2", s3: "3", s4: "4", s5: "5", s6: "6",
+  assert.deepEqual(numbersOf(teams(4, 6)), { s1: "1", s2: "2", s3: "3", s4: "4", s5: "5", s6: "6",
     n1: "7", n2: "8", n3: "9", n4: "0" }, "a sixth SCP player takes 6 and NTF starts at 7");
-  assert.deepEqual(playerObserverNumbers(teams(5, 6)), {}, "eleven players: no numbers at all");
-  assert.deepEqual(playerObserverNumbers(teams(7, 7)), {}, "more than ten players: no numbers at all");
-  assert.deepEqual(playerObserverNumbers(teams(2, 0)), { n1: "1", n2: "2" }, "an empty SCP side lets NTF start at 1");
-  assert.deepEqual(playerObserverNumbers([]), {});
+  assert.deepEqual(numbersOf(teams(5, 6)), {}, "eleven players and no player_limit: no numbers at all");
+  assert.deepEqual(numbersOf(teams(7, 7)), {}, "more than ten players: no numbers at all");
+  assert.deepEqual(numbersOf(teams(2, 0)), { n1: "1", n2: "2" }, "an empty SCP side lets NTF start at 1");
+  assert.deepEqual(numbersOf([]), {});
+  assert.deepEqual(playerObserverNumbers(teams(2, 2), false), {}, "the rule turns numbers off");
+}
+
+{
+  // CS2 teammate-colour rule (task research cs2-teammate-colour-rule.md): mode family x player limit.
+  const roster = (count) => Array.from({ length: count }, (_, index) => ({ player_id: `p${index}` }));
+  const teams = (count) => [{ role: "ntf", players: roster(count) }, { role: "scp", players: [] }];
+  const rule = (modeFamily, playerLimit, players = 4) => teammateColorRule({ modeFamily, playerLimit, teams: teams(players) });
+  assert.deepEqual(rule("competitive", 10), { slots: true, pips: true, numbers: true }, "competitive 5v5: everything on");
+  assert.deepEqual(rule("casual", 20), { slots: false, pips: false, numbers: false }, "casual 10v10: everything off");
+  assert.deepEqual(rule("casual", 10), { slots: false, pips: false, numbers: true }, "casual with a 10-player cap keeps numbers only");
+  assert.deepEqual(rule("competitive", 12), { slots: false, pips: true, numbers: false }, "a custom profile over 10: pips keep slot colours");
+  assert.deepEqual(rule("competitive", 2), { slots: true, pips: true, numbers: true }, "a 1v1 custom profile is competitive");
+  assert.deepEqual(rule(null, null), { slots: true, pips: true, numbers: true }, "older plugin, small roster: as before");
+  assert.deepEqual(rule(null, null, 11), { slots: true, pips: true, numbers: false }, "older plugin: numbers follow the roster");
+  assert.deepEqual(rule("casual", null), { slots: true, pips: false, numbers: true }, "slots need both fields; pips only the mode");
+  assert.deepEqual(rule(null, 20, 4), { slots: true, pips: true, numbers: false }, "numbers follow player_limit when it is known");
+
+  const casual = hudFor({ mode_family: "casual", player_limit: 20 }).hud;
+  assert.equal(casual.modeFamily, "casual");
+  assert.equal(casual.playerLimit, 20);
+  const legacy = hudFor({}).hud;
+  assert.equal(legacy.modeFamily, null, "an older plugin's snapshot has no mode family");
+  assert.equal(legacy.playerLimit, null);
 }
 
 console.log("hud model smoke: ok");

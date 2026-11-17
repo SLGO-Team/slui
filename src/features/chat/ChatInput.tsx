@@ -19,6 +19,8 @@ type ChatInputProps = {
   chat: ChatInputState;
   /** How the local player's echoed rows are labelled and coloured. */
   self: ChatRowStyle;
+  /** `teammateColorRule(hud).slots`: false drops the slot colour dot before every name. */
+  teammateColors?: boolean;
   onDraft(text: string): void;
   onToggleScope(): void;
   /** Called with the raw draft; the caller validates and builds the command. */
@@ -30,13 +32,13 @@ type ChatInputProps = {
   onDiagnostic?(message: string): void;
 };
 
-// CS2 row: "[ALL] ● Name:  body" or "[T] ● Name@Place: body"; every player, the local
+// CS2 row: "[ALL] ● Name:  body" or "[T] ● Name@Place: body" (no dot with teammate colours off); every player, the local
 // one included, uses this format. Plugin notices are coloured segments without tag or dot.
 // A lingering row fades with a compositor animation; its delay is fixed when the row
 // mounts, so the 250ms clock that removes finished rows never makes the fade step. Rows run on the HUD clock: on a
 // demo replay server the fade follows the replay speed and stands still while paused (the row remounts, keyed by the
 // clock's epoch, when the rate changes).
-function ChatRow({ line, self, lingering }: { line: ChatLine; self: ChatRowStyle; lingering: boolean }) {
+function ChatRow({ line, self, teammateColors, lingering }: { line: ChatLine; self: ChatRowStyle; teammateColors: boolean; lingering: boolean }) {
   const time = useHudTime();
   const [fade] = useState((): CSSProperties => {
     if (!lingering) return {};
@@ -55,12 +57,12 @@ function ChatRow({ line, self, lingering }: { line: ChatLine; self: ChatRowStyle
       </p>
     );
   }
-  const row = line.sender ? resolveChatSender(line.sender) : self;
+  const row = line.sender ? resolveChatSender(line.sender, teammateColors) : self;
   const team = line.scope === "team";
   return (
     <p className="chat-line" data-kind="player" data-echo={line.sender === null} style={{ "--chat-team-color": row.teamColor, ...fade } as CSSProperties}>
       <span className="chat-line-tag" data-team={team}>{team ? row.teamTag ?? CHAT_TEAM_FALLBACK_TAG : CHAT_GLOBAL_TAG}</span>
-      {" "}<span className="chat-line-dot" style={{ color: row.dotColor }} aria-hidden="true" />
+      {row.dotColor !== null ? <>{" "}<span className="chat-line-dot" style={{ color: row.dotColor }} aria-hidden="true" /></> : null}
       {" "}<span className="chat-line-name">{row.name}</span>
       {team ? ": " : ":  "}{line.body}
     </p>
@@ -69,7 +71,7 @@ function ChatRow({ line, self, lingering }: { line: ChatLine; self: ChatRowStyle
 
 // A manual React recreation of CS2 layout/hud/hudchat.xml; class names follow the
 // Panorama ids (ChatContainer, ChatMain, ChatFG, ChatHistory, ChatTextEntry, ...).
-export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggleScope, onSubmit, onClose, openingKeys, onDiagnostic }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ chat, self, teammateColors = true, onDraft, onToggleScope, onSubmit, onClose, openingKeys, onDiagnostic }: ChatInputProps) {
   const scale = useOverlayScale();
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -143,7 +145,7 @@ export const ChatInput = memo(function ChatInput({ chat, self, onDraft, onToggle
     }
   };
 
-  const rows = lines.map((line) => <ChatRow key={`${line.id}:${time.epoch}`} line={line} self={self} lingering={!chat.open} />);
+  const rows = lines.map((line) => <ChatRow key={`${line.id}:${time.epoch}`} line={line} self={self} teammateColors={teammateColors} lingering={!chat.open} />);
   return (
     <section className="chat-overlay" data-open={chat.open} aria-label="聊天" style={{ "--chat-scale": scale } as CSSProperties}>
       {chat.open ? (

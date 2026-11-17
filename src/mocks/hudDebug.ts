@@ -13,7 +13,7 @@ import {
   type RoundHudState,
 } from "../features/hud/model";
 import type { HudPresentationVariant } from "../features/hud/presentation";
-import { mockMatchSnapshot, projectMockLoadout, scpMockVitals } from "./provider";
+import { mockMatchSnapshot, projectMockLoadout, scpMockVitals, withMockMatchMode } from "./provider";
 import { readHudScene, type HudScene } from "./hudScenes";
 import { scoreboardSceneMatch } from "./scoreboardScenes.ts";
 
@@ -280,7 +280,7 @@ export function createHudDebugSnapshot(options: HudDebugOptions): MatchSnapshot 
   })) as MatchSnapshot["teams"];
 
   return {
-    ...mockMatchSnapshot,
+    ...withMockMatchMode(mockMatchSnapshot),
     ...(sceneMatch ? { round: sceneMatch.round, max_rounds: sceneMatch.maxRounds } : {}),
     viewer_team_id: viewerTeamId,
     state: options.roundState,

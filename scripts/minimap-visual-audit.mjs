@@ -686,6 +686,27 @@ try {
       return { iconScale: Number(r.dataset.iconScale), border: getComputedStyle(r.querySelector('.minimap-radar__border')).borderTopColor !== 'rgb(255, 0, 0)' }; })()`);
     assert.ok(Math.abs(far.iconScale - 0.7625) < 1e-9, "icon scale at mapScale 0.25");
     assert.ok(far.border, "no generator overload, no red frame");
+
+    // CS2 teammate-colour rule (task 11-17-minimap-team-colour-mode, teammateColorRule): a competitive 5v5 snapshot
+    // gives friendly markers their slot colour and the keycard the carrier's; casual (player_limit 20) falls back to the
+    // side colour, self included, and the keycard's neutral NTF Captain blue (CS2: the CreateBombPack orange).
+    const washes = async (mode) => {
+      await request("Page.navigate", { url: `${previewUrl}?hudDebug=0&shopDebug=0&background=0&minimapMotion=0&minimapKeycard=carried&matchMode=${mode}` });
+      await until('document.querySelector(".minimap-radar")?.dataset.availability === "live" && !!document.querySelector(".minimap-marker[data-keycard=\'true\']")');
+      const view = await evaluate(`(() => [...document.querySelectorAll('.minimap-marker:not(.minimap-marker--enemy)')].map((e) => ({
+        visibility: e.dataset.visibility, keycard: e.dataset.keycard,
+        wash: e.style.getPropertyValue('--marker-filter').replace(/^url\\(#[^-]+-|\\)$/g, ''),
+        pack: e.style.getPropertyValue('--pack-wash').replace(/^url\\(#[^-]+-|\\)$/g, '') })))()`);
+      await capture(`teammate-colors-${mode}`);
+      return view;
+    };
+    const competitive = await washes("competitive");
+    assert.ok(competitive.length >= 2, "friendly markers are on the radar");
+    assert.ok(competitive.every((marker) => marker.wash.startsWith("slot-")), `competitive 5v5: slot colours ${JSON.stringify(competitive)}`);
+    assert.equal(competitive.find((marker) => marker.keycard === "true").pack, "", "the keycard takes its carrier's slot colour");
+    const casual = await washes("casual");
+    assert.ok(casual.every((marker) => marker.wash === "ntf"), `casual: side colour for every friendly marker, self included ${JSON.stringify(casual)}`);
+    assert.equal(casual.find((marker) => marker.keycard === "true").pack, "commander", "casual: the NTF Captain blue");
   }
   assert.deepEqual([...bombsiteTiers].sort(), ["false", "true"], "both bombsite tiers (on-map and edge) were rendered");
   assert.deepEqual(runtimeErrors, [], "Browser runtime/resource errors");

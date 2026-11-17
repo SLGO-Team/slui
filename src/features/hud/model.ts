@@ -2,6 +2,7 @@ import type {
   ConnectionStatus,
   InstanceEndReason,
   MatchPlayer,
+  MatchModeFamily,
   MatchPlayerLoadout,
   MatchSnapshotEvent,
   Role,
@@ -94,6 +95,9 @@ export type RoundHudViewModel = RoundHudStatus & ({
   phaseLabel: string;
   round: number;
   maxRounds: number;
+  /** match.snapshot `mode_family` / `player_limit` (the teammate-colour rule, `teammateColorRule`); null when absent. */
+  modeFamily: MatchModeFamily | null;
+  playerLimit: number | null;
   clockMode: HudClockMode;
   paused: boolean;
   teams: [HudTeamView, HudTeamView];
@@ -389,6 +393,8 @@ export function selectRoundHud(state: RoundHudState, nowMs: number, endReason: I
     phaseLabel: phaseLabel(snapshot.state),
     round: snapshot.round,
     maxRounds: snapshot.max_rounds,
+    modeFamily: snapshot.mode_family ?? null,
+    playerLimit: snapshot.player_limit ?? null,
     clockMode: hudClockMode(snapshot),
     paused: snapshot.phase_paused,
     teams,

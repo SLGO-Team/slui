@@ -166,6 +166,24 @@ prediction, while sRGB blending gives ~108 / ~135). Copying the Panorama alpha m
   or the neighbour row bleeds in; measure ink with canvas `measureText`
   (`actualBoundingBox*`) under both sources.
 
+### Teammate colours (CS2 `cl_teammate_colors_show`)
+
+`teammateColorRule(hud)` in `src/features/hud/presentation.ts` is the only place that decides where the five slot
+colours (`PLAYER_COLORS` / `playerSlotColors`) apply; consumers take its booleans and never re-derive the rule.
+Inputs are match.snapshot `mode_family` / `player_limit` (`RoundHudViewModel.modeFamily` / `playerLimit`; plugin: the
+profile id `casual` is casual, every other profile competitive; limit = 2 x `max_players_per_team`). CS2 evidence:
+task `11-17-minimap-team-colour-mode` research, appended to `archive/2026-11/11-17-minimap-cs2-slui/research/
+cs2-radar-client-re.md`.
+
+| Flag | True when | Off: what CS2 draws instead |
+| --- | --- | --- |
+| `slots` | `mode_family` competitive and `player_limit <= 10`; either field absent (older plugin, demo replay) = true | radar: friendly markers (self and the death X too) in the side wash `ntf` / `scp`, the carried keycard in the neutral wash (CS2 orange `#ff9b25`, SLGO NTF Captain `#003dca`); team counter: no 3px slot border, the avatar keeps a 2px pale side border (NTF `#b5d4ee` = CS2 `color-CT`; SCP `#ea8a92`, provisional) and the alive local player a 2.5px white one (`hud-player--plain` / `--self`, dead stays 2px black); chat: no dot (`dotColor: null`); scoreboard: no avatar frame (`slotColor: null`) |
+| `pips` | `mode_family` is not casual (the player limit is not checked) | buy menu teammate pips all `SHOP_PIP_NO_SLOT_COLOR` `#787878`, still in slot order |
+| `numbers` | `player_limit <= 10`; without a limit, a match.snapshot roster of at most 10 | no observer numbers on the radar |
+
+Mock preview: `?matchMode=competitive` (default; 10), `casual` (20) or `legacy` (no fields). `npm run
+minimap-visual-audit` checks the radar washes for competitive and casual.
+
 ### Migration
 
 A manual replacement must pass its visual and behavioral gates before the old
@@ -326,7 +344,8 @@ The chat panel is a hand-built React feature under `src/features/chat`
   (`resolveChatSender` / `resolveChatSelf` in `presentation.ts`): tag and name
   in `ROLE_COLORS[message.role]` (white without a role, `[TEAM]` as team tag),
   the dot in the sender's `PLAYER_COLORS` slot, i.e. their index in their team
-  in the latest `match.snapshot` (white when not found). The sender and slot are
+  in the latest `match.snapshot` (white when not found); no dot at all while
+  `teammateColorRule(hud).slots` is false ("Teammate colours" above). The sender and slot are
   frozen when the row arrives, like CS2's text rows: a later side swap does not
   recolour old rows. The only exception is the local echo (below), a placeholder
   drawn with the current local-player style until the server's copy replaces it.

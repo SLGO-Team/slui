@@ -21,7 +21,8 @@
   "children": [
     "11-17-minimap-cs2-slui",
     "11-17-minimap-speaking",
-    "11-17-minimap-spectate-number"
+    "11-17-minimap-spectate-number",
+    "11-17-minimap-team-colour-mode"
   ],
   "parent": null,
   "relatedFiles": [],

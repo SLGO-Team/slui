@@ -20,8 +20,11 @@ export const CHAT_NOTICE_TONE_COLORS: Readonly<Record<ChatNoticeTone, string>> =
   muted: "#A9A9A9",
 };
 
-/** How a player row is labelled and coloured: name, team tag, team colour and slot colour dot. */
-export type ChatRowStyle = { name: string; teamTag: string | null; teamColor: string; dotColor: string };
+/**
+ * How a player row is labelled and coloured: name, team tag, team colour and slot colour dot. `dotColor` null: no dot,
+ * as CS2 draws none when teammate colours are off (client.dll 0x180ea3620, `teammateColorRule(hud).slots`).
+ */
+export type ChatRowStyle = { name: string; teamTag: string | null; teamColor: string; dotColor: string | null };
 
 type ViewerTeam = { role: Role; players: readonly { player_id: string; display_name: string }[] };
 
@@ -35,23 +38,23 @@ function slotColor(role: Role, index: number): string {
 }
 
 /** The local player, for the echo of a send the server has not published yet. */
-export function resolveChatSelf(team: ViewerTeam | null, steamId: string | null): ChatRowStyle {
-  if (!team) return { name: CHAT_FALLBACK_SELF_NAME, teamTag: null, teamColor: "white", dotColor: "white" };
+export function resolveChatSelf(team: ViewerTeam | null, steamId: string | null, teammateColors = true): ChatRowStyle {
+  if (!team) return { name: CHAT_FALLBACK_SELF_NAME, teamTag: null, teamColor: "white", dotColor: teammateColors ? "white" : null };
   const index = team.players.findIndex((player) => player.player_id === steamId);
   return {
     name: index >= 0 ? team.players[index].display_name : CHAT_FALLBACK_SELF_NAME,
     teamTag: teamTag(team.role),
     teamColor: ROLE_COLORS[team.role],
-    dotColor: index >= 0 ? slotColor(team.role, index) : "white",
+    dotColor: !teammateColors ? null : index >= 0 ? slotColor(team.role, index) : "white",
   };
 }
 
 /** Any player's row, the local player's included, formatted exactly like the echo. */
-export function resolveChatSender(sender: ChatSender): ChatRowStyle {
+export function resolveChatSender(sender: ChatSender, teammateColors = true): ChatRowStyle {
   return {
     name: sender.name,
     teamTag: sender.role ? teamTag(sender.role) : null,
     teamColor: sender.role ? ROLE_COLORS[sender.role] : "white",
-    dotColor: sender.slot ? slotColor(sender.slot.role, sender.slot.index) : "white",
+    dotColor: !teammateColors ? null : sender.slot ? slotColor(sender.slot.role, sender.slot.index) : "white",
   };
 }

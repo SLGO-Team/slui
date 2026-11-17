@@ -193,6 +193,8 @@ authority). Older plugins omit them; the client treats absent as `null`.
 | `loadout` | player | Viewer's own team only, like `health`; `null` for an offline teammate. Never present for the other team or when `viewer_team_id` is `null`. |
 | `max_health` / `max_shield` | player | Viewer's own team only, like `health`. Caps of `health` / `shield` (`shield` is Hume shield + AHP); `null` when not alive. Absent from older plugins: the client then scales both to 100 as before. |
 | `aux_power` / `max_aux_power` | player | Viewer's own team only. An alive SCP-079's auxiliary power and its cap; 079 has no health or shield, so it carries no `health` / `shield` / caps (the aux bar takes their place). Absent for every other player. |
+| `mode_family` | payload | `"competitive"` or `"casual"`: the profile id `casual` (any case) is casual, every other profile (custom ones too) competitive. Absent from older plugins and from demo replay. See "Teammate colours" below. |
+| `player_limit` | payload | Integer 2-128: 2 x the profile's `max_players_per_team` (not the server's slot count, which includes spectator slots). Absent like `mode_family`. |
 | `omniscient` | payload | Demo replay only (see "Demo replay"). `true`: the viewer is an omniscient observer, `viewer_team_id` must be `null`, and every "viewer's own team only" field above may appear on **both** teams, with its own rules unchanged. Absent or `false`: the rules above. Sent only to clients declaring `replay`, since an older parser rejects vitals on a non-viewer team. |
 
 `loadout` carries `money` (integer), `primary_item_id` (string or `null`),
@@ -203,6 +205,12 @@ primary is the current role (`Scp173`, ...), SCP utility ids are the highest
 owned `HealthUpgradeN` / `ShieldUpgradeN` / `Scp079LevelN`. A dead teammate
 carries money only. A wrong type on any of these fields, or a `loadout` on a
 non-viewer team of a snapshot that is not `omniscient`, rejects the snapshot.
+
+Teammate colours (CS2 `cl_teammate_colors_show`): the client gives players the
+five slot colours (radar, team counter, chat dot, scoreboard ring, keycard
+carrier) only when `mode_family` is `competitive` and `player_limit` is at most
+10; the buy menu teammate pips only check `mode_family`. Either field absent:
+the client keeps the slot colours, as before these fields existed.
 
 The top-HUD timer shows, in priority order: nothing in `Idle`,
 `WaitingForPlayers` and `RoundEnd`; the generator indicator (no digits: the

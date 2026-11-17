@@ -34,6 +34,9 @@ SLUI 雷达还有一些机制和外观和 CS2 不一致。这个任务按用户 
 1. `11-17-minimap-cs2-slui`：只改 SLUI（A1、A2、A5、B6、B7、C8、C10、C11、E17）。先做这个。
 2. `11-17-minimap-speaking`：插件、协议和 SLUI 三边配合（D13），需要新的协议版本。
 3. `11-17-minimap-spectate-number`：观战选中框和队友编号（D15、D16）。要先查清 CS2 的显示条件，再决定要不要改协议。
+4. `11-17-minimap-team-colour-mode`：#117 评审时追加（用户 11-17「按 CS2 做，另开任务」）。槽位色只在竞技类模式且
+   人数上限 ≤ 10 时启用，其余回落 SLGO 身份色；插件、协议、backend 和 SLUI 都要改。SLUI PR 在 #117 之后、
+   `11-17-minimap-speaking` 之前。
 
 子任务之间没有代码依赖；2 和 3 都会改 `MinimapRadar` 的标记渲染，所以在 1 合入后再开始，避免冲突，
 并且按 [[parallel-prs-journal-conflict]] 依次开 PR。

@@ -534,6 +534,25 @@
   object-fit: contain;
 }
 
+/*
+ * Teammate colours off (teammateColorRule: casual, or more than 10 players): CS2 parents #PlayerColor, the 3px slot
+ * border, into the collapsed #Invisible and keeps #AvatarL__ImageBG's bordertype class (client.dll 0x180ec66e0 /
+ * 0x180ebded0): Avatar__PlayerBorder--CT / --T, 2px color-CT #b5d4ee / color-T #ead18a, or Avatar__PlayerOutline--White
+ * (2.5px white) for the alive local player. NTF wears the CS2 CT avatar palette here, so it keeps #b5d4ee; SCP's
+ * #ea8a92 is color-T's saturation and lightness at the SCP name hue (provisional, visual review).
+ */
+.hud-player--plain .hud-player__portrait {
+  border: 2px solid #ea8a92;
+}
+
+.hud-player--t.hud-player--plain:not(.hud-player--dead) .hud-player__portrait {
+  border-color: #b5d4ee;
+}
+
+.hud-player--plain.hud-player--self.hud-player--alive .hud-player__portrait {
+  border: 2.5px solid #fff;
+}
+
 .hud-player--dead .hud-player__portrait {
   border: 2px solid #000;
   filter: saturate(0) brightness(1) contrast(0.9);

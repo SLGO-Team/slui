@@ -207,6 +207,11 @@ assert.deepEqual(resolveChatSender(history.lines[2].sender), { name: "Rook", tea
 assert.deepEqual(resolveChatSender({ id: "x", name: "Ghost", role: null, slot: null }), { name: "Ghost", teamTag: null, teamColor: "white", dotColor: "white" });
 const self = resolveChatSelf({ role: "ntf", players: [{ player_id: NOVA, display_name: "Nova" }, { player_id: ATLAS, display_name: "Atlas" }] }, ATLAS);
 assert.deepEqual(resolveChatSender(history.lines[0].sender), self, "a received own row looks exactly like the local echo");
+// Teammate colours off (casual, or more than 10 players; client.dll 0x180ea3620): no dot, same name, tag and colour.
+assert.deepEqual(resolveChatSender(history.lines[0].sender, false), { ...resolveChatSender(history.lines[0].sender), dotColor: null });
+assert.equal(resolveChatSender({ id: "x", name: "Ghost", role: null, slot: null }, false).dotColor, null);
+assert.equal(resolveChatSelf({ role: "ntf", players: [{ player_id: ATLAS, display_name: "Atlas" }] }, ATLAS, false).dotColor, null);
+assert.equal(resolveChatSelf(null, null, false).dotColor, null);
 assert.equal(CHAT_NOTICE_TONE_COLORS.money, "#4CAF50");
 // The style is frozen on arrival: a later swap does not recolour old rows.
 const swapped = reduce(history, { type: "roster", source, snapshot: { ...snapshot, teams: [snapshot.teams[1], snapshot.teams[0]] } });

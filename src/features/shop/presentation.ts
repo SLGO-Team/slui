@@ -111,21 +111,27 @@ export function shopWashForRole(role: Role): string {
 
 /** buymenu.css:816-822 - `.player-pip.has-item` is white until a player colour is known. */
 export const SHOP_PIP_FALLBACK_COLOR = "#ffffff";
+/** client.dll 0x180db3790 washes a pip 0xff787878 when the mode has no teammate colours (`teammateColorRule(hud).pips`). */
+export const SHOP_PIP_NO_SLOT_COLOR = "#787878";
 
 /**
  * The teammate-inventory pips of one card (buymenu.xml TeammateInventory): one colour per holder, in
  * team slot order. `playerColors` is the HUD-wide slot colour map (playerSlotColors), whose key order is
  * the match.snapshot team order. A plugin without `owner_player_ids` only reports the viewer's own
- * `owned_quantity`, so the viewer is then the only possible holder.
+ * `owned_quantity`, so the viewer is then the only possible holder. `slotColors` false (a mode without teammate
+ * colours) keeps the order and greys every pip.
  */
 export function shopOwnerPipColors(
   item: Pick<ShopItem, "owner_player_ids" | "owned_quantity">,
   playerColors: Readonly<Record<string, string>>,
   localPlayerId: string | null,
+  slotColors = true,
 ): string[] {
+  const colorOf = (playerId: string | null) => !slotColors ? SHOP_PIP_NO_SLOT_COLOR
+    : (playerId === null ? undefined : playerColors[playerId]) ?? SHOP_PIP_FALLBACK_COLOR;
   if (item.owner_player_ids === undefined || item.owner_player_ids === null) {
     if ((item.owned_quantity ?? 0) <= 0) return [];
-    return [(localPlayerId === null ? undefined : playerColors[localPlayerId]) ?? SHOP_PIP_FALLBACK_COLOR];
+    return [colorOf(localPlayerId)];
   }
   const slots = Object.keys(playerColors);
   const slotOf = (playerId: string) => {
@@ -134,7 +140,7 @@ export function shopOwnerPipColors(
   };
   return [...new Set(item.owner_player_ids)]
     .sort((a, b) => slotOf(a) - slotOf(b))
-    .map((playerId) => playerColors[playerId] ?? SHOP_PIP_FALLBACK_COLOR);
+    .map(colorOf);
 }
 
 // The default five-column widths reproduce the NTF/CS2 menu. SCP has its own

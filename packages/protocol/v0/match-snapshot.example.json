@@ -13,6 +13,8 @@
     "state": "ActionPhase",
     "round": 7,
     "max_rounds": 15,
+    "mode_family": "competitive",
+    "player_limit": 10,
     "phase_remaining_ms": 149000,
     "phase_paused": false,
     "generator_remaining_ms": null,
