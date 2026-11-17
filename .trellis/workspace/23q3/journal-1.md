@@ -1713,3 +1713,25 @@ Planned the minimap CS2 parity parent task with three children and reverse-engin
 ### Status
 
 [OK] **Completed**
+
+
+## Session 74: Minimap CS2 spectate selection box and observer numbers
+<!-- trellis-session: v=2 fp=132bb1571dfea847 -->
+
+**Date**: 2026-11-17
+**Task**: Minimap CS2 spectate selection box and observer numbers
+**Branch**: `feat/minimap-spectate-number`
+
+### Summary
+
+Traced CS2 client.dll: #Selected marks an observer's in-eye/chase target; #PlayerNumber only for Spectator/GOTV/demo viewers, numbered over the team-counter list CT first, (i+1)%10, nobody past ten. Implemented both in SLUI (selected.svg, playerObserverNumbers, radarMarkerNumber), mock ?minimapViewer=observer, model/HUD tests, visual audit, minimap spec. Visual PR awaits user review.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `44cf626` | feat(minimap): CS2 spectate selection box and observer player numbers |
+
+### Status
+
+[OK] **Completed**
