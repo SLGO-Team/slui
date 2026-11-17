@@ -292,18 +292,12 @@ export function minimapReducer(state: MinimapState, action: MinimapAction): Mini
     radarUpdatedAtMs: nowMs };
 }
 
-const STATUS_LABELS: Record<MinimapAvailability, string> = {
-  live: "实时", "waiting-viewpoint": "等待视点", syncing: "等待同步", loading: "地图加载中", stale: "位置已过期",
-  disconnected: "连接已断开", invalid: "位置数据无效", incompatible: "地图版本不兼容",
-};
-
 const CONNECTED_STATUSES: ReadonlySet<ConnectionStatus> = new Set(["live", "baseline-required", "stale"]);
 
 export type MinimapViewModel = {
   availability: MinimapAvailability;
   /** Connected to a server instance (live, awaiting its baseline, or delayed); otherwise the radar is not drawn at all. */
   connected: boolean;
-  statusLabel: string;
   geometry: MapGeometry | null;
   camera: RadarCamera | null;
   markers: RadarMarker[];
@@ -316,7 +310,6 @@ export type MinimapViewModel = {
   preferences: RadarPreferences;
   fullMap: boolean;
   viewerAlive: boolean | null;
-  zoneLabel: string;
   locationLabel: string;
   effects: { mapBlend: boolean; blurBackground: boolean };
   activeMapScale: number;
@@ -425,10 +418,9 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
   const locationLabel = currentViewpoint
     ? locationRoom?.label ?? (currentViewpoint.zone === "Entrance" ? "办公区" : "重收容区") : "";
   return { availability, connected: CONNECTED_STATUSES.has(state.connectionStatus),
-    statusLabel: STATUS_LABELS[availability], geometry: state.geometry, camera, markers, keycard, bombsites,
+    geometry: state.geometry, camera, markers, keycard, bombsites,
     shape, viewSize: shape === "square" ? 290 : 250, locationLabel,
     effects: { mapBlend: normalized.mapBlend, blurBackground: normalized.blurBackground },
     activeMapScale, alternateZoomActive, dynamicZoomActive,
-    preferences: normalized, fullMap, viewerAlive: frame?.payload.viewer.is_alive ?? null,
-    zoneLabel: !camera || camera.mode === "overview" ? "办公区 / 重收容区" : camera.zone === "Entrance" ? "办公区" : "重收容区" };
+    preferences: normalized, fullMap, viewerAlive: frame?.payload.viewer.is_alive ?? null };
 }

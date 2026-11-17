@@ -210,7 +210,9 @@ try {
           roomCount:document.querySelectorAll('.minimap-radar__map .minimap-map__room').length,
           zones:[...new Set([...document.querySelectorAll('.minimap-radar__map .minimap-map__room')].map(e=>e.dataset.zone))].sort(),
           location:location.textContent, locationBox:{x:l.x,y:l.y,width:l.width,height:l.height},
-          status:root.querySelector('.minimap-radar__status')?.textContent??null,
+          statusText:root.querySelectorAll('.minimap-radar__status, .minimap-radar__empty').length,
+          roomOpacities:[...new Set([...document.querySelectorAll('.minimap-radar__map .minimap-map__room')].map(e=>getComputedStyle(e).opacity))],
+          borderDisplay:getComputedStyle(root.querySelector('.minimap-radar__border')).display,
           background:background.backgroundColor,backdropFilter:getComputedStyle(viewport).backdropFilter,
           borderWidth:getComputedStyle(root.querySelector('.minimap-radar__border')).borderTopWidth,
           hudWidth:hud?.getBoundingClientRect().width??null,
@@ -240,9 +242,12 @@ try {
       assert.ok(details.locationBox.y >= details.circle.y + details.circle.height, "location sits below the radar");
       assert.equal(details.labels, 0);
       assert.equal(details.borderWidth, "1px");
+      // CS2 #Radar__Square--Border is collapsed: only the round radar draws its frame.
+      assert.equal(details.borderDisplay, details.shape === "square" ? "none" : "block", `${name}: frame only on the round radar`);
+      // Entrance and Heavy Containment lie in one plane, one CS2 level: no zone is dimmed.
+      assert.ok(details.roomOpacities.length <= 1 && (details.roomOpacities[0] ?? "1") === "1", `${name}: both zones drawn alike`);
       assert.ok(!/^(Hcz|Ez|Unnamed|room-)/.test(details.location), "no internal room token is exposed");
-      if (details.availability === "live" && details.viewerAlive === "true") assert.equal(details.status, null, "no permanent live/debug status");
-      if (details.availability !== "live") assert.ok(details.status, "abnormal state remains visible");
+      assert.equal(details.statusText, 0, `${name}: CS2 draws no status text on the radar`);
       for (const icon of details.markerImages) { assert.ok(icon.loaded, `marker image decodes: ${icon.source}`); assert.equal(icon.mask, "none"); }
       assert.equal(details.pointerEvents, "none");
       assert.equal(details.generated, 0);

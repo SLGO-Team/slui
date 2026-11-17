@@ -34,7 +34,10 @@
   font-weight: 500;
   letter-spacing: 0;
   color: #f4f5f1;
+  /* CS2 .hud-radar: opacity 0 -> 1 over 0.1 s linear when the radar becomes active (here: when it mounts on connect). */
+  animation: minimap-radar-in 0.1s linear both;
 }
+@keyframes minimap-radar-in { from { opacity: 0; } to { opacity: 1; } }
 
 .minimap-radar__filters { position: absolute; }
 .minimap-radar__viewport {
@@ -65,9 +68,10 @@
 .minimap-radar[data-map-blend="true"] .minimap-radar__base { opacity: var(--radar-background-alpha, 0.63); }
 .minimap-radar[data-map-blend="true"] .minimap-radar__background { background: #000; }
 .minimap-radar__dim { background: rgb(0 0 0 / calc(1 - var(--radar-room-opacity, 1))); }
-.minimap-map__room[data-active="false"] { opacity: 0.82; }
 .minimap-radar__markers { overflow: hidden; }
 .minimap-radar__border { box-sizing: border-box; border: 1px solid var(--radar-accent); }
+/* CS2 #Radar__Square--Border is `visibility: collapse`: only the round radar has a frame. */
+.minimap-radar[data-shape="square"] .minimap-radar__border { display: none; }
 
 .minimap-marker { position: absolute; width: 0; height: 0; }
 .minimap-marker--self { z-index: 3; }
@@ -136,8 +140,3 @@
 
 /* In game the title renders paler than the 1px frame accent (#fad27c over the #eabe54 frame). */
 .minimap-radar__location { position: absolute; top: 300px; width: 300px; height: 28px; color: color-mix(in srgb, var(--radar-accent) 75%, #fff); text-align: center; font-size: 16px; line-height: 28px; white-space: nowrap; }
-.minimap-radar__status { position: absolute; top: 332px; width: 300px; display: flex; justify-content: center; gap: 10px; font-size: 12px; line-height: 18px; color: #d1d5ce; text-shadow: 0 1px 2px #000; }
-.minimap-radar[data-availability="invalid"] .minimap-radar__status,
-.minimap-radar[data-availability="incompatible"] .minimap-radar__status { color: #ef7b77; }
-.minimap-radar__spectating { color: #dce7c0; }
-.minimap-radar__empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #cbd0c7; }

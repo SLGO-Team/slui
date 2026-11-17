@@ -3,7 +3,7 @@ import { useOverlayScale } from "../../shared/overlay";
 import type { MinimapViewModel, RadarBombsite, RadarKeycard } from "./model";
 import type { MapGeometry } from "./resolver";
 import { mapBlendLayers } from "./roomWash";
-import { cameraToRadar, roomArtworkToWorld, type RadarCamera, type RadarMarker } from "./camera";
+import { cameraToRadar, roomArtworkToWorld, type RadarMarker } from "./camera";
 import { useMinimapView, type MinimapStore, type RadarControls, type RadarPreferences } from "./useMinimapFeature";
 import { useBackdropRef } from "../../platform/backdrop";
 import { PLAYER_COLORS } from "../hud/presentation";
@@ -39,13 +39,11 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
   </defs></svg>;
 });
 
-const MapRooms = memo(function MapRooms({ geometry, activeZone, blend }: { geometry: MapGeometry; activeZone: RadarCamera["zone"];
-  blend: boolean }) {
+const MapRooms = memo(function MapRooms({ geometry, blend }: { geometry: MapGeometry; blend: boolean }) {
   // A room of an unknown shape has no artwork and is not drawn; it still names a place for the location title. The
   // image is the artwork already washed in its zone colour (roomWash.ts): no filter to re-rasterize per camera move.
   return geometry.rooms.flatMap(({ artwork, ...room }) => artwork ? [<g key={room.id} className="minimap-map__room" data-room-id={room.id}
-    data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-artwork={artwork.href}
-    data-active={activeZone === null || activeZone === room.zone}>
+    data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-artwork={artwork.href}>
     <image href={(blend ? artwork.blendHref : artwork.washedHref) ?? artwork.href} width={artwork.width} height={artwork.height}
       transform={roomArtworkToWorld(artwork)} preserveAspectRatio="xMidYMid meet" />
   </g>] : []);
@@ -61,7 +59,7 @@ function RadarMap({ className, clipId, radar, blend, style }: { className: strin
     </clipPath></defs>
     <g clipPath={`url(#${clipId})`}>
       {geometry && camera ? <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
-        <MapRooms geometry={geometry} activeZone={camera.zone} blend={blend} />
+        <MapRooms geometry={geometry} blend={blend} />
       </g> : null}
     </g>
   </svg>;
@@ -145,8 +143,7 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
   playerColors?: Readonly<Record<string, string>>; role?: Role | null }) {
   const scale = useOverlayScale();
   const id = useId().replace(/:/g, "");
-  const { geometry, camera, viewSize } = radar;
-  const showStatus = radar.availability !== "live" || radar.viewerAlive === false;
+  const { camera, viewSize } = radar;
   // #Radar__Round--Inner / #Radar__Square--Inner have `world-blur: hudWorldBlur`; the "模糊背景" preference turns it off.
   const viewport = useBackdropRef({ enabled: radar.effects.blurBackground });
   const blend = radar.effects.mapBlend;
@@ -182,13 +179,8 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
               slotColor={playerColors[marker.playerId]} />)}
           </div>
           <div className="minimap-radar__border" />
-          {!geometry ? <span className="minimap-radar__empty">{radar.statusLabel}</span> : null}
         </div>
         <div className="minimap-radar__location">{radar.locationLabel}</div>
-        {showStatus ? <div className="minimap-radar__status" role="status">
-          {radar.availability !== "live" ? <span>{radar.statusLabel}</span> : null}
-          {radar.viewerAlive === false ? <span className="minimap-radar__spectating">队伍视野</span> : null}
-        </div> : null}
       </section>
     </div>
   </div>;
