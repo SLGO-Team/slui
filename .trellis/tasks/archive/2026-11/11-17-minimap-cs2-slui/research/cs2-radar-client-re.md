@@ -128,3 +128,23 @@ bytes, and a pointer-table dumper.
 - Off-map quirk: the live branch builds the extras (number, speaking, selected) and, for an off-map icon, doubles the
   whole mask (`add ebx, ebx` at `0x180ec24f4`), which turns OnMap into OffMap but also moves PlayerNumber to
   PlayerLetter and Selected to ViewFrustrum. Neither the number nor the selection box is drawn on an edge arrow.
+
+## Dot colours and the number label (2026-11-17, follow-up to the PR review)
+
+- `0x180ecd9b0` (called per player from the radar player loop) decides both. It first tests "number mode": the local
+  controller passes `0x180898260` (Spectator team / full view) or the engine's HLTV-demo check. In number mode it
+  writes the `#PlayerNumber` text = team-counter position + 1 (position 9 -> 0, via `0x180eae260`) and hides the
+  label when the server's player limit (`0x180758180`, max clients capped at 24) is above 10; it never touches the
+  dot colour.
+- Otherwise, every 0.5 s, for a CT icon (team 3) or T icon (team 2) it asks `0x18089fd20(localTeam, playerTeam)`:
+  `cl_teammate_colors_show != 0` (help: "In competitive, 1 = show teammates as separate colors in the radar,
+  scoreboard, etc., 2 = show colors and letters"), the player on team 2/3, player limit <= 10, (same team, or local
+  Spectator, or `cl_show_enemy_avatar_colors`), and `0x180764600` = game type classic with a competitive-family mode
+  (casual and deathmatch excluded). If it holds and the player's `m_iCompTeammateColor` index is valid, the colour is
+  written to the CT OnMap / OffMap / Death panels only when the local effective team (`0x180885100`: the coached team
+  for a coach) is CT, and to the T ones only when it is T (the T path also requires the icon not fading). So only
+  teammates of a playing member get slot colours.
+- Everything else keeps the Panorama washes: `.PI_Color_CT` `#1ed2ff`, `.PI_Color_T` `#ffdd23`, `.PI_Color_Enemy`
+  `#ff1919`. Opponents use the Enemy icon unless the viewer sees everything (observer), who gets CT/T icons in side
+  colours with black numbers.
+- `cl_teammate_colors_show == 2` (`0x18089fd10`) shows PlayerLetter text (B/G/Y/O/P by colour index) instead.

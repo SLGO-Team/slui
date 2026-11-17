@@ -126,8 +126,10 @@ function PlayerMarker({ marker, filterPrefix, slotColor, observer, number }: { m
   const self = marker.visibility === "self";
   // The followed marker (self, or the spectated teammate / observed player) shows its view sector and heading.
   const facing = self || marker.followed;
-  // Friendly players (self included) wear their slot colour like the HUD and chat; opponents stay CS2 red.
-  const slot = !enemy && slotColor && SLOT_COLORS.includes(slotColor.toLowerCase()) ? slotFilterKey(slotColor) : null;
+  // Friendly players (self included) wear their slot colour like the HUD and chat; opponents stay CS2 red. CS2 never
+  // applies teammate colours for an observer (client.dll 0x180ecd9b0 skips the wash in number mode), so a team-less
+  // observer sees the side colours, here SLGO's role colours (user decision 2026-11-17).
+  const slot = !enemy && !observer && slotColor && SLOT_COLORS.includes(slotColor.toLowerCase()) ? slotFilterKey(slotColor) : null;
   const wash = enemy ? "enemy" : slot ?? (self ? "self" : marker.role === "scp" ? "scp" : "ntf");
   if (marker.status === "last-known") return <FrozenMarker marker={marker} className="minimap-marker--last-known" wash={`url(#${filterPrefix}-enemy)`} />;
   if (marker.status === "dead") return <FrozenMarker marker={marker} className="minimap-marker--dead" wash={`url(#${filterPrefix}-${wash})`} />;

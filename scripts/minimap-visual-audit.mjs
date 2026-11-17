@@ -197,7 +197,7 @@ try {
         const markerElements=[...document.querySelectorAll('.minimap-marker')];
         return {name:${JSON.stringify(name)},viewport:[innerWidth,innerHeight],...root.dataset,
           frame:{x:r.x,y:r.y,width:r.width,height:r.height},circle:{x:v.x,y:v.y,width:v.width,height:v.height},
-          markers:markerElements.map(e=>({...e.dataset,x:e.style.left,y:e.style.top})),
+          markers:markerElements.map(e=>({...e.dataset,x:e.style.left,y:e.style.top,wash:e.style.getPropertyValue('--marker-filter')})),
           selections:[...root.querySelectorAll('.minimap-marker__selected')].map(e=>{
             const m=e.closest('.minimap-marker'), dot=m.querySelector('.minimap-marker__dot').getBoundingClientRect(), style=getComputedStyle(e);
             return {playerId:m.dataset.playerId,selected:m.dataset.selected,followed:m.dataset.followed,width:e.offsetWidth,height:e.offsetHeight,
@@ -362,6 +362,8 @@ try {
     assert.deepEqual(Object.fromEntries(observed.numbers.map((label) => [label.playerId, label.text])),
       Object.fromEntries(numbered.map((m) => [m.playerId, observerNumbers[m.playerId]])), "every live in-range dot carries its CS2 number");
     assert.equal(observed.selections.length, 1, "the observer's followed player is selected");
+    // CS2 gives an observer no teammate colours: every dot wears its side colour (SLGO role colours), never a slot colour.
+    for (const marker of observed.markers) assert.ok(marker.wash.endsWith(`-${marker.role})`), `observer sees ${marker.playerId} in its role colour`);
     await configure({ viewer: "member", spectate: 1 });
     await configure({ life: "no-viewpoint" });
     const noViewpoint = await capture("no-viewpoint", { availability: "waiting-viewpoint", camera: "overview" });

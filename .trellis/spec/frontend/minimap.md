@@ -63,7 +63,12 @@ last batched status can miss a connecting/baseline-required reset.
 - Friendly markers (self included, death X too) use the CS2 five-colour slot
   colour from `playerSlotColors` (hud/presentation.ts), the same source as the top
   HUD counter and the chat dot, so one player keeps one colour everywhere. The
-  role colours are only a fallback before a match snapshot. Opponents and
+  role colours are a fallback before a match snapshot, and what a team-less
+  observer sees (CS2 never washes an observer's dots with teammate colours; it
+  keeps the side colours, here SLGO's role colours NTF `#1ed2ff` / SCP `#ec6972`,
+  user decision 2026-11-17). CS2 also falls back to side colours for a playing
+  member outside competitive modes or on servers for more than 10 players; SLUI
+  does not know either yet (follow-up task). Opponents and
   last-known ghosts stay red. The heading tip is never washed: it keeps the
   original white image with its black outline (the wash rule `.minimap-marker img`
   must not outrank the `filter: none` on `__heading` / `__ghost`; give those a
@@ -183,7 +188,8 @@ last batched status can miss a connecting/baseline-required reset.
   or demo playback, never a playing alive or dead player) on live in-range markers (`radarMarkerNumber`). The
   numbers come from `playerObserverNumbers(hud.teams)` (hud/presentation.ts), App passes them as `playerNumbers`:
   CS2's team-counter list, CT side (SLGO SCP) then T side (NTF), each in match.snapshot order like the slot colours,
-  contiguous, position i = `(i + 1) % 10` while i <= 9, nobody after (six SCP players: 1-6, NTF from 7). No protocol
+  contiguous, position i = `(i + 1) % 10` (six SCP players: 1-6, NTF from 7). CS2 draws no number at all on a
+  server for more than 10 players; SLUI has no player limit, so a roster over 10 players gets none. No protocol
   field. `.minimap-marker__number`: 500 10px `Stratum2 Radar`, black, no shadow, upright (outside any rotated
   span), centred on the dot with CS2's 1px top / right margins (net 0.5px down, 0.5px left), scaled with the marker.
   `PlayerLetter`, footstep rings and team-counter numbers are not drawn. Mock preview: `?minimapViewer=observer`
