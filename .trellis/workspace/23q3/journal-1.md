@@ -1758,3 +1758,25 @@ Traced CS2 client.dll: #Selected marks an observer's in-eye/chase target; #Playe
 ### Status
 
 [OK] **Completed**
+
+
+## Session 76: 小地图说话喇叭（CS2 SpeakingOnMap，minimap v8）
+<!-- trellis-session: v=2 fp=4c14f105fad7c509 -->
+
+**Date**: 2026-11-17
+**Task**: 小地图说话喇叭（CS2 SpeakingOnMap，minimap v8）
+**Branch**: `feat/minimap-speaking`
+
+### Summary
+
+逆向 CS2 client.dll 说话位（+0x17c&0x10：CVoiceStatus 正在播放 + m_AudiblePlayers + 本地 T/CT 同队且非 mp_teammates_are_enemies，只在活人图标，边缘左移成 SpeakingOffMap）；用户定：逐观看者真实收到、照搬 CS2 可见性、Intercom 算、939 模仿不算。协议 minimap v8（speaking 只在存活队友、不进授权）；sidecar 为未声明 8 的客户端降级 v6（backend 本地 main fbb3101）；插件挂 VoiceTransceiver.OnVoiceMessageReceiving（本地 main 521d4b9），均未部署，部署须 backend 先于插件；SLUI 画 18x18 环 / 26x24 三角，源色 #68ac4b 乘 #78ff00，颜色待视觉评审。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9345d85` | feat(minimap): show CS2 speaking icons for teammates on the radar |
+
+### Status
+
+[OK] **Completed**
