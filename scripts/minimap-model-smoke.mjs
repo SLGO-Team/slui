@@ -38,7 +38,7 @@ runInNewContext(result.outputFiles[0].text, context);
 const { resolveMinimapSync, mapDescriptorKey, minimapReducer, initialMinimapState,
   selectMinimap, createRadarCamera, worldToRadar, roomArtworkToWorld, cameraToRadar, createRoomArtwork,
   positionMarker, shortestAngle, parseEvent, normalizeRadarPreferences, DEFAULT_RADAR_PREFERENCES,
-  CS2_REFERENCE_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES, advanceDynamicZoom, dynamicZoomScale } = context.minimapTest;
+  CS2_REFERENCE_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES, advanceDynamicZoom, dynamicZoomScale, radarIconScale } = context.minimapTest;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const init = { minimap_schema_version: 6, map_id: "map-1", coordinate_system: "unity-world-xz", grid: layouts[0].grid,
   position_update_hz: 15, rooms: layouts[0].rooms, bombsites: [] };
@@ -561,6 +561,18 @@ zoom = minimapReducer(zoom, { type: "connection", status: "offline" });
 assert.equal(zoom.alternateZoomArmed, false);
 assert.equal(zoom.preferences.mapScale, 0.4);
 
+// CS2 icon scale: icon_scale_min (0.6) + 0.65 x the current zoom; square radars use the fixed 1 / 2.4 zoom.
+{
+  const close = (a, b, message) => assert.ok(Math.abs(a - b) < 1e-9, `${message} ${a} != ${b}`);
+  close(radarIconScale(0.25), 0.7625, "mapScale 0.25"); close(radarIconScale(0.7), 1.055, "mapScale 0.7"); close(radarIconScale(1), 1.25, "mapScale 1");
+  close(radarIconScale(-1), 0.6, "clamped below"); close(radarIconScale(3), 1.25, "clamped above");
+  for (const mapScale of [0.25, 0.7, 1]) close(selectMinimap(live, 150, { mapScale }).iconScale, radarIconScale(mapScale), `follow at ${mapScale}`);
+  close(selectMinimap(live, 150, { forceSquare: true }).iconScale, radarIconScale(1 / 2.4), "square");
+  const overview = selectMinimap(event(live, "minimap.positions", { ...positions, scoreboard_visible: true }, 4, 160), 160, { squareWithScoreboard: false });
+  assert.equal(overview.camera.mode, "overview");
+  close(overview.iconScale, radarIconScale(overview.camera.scale * 45 * 0.7 / 125), "round overview uses its equivalent zoom");
+  assert.equal(selectMinimap(initialMinimapState, 0).iconScale, 1, "no camera, no scale");
+}
 // CS2 cl_radar_scale_dynamic (research/cs2-radar-client-re.md): a smoothed distance that grows at once and, after a
 // 4 s hold from the first smaller target, shrinks at 520 Source units/s (13.208 m/s); the farthest element sits at 95 %.
 const near = (a, b, message) => assert.ok(Math.abs(a - b) < 1e-9, `${message ?? ""} ${a} != ${b}`);

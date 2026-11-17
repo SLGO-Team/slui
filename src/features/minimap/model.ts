@@ -1,7 +1,7 @@
 import { endsMatch, MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, type ConnectionStatus, type MinimapDiagnostic, type MinimapInit,
   type MinimapBombsite, type MinimapCommanderKeycard, type MinimapPosition, type MinimapPositions, type MinimapPositionsEvent, type SlgoEvent } from "../../contracts";
 import { assertSupportedMap, mapDescriptorKey, type MapGeometry } from "./resolver.ts";
-import { clampToRadar, createRadarCamera, positionMarker, radarShape, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
+import { clampToRadar, createRadarCamera, positionMarker, radarIconScale, radarShape, radarZoom, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
 import { normalizeRadarPreferences, type RadarPreferences, type RadarControls } from "./preferences.ts";
 import { advanceDynamicZoom, dynamicZoomDistance, dynamicZoomScale, type DynamicZoomState } from "./dynamicZoom.ts";
 
@@ -314,6 +314,8 @@ export type MinimapViewModel = {
   locationLabel: string;
   effects: { mapBlend: boolean; blurBackground: boolean };
   activeMapScale: number;
+  /** CS2 PlayerIcons scale for the current zoom (`radarIconScale`); 1 without a camera. */
+  iconScale: number;
   alternateZoomActive: boolean;
   dynamicZoomActive: boolean;
 };
@@ -422,6 +424,6 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
     geometry: state.geometry, camera, markers, keycard, bombsites,
     shape, viewSize: shape === "square" ? 290 : 250, locationLabel,
     effects: { mapBlend: normalized.mapBlend, blurBackground: normalized.blurBackground },
-    activeMapScale, alternateZoomActive, dynamicZoomActive,
+    activeMapScale, iconScale: camera ? radarIconScale(radarZoom(camera, activeMapScale)) : 1, alternateZoomActive, dynamicZoomActive,
     preferences: normalized, fullMap, viewerAlive: frame?.payload.viewer.is_alive ?? null };
 }

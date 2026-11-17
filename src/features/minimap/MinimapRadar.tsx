@@ -156,7 +156,7 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
         data-orientation={radar.preferences.orientation} data-full-map={radar.fullMap} data-viewer-alive={radar.viewerAlive}
         data-shape={radar.shape} data-map-blend={radar.effects.mapBlend} data-blur-background={radar.effects.blurBackground}
         data-hud-scale={radar.preferences.hudScale}
-        data-map-scale={radar.activeMapScale} data-alternate-zoom={radar.alternateZoomActive} data-dynamic-zoom={radar.dynamicZoomActive}
+        data-map-scale={radar.activeMapScale} data-icon-scale={radar.iconScale} data-alternate-zoom={radar.alternateZoomActive} data-dynamic-zoom={radar.dynamicZoomActive}
         style={{ "--radar-hud-scale": radar.preferences.hudScale, "--radar-view-size": `${viewSize}px`,
           "--radar-background-alpha": radar.preferences.backgroundAlpha,
           ...(layers ? { "--radar-room-opacity": layers.roomOpacity } : {}),
@@ -172,7 +172,7 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
           </div>
           {layers && layers.liftOpacity > 0 ? <RadarMap className="minimap-radar__lift" clipId={`${id}-lift-clip`} radar={radar}
             blend style={{ opacity: layers.liftOpacity }} /> : null}
-          <div className="minimap-radar__markers" aria-hidden="true">
+          <div className="minimap-radar__markers" aria-hidden="true" style={{ "--radar-icon-scale": radar.iconScale } as CSSProperties}>
             {radar.bombsites.map((site) => <BombsiteIcon key={site.label} site={site} filterPrefix={id} />)}
             {radar.keycard ? <KeycardItem keycard={radar.keycard} filterPrefix={id} /> : null}
             {radar.markers.map((marker) => <PlayerMarker key={marker.playerId} marker={marker} filterPrefix={id}
