@@ -63,9 +63,9 @@ CS2 的 `#Radar__Square--Border` 是 `visibility: collapse`。方形时不画 1p
 
 ### R7 地点名（C10）
 
-按 CS2 `#DashboardLabel` 的样式：22px、Stratum2 medium、居中，宽度等于雷达面板（300px），颜色是 HUD 色
-（SLGO 队伍色）。CS2 用加色混合，这在页面里做不到；实现时对照实机截图量一下字高和颜色，近似实现，并把截图位置
-写进实现记录。
+按 CS2 `#DashboardLabel` 的样式：居中，宽度等于雷达面板（300px），颜色是 HUD 色（SLGO 队伍色），沿用已校准的偏淡
+颜色来近似加色混合。字号按实机测量（Panorama 写的是 22px，但中文回退字体的字形实际更小）：1080p 录像里「T起始点」
+的字形框是 66×17，顶边在圆框下方 31px。改为 18px（字形框 64×17）、top 299px。
 
 ### R8 出现时淡入（C11）
 
@@ -86,7 +86,7 @@ CS2 的 `#Radar__Square--Border` 是 `visibility: collapse`。方形时不画 1p
 - [ ] B6：mock `?minimapKeycard=planted` 显示两个圈和红色光晕；团队外观察者看到橙色卡片。视觉审计断言这三点。
 - [ ] B7：发电机倒计时期间，圆形边框闪红（审计采样能看到透明度变化）；倒计时结束后边框恢复；方形时没有边框。
 - [ ] C8：方形雷达没有边框像素（视觉审计）。
-- [ ] C10：地点名 22px，颜色是队伍色；附一张和实机截图的并排对比。
+- [ ] C10：地点名的字形大小和位置与实机测量一致（18px，字形顶边在圆框下方 31px），颜色是队伍色；附一张和实机截图的并排对比。
 - [ ] C11：挂载后 0.1 s 内透明度从 0 到 1。
 - [ ] E17：不存在 `.minimap-radar__status` 和 `.minimap-radar__empty`；断线、过期、无效时雷达区域里没有文字。
 - [ ] `npm test`、`npm run lint`、`npm run build:local`、`npm run minimap-visual-audit` 通过；`minimap.md` 已同步更新。

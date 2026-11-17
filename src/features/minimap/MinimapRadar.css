@@ -162,5 +162,8 @@
   font-size: 17px; font-weight: 900; line-height: 1; text-shadow: 0 0 1px #111, 0 0 1px #111, 0 0 2px #111; }
 .minimap-bombsite[data-edge="true"] .minimap-bombsite__letter { font-size: 25px; }
 
-/* In game the title renders paler than the 1px frame accent (#fad27c over the #eabe54 frame). */
-.minimap-radar__location { position: absolute; top: 300px; width: 300px; height: 28px; color: color-mix(in srgb, var(--radar-accent) 75%, #fff); text-align: center; font-size: 16px; line-height: 28px; white-space: nowrap; }
+/* CS2 #DashboardLabel: centred under the radar in the HUD colour, additive (so it renders paler than the 1px frame
+   accent, #fad27c over the #eabe54 frame). Panorama asks for 22px, but its CJK fallback inks smaller: in game
+   (1080p recording, task 11-17-minimap-cs2-slui) "T起始点" inks 66x17 px with its top 31 px below the circle. 18px
+   inks 64x17 here, and top 299px puts the ink top at 306 (circle bottom 275 + 31). */
+.minimap-radar__location { position: absolute; top: 299px; width: 300px; height: 28px; color: color-mix(in srgb, var(--radar-accent) 75%, #fff); text-align: center; font-size: 18px; line-height: 28px; white-space: nowrap; }
