@@ -3,7 +3,7 @@ import { useOverlayScale } from "../../shared/overlay";
 import type { MinimapViewModel, RadarBombsite, RadarKeycard } from "./model";
 import type { MapGeometry } from "./resolver";
 import { mapBlendLayers } from "./roomWash";
-import { cameraToRadar, roomArtworkToWorld, type RadarCamera, type RadarMarker } from "./camera";
+import { cameraToRadar, roomArtworkToWorld, type RadarMarker } from "./camera";
 import { useMinimapView, type MinimapStore, type RadarControls, type RadarPreferences } from "./useMinimapFeature";
 import { useBackdropRef } from "../../platform/backdrop";
 import { PLAYER_COLORS } from "../hud/presentation";
@@ -35,17 +35,17 @@ const RadarFilters = memo(function RadarFilters({ id }: { id: string }) {
     <ColorWash id={`${id}-enemy`} rgb={[255, 25, 25]} />
     <ColorWash id={`${id}-self`} rgb={[255, 255, 255]} />
     <ColorWash id={`${id}-bombzone`} rgb={[255, 204, 0]} />
+    {/* CS2 CreateBombPack default wash, kept for a viewer on neither side. */}
+    <ColorWash id={`${id}-observer`} rgb={[255, 155, 37]} />
     {SLOT_COLORS.map((color) => <ColorWash key={color} id={`${id}-${slotFilterKey(color)}`} rgb={rgbOf(color)} />)}
   </defs></svg>;
 });
 
-const MapRooms = memo(function MapRooms({ geometry, activeZone, blend }: { geometry: MapGeometry; activeZone: RadarCamera["zone"];
-  blend: boolean }) {
+const MapRooms = memo(function MapRooms({ geometry, blend }: { geometry: MapGeometry; blend: boolean }) {
   // A room of an unknown shape has no artwork and is not drawn; it still names a place for the location title. The
   // image is the artwork already washed in its zone colour (roomWash.ts): no filter to re-rasterize per camera move.
   return geometry.rooms.flatMap(({ artwork, ...room }) => artwork ? [<g key={room.id} className="minimap-map__room" data-room-id={room.id}
-    data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-artwork={artwork.href}
-    data-active={activeZone === null || activeZone === room.zone}>
+    data-zone={room.zone} data-prefab={room.prefabName} data-generic={artwork.generic} data-artwork={artwork.href}>
     <image href={(blend ? artwork.blendHref : artwork.washedHref) ?? artwork.href} width={artwork.width} height={artwork.height}
       transform={roomArtworkToWorld(artwork)} preserveAspectRatio="xMidYMid meet" />
   </g>] : []);
@@ -61,7 +61,7 @@ function RadarMap({ className, clipId, radar, blend, style }: { className: strin
     </clipPath></defs>
     <g clipPath={`url(#${clipId})`}>
       {geometry && camera ? <g className="minimap-map__camera" transform={cameraToRadar(camera)}>
-        <MapRooms geometry={geometry} activeZone={camera.zone} blend={blend} />
+        <MapRooms geometry={geometry} blend={blend} />
       </g> : null}
     </g>
   </svg>;
@@ -85,17 +85,22 @@ function FrozenMarker({ marker, className, wash }: { marker: RadarMarker; classN
 
 const KEYCARD_ICON = "/assets/slui-svg/KeycardNTFCommander.svg";
 
-function KeycardItem({ keycard, filterPrefix }: { keycard: RadarKeycard; filterPrefix: string }) {
-  // CS2 RI_BombDefuserPackage: the small pack icon, plus the pulsing #DroppedBomb ring on the ground or the red
-  // #PlantedBomb ring once planted in a generator; a card no longer seen fades out at its last seen spot
-  // (m_fBombAlpha). Clamped to the edge it keeps only the icon.
-  // Like the CS2 bomb, an opponent's card is red; the owning side (and team-less observers) see the plain white card.
+function KeycardItem({ keycard, observer, filterPrefix }: { keycard: RadarKeycard; observer: boolean; filterPrefix: string }) {
+  // CS2 RI_BombDefuserPackage: the pack icon, plus the pulsing #DroppedBomb ring whenever it is on the ground and the red
+  // #PlantedBomb ring as well once planted in a generator (client.dll shows both); a planted pack also pulses a red glow
+  // (PlantedBombAnimateRed). A card no longer seen fades out at its last seen spot (m_fBombAlpha). Clamped to the edge it
+  // keeps only the icon. Wash as CS2 CreateBombPack: red for the opponent's card, orange for a viewer on neither side,
+  // plain white for the owning side.
+  const wash = keycard.hostile ? "enemy" : observer ? "observer" : null;
+  const ground = keycard.state !== "carried" && !keycard.edge;
   return <span className="minimap-keycard-drop" data-edge={keycard.edge} data-status={keycard.status} data-state={keycard.state}
-    data-hostile={keycard.hostile}
+    data-hostile={keycard.hostile} data-observer={observer}
     style={{ left: keycard.x, top: keycard.y, opacity: keycard.opacity,
-      "--keycard-wash": keycard.hostile ? `url(#${filterPrefix}-enemy)` : undefined } as CSSProperties}>
-    {keycard.state !== "carried" && !keycard.edge ? <span className="minimap-keycard-drop__pulse" /> : null}
-    <img className="minimap-keycard-drop__icon" src={KEYCARD_ICON} alt="" />
+      "--keycard-wash": wash ? `url(#${filterPrefix}-${wash})` : undefined } as CSSProperties}>
+    {ground ? <span className="minimap-keycard-drop__pulse minimap-keycard-drop__pulse--dropped" /> : null}
+    {ground && keycard.state === "planted" ? <span className="minimap-keycard-drop__pulse minimap-keycard-drop__pulse--planted" /> : null}
+    <img className={`minimap-keycard-drop__icon${keycard.state === "planted" ? " minimap-keycard-drop__icon--planted" : ""}`}
+      src={KEYCARD_ICON} alt="" />
   </span>;
 }
 
@@ -115,7 +120,8 @@ function BombsiteIcon({ site, filterPrefix }: { site: RadarBombsite; filterPrefi
   </span>;
 }
 
-function PlayerMarker({ marker, filterPrefix, slotColor }: { marker: RadarMarker; filterPrefix: string; slotColor?: string }) {
+function PlayerMarker({ marker, filterPrefix, slotColor, observer }: { marker: RadarMarker; filterPrefix: string; slotColor?: string;
+  observer: boolean }) {
   const enemy = marker.hostile;
   const self = marker.visibility === "self";
   // The followed marker (self, or the spectated teammate / observed player) shows its view sector and heading.
@@ -128,7 +134,8 @@ function PlayerMarker({ marker, filterPrefix, slotColor }: { marker: RadarMarker
   return <span className={`minimap-marker${enemy ? " minimap-marker--enemy" : ""}${facing ? " minimap-marker--self" : ""}${marker.edge ? " minimap-marker--edge" : ""}`}
     data-player-id={marker.playerId} data-visibility={marker.visibility} data-role={marker.role} data-status={marker.status} data-edge={marker.edge}
     data-hostile={marker.hostile} data-followed={marker.followed} data-keycard={marker.hasKeycard}
-    style={{ left: marker.x, top: marker.y, "--marker-filter": `url(#${filterPrefix}-${wash})` } as CSSProperties}>
+    style={{ left: marker.x, top: marker.y, "--marker-filter": `url(#${filterPrefix}-${wash})`,
+      ...(observer && marker.hasKeycard ? { "--pack-wash": `url(#${filterPrefix}-observer)` } : {}) } as CSSProperties}>
     <span className="minimap-marker__direction" style={{ transform: `rotate(${marker.edge ? marker.edgeAngle : marker.yaw}deg)` }}>
       {facing && !marker.edge ? <img className="minimap-marker__view-angle" src="/assets/minimap/view-cone.svg" alt="" /> : null}
       {!marker.edge && (!enemy || facing) ? <img className="minimap-marker__heading" src="/assets/minimap/heading-arrow.svg" alt="" /> : null}
@@ -136,17 +143,19 @@ function PlayerMarker({ marker, filterPrefix, slotColor }: { marker: RadarMarker
     </span>
     {!marker.edge ? <img className="minimap-marker__dot"
       src={`/assets/minimap/${enemy ? "marker-enemy.svg" : "marker-dot.svg"}`} alt="" /> : null}
-    {/* CS2 draws the bomb package over its carrier, tinted like the carrier (slot colour, red for an enemy). */}
+    {/* CS2 draws the bomb package over its carrier, tinted like the carrier (slot colour, red for an enemy; orange for
+        a viewer on neither side). */}
     {marker.hasKeycard ? <img className="minimap-marker__keycard" src={KEYCARD_ICON} alt="" /> : null}
   </span>;
 }
 
-export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar: MinimapViewModel;
-  playerColors?: Readonly<Record<string, string>>; role?: Role | null }) {
+export function MinimapRadar({ radar, playerColors = {}, role = null, generatorActive = false }: { radar: MinimapViewModel;
+  playerColors?: Readonly<Record<string, string>>; role?: Role | null;
+  /** A generator overload is running (SLGO's planted bomb): the round frame pulses red like CS2 RadarBombPlantPulse. */
+  generatorActive?: boolean }) {
   const scale = useOverlayScale();
   const id = useId().replace(/:/g, "");
-  const { geometry, camera, viewSize } = radar;
-  const showStatus = radar.availability !== "live" || radar.viewerAlive === false;
+  const { camera, viewSize } = radar;
   // #Radar__Round--Inner / #Radar__Square--Inner have `world-blur: hudWorldBlur`; the "模糊背景" preference turns it off.
   const viewport = useBackdropRef({ enabled: radar.effects.blurBackground });
   const blend = radar.effects.mapBlend;
@@ -158,8 +167,8 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
       <section className="minimap-radar" data-availability={radar.availability} data-camera={camera?.mode ?? "none"}
         data-orientation={radar.preferences.orientation} data-full-map={radar.fullMap} data-viewer-alive={radar.viewerAlive}
         data-shape={radar.shape} data-map-blend={radar.effects.mapBlend} data-blur-background={radar.effects.blurBackground}
-        data-hud-scale={radar.preferences.hudScale}
-        data-map-scale={radar.activeMapScale} data-alternate-zoom={radar.alternateZoomActive} data-dynamic-zoom={radar.dynamicZoomActive}
+        data-hud-scale={radar.preferences.hudScale} data-generator-active={generatorActive}
+        data-map-scale={radar.activeMapScale} data-icon-scale={radar.iconScale} data-alternate-zoom={radar.alternateZoomActive} data-dynamic-zoom={radar.dynamicZoomActive}
         style={{ "--radar-hud-scale": radar.preferences.hudScale, "--radar-view-size": `${viewSize}px`,
           "--radar-background-alpha": radar.preferences.backgroundAlpha,
           ...(layers ? { "--radar-room-opacity": layers.roomOpacity } : {}),
@@ -175,28 +184,24 @@ export function MinimapRadar({ radar, playerColors = {}, role = null }: { radar:
           </div>
           {layers && layers.liftOpacity > 0 ? <RadarMap className="minimap-radar__lift" clipId={`${id}-lift-clip`} radar={radar}
             blend style={{ opacity: layers.liftOpacity }} /> : null}
-          <div className="minimap-radar__markers" aria-hidden="true">
+          <div className="minimap-radar__markers" aria-hidden="true" style={{ "--radar-icon-scale": radar.iconScale } as CSSProperties}>
             {radar.bombsites.map((site) => <BombsiteIcon key={site.label} site={site} filterPrefix={id} />)}
-            {radar.keycard ? <KeycardItem keycard={radar.keycard} filterPrefix={id} /> : null}
+            {radar.keycard ? <KeycardItem keycard={radar.keycard} observer={radar.observer} filterPrefix={id} /> : null}
             {radar.markers.map((marker) => <PlayerMarker key={marker.playerId} marker={marker} filterPrefix={id}
-              slotColor={playerColors[marker.playerId]} />)}
+              slotColor={playerColors[marker.playerId]} observer={radar.observer} />)}
           </div>
           <div className="minimap-radar__border" />
-          {!geometry ? <span className="minimap-radar__empty">{radar.statusLabel}</span> : null}
         </div>
         <div className="minimap-radar__location">{radar.locationLabel}</div>
-        {showStatus ? <div className="minimap-radar__status" role="status">
-          {radar.availability !== "live" ? <span>{radar.statusLabel}</span> : null}
-          {radar.viewerAlive === false ? <span className="minimap-radar__spectating">队伍视野</span> : null}
-        </div> : null}
       </section>
     </div>
   </div>;
 }
 
 /** The radar bound to the minimap store: its per-frame clock re-renders this subtree, not the overlay. */
-export function LiveMinimapRadar({ store, preferences, controls, playerColors, role }: { store: MinimapStore;
+export function LiveMinimapRadar({ store, preferences, controls, playerColors, role, generatorActive }: { store: MinimapStore;
   preferences?: Partial<RadarPreferences>; controls?: Partial<RadarControls>;
-  playerColors?: Readonly<Record<string, string>>; role?: Role | null }) {
-  return <MinimapRadar radar={useMinimapView(store, { preferences, controls })} playerColors={playerColors} role={role} />;
+  playerColors?: Readonly<Record<string, string>>; role?: Role | null; generatorActive?: boolean }) {
+  return <MinimapRadar radar={useMinimapView(store, { preferences, controls })} playerColors={playerColors} role={role}
+    generatorActive={generatorActive} />;
 }

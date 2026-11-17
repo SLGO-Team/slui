@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/minimap.md", "reason": "Radar contracts: camera, dynamic zoom, markers, keycard, bombsites, blend, tests required"}
+{"file": ".trellis/spec/frontend/cs2-visual-replication.md", "reason": "How CS2 visuals are replicated and verified (captures, world blur, colours)"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Test and audit expectations for frontend changes"}
+{"file": ".trellis/tasks/11-17-minimap-cs2-slui/research/cs2-radar-client-re.md", "reason": "CS2 client.dll findings: icon scale, dynamic zoom, bomb package, border pulse"}

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 72
-- **Last Active**: 2026-11-08
+- **Total Sessions**: 73
+- **Last Active**: 2026-11-17
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1686 | Active |
+| `journal-1.md` | ~1715 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 73 | 2026-11-17 | 小地图 CS2 对齐：SLUI 侧 | `9d1cf31`, `6e7dbaf`, `9929c3f`, `b1af712`, `489c8dd`, `ee126e9`, `4d3f265`, `06506f3` | `feat/minimap-cs2-parity` |
 | 72 | 2026-11-08 | Warn on SL hide-when-unfocused display mode | `6ddb8a1` | `feat/hide-when-unfocused-hint` |
 | 71 | 2026-11-08 | World blur crash on game window restore | `7b8df6a` | `fix/world-blur-restore-crash` |
 | 70 | 2026-11-06 | 击杀栏图标整套重做：接线与修饰图标 | `14de351` | `feat/killfeed-icon-set` |

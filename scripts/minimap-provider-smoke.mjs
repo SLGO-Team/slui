@@ -23,6 +23,7 @@ assert.equal(invalid.mapScale, 0.7); assert.equal(invalid.backgroundAlpha, 0.63)
 assert.equal(invalid.hudScale, 1); assert.equal(invalid.alternateMapScale, 1); assert.equal(invalid.alwaysCentered, true);
 assert.equal(defaultMinimapPreviewOptions.mapScale, 0.7, "reference preset does not overwrite application defaults");
 assert.equal(readMinimapPreviewOptions("?minimapDynamicTargets=far").dynamicTargets, "far");
+assert.equal(readMinimapPreviewOptions("").dynamicTargets, "default");
 assert.equal(readMinimapPreviewOptions("?minimapKeycard=carried").keycard, "carried");
 assert.equal(readMinimapPreviewOptions("?minimapKeycard=dropped").keycard, "dropped");
 assert.equal(readMinimapPreviewOptions("?minimapKeycard=planted").keycard, "planted");
@@ -50,6 +51,15 @@ const distantFrame = createMinimapFrame(mockMinimapInit, undefined, undefined, {
 const distantEnemy = distantFrame.positions.find((position) => position.visibility === "spotted-by-teammate" && position.zone === distantFrame.viewpoint.zone);
 assert.ok(Math.hypot(distantEnemy.x - distantFrame.viewpoint.x, distantEnemy.z - distantFrame.viewpoint.z) > 55,
   "dynamic visual fixture provides a real in-zone target beyond the ordinary zoom radius");
+{
+  // Dynamic zoom fits every zone: in the near/far layouts nothing sits in the other zone, so only the first enemy sets the extent.
+  const nearFrame = createMinimapFrame(mockMinimapInit, undefined, undefined, { ...defaultMinimapPreviewOptions, motion: false, dynamicTargets: "near" });
+  assert.ok(nearFrame.positions.every((position) => position.zone === nearFrame.viewpoint.zone), "near layout keeps everyone in the viewer's zone");
+  const farthest = Math.max(...nearFrame.positions.map((position) => Math.hypot(position.x - nearFrame.viewpoint.x, position.z - nearFrame.viewpoint.z)));
+  assert.ok(farthest < Math.hypot(distantEnemy.x - distantFrame.viewpoint.x, distantEnemy.z - distantFrame.viewpoint.z), "far is farther than near");
+  const defaultFrame = createMinimapFrame(mockMinimapInit, undefined, undefined, { ...defaultMinimapPreviewOptions, motion: false });
+  assert.ok(defaultFrame.positions.some((position) => position.zone !== defaultFrame.viewpoint.zone), "the default layout still spans both zones");
+}
 for (const viewerId of ["76561198000000002", "76561198000000010"]) {
   const positions = createMinimapFrame(mockMinimapInit, viewerId).positions;
   assert.equal(new Set(positions.map((position) => position.player_id)).size, positions.length);

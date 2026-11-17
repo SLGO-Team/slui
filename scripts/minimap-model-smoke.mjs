@@ -38,7 +38,7 @@ runInNewContext(result.outputFiles[0].text, context);
 const { resolveMinimapSync, mapDescriptorKey, minimapReducer, initialMinimapState,
   selectMinimap, createRadarCamera, worldToRadar, roomArtworkToWorld, cameraToRadar, createRoomArtwork,
   positionMarker, shortestAngle, parseEvent, normalizeRadarPreferences, DEFAULT_RADAR_PREFERENCES,
-  CS2_REFERENCE_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES, dynamicZoomTarget, advanceDynamicZoom } = context.minimapTest;
+  CS2_REFERENCE_RADAR_PREFERENCES, RADAR_NUMERIC_RANGES, advanceDynamicZoom, dynamicZoomScale, radarIconScale } = context.minimapTest;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const init = { minimap_schema_version: 6, map_id: "map-1", coordinate_system: "unity-world-xz", grid: layouts[0].grid,
   position_update_hz: 15, rooms: layouts[0].rooms, bombsites: [] };
@@ -363,7 +363,7 @@ for (const point of geometry.rooms.flatMap((room) => room.footprint.flat())) {
 }
 const edge = positionMarker({ ...enemy, x: self.x + 1000 }, fixed);
 assert.equal(edge.edge, true);
-assert.ok(Math.abs(Math.hypot(edge.x - 125, edge.y - 125) - 113) < 0.001);
+assert.ok(Math.abs(Math.hypot(edge.x - 125, edge.y - 125) - 122.5) < 0.001, "CS2 clamps off-map items at 98 % of the radius");
 const namedRoom = geometry.rooms.find((room) => room.label && room.name !== "HczCheckpointToEntranceZone");
 const anchoredSelf = marker(self.player_id, namedRoom, "self");
 const anchoredFrame = { ...positions, viewpoint: pose(anchoredSelf), positions: [anchoredSelf, ...positions.positions.slice(1)] };
@@ -419,7 +419,7 @@ assert.equal(square.scale, fixed.scale, "square keeps the same world-to-design s
 assert.deepEqual(plain(worldToRadar(self, square)), { x: 145, y: 145 });
 const squareEdge = positionMarker({ ...enemy, x: self.x + 1000, z: self.z - 1000 }, square);
 assert.equal(squareEdge.edge, true);
-assert.equal(squareEdge.x, 278); assert.equal(squareEdge.y, 278);
+assert.ok(Math.abs(squareEdge.x - 287.1) < 1e-9 && Math.abs(squareEdge.y - 287.1) < 1e-9, "the square clamps at 98 % of its half size");
 assert.ok(Math.hypot(squareEdge.x - 145, squareEdge.y - 145) > 133, "square corner must not use a circular edge projection");
 const corner = { ...self, x: self.x + 120 / fixed.scale, z: self.z - 120 / fixed.scale };
 assert.equal(positionMarker(corner, fixed).edge, true);
@@ -479,26 +479,6 @@ for (const yaw of [0, 37, 90, 180, 270]) for (const forceSquare of [false, true]
         : Math.max(Math.abs(point.x - center.x), Math.abs(point.z - center.z))));
     return { center, yaw: 0, scale: (radius - RADAR_EDGE_PADDING) / farthest, mode: "overview", zone: null, shape, viewSize };
   };
-  const referenceZoomTarget = (geometry, viewpoint, positions, preferences, selectedScale) => {
-    const targets = positions.filter((position) => position.status === "live" && position.zone === viewpoint.zone);
-    const fits = (scale) => {
-      const camera = referenceCamera(geometry, viewpoint, preferences, false, scale);
-      const radius = camera.viewSize / 2;
-      return targets.every((position) => {
-        const point = worldToRadar(position, camera);
-        const x = Math.abs(point.x - radius), y = Math.abs(point.y - radius);
-        return (camera.shape === "circle" ? Math.hypot(x, y) : Math.max(x, y)) <= radius - RADAR_EDGE_PADDING;
-      });
-    };
-    if (fits(selectedScale)) return selectedScale;
-    if (!fits(0.25)) return 0.25;
-    let lower = 0.25, upper = selectedScale;
-    for (let step = 0; step < 20; step++) {
-      const middle = (lower + upper) / 2;
-      if (fits(middle)) lower = middle; else upper = middle;
-    }
-    return lower;
-  };
   // Realm-independent field list: the bundle's objects live in another vm context.
   const fields = (camera) => [Object.keys(camera).sort().join(), camera.center.x, camera.center.z, camera.yaw, camera.scale,
     camera.mode, camera.zone, camera.shape, camera.viewSize];
@@ -506,7 +486,7 @@ for (const yaw of [0, 37, 90, 180, 270]) for (const forceSquare of [false, true]
   // the second reads every geometry's cache after the others filled theirs.
   const geometries = [...layouts.map((layout) => resolveMinimapSync({ ...init, grid: layout.grid, rooms: layout.rooms })),
     resolveMinimapSync({ ...init, rooms: layouts[0].rooms.filter((room) => room.zone === "HeavyContainment") })];
-  let cameras = 0, fits = 0;
+  let cameras = 0;
   for (const pass of [1, 2]) for (const [index, geometry] of geometries.entries()) {
     const label = `pass ${pass}, geometry ${index}`;
     for (const fullMap of [false, true]) for (const forceSquare of [false, true]) for (const squareWithScoreboard of [false, true]) {
@@ -532,22 +512,10 @@ for (const yaw of [0, 37, 90, 180, 270]) for (const forceSquare of [false, true]
               `${label}: follow camera ${JSON.stringify({ zone, yaw, ...preferences, activeMapScale })}`);
             cameras++;
           }
-        // Dynamic zoom over targets spread across the zone: some fit at once, some make it bisect, some hit 0.25.
-        if (pass === 2 || (yaw !== 0 && yaw !== 271.3)) continue;
-        const targets = zoneRooms.filter((_, i) => i % 5 === 0).map((room, i) => ({ ...room.position, zone, status: i % 4 === 3 ? "dead" : "live" }));
-        for (const count of [2, targets.length]) for (const orientation of ["fixed", "heading-up"]) for (const alwaysCentered of [true, false])
-          for (const forceSquare of [false, true]) for (const selectedScale of [0.7, 1]) {
-            const preferences = normalizeRadarPreferences({ orientation, alwaysCentered, forceSquare });
-            const positions = targets.slice(0, count);
-            assert.strictEqual(dynamicZoomTarget(geometry, viewpoint, positions, preferences, selectedScale),
-              referenceZoomTarget(geometry, viewpoint, positions, preferences, selectedScale),
-              `${label}: dynamic zoom ${JSON.stringify({ zone, yaw, count, orientation, alwaysCentered, forceSquare, selectedScale })}`);
-            fits++;
-          }
       }
     }
   }
-  assert.ok(cameras > 5000 && fits > 2000, `camera equivalence covered ${cameras} cameras and ${fits} zoom fits`);
+  assert.ok(cameras > 5000, `camera equivalence covered ${cameras} cameras`);
 }
 // The radar's blur is the world blur (src/platform/backdrop.ts): the preference alone decides whether it registers.
 for (const blurBackground of [true, false]) for (const mapBlend of [true, false]) {
@@ -593,23 +561,54 @@ zoom = minimapReducer(zoom, { type: "connection", status: "offline" });
 assert.equal(zoom.alternateZoomArmed, false);
 assert.equal(zoom.preferences.mapScale, 0.4);
 
-// Recovery is delayed, then time-based; incoming targets expand immediately.
-let smooth = advanceDynamicZoom(null, { identity: "map/view", targets: "near", targetScale: 0.8, selectedScale: 0.8, nowMs: 0 });
-smooth = advanceDynamicZoom(smooth, { identity: "map/view", targets: "far", targetScale: 0.3, selectedScale: 0.8, nowMs: 100 });
-assert.equal(smooth.scale, 0.3);
-smooth = advanceDynamicZoom(smooth, { identity: "map/view", targets: "near", targetScale: 0.8, selectedScale: 0.8, nowMs: 200 });
-assert.equal(smooth.recoverAtMs, 2200);
-for (const nowMs of [2199, 2200]) {
-  smooth = advanceDynamicZoom(smooth, { identity: "map/view", targets: "near", targetScale: 0.8, selectedScale: 0.8, nowMs });
-  assert.equal(smooth.scale, 0.3, "no recovery before or exactly at the 2 second boundary");
+// CS2 icon scale: icon_scale_min (0.6) + 0.65 x the current zoom; square radars use the fixed 1 / 2.4 zoom.
+{
+  const close = (a, b, message) => assert.ok(Math.abs(a - b) < 1e-9, `${message} ${a} != ${b}`);
+  close(radarIconScale(0.25), 0.7625, "mapScale 0.25"); close(radarIconScale(0.7), 1.055, "mapScale 0.7"); close(radarIconScale(1), 1.25, "mapScale 1");
+  close(radarIconScale(-1), 0.6, "clamped below"); close(radarIconScale(3), 1.25, "clamped above");
+  for (const mapScale of [0.25, 0.7, 1]) close(selectMinimap(live, 150, { mapScale }).iconScale, radarIconScale(mapScale), `follow at ${mapScale}`);
+  close(selectMinimap(live, 150, { forceSquare: true }).iconScale, radarIconScale(1 / 2.4), "square");
+  const overview = selectMinimap(event(live, "minimap.positions", { ...positions, scoreboard_visible: true }, 4, 160), 160, { squareWithScoreboard: false });
+  assert.equal(overview.camera.mode, "overview");
+  close(overview.iconScale, radarIconScale(overview.camera.scale * 45 * 0.7 / 125), "round overview uses its equivalent zoom");
+  assert.equal(selectMinimap(initialMinimapState, 0).iconScale, 1, "no camera, no scale");
 }
-smooth = advanceDynamicZoom(smooth, { identity: "map/view", targets: "near", targetScale: 0.8, selectedScale: 0.8, nowMs: 2700 });
-assert.ok(Math.abs(smooth.scale - 0.475) < 1e-8);
-smooth = advanceDynamicZoom(smooth, { identity: "map/view", targets: "new-near", targetScale: 0.8, selectedScale: 0.8, nowMs: 2800 });
-assert.equal(smooth.recoverAtMs, 4800, "new authorization resets the recovery wait");
-smooth = advanceDynamicZoom(smooth, { identity: "new-source", targets: "near", targetScale: 0.8, selectedScale: 0.8, nowMs: 2900 });
-assert.equal(smooth.scale, 0.8); assert.equal(smooth.recoverAtMs, null);
-assert.deepEqual(Object.keys(smooth).sort(), ["identity", "recoverAtMs", "scale", "targets", "updatedAtMs"], "zoom history contains no poses");
+// CS2 leaves the bomb pack orange for a viewer on neither side: the view model flags a team-less viewer.
+assert.equal(selectMinimap(live, 150).observer, false);
+assert.equal(selectMinimap(event(live, "minimap.positions", { ...positions, visibility_revision: 2,
+  viewer: { ...positions.viewer, team_id: null, is_alive: false }, positions: [], viewpoint: null }, 4, 160), 160).observer, true);
+assert.equal(selectMinimap(initialMinimapState, 0).observer, false, "no frame, no viewer");
+// CS2 cl_radar_scale_dynamic (research/cs2-radar-client-re.md): a smoothed distance that grows at once and, after a
+// 4 s hold from the first smaller target, shrinks at 520 Source units/s (13.208 m/s); the farthest element sits at 95 %.
+const near = (a, b, message) => assert.ok(Math.abs(a - b) < 1e-9, `${message ?? ""} ${a} != ${b}`);
+let smooth = advanceDynamicZoom(null, { identity: "v", target: 10, nowMs: 0 });
+assert.equal(smooth.distance, 10);
+smooth = advanceDynamicZoom(smooth, { identity: "v", target: 60, nowMs: 100 });
+assert.equal(smooth.distance, 60, "a larger extent applies at once");
+smooth = advanceDynamicZoom(smooth, { identity: "v", target: 10, nowMs: 200 });
+assert.equal(smooth.shrinkAtMs, 4200, "the hold starts at the first smaller target");
+for (const nowMs of [4199, 4200]) {
+  smooth = advanceDynamicZoom(smooth, { identity: "v", target: 10, nowMs });
+  assert.equal(smooth.distance, 60, "nothing shrinks before or exactly at the 4 s boundary");
+}
+smooth = advanceDynamicZoom(smooth, { identity: "v", target: 10, nowMs: 5200 });
+near(smooth.distance, 60 - 13.208, "13.208 m/s after the hold");
+smooth = advanceDynamicZoom(smooth, { identity: "v", target: 30, nowMs: 5300 });
+near(smooth.distance, 60 - 13.208 * 1.1, "another smaller target keeps the running timer");
+assert.equal(smooth.shrinkAtMs, 4200);
+smooth = advanceDynamicZoom(smooth, { identity: "v", target: 50, nowMs: 5400 });
+assert.equal(smooth.distance, 50); assert.equal(smooth.shrinkAtMs, null, "a target at or above the distance clears the hold");
+assert.equal(advanceDynamicZoom(smooth, { identity: "w", target: 5, nowMs: 5500 }).distance, 5, "a new identity starts over");
+assert.equal(advanceDynamicZoom(smooth, { identity: "v", target: 5, nowMs: 5000 }).distance, 5, "a clock going backwards starts over");
+assert.deepEqual(Object.keys(smooth).sort(), ["distance", "identity", "shrinkAtMs", "updatedAtMs"], "zoom history contains no poses");
+assert.equal(dynamicZoomScale(0, 250, 0.8), 0.8, "nothing to fit keeps the selected scale");
+near(dynamicZoomScale(59.85, 250, 0.8), 0.5);
+near(dynamicZoomScale(59.85, 290, 0.8), 0.5 * 290 / 250, "the square radar uses its own half size");
+assert.equal(dynamicZoomScale(1000, 250, 0.8), 0.25); assert.equal(dynamicZoomScale(10, 250, 0.8), 0.8);
+{
+  const camera = createRadarCamera(geometry, pose(self), { mapScale: 1 }, false, dynamicZoomScale(40, 250, 1));
+  near(worldToRadar({ x: self.x + 40, z: self.z }, camera).x - 125, 0.95 * 125, "the farthest element lands at 95 % of the radius");
+}
 const farEnemy = { ...enemy, x: self.x + 70, z: self.z, room_id: null, visibility: "spotted-by-teammate" };
 const nearPayload = { ...positions, positions: [self] };
 const farPayload = { ...positions, visibility_revision: 2, positions: [self, farEnemy] };
@@ -617,64 +616,69 @@ let dynamic = configure(event(ready(), "minimap.positions", nearPayload, 3, 100)
 assert.equal(selectMinimap(dynamic, 110).activeMapScale, 0.8);
 dynamic = event(dynamic, "minimap.positions", farPayload, 4, 200);
 const expanded = selectMinimap(dynamic, 200);
-assert.ok(expanded.activeMapScale < 0.8 && expanded.activeMapScale >= 0.25);
+near(expanded.activeMapScale, dynamicZoomScale(70, 250, 0.8));
 assert.equal(expanded.markers.find((p) => p.playerId === farEnemy.player_id).edge, false);
-assert.equal(dynamicZoomTarget(geometry, pose(self), [self, { ...farEnemy, zone: "Entrance" }], normalizeRadarPreferences({}), 0.8), 0.8, "other-zone targets do not influence follow zoom");
+const otherZone = event(dynamic, "minimap.positions", { ...farPayload, visibility_revision: 3, positions: [self, { ...farEnemy, zone: "Entrance" }] }, 5, 250);
+near(selectMinimap(otherZone, 250).activeMapScale, expanded.activeMapScale, "the other zone is the same level: it is fitted too");
 dynamic = event(dynamic, "minimap.positions", { ...nearPayload, visibility_revision: 3 }, 5, 300);
 assert.equal(selectMinimap(dynamic, 300).markers.length, 1, "lost enemy clears immediately while zoom recovers later");
-assert.equal(dynamic.dynamicZoom.recoverAtMs, 2300);
-const crossZoneChange = event(dynamic, "minimap.positions", { ...nearPayload, visibility_revision: 4, positions: [self, teammate2] }, 6, 400);
-assert.equal(crossZoneChange.dynamicZoom.recoverAtMs, 2300, "other-zone authorization does not delay current-zone recovery");
-const inactiveEnemy = { ...farEnemy, x: self.x + 1, status: "dead" };
-const deadTargetChange = event(dynamic, "minimap.positions", { ...nearPayload, visibility_revision: 4, positions: [self, inactiveEnemy] }, 6, 400);
-assert.equal(deadTargetChange.dynamicZoom.recoverAtMs, 2300, "dead markers cannot delay recovery");
-const reactivatedTarget = event(deadTargetChange, "minimap.positions", { ...nearPayload, visibility_revision: 5, positions: [self, { ...inactiveEnemy, status: "live" }] }, 7, 500);
-assert.equal(reactivatedTarget.dynamicZoom.recoverAtMs, 2500, "a newly live in-zone target resets waiting even when wire membership is unchanged");
-assert.equal(event(deadTargetChange, "minimap.positions", { ...nearPayload, visibility_revision: 4, positions: [self, { ...inactiveEnemy, status: "live" }] }, 7, 500).frame, null,
-  "v3 status is part of the authorization key, so dead -> live needs a new revision");
-for (const [sequence, time] of [[6, 1000], [7, 1700], [8, 2300]]) dynamic = event(dynamic, "minimap.positions", { ...nearPayload, visibility_revision: 3 }, sequence, time);
-assert.equal(dynamic.dynamicZoom.scale, expanded.activeMapScale);
-dynamic = minimapReducer(dynamic, { type: "tick", nowMs: 2800 });
-assert.ok(Math.abs(dynamic.dynamicZoom.scale - expanded.activeMapScale - 0.175) < 1e-8);
-const waitingDynamic = event(dynamic, "minimap.positions", farPayload, 9, 2900); // Old revision is invalid and clears all dynamic state.
+assert.equal(dynamic.dynamicZoom.shrinkAtMs, 4300);
+for (const [sequence, time] of [[6, 1000], [7, 2000], [8, 3000], [9, 4000]]) dynamic = event(dynamic, "minimap.positions", { ...nearPayload, visibility_revision: 3 }, sequence, time);
+assert.equal(dynamic.dynamicZoom.distance, 70);
+near(selectMinimap(dynamic, 4000).activeMapScale, expanded.activeMapScale, "held for 4 s");
+dynamic = event(dynamic, "minimap.positions", { ...nearPayload, visibility_revision: 3 }, 10, 4800);
+near(dynamic.dynamicZoom.distance, 70 - 0.5 * 13.208);
+const waitingDynamic = event(dynamic, "minimap.positions", farPayload, 11, 4900); // Old revision is invalid and clears all dynamic state.
 assert.equal(waitingDynamic.dynamicZoom, null);
 for (const change of [
-  (s) => configure(s, { ...s.preferences, dynamicZoom: false }, false, 2900),
+  (s) => configure(s, { ...s.preferences, dynamicZoom: false }, false, 4900),
   (s) => minimapReducer(s, { type: "focus", focused: false, revision: 2 }),
-  (s) => minimapReducer(s, { type: "tick", nowMs: 3401 }),
+  (s) => minimapReducer(s, { type: "tick", nowMs: 5801 }),
   (s) => minimapReducer(s, { type: "connection", status: "offline" }),
-  (s) => event(s, "minimap.positions", { ...nearPayload, visibility_revision: 3, scoreboard_visible: true }, 9, 2900),
-  (s) => event(s, "minimap.positions", { ...nearPayload, visibility_revision: 4, viewer: { ...positions.viewer, team_id: null }, positions: [], viewpoint: null }, 9, 2900),
+  (s) => event(s, "minimap.positions", { ...nearPayload, visibility_revision: 3, scoreboard_visible: true }, 11, 4900),
+  (s) => event(s, "minimap.positions", { ...nearPayload, visibility_revision: 4, viewer: { ...positions.viewer, team_id: null }, positions: [], viewpoint: null }, 11, 4900),
 ]) assert.equal(change(dynamic).dynamicZoom, null, "disabled/full/focus/stale/revoked contexts clear scalar waiting state");
-for (const changes of [{ forceSquare: true }, { orientation: "heading-up" }, { alwaysCentered: false }, { mapScale: 0.9 }]) {
-  assert.equal(configure(dynamic, { ...dynamic.preferences, ...changes }, false, 2900).dynamicZoom.recoverAtMs, null, "camera context changes reset waiting");
+for (const changes of [{ orientation: "heading-up" }, { alwaysCentered: false }, { mapScale: 0.9 }]) {
+  assert.equal(configure(dynamic, { ...dynamic.preferences, ...changes }, false, 4900).dynamicZoom.shrinkAtMs, null, "camera context changes reset waiting");
 }
-const staleDynamic = minimapReducer(dynamic, { type: "tick", nowMs: 3401 });
-const restoredDynamic = event(staleDynamic, "minimap.positions", { ...nearPayload, visibility_revision: 3 }, 9, 3500);
-assert.equal(restoredDynamic.dynamicZoom.scale, 0.8);
-assert.equal(restoredDynamic.dynamicZoom.recoverAtMs, null, "stale recovery never restores old enemy extent/waiting");
+const squareDynamic = configure(dynamic, { ...dynamic.preferences, forceSquare: true }, false, 4900);
+assert.equal(squareDynamic.dynamicZoom, null, "CS2 zooms dynamically only on the round radar");
+assert.equal(selectMinimap(squareDynamic, 4900).activeMapScale, 0.8);
+const staleDynamic = minimapReducer(dynamic, { type: "tick", nowMs: 5801 });
+const restoredDynamic = event(staleDynamic, "minimap.positions", { ...nearPayload, visibility_revision: 3 }, 11, 5900);
+assert.equal(restoredDynamic.dynamicZoom.distance, 0);
+assert.equal(restoredDynamic.dynamicZoom.shrinkAtMs, null, "stale recovery never restores old enemy extent/waiting");
 let newSourceDynamic = minimapReducer(dynamic, { type: "connection", status: "offline" });
-newSourceDynamic = event(newSourceDynamic, "sidecar.baseline", { baseline: true }, 10, 3500);
-newSourceDynamic = event(newSourceDynamic, "minimap.init", init, 11, 3510);
-newSourceDynamic = resolved(newSourceDynamic, 3520);
-newSourceDynamic = event(newSourceDynamic, "minimap.positions", nearPayload, 12, 3530);
-assert.equal(newSourceDynamic.dynamicZoom.scale, 0.8);
-assert.equal(newSourceDynamic.dynamicZoom.recoverAtMs, null, "reconnection keeps preferences but discards dynamic history");
+newSourceDynamic = event(newSourceDynamic, "sidecar.baseline", { baseline: true }, 12, 5900);
+newSourceDynamic = event(newSourceDynamic, "minimap.init", init, 13, 5910);
+newSourceDynamic = resolved(newSourceDynamic, 5920);
+newSourceDynamic = event(newSourceDynamic, "minimap.positions", nearPayload, 14, 5930);
+assert.equal(newSourceDynamic.dynamicZoom.distance, 0);
+assert.equal(newSourceDynamic.dynamicZoom.shrinkAtMs, null, "reconnection keeps preferences but discards dynamic history");
+// Fading last-known / death markers and the keycard item are drawn elements, so they are fitted too.
+{
+  const ghost = { ...farEnemy, x: self.x + 50, status: "last-known", status_age_ms: 0 };
+  const fadingFit = configure(event(ready(), "minimap.positions", { ...positions, positions: [self, ghost] }, 3, 100), { dynamicZoom: true, mapScale: 0.8 }, false, 110);
+  near(selectMinimap(fadingFit, 110).activeMapScale, dynamicZoomScale(50, 250, 0.8), "a fading ghost is fitted");
+  const card = { x: self.x - 45, y: self.y, z: self.z, zone: self.zone, room_id: null, team_id: "team-a", status: "live", status_age_ms: 0, state: "dropped" };
+  const cardFit = configure(event(ready(), "minimap.positions", { ...positions, positions: [self], commander_keycard: card }, 3, 100), { dynamicZoom: true, mapScale: 0.8 }, false, 110);
+  near(selectMinimap(cardFit, 110).activeMapScale, dynamicZoomScale(45, 250, 0.8), "the keycard item is fitted");
+}
 let movingZoom = configure(event(ready(), "minimap.positions", nearPayload, 3, 100), { dynamicZoom: true, mapScale: 0.8 }, false, 110);
 const advancingSelf = { ...self, x: self.x + 10 };
 const newlySpotted = { ...farEnemy, x: self.x + 55 };
 movingZoom = event(movingZoom, "minimap.positions", { ...positions, visibility_revision: 2,
   viewpoint: pose(advancingSelf), positions: [advancingSelf, newlySpotted] }, 4, 200);
-const firstExpandedScale = movingZoom.dynamicZoom.scale;
+const firstExpandedScale = selectMinimap(movingZoom, 200).activeMapScale;
 for (const time of [200, 232, 267]) {
   movingZoom = minimapReducer(movingZoom, { type: "tick", nowMs: time });
   const view = selectMinimap(movingZoom, time);
   assert.equal(view.markers.find((p) => p.playerId === newlySpotted.player_id).edge, false,
     "new target fits immediately while the viewpoint is still interpolating");
-  assert.equal(view.activeMapScale, firstExpandedScale, "interpolation finishing must not skip the delayed recovery");
+  assert.equal(view.activeMapScale, firstExpandedScale, "interpolation finishing must not skip the hold");
   assert.equal(view.markers.find((p) => p.playerId === self.player_id).x, 125);
 }
-// v3 CS2 markers: last-known `?` fades over 6 s, death `X` over 4 s, both frozen and never camera/zoom targets.
+// v3 CS2 markers: last-known `?` fades over 6 s, death `X` over 4 s, both frozen and never camera targets.
 {
   const ghost = { ...enemy, visibility: "spotted-by-teammate", status: "last-known", status_age_ms: 3000, x: enemy.x + 3 };
   const deadMate = { ...teammate, status: "dead", status_age_ms: 1000 };
