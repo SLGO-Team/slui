@@ -783,7 +783,7 @@ The demo replay bar is a hand-built React feature under `src/features/replay` (`
 CS2 demo playback captures (2000x1250, kept locally). Mapping and deviations: task `11-07-demo-replay-slui`
 design §12; e2e: its `research/e2e.md`.
 
-- Display states: the replay key (F3) cycles minimal -> full -> hidden (CS2 `DemoToggleUI` cycles hidden -> minimal ->
+- Display states: the replay key (F6) cycles minimal -> full -> hidden (CS2 `DemoToggleUI` cycles hidden -> minimal ->
   full); entering replay mode shows minimal. `#Contents` is 45 px minimal / 96 px full, full width, bottom-anchored,
   z-index 20 (over the HUD, under chat and menus), fill black 0.5 (read like the killfeed) with a 2 px black shadow,
   0.1 s height transition.

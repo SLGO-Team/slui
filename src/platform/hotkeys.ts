@@ -19,15 +19,16 @@ export const HOTKEY_ACTIONS: readonly HotkeyAction[] = ["shop", "scoreboard", "c
 
 // CS2 opens its buy menu with B and its chats with Y (all) and U (team). It holds Tab
 // for the scoreboard, which SCP:SL uses for the inventory, so the scoreboard takes
-// CapsLock like the plugin's own binding. The demo replay console (replay servers only) takes F3: no SCP:SL default,
-// no plugin key and none of the others; CS2's demo UI sits nearby on Shift+F2.
-export const DEFAULT_HOTKEYS: HotkeySettings = { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU", replay: "F3" };
+// CapsLock like the plugin's own binding. The demo replay console (replay servers only) takes F6: the SCP:SL client
+// keeps F1 (character info), F3 (its debug screen, found in game 2026-11-17) and F4 (debug log, not rebindable), F5 is
+// a common console-command binding, and no plugin key or other overlay key sits on F6.
+export const DEFAULT_HOTKEYS: HotkeySettings = { shop: "KeyB", scoreboard: "CapsLock", chatGlobal: "KeyY", chatTeam: "KeyU", replay: "F6" };
 
 /**
  * Where the replay key goes when a settings file has none (it predates the key) or an unusable one: the first of these
- * no other action uses. A file whose user already put another action on F3 keeps all its keys.
+ * no other action uses. A file whose user already put another action on F6 keeps all its keys.
  */
-export const REPLAY_HOTKEY_FALLBACKS: readonly HotkeyCode[] = ["F3", "F5", "F6", "F7", "F8", "F9", "F10", "F11"];
+export const REPLAY_HOTKEY_FALLBACKS: readonly HotkeyCode[] = ["F6", "F7", "F8", "F9", "F10", "F11"];
 
 const LETTER = /^Key([A-Z])$/;
 const FUNCTION = /^F([1-9]|1[0-2])$/;
@@ -67,7 +68,7 @@ export function normalizeHotkeys(value: Partial<Record<HotkeyAction, unknown>> |
     const stored = value?.[action];
     if (action === "replay") {
       const key = isBindableFor(action, stored) && !used.has(stored) ? stored : REPLAY_HOTKEY_FALLBACKS.find((candidate) => !used.has(candidate));
-      // Eight fallbacks against four other keys: one is always free.
+      // Six fallbacks against four other keys: one is always free.
       keys.replay = key ?? DEFAULT_HOTKEYS.replay;
       continue;
     }

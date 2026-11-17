@@ -695,7 +695,14 @@ by window label (`?window=home` in a browser preview).
   NVIDIA App's Alt+R statistics overlay does this 0.1-0.5 s after every
   foreground switch; closing on that blur, and then handing the foreground back
   to the game, was the "B does nothing / shop closes after ~2 s" field bug
-  (task `10-30-overlay-foreground-close`). The 100 ms foreground poll cannot
+  (task `10-30-overlay-foreground-close`). The diagnostic line for such a loss
+  (`foreground left the game and the overlay: …`) names the executable and class;
+  for a WebView2 window it also names the application that started the runtime
+  (`msedgewebview2.exe of SearchHost.exe`): Windows 11's start and search panels,
+  and other tools (a proxy client), draw through WebView2, so a bare
+  `msedgewebview2.exe` is not evidence that SLUI's own page took the foreground
+  (the 11-17 replay live test misread four Windows-key presses that way; native
+  `<select>` / date-picker popups of the overlay page do not take the foreground). The 100 ms foreground poll cannot
   see such a bounce; a `SetWinEventHook` recorder of `EVENT_SYSTEM_FOREGROUND`
   and `EVENT_OBJECT_FOCUS` can. Chat refocuses its entry on the window's next
   `focus`.
@@ -813,7 +820,8 @@ by window label (`?window=home` in a browser preview).
   `settings.json.bad-<unix-seconds>`. The frontend parses with
   `parseSettings()`, which delegates to `normalizeRadarPreferences()` and
   `normalizeHotkeys()`. Five keys are configurable: shop (B), scoreboard
-  (CapsLock), global chat (Y), team chat (U) and the demo replay console (F3).
+  (CapsLock), global chat (Y), team chat (U) and the demo replay console (F6;
+  the SCP:SL client keeps F1, F3 (debug screen) and F4 (debug log)).
   The shop, chat and replay keys are
   letters except R and F1-F12; digits (item selection) and R (teammate
   request) are reserved for the open shop. The
@@ -822,8 +830,8 @@ by window label (`?window=home` in a browser preview).
   recovers to its default, and if that default is taken too every key recovers.
   A key added after release must not cost a player their existing keys: the
   replay key, missing from older files, is not under that rule but takes the
-  first key of `REPLAY_HOTKEY_FALLBACKS` (F3, F5-F11) no other action uses, so a
-  file that already put another action on F3 keeps it and gets F5. A future
+  first key of `REPLAY_HOTKEY_FALLBACKS` (F6-F11) no other action uses, so a
+  file that already put another action on F6 keeps it and gets F7. A future
   key follows the same pattern (its own fallback list, appended last to
   `HOTKEY_ACTIONS`, a `settings-smoke` case for an old file and for a file
   whose user took its default).
