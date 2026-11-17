@@ -375,9 +375,11 @@
   inset: 0;
 }
 
+/* #SpeedTicks: every glyph bottom-aligned with CS2's own bottom margins (.speed-tick 4px at 3, .speed-tick-pause
+   12px at -1, .speed-tick-arrows 10px at 0), which puts all their centres 5px above the container's bottom. */
 .replay-speed__tick {
   position: absolute;
-  bottom: 3px;
+  bottom: 0;
   left: calc(var(--at) * (100% - 16px) + 8px);
   display: flex;
   align-items: flex-end;
@@ -386,13 +388,14 @@
 
 .replay-speed__bar {
   height: 4px;
+  margin-bottom: 3px;
   background-color: rgba(255, 255, 255, 0.567);
 }
 
 .replay-speed__pause {
   width: 12px;
   height: 12px;
-  margin-bottom: -4px;
+  margin-bottom: -1px;
   background-color: #fff;
   opacity: 0.567;
   mask: url("/assets/replay/pause.svg") center / contain no-repeat;
@@ -567,15 +570,12 @@
   background-color: rgba(255, 255, 255, 0.037);
 }
 
-/* SLGO's recordings list in #SettingsButton's place: #808080, white while its panel is open. */
+/* SLGO's recordings list in #SettingsButton's place: white like the gear in the captures (the CSS colour #808080
+   does not tint a Panorama image; only wash-color would). */
 .replay-icon--list {
   width: 24px;
   height: 24px;
   mask-image: url("/assets/replay/list.svg");
-  background-color: #808080;
-}
-
-.replay-catalog-button[data-active] .replay-icon--list {
   background-color: #fff;
 }
 

@@ -800,8 +800,8 @@ design §12 and task `11-17-demo-replay-bar-fixes` (CS2 behaviour read from the 
   minimum is 0.25) and its tick row; "时间： m:ss / m:ss" (no Tick field); **-10秒 / +10秒** (CS2 steps 15 s; SLGO
   uses 10, task PRD R12); ⏮ 回合：N ⏭ with the 回合开始 / 动作开始 menu; ◀ player name ▶ with the player list; »⊕
   next kill; the camera button toggles 第一人称 / 自由视角; the film button is CS2's highlights toggle (切换高光时刻回放);
-  SLGO's 录像列表 sits in CS2's settings button's place (36 px, own list icon `#808080`, white while open; no
-  settings popup); 退出 (= unload for everyone) needs a second click within 3 s (确认退出？).
+  SLGO's 录像列表 sits in CS2's settings button's place (36 px, own list icon, white like the captured gear: the
+  CSS `color: #808080` does not tint a Panorama image; no settings popup); 退出 (= unload for everyone) needs a second click within 3 s (确认退出？).
 - Immediate feedback like CS2: the speed slider applies every stop it crosses while pressed (a click on a tick
   included; the whole 36 px container takes the pointer), and the slider, its label, the play button and the play
   tooltip show the new playback at once (optimistic until the server's `replay.state`), so nothing snaps back.
@@ -811,6 +811,8 @@ design §12 and task `11-17-demo-replay-bar-fixes` (CS2 behaviour read from the 
   step intervals; »⊕ goes to the watched player's next kill or death; player controls and the camera button at 0.2;
   the film button white while on and 0.2 (no hover) in the free camera. Between intervals the game fades to black
   and back, 0.25 s each (`demo_highlight_fade_duration`), under every HUD element.
+- Speed ticks (#SpeedTicks): bottom-aligned with CS2's own margins (tick 4 px at 3, pause 12 px at -1, arrows 10 px
+  at 0), so all their centres sit on one line 5 px above the container's bottom.
 - Keys: CS2's demo bar has no keyboard controls of its own (Shift+F2 cycles it; the rest are the game's spectator
   binds). SLGO's space / ← → / ↑ ↓ / PageUp PageDown / `.` / Esc act only in the full bar, which holds the keyboard;
   in the minimal or hidden bar the keyboard belongs to the game (space jumps in SL, the plugin binds the arrows).
