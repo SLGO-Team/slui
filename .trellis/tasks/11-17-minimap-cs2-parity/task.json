@@ -1,0 +1,30 @@
+{
+  "id": "minimap-cs2-parity",
+  "name": "minimap-cs2-parity",
+  "title": "小地图 CS2 对齐",
+  "description": "按用户 11-17 选定范围把 SLUI 雷达的机制和外观对齐 CS2：父任务持有需求清单、子任务映射与跨子任务验收",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "23q3",
+  "assignee": "23q3",
+  "createdAt": "2026-11-17",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-17-minimap-cs2-slui",
+    "11-17-minimap-speaking",
+    "11-17-minimap-spectate-number"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
