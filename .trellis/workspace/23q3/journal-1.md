@@ -1780,3 +1780,26 @@ Traced CS2 client.dll: #Selected marks an observer's in-eye/chase target; #Playe
 ### Status
 
 [OK] **Completed**
+
+
+## Session 77: 小地图 CS2 对齐父任务验收与归档
+<!-- trellis-session: v=2 fp=6fe5219ff112ec76 -->
+
+**Date**: 2026-11-17
+**Task**: 小地图 CS2 对齐父任务验收与归档
+**Branch**: `docs/archive-minimap-cs2-parity`
+
+### Summary
+
+四个子任务 #116-#119 均已合入；核对 minimap.md 与 SOURCE-MAP.md，修正残留旧尺寸描述（8/10px 标记、~0.73 卡包与圈、区域调暗、朝向框、离屏箭头/幽灵/死亡 X），归档父任务 11-17-minimap-cs2-parity。均未发版，插件/backend 未部署。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8313d7f` | chore(task): record minimap CS2 parity acceptance |
+| `4df5794` | docs(minimap): bring the radar source map and spec in line with CS2-native marker sizes |
+
+### Status
+
+[OK] **Completed**

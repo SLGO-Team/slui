@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 76
+- **Total Sessions**: 77
 - **Last Active**: 2026-11-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1782 | Active |
+| `journal-1.md` | ~1805 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 77 | 2026-11-17 | 小地图 CS2 对齐父任务验收与归档 | `8313d7f`, `4df5794` | `docs/archive-minimap-cs2-parity` |
 | 76 | 2026-11-17 | 小地图说话喇叭（CS2 SpeakingOnMap，minimap v8） | `9345d85` | `feat/minimap-speaking` |
 | 75 | 2026-11-17 | 小地图 CS2 对齐：成员槽位色按模式与人数 | `78e745f`, `0187177` | `feat/minimap-team-colour-mode` |
 | 74 | 2026-11-17 | Minimap CS2 spectate selection box and observer numbers | `44cf626` | `feat/minimap-spectate-number` |
