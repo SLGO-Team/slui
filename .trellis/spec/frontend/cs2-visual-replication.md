@@ -821,8 +821,9 @@ design §12 and task `11-17-demo-replay-bar-fixes` (CS2 behaviour read from the 
   next kill; the camera button toggles 第一人称 / 自由视角; the film button is CS2's highlights toggle (切换高光时刻回放);
   SLGO's 录像列表 sits in CS2's settings button's place (36 px, own list icon, white like the captured gear: the
   CSS `color: #808080` does not tint a Panorama image; no settings popup); 退出 (= unload for everyone) needs a second click within 3 s (确认退出？).
-- Immediate feedback like CS2: the speed slider applies every stop it crosses while pressed (a click on a tick
-  included; the whole 36 px container takes the pointer), and the slider, its label, the play button and the play
+- Immediate feedback like CS2: the speed slider applies every stop it crosses while pressed (only the
+  top 24 px slider strip takes the pointer; the tick row below is a label and ignores clicks, user decision
+  2026-11-18), and the slider, its label, the play button and the play
   tooltip show the new playback at once (optimistic until the server's `replay.state`), so nothing snaps back.
 - Highlights mode (`.highlightsActive`, here `data-highlights`): intervals −6 s / +2 s around the watched player's
   kills and deaths drawn as white 8 px bars on the band row; bands at 0.2; icons white, scaled 1.1 and lifted 4 px
@@ -839,8 +840,8 @@ design §12 and task `11-17-demo-replay-bar-fixes` (CS2 behaviour read from the 
   (CJK at 90%, CS2's fallback scale), times and speed in Stratum2 Regular Monodigit, colour `#cccccc` (captures read
   ~`#dadada`, probably capture brightening; not changed).
 - Popups (player list, round menu) and the recordings panel: `#303030f0` fill, `#202020f0` border, radius 3, entries
-  18 px `#e0e0e0`, hover `#ffffff20` (converted 0.289); player names CT `#b5d4ee` / T `#eadbb1` (SCP on CS2's CT side,
-  NTF on T, `hudSideForRole`), the dead at 0.4 with a skull and not clickable. The recordings panel has no CS2
+  18 px `#e0e0e0`, hover `#ffffff20` (converted 0.289); player names in SLGO's faction colours (`ROLE_COLORS`: SCP red, NTF blue;
+  user decision 2026-11-18, not CS2's CT `#b5d4ee` / T `#eadbb1`), the dead at 0.4 with a skull and not clickable. The recordings panel has no CS2
   counterpart; it reuses the popup style, centred.
 - Status line (loading, load failure, rejected command; CS2 has none): one line in the popup style just above the
   bar's left end.
