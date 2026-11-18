@@ -1803,3 +1803,25 @@ Traced CS2 client.dll: #Selected marks an observer's in-eye/chase target; #Playe
 ### Status
 
 [OK] **Completed**
+
+
+## Session 78: Replay bar details and overlay native web input
+<!-- trellis-session: v=2 fp=06ed9b3b9999d4f6 -->
+
+**Date**: 2026-11-18
+**Task**: Replay bar details and overlay native web input
+**Branch**: `fix/overlay-native-input`
+
+### Summary
+
+Speed ticks no longer clickable (pointer only on the slider strip); replay player name and list use ROLE_COLORS; WebView2 browser accelerator keys off in every window (verified with real F5/Ctrl+R vs a control build); overlay page cancels Tab, scroll keys, Enter/Space activation, Ctrl+A, drag, selection, middle/back/forward buttons outside text fields. Specs updated.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5c619a5` | fix(overlay): drop web-native input, speed ticks inert, replay names in SLGO colours |
+
+### Status
+
+[OK] **Completed**

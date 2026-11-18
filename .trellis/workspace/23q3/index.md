@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 77
-- **Last Active**: 2026-11-17
+- **Total Sessions**: 78
+- **Last Active**: 2026-11-18
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1805 | Active |
+| `journal-1.md` | ~1827 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 78 | 2026-11-18 | Replay bar details and overlay native web input | `5c619a5` | `fix/overlay-native-input` |
 | 77 | 2026-11-17 | 小地图 CS2 对齐父任务验收与归档 | `8313d7f`, `4df5794` | `docs/archive-minimap-cs2-parity` |
 | 76 | 2026-11-17 | 小地图说话喇叭（CS2 SpeakingOnMap，minimap v8） | `9345d85` | `feat/minimap-speaking` |
 | 75 | 2026-11-17 | 小地图 CS2 对齐：成员槽位色按模式与人数 | `78e745f`, `0187177` | `feat/minimap-team-colour-mode` |
