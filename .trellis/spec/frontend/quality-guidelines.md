@@ -171,6 +171,11 @@ by up to 255 after the canvas un-premultiplies them).
 Process rules (branches, PR titles, release steps) live in `CONTRIBUTING.md`;
 these are the code-level contracts behind them.
 
+- **npm audit gate is `npm run audit` (`scripts/npm-audit.mjs`).** `--omit=dev` must have no high / critical
+  advisory. A dev-only advisory with no fix (no patched release, or npm's only fix is a breaking downgrade) may be
+  added to `DEV_EXCEPTIONS` by GHSA id with the packages, why it cannot reach users, and an `until` date; it lapses
+  when npm reports `fixAvailable: true` or the date passes. Never switch CI back to `--omit=dev` alone or drop the
+  level. First entry: picomatch GHSA-fc5q-39xc-vjpf via vite (2026-11-18).
 - **Versions are owned by release-please.** `release-please-config.json` lists
   every file that carries the SLUI version besides `package.json` /
   `package-lock.json`; `scripts/version-check.mjs` (in `npm test`) lists the

@@ -15,7 +15,7 @@
    - 破坏性变更在 type 后加 `!`，例如 `feat!: ...`。合并时只使用标题，PR 描述不会进入提交信息。
 4. CI 通过后 squash 合并，合并后分支自动删除。
 
-CI 在 Windows 上运行 `npm ci`、`npm audit`、`npm run lint`、`npm test`、生产模式构建，以及 Rust workspace 的 `cargo test` 和 `cargo clippy -D warnings`。
+CI 在 Windows 上运行 `npm ci`、`npm run audit`（发布依赖零容忍；无修复的开发期公告须在 `scripts/npm-audit.mjs` 登记理由与期限）、`npm run lint`、`npm test`、生产模式构建，以及 Rust workspace 的 `cargo test` 和 `cargo clippy -D warnings`。
 
 ## 发版
 
