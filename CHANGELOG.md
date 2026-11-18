@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.13.0](https://github.com/SLGO-Team/slui/compare/v0.12.0...v0.13.0) (2026-11-18)
+
+
+### Features
+
+* **conditions:** warn when SL's display mode minimizes the game whenever it loses focus ([#109](https://github.com/SLGO-Team/slui/issues/109)) ([346137d](https://github.com/SLGO-Team/slui/commit/346137dffa684d1d1bb0d4e0cca5098b8b0ddebf))
+* **hud:** follow CS2 teammate colour rule by game mode and player limit ([#118](https://github.com/SLGO-Team/slui/issues/118)) ([90f12e8](https://github.com/SLGO-Team/slui/commit/90f12e8660fe0264a16f4b9ae634afdeda9d813e))
+* **killfeed:** draw the blind and ability-assist icons ([#105](https://github.com/SLGO-Team/slui/issues/105)) ([171a6a9](https://github.com/SLGO-Team/slui/commit/171a6a9c2e20288bf0c91c6a1da1aae4bbfc69e0))
+* **minimap:** align radar icon scale, dynamic zoom, keycard and frame with CS2 ([#116](https://github.com/SLGO-Team/slui/issues/116)) ([54d14f0](https://github.com/SLGO-Team/slui/commit/54d14f0de2c356e28821f93f0dec3eb7528b1318))
+* **minimap:** CS2 spectate selection box and observer player numbers ([#117](https://github.com/SLGO-Team/slui/issues/117)) ([dacb89e](https://github.com/SLGO-Team/slui/commit/dacb89e67ebd24a66bccd72f9cf0794648280365))
+* **minimap:** show CS2 speaking icons for teammates on the radar ([#119](https://github.com/SLGO-Team/slui/issues/119)) ([8d702fb](https://github.com/SLGO-Team/slui/commit/8d702fb734f85276edf74561071c0a8c8e83e5d8))
+* **protocol:** demo replay clock, warmup timeline, replay HUD and minimap v7 free camera ([#111](https://github.com/SLGO-Team/slui/issues/111)) ([7bcc04c](https://github.com/SLGO-Team/slui/commit/7bcc04c89269f35a9d79e002199212506b463e3d))
+* **protocol:** demo replay events, commands and omniscient match snapshot ([#110](https://github.com/SLGO-Team/slui/issues/110)) ([d24e92b](https://github.com/SLGO-Team/slui/commit/d24e92b9b25c5001b10e2c94a78dff0d9ce9ece7))
+* **protocol:** minimap v7 shows a replay viewer's own recorded player ([#112](https://github.com/SLGO-Team/slui/issues/112)) ([f5452e5](https://github.com/SLGO-Team/slui/commit/f5452e5190b0c29b310d484756b618ec623b2bae))
+* **protocol:** Round Swing in career stats and match summaries ([#107](https://github.com/SLGO-Team/slui/issues/107)) ([0794238](https://github.com/SLGO-Team/slui/commit/07942384df2ecdc6bc16657187661715af8d9005))
+* **replay:** demo replay controller, catalog and omniscient HUD ([#113](https://github.com/SLGO-Team/slui/issues/113)) ([8f77e1c](https://github.com/SLGO-Team/slui/commit/8f77e1c5fcbf8621047b5ea2c7e19a61292a93d1))
+
+
+### Bug Fixes
+
+* **blur:** stop SLUI crashing when the game window restores from minimized ([#108](https://github.com/SLGO-Team/slui/issues/108)) ([45417eb](https://github.com/SLGO-Team/slui/commit/45417ebc0cdc4400ab88aa90626afa4b89eb9aa6))
+* **overlay:** drop web-native input, inert speed ticks, replay names in SLGO colours ([#121](https://github.com/SLGO-Team/slui/issues/121)) ([8508f6d](https://github.com/SLGO-Team/slui/commit/8508f6dd3ce2265b585ff0f27137953d9768c57d))
+* **replay:** CS2 highlights, instant playback feedback and a command budget on the demo bar ([#115](https://github.com/SLGO-Team/slui/issues/115)) ([b3fcc44](https://github.com/SLGO-Team/slui/commit/b3fcc446c5c1142bad0e0af84644125bf7b2c2b4))
+* **replay:** F6 as the replay console key and WebView2 hosts in foreground diagnostics ([#114](https://github.com/SLGO-Team/slui/issues/114)) ([cd8fe7f](https://github.com/SLGO-Team/slui/commit/cd8fe7f0110fe7959405b5ae10a54d670642379e))
+
 ## [0.12.0](https://github.com/SLGO-Team/slui/compare/v0.11.0...v0.12.0) (2026-11-05)
 
 

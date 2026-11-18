@@ -1,6 +1,6 @@
 [package]
 name = "slui"
-version = "0.12.0"
+version = "0.13.0"
 description = "SLUI: the Windows game overlay for SCP: Secret Laboratory on SLGO servers"
 authors = ["SLGO Team"]
 edition = "2021"
