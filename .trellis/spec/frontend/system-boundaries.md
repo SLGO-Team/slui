@@ -576,6 +576,14 @@ by window label (`?window=home` in a browser preview).
 | `home` | Launcher-style home: 首页 (overlay switch, status, in-game keys) and 设置 (radar, hotkeys, audio) | Frameless (`decorations: false`, `maximizable: false`) with a title bar drawn in React. Closing hides it to the tray; only the tray "退出" quits. |
 | `overlay` | Game overlay (HUD, radar, shop) | Starts hidden and passive on every launch. Owns the SLGO session. |
 
+- No web-page behaviour. Every window has WebView2's browser accelerator keys off (F5 / Ctrl+R, Ctrl+F, Ctrl+P,
+  Alt+Left, F7, F12...; `src-tauri/src/webview_keys.rs`, set on the live settings in `setup`, which applies at
+  once). The overlay page also cancels the page's own defaults (`suppressOverlayNativeInput`,
+  `src/platform/nativeInput.ts`, capture phase on the window): Tab never moves focus; outside text fields
+  Home / End / PageUp / PageDown / arrows, Enter / Space on a focused button and Ctrl+A do nothing; no drag, text
+  selection, middle-click autoscroll or back / forward buttons. Only the default is cancelled, so feature key
+  handlers still see every key; they must not skip a key because `defaultPrevented` is set for these keys. Both
+  windows drop WebView2's page context menu (`src/platform/contextMenu.ts`).
 - Home draws its own title bar (`src/app/home/TitleBar.tsx`). Every
   non-interactive element in it carries `data-tauri-drag-region` (Tauri only
   drags from the element that has the attribute). Minimize/close go through

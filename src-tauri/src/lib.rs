@@ -9,6 +9,7 @@ mod sidecar_socket;
 mod steam_profile;
 mod theme_pack;
 mod updater;
+mod webview_keys;
 
 #[cfg(test)]
 mod command_acl_tests;
@@ -1515,6 +1516,9 @@ pub fn run() {
                     diag::process_elevated(unsafe { windows_sys::Win32::System::Threading::GetCurrentProcess() });
                 diag!("Windows {}; SLUI elevated: {}", diag::windows_version(), diag::elevation_text(elevated));
                 SLUI_ELEVATED.store(elevated == Ok(true), Ordering::SeqCst);
+            }
+            for window in app.webview_windows().values() {
+                webview_keys::disable_browser_accelerator_keys(window);
             }
             // The overlay starts disabled on every launch and never takes input on its own.
             if let Some(overlay) = app.get_webview_window(OVERLAY_WINDOW) {

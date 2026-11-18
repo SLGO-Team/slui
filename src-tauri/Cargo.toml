@@ -91,6 +91,8 @@ windows = { version = "0.62", features = [
     "Win32_System_WinRT_Graphics_Capture",
     "Win32_UI_WindowsAndMessaging",
 ] }
+# The WebView2 settings interface (src/webview_keys.rs); the version Tauri's controller() returns.
+webview2-com = "0.39"
 
 [dev-dependencies]
 rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }

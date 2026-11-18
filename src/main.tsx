@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { suppressPageContextMenu } from "./platform/contextMenu";
+import { suppressOverlayNativeInput } from "./platform/nativeInput";
 import { currentWindowLabel, isTauri } from "./platform/desktop";
 import { themePackLogLine } from "./app/themePackStatus";
 import { installPageErrorLog, writeDiagnostic } from "./platform/pageErrors";
@@ -34,6 +35,8 @@ void Promise.all([currentWindowLabel(), loadThemePack()]).then(async ([label, th
   }
   // The browser preview keeps its menu for DevTools.
   if (isTauri()) suppressPageContextMenu(label);
+  // The browser preview too, so the mock shows the overlay's real keyboard.
+  if (label === "overlay") suppressOverlayNativeInput();
   let root: React.ReactNode;
   if (label === "home") {
     const { HomeApp } = await import("./app/home/HomeApp");

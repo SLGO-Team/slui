@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import type { ReplayCommand, ReplayDemo } from "../../contracts";
+import type { ReplayCommand, ReplayDemo, Role } from "../../contracts";
 import { useBackdropRef } from "../../platform/backdrop.ts";
 import { useOverlayVisible } from "../../platform/overlayVisibility.ts";
 import { useOverlayScale } from "../../shared/overlay.ts";
-import { hudSideForRole } from "../hud/presentation.ts";
+import { ROLE_COLORS } from "../../shared/roleColors.ts";
 import type { RoundHudViewModel } from "../hud/model.ts";
 import { createSeekPacer, killSeekPositionMs, REPLAY_KILL_LEAD_MS, REPLAY_STEP_MS, replayControl, replayPov, replayUnload } from "./commands.ts";
 import {
@@ -198,10 +198,11 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
   // --- Players ------------------------------------------------------------------------------------------------------
   const groups = useMemo(() => demo ? replayPlayerRows(demo, hud, povSlot) : [], [demo, hud, povSlot]);
   const order = useMemo(() => replayPlayerOrder(groups), [groups]);
-  const sideOf = useMemo(() => {
-    const sides = new Map<number, "ct" | "t">();
-    for (const group of groups) if (group.role) for (const row of group.rows) sides.set(row.slot, hudSideForRole(group.role));
-    return sides;
+  // SLGO's faction colours (SCP red, NTF blue) where CS2 colours the names CT / T.
+  const roleOf = useMemo(() => {
+    const roles = new Map<number, Role>();
+    for (const group of groups) if (group.role) for (const row of group.rows) roles.set(row.slot, group.role);
+    return roles;
   }, [groups]);
   const watched = order.find((row) => row.slot === povSlot) ?? null;
   const lastPovRef = useRef<number | null>(null);
@@ -344,7 +345,7 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
           {status ? <div className="replay-status" role="status">{status}</div> : null}
           {full && popup.kind === "players" ? (
             <div className="replay-popup replay-player-list" style={{ left: popup.left, width: popup.width }}>
-              {order.map((row) => <PlayerEntry key={row.slot} row={row} side={sideOf.get(row.slot) ?? null}
+              {order.map((row) => <PlayerEntry key={row.slot} row={row} role={roleOf.get(row.slot) ?? null}
                 onSelect={() => { spectate(row.slot); setPopup({ kind: null, left: 0 }); }} />)}
             </div>
           ) : null}
@@ -432,7 +433,7 @@ export const ReplayController = memo(function ReplayController({ mode, replay, h
                     <span className="replay-icon replay-icon--arrow" />
                   </button>
                   <button type="button" className="replay-interactive replay-player-name" disabled={disabled}
-                    data-side={watched ? sideOf.get(watched.slot) : undefined} {...tip(REPLAY_TEXT.tooltip.playerList)}
+                    style={nameColor(watched ? roleOf.get(watched.slot) ?? null : null)} {...tip(REPLAY_TEXT.tooltip.playerList)}
                     onClick={(event) => playerPrevRef.current && playerNextRef.current ? openPopup("players", playerPrevRef.current, playerNextRef.current) : openPopup("players", event.currentTarget)}>
                     {watched?.name ?? REPLAY_TEXT.playerNone}
                   </button>
@@ -496,9 +497,13 @@ function Interactive({ label, icon, iconOnly, mirrored, disabled, tip, onClick }
   );
 }
 
-function PlayerEntry({ row, side, onSelect }: { row: ReplayPlayerRow; side: "ct" | "t" | null; onSelect(): void }) {
+function nameColor(role: Role | null): CSSProperties | undefined {
+  return role === null ? undefined : { "--replay-name-color": ROLE_COLORS[role] } as CSSProperties;
+}
+
+function PlayerEntry({ row, role, onSelect }: { row: ReplayPlayerRow; role: Role | null; onSelect(): void }) {
   return (
-    <button type="button" className="replay-popup__entry replay-player-entry" data-side={side ?? undefined}
+    <button type="button" className="replay-popup__entry replay-player-entry" style={nameColor(role)}
       data-dead={!row.alive || undefined} data-selected={row.isPov || undefined} disabled={!row.selectable} onClick={onSelect}>
       <span className="replay-player-entry__skull" aria-hidden="true" />
       <span className="replay-player-entry__name">{row.name}</span>
@@ -507,9 +512,10 @@ function PlayerEntry({ row, side, onSelect }: { row: ReplayPlayerRow; side: "ct"
 }
 
 /**
- * CS2 #SpeedSliderContainer: a stop slider with its tick row (pause glyph, widening ticks, 1 / 2 / 4 arrows). Like
- * CS2's `SliderValueChanged`, every new stop under the pointer applies at once (a click on a tick included); the bar
- * then shows the optimistic playback, so releasing never snaps back.
+ * CS2 #SpeedSliderContainer: a stop slider over its tick row (pause glyph, widening ticks, 1 / 2 / 4 arrows). Only the
+ * slider strip (track and thumb) takes the pointer; the ticks are a label row, as in CS2. Like CS2's
+ * `SliderValueChanged`, every new stop under the pointer applies at once; the bar then shows the optimistic playback,
+ * so releasing never snaps back.
  */
 function SpeedSlider({ stop, disabled, scale, onStop }: { stop: number; disabled: boolean; scale: number; onStop(stop: number): void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -527,15 +533,7 @@ function SpeedSlider({ stop, disabled, scale, onStop }: { stop: number; disabled
     return Math.round(Math.min(1, Math.max(0, (clientX - box.left - thumb / 2) / Math.max(1, box.width - thumb))) * last);
   };
   return (
-    <div ref={ref} className="replay-speed__slider" data-disabled={disabled || undefined} style={{ "--stop": shown / last } as CSSProperties}
-      onPointerDown={(event) => {
-        if (disabled || event.button !== 0) return;
-        event.currentTarget.setPointerCapture(event.pointerId);
-        choose(stopAt(event.clientX));
-      }}
-      onPointerMove={(event) => { if (preview !== null) choose(stopAt(event.clientX)); }}
-      onPointerUp={() => setPreview(null)}
-      onPointerCancel={() => setPreview(null)}>
+    <div ref={ref} className="replay-speed__slider" data-disabled={disabled || undefined} style={{ "--stop": shown / last } as CSSProperties}>
       <div className="replay-speed__ticks" aria-hidden="true">
         {REPLAY_SPEED_STOPS.map((speed, index) => (
           <span key={speed} className="replay-speed__tick" style={{ "--at": index / last } as CSSProperties}>
@@ -547,6 +545,15 @@ function SpeedSlider({ stop, disabled, scale, onStop }: { stop: number; disabled
       </div>
       <span className="replay-speed__track" />
       <span className="replay-speed__thumb" />
+      <span className="replay-speed__hit"
+        onPointerDown={(event) => {
+          if (disabled || event.button !== 0) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          choose(stopAt(event.clientX));
+        }}
+        onPointerMove={(event) => { if (preview !== null) choose(stopAt(event.clientX)); }}
+        onPointerUp={() => setPreview(null)}
+        onPointerCancel={() => setPreview(null)} />
     </div>
   );
 }

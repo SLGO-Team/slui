@@ -3655,6 +3655,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-tungstenite",
  "webpki-roots",
+ "webview2-com",
  "windows",
  "windows-sys 0.61.2",
  "workspace-hack",

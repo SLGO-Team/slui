@@ -434,6 +434,15 @@
   background-color: #cccccc;
 }
 
+/* The pointer target: the HorizontalSlider strip (thumb 6-18px) only, never the tick row below it (glyphs from 24px). */
+.replay-speed__hit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 24px;
+}
+
 .replay-speed__label,
 .replay-time {
   font-family: "Stratum2 Replay Monodigit", "Noto Sans Replay", sans-serif;
@@ -469,7 +478,7 @@
   display: none;
 }
 
-/* #PlayerControls: 32px arrows around a 190px name, team-coloured like CS2's CT / T. */
+/* #PlayerControls: 32px arrows around a 190px name, in SLGO's faction colour where CS2 colours CT / T. */
 .replay-player-step {
   width: 32px;
 }
@@ -491,14 +500,10 @@
   text-overflow: ellipsis;
 }
 
-[data-side="ct"].replay-player-name,
-[data-side="ct"] .replay-player-entry__name {
-  color: #b5d4ee;
-}
-
-[data-side="t"].replay-player-name,
-[data-side="t"] .replay-player-entry__name {
-  color: #eadbb1;
+/* Over `.replay-control-row button`'s inherited colour; without a role the bar's own text colour. */
+.replay-control-row .replay-player-name,
+.replay-player-entry__name {
+  color: var(--replay-name-color, inherit);
 }
 
 .replay-next-event {
