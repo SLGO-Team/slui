@@ -19,6 +19,12 @@
 
 ## Acceptance Criteria
 
-- [ ] 每项改动说明了热路径、原开销和改后开销。
-- [ ] `npm run lint`、`npm test` 通过。
-- [ ] 画面输出不变（相关 layout/visual audit 若能在本机跑则跑）。
+- [x] 每项改动说明了热路径、原开销和改后开销（见两次 perf 提交说明）。
+- [x] `npm run lint`、`npm test` 通过。
+- [x] 画面输出不变：小地图 model/integration smoke 通过；`minimap-visual-audit` 在 Linux 云端改动前后都停在「radar 未 live」，属环境问题，未能截图对比。
+
+## 结果（2026-11-25）
+
+- 小地图：静止的点/钥匙卡/炸弹点按浅比较跳过渲染；缓冲帧按玩家建索引；动态缩放关闭时不再序列化 identity；偏好只规范化一次。
+- HUD：聊天花名册不变时保持原 state；正式构建渲染不再解析 URL。
+- Rust：云端缺 `gdk-3.0` 无法编译，未改代码；方案见 `research/rust-perf-proposals.md`，需在 Windows 上实现并跑 clippy / cargo test。
