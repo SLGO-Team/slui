@@ -93,6 +93,8 @@ export type OverlayWindowController = {
   subscribeShortcut(listener: OverlayShortcutListener): () => void;
   /** While true and the game holds the foreground, right-click goes to the scoreboard instead of the game. */
   setScoreboardCapture(capture: boolean): Promise<void>;
+  /** Chat just opened from its global or team key: resolves once that key is up (at once outside the app). */
+  waitChatKeyRelease(team: boolean): Promise<void>;
   /** Whether the session is live; Rust shows an enabled overlay only while it is. */
   setSessionLive(live: boolean): Promise<void>;
   subscribeScoreboard(listener: ScoreboardInputListener): () => void;
@@ -144,6 +146,11 @@ export function createOverlayWindowController(): OverlayWindowController {
       if (!isTauri) return;
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("set_scoreboard_capture", { capture });
+    },
+    async waitChatKeyRelease(team) {
+      if (!isTauri) return;
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("wait_chat_key_release", { team });
     },
     async setSessionLive(live) {
       if (!isTauri) return;
