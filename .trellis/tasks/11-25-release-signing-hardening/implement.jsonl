@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "CI and Release Contracts section"}
+{"file": ".trellis/spec/frontend/system-boundaries.md", "reason": "Updater signature rules (updater.rs, requireSignedVersion)"}

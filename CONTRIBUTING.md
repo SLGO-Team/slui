@@ -30,11 +30,14 @@ CI 在 Windows 上运行 `npm ci`、`npm run audit`（发布依赖零容忍；�
 
 1. 每当有 PR 合并到 `main`，release-please 会创建或更新发版 PR `chore(main): release X.Y.Z`，
    其中包含版本号变更和 `CHANGELOG.md`。
-2. 准备发版时合并这个 PR。随后自动创建标签 `vX.Y.Z` 和草稿 Release，构建并签名
-   `SLUI-Setup-X.Y.Z.exe`，上传安装器和 `.sig` 后**自动发布**这个 Release。发布即上线：
+2. 准备发版时合并这个 PR。随后自动创建标签 `vX.Y.Z` 和草稿 Release，然后 release 工作流依次：
+   `build` 跑 lint、`npm test` 并构建 `SLUI-Setup-X.Y.Z.exe`；`sign` 签名，并用 `tauri.conf.json`
+   里的更新公钥验签（`scripts/verify-updater-signature.mjs`，不匹配就失败）；`ci-gate` 等这个发版提交的
+   CI 通过；`publish` 上传安装器和 `.sig` 后**自动发布**这个 Release。发布即上线：
    正在运行的 SLUI 会在下次检查时下载并提示更新，所以合并发版 PR 前先在本地验证好安装包。
 
-构建或上传失败时 Release 保持草稿，修好问题后重跑 release 工作流中的 `installer` job 即可，上传会覆盖旧文件。
+任何一步失败时 Release 保持草稿，修好问题后在 release 工作流里重跑失败的 job（Re-run failed jobs）即可，
+上传会覆盖旧文件。发版提交的 CI 失败时，先重跑那次 CI，再重跑 `ci-gate`。
 如果要放弃这次发版，删除草稿 Release 和标签，再把发版 PR 的标签改回 `autorelease: pending`。
 
 维护者需要的仓库配置：
@@ -42,7 +45,8 @@ CI 在 Windows 上运行 `npm ci`、`npm run audit`（发布依赖零容忍；�
 - 仓库变量 `RELEASE_APP_CLIENT_ID` 和 secret `RELEASE_APP_PRIVATE_KEY`：一个只安装在本仓库的 GitHub App，
   需要 Contents、Pull requests、Issues 的读写权限。用 App 令牌是为了让发版 PR 也能触发 CI。
 - Environment `release`，只允许 `main` 使用，其中有 secret `CONTROL_PLANE_URL`，即正式安装器连接的控制平面地址，
-  以及更新签名用的 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（缺少私钥时 `installer` job 直接失败）。
+  以及更新签名用的 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（只有 `sign` job 引用；缺少私钥或私钥与公钥不符时
+  `sign` 失败）。
 
 ## 本地构建安装器
 

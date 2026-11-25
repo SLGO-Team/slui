@@ -11,9 +11,11 @@ on:
 permissions:
   contents: read
 
+# A newer push supersedes a pull request's run. Main runs always finish: release.yml's ci-gate
+# publishes a release only after the CI run of its release commit passed.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-test:
@@ -24,6 +26,8 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -44,7 +48,7 @@ jobs:
       # The Rust that rust-toolchain.toml pins, installed before rust-cache keys on its version.
       - run: rustup toolchain install
       # One Cargo workspace rooted at src-tauri: SLUI, the installer shell and workspace-hack.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri -> target
       # workspace-hack must match the dependency graph, or SLUI and the installer shell
@@ -52,7 +56,7 @@ jobs:
       # rust-cache keeps registry/cache but not registry/src: the first cargo command unpacks every
       # dependency's sources. A step of its own so its time is not booked to the hakari check.
       - run: cargo metadata --format-version 1 --manifest-path src-tauri/Cargo.toml > $null
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
           # cargo-about pinned to the version that generated THIRD_PARTY_LICENSES.txt (same text out).
           tool: cargo-hakari,cargo-about@0.9.3
