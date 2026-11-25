@@ -1915,3 +1915,25 @@ settings save sync_all()s the temp file before rename; DisplaySettingWatch keeps
 ### Status
 
 [OK] **Completed**
+
+
+## Session 83: Chat: held opening key vs Chinese IME
+<!-- trellis-session: v=2 fp=6aec6743d57896e9 -->
+
+**Date**: 2026-11-25
+**Task**: Chat: held opening key vs Chinese IME
+**Branch**: `fix/chat-ime-held-key`
+
+### Summary
+
+Reproduced with Sogou in a debug SLUI over a stand-in game: holding Y typed its repeats into the draft ("一样…呀呀你好"). Sogou dispatches no keydown (not even 229) and the low-level hook does not see those keys either, so a hook-side swallow failed. Fix: the chat entry is readOnly (no IME) until the opening key is up (page key-up, or new command wait_chat_key_release polling GetAsyncKeyState); repeats then arrive as plain repeat key-downs ChatInput drops. Verified: 1.6 s hold + nihao = 你好; 40 ms tap unlocks in 58 ms. Same run showed world blur rendering behind the radar (item 2).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `13416c9` | fix(chat): keep a held chat key from typing through a Chinese IME |
+
+### Status
+
+[OK] **Completed**

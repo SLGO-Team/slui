@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 82
+- **Total Sessions**: 83
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1917 | Active |
+| `journal-1.md` | ~1939 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 83 | 2026-11-25 | Chat: held opening key vs Chinese IME | `13416c9` | `fix/chat-ime-held-key` |
 | 82 | 2026-11-25 | Rust small defects: settings fsync, registry retry, reload frees sockets | `4d1594f`, `6f4ddeb` | `fix/rust-small-defects` |
 | 81 | 2026-11-25 | Rust relay and blur: drop per-frame copies | `53d803d` | `perf/rust-relay-copies` |
 | 80 | 2026-11-25 | Release workflow: verify updater signature, isolate signing | `cbf5101` | `ci/release-signing-hardening` |
