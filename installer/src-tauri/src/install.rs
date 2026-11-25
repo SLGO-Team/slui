@@ -166,7 +166,7 @@ fn verify(exit_code: u32, dir: &str) -> InstallOutcome {
 }
 
 /// Windows paths compare case-insensitively; a trailing separator is not significant.
-fn same_dir(a: &str, b: &str) -> bool {
+pub(crate) fn same_dir(a: &str, b: &str) -> bool {
     a.trim_end_matches('\\').to_lowercase() == b.trim_end_matches('\\').to_lowercase()
 }
 
@@ -215,9 +215,11 @@ pub fn install(
     verify(exit_code, &dir)
 }
 
-/// `SLUI-Setup.exe /S ...`: no window. Extracts the NSIS package, runs it elevated with the
-/// caller's arguments unchanged and returns its exit code (NSIS: 0 done, 1 cancelled,
-/// 2 failed); 1 when UAC is declined, 2 when the package cannot be extracted or started.
+/// `SLUI-Setup.exe /S ...`: no window. Extracts the NSIS package, runs it elevated with `args`
+/// (`silent_install_command`) and returns its exit code (NSIS: 0 done, 1 cancelled, 2 failed);
+/// 1 when UAC is declined, 2 when the package cannot be extracted or started, and 2 when NSIS
+/// exited 0 but the result does not verify as in the wizard (`verify`: the registry shows this
+/// version in the `/D=` directory, or wherever NSIS put it without one, and `slui.exe` is there).
 /// An elevated caller (a deployment tool) gets no UAC prompt.
 pub fn install_silently(session: &Session, args: &str) -> i32 {
     let package = match session.extract_payload() {
@@ -228,7 +230,20 @@ pub fn install_silently(session: &Session, args: &str) -> i32 {
         }
     };
     match shell_execute(Verb::RunAs, &package, Some(args), 0) {
-        Ok(Some(process)) => process.wait() as i32,
+        Ok(Some(process)) => {
+            let exit_code = process.wait();
+            if exit_code != 0 {
+                return exit_code as i32;
+            }
+            let dir = crate::silent_install_dir(args).map(str::to_owned).or_else(|| detect::read_installed().map(|installed| installed.dir));
+            match dir.map(|dir| verify(exit_code, &dir)) {
+                Some(InstallOutcome::Ok { .. }) => 0,
+                _ => {
+                    eprintln!("slui-setup: the package exited 0 but SLUI {} is not installed", detect::payload_version());
+                    2
+                }
+            }
+        }
         Ok(None) => 2,
         Err(ShellError::Cancelled) => 1,
         Err(ShellError::Failed(detail)) => {
