@@ -28,6 +28,14 @@ type ChatInputProps = {
   onClose(reason: ChatCloseReason): void;
   /** The configured chat keys (hotkey names, by virtual key); holding the one that opened chat must not type it. */
   openingKeys: readonly string[];
+  /**
+   * The key that opened chat is still down: the entry is read-only, so no IME is active and the key's auto-repeat
+   * arrives as plain key-downs, dropped below. A Chinese IME would otherwise take the repeats before the page sees
+   * any key-down (Sogou in WebView2 dispatches none, not even keyCode 229) and compose them into the draft.
+   */
+  openingKeyHeld?: boolean;
+  /** The page saw the opening key go up (the app also learns it from the system key state). */
+  onOpeningKeyReleased?(): void;
   /** Focus diagnostics for the desktop log. */
   onDiagnostic?(message: string): void;
 };
@@ -71,7 +79,7 @@ function ChatRow({ line, self, teammateColors, lingering }: { line: ChatLine; se
 
 // A manual React recreation of CS2 layout/hud/hudchat.xml; class names follow the
 // Panorama ids (ChatContainer, ChatMain, ChatFG, ChatHistory, ChatTextEntry, ...).
-export const ChatInput = memo(function ChatInput({ chat, self, teammateColors = true, onDraft, onToggleScope, onSubmit, onClose, openingKeys, onDiagnostic }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ chat, self, teammateColors = true, onDraft, onToggleScope, onSubmit, onClose, openingKeys, openingKeyHeld = false, onOpeningKeyReleased, onDiagnostic }: ChatInputProps) {
   const scale = useOverlayScale();
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -126,7 +134,8 @@ export const ChatInput = memo(function ChatInput({ chat, self, teammateColors = 
   if (!chat.open && lines.length === 0) return null;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    // An IME composition owns Enter/Esc until it commits.
+    // An IME composition owns Enter/Esc until it commits. The opening key's auto-repeat never gets here as a
+    // composition: the entry stays read-only (no IME) while that key is held (`openingKeyHeld`).
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.repeat && openingKeyHeldRef.current && openingKeys.includes(hotkeyFromEvent(event) ?? "")) {
       event.preventDefault();
@@ -166,10 +175,13 @@ export const ChatInput = memo(function ChatInput({ chat, self, teammateColors = 
                     aria-label={CHAT_PLACEHOLDER[chat.scope]}
                     autoComplete="off"
                     spellCheck={false}
+                    readOnly={openingKeyHeld}
                     onChange={(event) => onDraft(event.target.value)}
                     onKeyDown={handleKeyDown}
                     onKeyUp={(event) => {
-                      if (openingKeys.includes(hotkeyFromEvent(event) ?? "")) openingKeyHeldRef.current = false;
+                      if (!openingKeys.includes(hotkeyFromEvent(event) ?? "")) return;
+                      openingKeyHeldRef.current = false;
+                      onOpeningKeyReleased?.();
                     }}
                     // Focus moved inside the page (WebView2 taking focus, a click on the
                     // history): keep typing here. Leaving is handled at the window level.

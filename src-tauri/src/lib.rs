@@ -22,7 +22,7 @@ use std::{
         Mutex,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use tauri::{
@@ -166,6 +166,40 @@ static SCOREBOARD_SPIKE: AtomicBool = AtomicBool::new(false);
 #[tauri::command]
 fn set_scoreboard_capture(capture: bool) {
     SCOREBOARD_CAPTURE.store(capture, Ordering::SeqCst);
+}
+
+// How often wait_chat_key_release reads the key, and when it stops waiting.
+const CHAT_KEY_POLL: Duration = Duration::from_millis(20);
+const CHAT_KEY_WAIT_LIMIT: Duration = Duration::from_secs(30);
+
+/// Chat opened from its global (`team` false) or team key: returns once that key is up (at once if it already is).
+/// The chat input stays read-only until then. A Chinese IME takes a held key's auto-repeat before the page or the
+/// keyboard hook sees it (Sogou in WebView2: no keydown, not even keyCode 229, and no hook call) and composes "yyyy"
+/// from it; a read-only input has no IME, so the repeats arrive as ordinary key-downs the page drops. This reads the
+/// system's key state instead of waiting for an event because the release can reach the game before the overlay has
+/// the keyboard. Task 11-25-chat-ime-held-key.
+#[tauri::command]
+async fn wait_chat_key_release(team: bool) {
+    let vk = if team { CHAT_TEAM_HOTKEY.load(Ordering::SeqCst) } else { CHAT_GLOBAL_HOTKEY.load(Ordering::SeqCst) };
+    let started = Instant::now();
+    if !key_is_down(vk) {
+        return;
+    }
+    while key_is_down(vk) && started.elapsed() < CHAT_KEY_WAIT_LIMIT {
+        tokio::time::sleep(CHAT_KEY_POLL).await;
+    }
+    diag!("SLGO: chat key {vk:#04x} held after chat opened; input read-only for {} ms", started.elapsed().as_millis());
+}
+
+#[cfg(windows)]
+fn key_is_down(vk: u32) -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    i32::try_from(vk).is_ok_and(|vk| (unsafe { GetAsyncKeyState(vk) } as u16) & 0x8000 != 0)
+}
+
+#[cfg(not(windows))]
+fn key_is_down(_vk: u32) -> bool {
+    false
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -1561,6 +1595,7 @@ pub fn run() {
             set_overlay_session_live,
             set_hotkeys,
             set_scoreboard_capture,
+            wait_chat_key_release,
             get_overlay_state,
             get_overlay_visibility,
             load_settings,

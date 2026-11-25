@@ -674,6 +674,14 @@ by window label (`?window=home` in a browser preview).
   place, so a key pressed while the shop's window has focus also counts as over
   the game. While chat is open the overlay ignores every `slgo-shortcut` (the
   hook still fires for keys typed into the input).
+- A held chat key must not type itself. A Chinese IME in the chat entry takes the key's auto-repeat before the page
+  and before the keyboard hook (Sogou in WebView2, measured 11-25: no keydown, not even keyCode 229, no composition
+  event, and the hook counted 4 of ~42 key events; the page got only key-ups and one `input` at commit), so holding
+  Y typed "yyyy" or converted it ("一样一样…呀呀"). The entry is therefore `readOnly` (no IME) from the open until
+  the opening key is up: the page's own key-up of it, or `wait_chat_key_release(team)` resolving (Rust polls
+  `GetAsyncKeyState` every 20 ms, at most 30 s, because the release can reach the game before the overlay has the
+  keyboard). The repeats then arrive as plain `repeat` key-downs, which `ChatInput` drops. Dropping them in the
+  hook, or in the page's keydown, cannot work with such an IME. Task `11-25-chat-ime-held-key`.
 - The scoreboard key (default CapsLock, `settings.hotkeys.scoreboard`) is held, not pressed: the hook reports its
   first key-down while the game holds the foreground as `slgo-scoreboard-key { held: true }` and its key-up from any
   window as `{ held: false }` (cursor mode moves the foreground to the overlay; the page's own `keyup` reports the
@@ -911,6 +919,7 @@ by window label (`?window=home` in a browser preview).
 | `set_hotkeys(shop, scoreboard, chatGlobal, chatTeam, replay)` | overlay | virtual-key codes; error for keys outside the bindable sets or any key used twice |
 | `set_overlay_session_live(live)` | overlay | `live` = session status `live`; an enabled overlay is shown only while true |
 | `set_scoreboard_capture(capture)` | overlay | right-click goes to the scoreboard while true and the game is foreground |
+| `wait_chat_key_release(team)` | overlay | resolves once the global (`team` false) or team chat key is up, at once if it already is; the chat entry is read-only until then |
 | `load_settings()` / `save_settings(contents)` | both / home | `string \| null` / broadcasts on success |
 | `get_game_running()` | home, overlay | `boolean` (SCPSL process present, independent of focus) |
 | `get_steam_profile(steamId)` | home (via `steamProfile.ts`) | `{ personaName, avatarUrl }`, each `string \| null`; `avatarUrl` is a PNG/JPEG `data:` URL; error unless `steamId` is 17 digits |

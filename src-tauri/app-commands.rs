@@ -10,6 +10,7 @@ const APP_COMMANDS: &[&str] = &[
     "set_overlay_session_live",
     "set_hotkeys",
     "set_scoreboard_capture",
+    "wait_chat_key_release",
     "get_overlay_state",
     "get_overlay_visibility",
     "load_settings",

@@ -193,6 +193,14 @@ function App({ harness }: AppProps) {
   const shopFeature = useShopFeature();
   const teamSelectFeature = useTeamSelectFeature();
   const chatFeature = useChatFeature();
+  // The chat input is read-only while the key that opened chat is still held (wait_chat_key_release): a Chinese IME
+  // would compose that key's auto-repeat into the draft before the page could drop it. Each open gets its own hold.
+  const [chatKeyHeld, setChatKeyHeld] = useState(false);
+  const chatKeyHoldRef = useRef(0);
+  const releaseChatKey = useCallback(() => {
+    chatKeyHoldRef.current += 1;
+    setChatKeyHeld(false);
+  }, []);
   const minimapFeature = useMinimapFeature();
   const replayFeature = useReplayFeature();
   const previewFocus = useMemo(() => HUD_DEBUG_ENABLED ? createPreviewGameForegroundSource(true) : null, []);
@@ -607,6 +615,15 @@ function App({ harness }: AppProps) {
     }
     closeShopFor("chat-key");
     chatFeature.open(shortcut === "chat-team" ? "team" : "global");
+    const hold = ++chatKeyHoldRef.current;
+    setChatKeyHeld(true);
+    const released = () => {
+      if (chatKeyHoldRef.current === hold) setChatKeyHeld(false);
+    };
+    overlayController.waitChatKeyRelease(shortcut === "chat-team").then(released, (error: unknown) => {
+      overlayController.log(`chat key release unknown: ${error instanceof Error ? error.message : String(error)}`);
+      released();
+    });
   }), [overlayController, closeShopFor, closeReplayConsole, chatFeature.close, chatFeature.open]);
 
   useEffect(() => {
@@ -1081,6 +1098,8 @@ function App({ harness }: AppProps) {
           onSubmit={handleChatSubmit}
           onClose={handleChatClose}
           openingKeys={chatKeys}
+          openingKeyHeld={chatKeyHeld}
+          onOpeningKeyReleased={releaseChatKey}
           onDiagnostic={overlayController.log}
         />
         {replayBarMode !== null ? (

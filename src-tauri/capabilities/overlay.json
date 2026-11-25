@@ -10,6 +10,7 @@
     "allow-set-overlay-session-live",
     "allow-set-hotkeys",
     "allow-set-scoreboard-capture",
+    "allow-wait-chat-key-release",
     "allow-get-overlay-visibility",
     "allow-get-game-foreground",
     "allow-get-current-steam-identity",
