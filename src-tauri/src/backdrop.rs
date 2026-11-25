@@ -840,9 +840,17 @@ float4 ps(VSOut i) : SV_Target {
             }
         }
 
-        /// Blurs every region of the plan out of `frame` and presents the result.
+        /// Blurs every region of the plan out of `frame` and presents the result. Runs on every
+        /// captured game frame, so the plan is moved out for the draw (its helpers need `&mut self`)
+        /// instead of cloned, and put back whichever way the draw returns.
         fn render(&mut self, frame: &ID3D11Texture2D, frame_size: (i32, i32)) -> windows::core::Result<()> {
-            let plan = self.plan.clone();
+            let plan = std::mem::take(&mut self.plan);
+            let result = self.render_plan(&plan, frame, frame_size);
+            self.plan = plan;
+            result
+        }
+
+        fn render_plan(&mut self, plan: &Plan, frame: &ID3D11Texture2D, frame_size: (i32, i32)) -> windows::core::Result<()> {
             self.ensure_swap((plan.size.0.max(1) as u32, plan.size.1.max(1) as u32))?;
             let back = self.back.clone().unwrap();
             unsafe { self.context.ClearRenderTargetView(&back, &[0.0, 0.0, 0.0, 0.0]) };

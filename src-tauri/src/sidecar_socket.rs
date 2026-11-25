@@ -39,7 +39,7 @@ use tokio_tungstenite::{
     client_async_with_config,
     tungstenite::{
         protocol::{frame::coding::CloseCode, CloseFrame, WebSocketConfig},
-        Message,
+        Message, Utf8Bytes,
     },
     WebSocketStream,
 };
@@ -80,8 +80,17 @@ const HEARTBEAT: Heartbeat = Heartbeat {
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum SidecarSocketEvent {
     Open,
-    Message { data: String },
+    /// The received frame's own buffer (up to `MAX_MESSAGE_BYTES` for a baseline), relayed every
+    /// frame without a copy into a `String`; it serialises as the same JSON string.
+    Message {
+        #[serde(serialize_with = "serialize_text")]
+        data: Utf8Bytes,
+    },
     Close { code: u16, reason: String },
+}
+
+fn serialize_text<S: serde::Serializer>(text: &Utf8Bytes, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(text.as_str())
 }
 
 enum Outgoing {
@@ -337,7 +346,7 @@ async fn run(
                 }
                 match frame {
                     Some(Ok(Message::Text(text))) => {
-                        if !emit(SidecarSocketEvent::Message { data: text.to_string() }) {
+                        if !emit(SidecarSocketEvent::Message { data: text }) {
                             close_within(&mut socket, None).await;
                             return abnormal();
                         }
@@ -637,6 +646,25 @@ mod tests {
         })
         .await;
         assert_eq!(closed, (CLOSE_ABNORMAL, String::new()));
+    }
+
+    #[test]
+    fn a_relayed_message_serialises_like_a_string() {
+        // The webview parses this JSON; holding the frame's buffer must not change a byte of it.
+        #[derive(serde::Serialize)]
+        #[serde(tag = "kind", rename_all = "lowercase")]
+        enum Owned {
+            Message { data: String },
+        }
+        for text in ["", "baseline", r#"{"type":"hud.tick","q":"a\"b"}"#, "line\nbreak\t\u{1}\u{7f} é 中 \u{1F600}"] {
+            let relayed = serde_json::to_string(&SidecarSocketEvent::Message { data: text.into() }).unwrap();
+            let owned = serde_json::to_string(&Owned::Message { data: text.to_owned() }).unwrap();
+            assert_eq!(relayed, owned, "{text:?}");
+        }
+        assert_eq!(
+            serde_json::to_string(&SidecarSocketEvent::Message { data: "a\"b".into() }).unwrap(),
+            r#"{"kind":"message","data":"a\"b"}"#
+        );
     }
 
     #[test]

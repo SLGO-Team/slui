@@ -477,6 +477,9 @@ request", "Sidecar session handshake", "Security boundary").
   frames (also before open); overflow ends the socket with `1006`, never drops silently.
   At most 2 sockets are open (one closing plus its replacement); a third `sidecar_open`
   fails and the adapter reports `1006`. Browser previews have no ping API and no heartbeat.
+  A received text frame is relayed as its own `Utf8Bytes` buffer (no `String` copy per
+  frame) and serialised with `serialize_str`; the channel JSON must stay byte-identical to a
+  `String` field (`a_relayed_message_serialises_like_a_string`).
   Manual check of a real sidecar with the production TLS settings:
   `SLUI_SIDECAR_PROBE_URL=wss://<host>:<port>/slgo/sidecar cargo test -p slui -- --ignored probe`.
 - Close mapping: 4000/4002 → `incompatible`, no retry; 4001 → `unauthorized`,
