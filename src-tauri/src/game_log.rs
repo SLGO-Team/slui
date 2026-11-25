@@ -50,7 +50,10 @@ fn read_from(path: &Path, offset: u64) -> GameLogChunk {
     // chunk is skipped so the reader still moves on.
     let complete = buffer.iter().rposition(|&byte| byte == b'\n').map_or(0, |index| index + 1);
     let taken = if complete == 0 && buffer.len() as u64 == MAX_READ { buffer.len() } else { complete };
-    GameLogChunk { offset: start + taken as u64, text: String::from_utf8_lossy(&buffer[..taken]).into_owned() }
+    // The buffer becomes the text in place; only a chunk with invalid UTF-8 is copied (lossily).
+    buffer.truncate(taken);
+    let text = String::from_utf8(buffer).unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned());
+    GameLogChunk { offset: start + taken as u64, text }
 }
 
 /// Where the game log ends now (0 when there is none); a proof reads what follows.
@@ -101,6 +104,14 @@ mod tests {
         let end = size_of(&path);
         std::fs::write(&path, "new\n").unwrap();
         assert_eq!(read_from(&path, end), GameLogChunk { offset: 4, text: "new\n".into() });
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn invalid_utf8_is_replaced_and_the_offset_still_counts_bytes() {
+        let path = temp_log("lossy");
+        std::fs::write(&path, b"ok \xff\xfe end\npartial").unwrap();
+        assert_eq!(read_from(&path, 0), GameLogChunk { offset: 10, text: "ok \u{FFFD}\u{FFFD} end\n".into() });
         let _ = std::fs::remove_file(&path);
     }
 
