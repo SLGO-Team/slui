@@ -1892,3 +1892,26 @@ backdrop render moves the plan out (mem::take, restored on every exit) instead o
 ### Status
 
 [OK] **Completed**
+
+
+## Session 82: Rust small defects: settings fsync, registry retry, reload frees sockets
+<!-- trellis-session: v=2 fp=0ccb90d512420fc7 -->
+
+**Date**: 2026-11-25
+**Task**: Rust small defects: settings fsync, registry retry, reload frees sockets
+**Branch**: `fix/rust-small-defects`
+
+### Summary
+
+settings save sync_all()s the temp file before rename; DisplaySettingWatch keeps registry.txt's modified time only after a read that found the display-mode line (half-written / locked reads retried next poll); sidecar sockets record their webview, and on_page_load Started drops and closes that webview's sockets. Live check in a debug SLUI over CDP with a local ws server: relayed 48 B and 300 KB messages byte-identical (item 2), reload closes the old socket in ~15 ms and frees both slots.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4d1594f` | docs(task): record the live socket reload check |
+| `6f4ddeb` | fix(overlay): sync settings before rename, retry registry reads, free sockets on page reload |
+
+### Status
+
+[OK] **Completed**

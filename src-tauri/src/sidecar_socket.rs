@@ -125,14 +125,20 @@ fn socket_channel() -> (SocketHandle, SocketInbox) {
     (handle, inbox)
 }
 
+/// An open socket and the webview (label) whose page opened it.
+struct OpenSocket {
+    owner: String,
+    handle: SocketHandle,
+}
+
 #[derive(Default)]
 pub struct SidecarSockets {
     next_id: AtomicU32,
-    open: Mutex<HashMap<u32, SocketHandle>>,
+    open: Mutex<HashMap<u32, OpenSocket>>,
 }
 
 impl SidecarSockets {
-    fn insert(&self, handle: SocketHandle) -> Result<u32, String> {
+    fn insert(&self, owner: &str, handle: SocketHandle) -> Result<u32, String> {
         let mut open = self
             .open
             .lock()
@@ -141,7 +147,7 @@ impl SidecarSockets {
             return Err(format!("At most {MAX_OPEN_SOCKETS} sidecar sockets may be open"));
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
-        open.insert(id, handle);
+        open.insert(id, OpenSocket { owner: owner.to_owned(), handle });
         Ok(id)
     }
 
@@ -151,13 +157,24 @@ impl SidecarSockets {
         }
     }
 
+    /// A page that reloads or navigates away can no longer use or close its sockets, and their
+    /// events would go to a channel nobody reads. Dropping their handles frees the slots at once
+    /// (a reloading overlay would otherwise hold one until the sidecar ends the socket) and closes
+    /// each socket: its task sees the command queue end. Returns how many were dropped.
+    pub fn drop_owned_by(&self, owner: &str) -> usize {
+        let Ok(mut open) = self.open.lock() else { return 0 };
+        let before = open.len();
+        open.retain(|_, socket| socket.owner != owner);
+        before - open.len()
+    }
+
     // Like the browser, a socket that has already closed drops what it is given.
     fn queue(&self, id: u32, outgoing: Outgoing) {
         let Some(handle) = self
             .open
             .lock()
             .ok()
-            .and_then(|open| open.get(&id).cloned())
+            .and_then(|open| open.get(&id).map(|socket| socket.handle.clone()))
         else {
             return;
         };
@@ -412,13 +429,14 @@ async fn run(
 #[tauri::command]
 pub fn sidecar_open(
     app: AppHandle,
+    webview: tauri::Webview,
     sockets: tauri::State<'_, SidecarSockets>,
     url: String,
     on_event: Channel<SidecarSocketEvent>,
 ) -> Result<u32, String> {
     let target = parse_target(&url, ALLOW_PLAIN_WS)?;
     let (handle, inbox) = socket_channel();
-    let id = sockets.insert(handle)?;
+    let id = sockets.insert(webview.label(), handle)?;
     tauri::async_runtime::spawn(async move {
         let emit = |event| on_event.send(event).is_ok();
         let (code, reason) = run(target, mozilla_tls_config(), inbox, HEARTBEAT, emit).await;
@@ -671,7 +689,7 @@ mod tests {
     fn queueing_past_the_capacity_signals_overflow() {
         let sockets = SidecarSockets::default();
         let (handle, inbox) = socket_channel();
-        let id = sockets.insert(handle).unwrap();
+        let id = sockets.insert("overlay", handle).unwrap();
         for index in 0..SEND_QUEUE_CAPACITY {
             sockets.queue(id, Outgoing::Text(index.to_string()));
         }
@@ -684,11 +702,54 @@ mod tests {
     #[test]
     fn at_most_two_sockets_are_open() {
         let sockets = SidecarSockets::default();
-        let first = sockets.insert(socket_channel().0).unwrap();
-        sockets.insert(socket_channel().0).unwrap();
-        assert!(sockets.insert(socket_channel().0).is_err(), "a third socket is refused");
+        let first = sockets.insert("overlay", socket_channel().0).unwrap();
+        sockets.insert("overlay", socket_channel().0).unwrap();
+        assert!(sockets.insert("overlay", socket_channel().0).is_err(), "a third socket is refused");
         sockets.remove(first);
-        assert!(sockets.insert(socket_channel().0).is_ok(), "a closed socket frees its slot");
+        assert!(sockets.insert("overlay", socket_channel().0).is_ok(), "a closed socket frees its slot");
+    }
+
+    #[test]
+    fn a_page_load_drops_that_pages_sockets_only() {
+        let sockets = SidecarSockets::default();
+        let (overlay, mut overlay_inbox) = socket_channel();
+        let (home, mut home_inbox) = socket_channel();
+        sockets.insert("overlay", overlay).unwrap();
+        sockets.insert("home", home).unwrap();
+        assert_eq!(sockets.drop_owned_by("overlay"), 1);
+        // The reloaded overlay gets its slot back while the home page keeps its socket.
+        sockets.insert("overlay", socket_channel().0).unwrap();
+        assert!(sockets.insert("overlay", socket_channel().0).is_err(), "home's socket still counts");
+        // The dropped socket's task sees its queue end, which closes it; home's queue stays open.
+        let next = |inbox: &mut SocketInbox| futures_util::FutureExt::now_or_never(inbox.commands.recv());
+        assert!(matches!(next(&mut overlay_inbox), Some(None)), "the overlay socket's queue ended");
+        assert!(next(&mut home_inbox).is_none(), "home's queue is still open and empty");
+        assert_eq!(sockets.drop_owned_by("overlay"), 1);
+        assert_eq!(sockets.drop_owned_by("overlay"), 0);
+    }
+
+    #[tokio::test]
+    async fn a_dropped_handle_closes_the_socket() {
+        let server = serve_with("localhost", |mut socket| async move {
+            // Read until the client's close ends the stream; tungstenite answers the close frame.
+            while let Some(Ok(_)) = socket.next().await {}
+        })
+        .await;
+        let target =
+            parse_target(&format!("wss://localhost:{}/slgo/sidecar", server.port), false).unwrap();
+        let (handle, inbox) = socket_channel();
+        let handle = Mutex::new(Some(handle));
+        let started = Instant::now();
+        run(target, tls_config(server.roots.clone()), inbox, HEARTBEAT, |event| {
+            if event == SidecarSocketEvent::Open {
+                handle.lock().unwrap().take();
+            }
+            true
+        })
+        .await;
+        let elapsed = started.elapsed();
+        assert!(elapsed < Duration::from_secs(5), "closed after {elapsed:?}, not by the heartbeat");
+        server.sni.await.unwrap();
     }
 
     #[tokio::test]

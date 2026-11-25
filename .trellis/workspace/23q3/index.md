@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 81
+- **Total Sessions**: 82
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1894 | Active |
+| `journal-1.md` | ~1917 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 82 | 2026-11-25 | Rust small defects: settings fsync, registry retry, reload frees sockets | `4d1594f`, `6f4ddeb` | `fix/rust-small-defects` |
 | 81 | 2026-11-25 | Rust relay and blur: drop per-frame copies | `53d803d` | `perf/rust-relay-copies` |
 | 80 | 2026-11-25 | Release workflow: verify updater signature, isolate signing | `cbf5101` | `ci/release-signing-hardening` |
 | 79 | 2026-11-25 | Overlay runtime performance pass | `42c13c0`, `e1507b0` | `ccr-eaedf94b-6pkylt` |

@@ -476,7 +476,11 @@ request", "Sidecar session handshake", "Security boundary").
   stuck send blocks the whole select loop, heartbeat included. The command queue holds 64
   frames (also before open); overflow ends the socket with `1006`, never drops silently.
   At most 2 sockets are open (one closing plus its replacement); a third `sidecar_open`
-  fails and the adapter reports `1006`. Browser previews have no ping API and no heartbeat.
+  fails and the adapter reports `1006`. Each socket belongs to the webview that opened it: when
+  that webview starts loading a new document (reload, navigation; Tauri `on_page_load`
+  `Started`, before the page's scripts run), its sockets leave the table at once and close
+  (their command queue ends), so a reloaded overlay never finds its old socket holding a slot.
+  Browser previews have no ping API and no heartbeat.
   A received text frame is relayed as its own `Utf8Bytes` buffer (no `String` copy per
   frame) and serialised with `serialize_str`; the channel JSON must stay byte-identical to a
   `String` field (`a_relayed_message_serialises_like_a_string`).
@@ -815,7 +819,8 @@ by window label (`?window=home` in a browser preview).
   `ShowWindow(GetActiveWindow(), SW_SHOWMINIMIZED)` (disassembled 11-08; only for setting value 2), so every SLUI panel
   that takes the foreground minimizes the game. Read by the game-process thread every 2 s while the game runs from
   `%APPDATA%\SCP Secret Laboratory\registry.txt`, line `07UserSettings_0A50_2000::-%(|::<value>` (values in menu order:
-  0 独占全屏, 1 始终可见, 2 后台时隐藏窗口, 3 窗口化), re-parsed only when the file's modified time changes; logged as
+  0 独占全屏, 1 始终可见, 2 后台时隐藏窗口, 3 窗口化), re-parsed only when the file's modified time changes (a version is
+  settled only by a read that found the line: a failed or half-written read is retried next poll); logged as
   `game display setting: …`; false without the game, the file or the line. It only warns: it does not block input.
   Rust only detects; while elevated or exclusive holds ("input blocked", `inputBlockedBy`) the overlay stops
   claiming `chat-input`, `shop-menu` and `team-select` (`claimedFeatures`), closes an open shop, chat and team menu,
@@ -848,7 +853,7 @@ by window label (`?window=home` in a browser preview).
   the CS2 buy menu level; `normalizeAudioSettings()` clamps it and recovers
   non-numbers to the default. The overlay applies a change from the next cue.
   Rust only guarantees a JSON
-  object and atomic replacement, backing up unreadable files as
+  object and atomic replacement (temporary file written and `sync_all`ed, then renamed), backing up unreadable files as
   `settings.json.bad-<unix-seconds>`. The frontend parses with
   `parseSettings()`, which delegates to `normalizeRadarPreferences()` and
   `normalizeHotkeys()`. Five keys are configurable: shop (B), scoreboard

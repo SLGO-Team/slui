@@ -3,7 +3,7 @@
 
 use std::{
     fs,
-    io::ErrorKind,
+    io::{ErrorKind, Write},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -67,7 +67,17 @@ pub fn save(dir: &Path, contents: &str) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|error| format!("Unable to create settings directory: {error}"))?;
     let path = settings_path(dir);
     let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, contents).map_err(|error| format!("Unable to write settings: {error}"))?;
+    // Flushed to disk before the rename makes it the settings file: otherwise a crash or power cut
+    // right after the rename could leave the new name on an empty or short file.
+    let write = || -> std::io::Result<()> {
+        let mut file = fs::File::create(&temporary)?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()
+    };
+    write().map_err(|error| {
+        let _ = fs::remove_file(&temporary);
+        format!("Unable to write settings: {error}")
+    })?;
     fs::rename(&temporary, &path).map_err(|error| {
         let _ = fs::remove_file(&temporary);
         format!("Unable to replace settings: {error}")
