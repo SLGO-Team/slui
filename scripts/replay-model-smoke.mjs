@@ -34,6 +34,8 @@ import {
   replayFailureText,
   replayHighlightIntervals,
   replayHighlightStep,
+  runReplayHighlightStep,
+  REPLAY_HIGHLIGHT_RETRY_MIN_MS,
   replayIntervalIndexAt,
   replayPlaybackOf,
   replayTimelineEvents,
@@ -557,5 +559,44 @@ const enter = (event = stateEvent, at = T0) => replayReducer(replayReducer(live,
   assert.deepEqual(replayHighlightStep(list, { positionMs: 45_000, playing: true, speed: 1 }), { waitMs: 0, jump: -1 });
   assert.equal(replayHighlightStep(list, { positionMs: 15_000, playing: false, speed: 1 }), null);
   assert.equal(replayHighlightStep([], { positionMs: 15_000, playing: true, speed: 1 }), null);
+
+  // Running a step: a jump the command budget held back is retried once a token is back, never dropped.
+  const timers = [];
+  const schedule = (callback, ms) => {
+    const timer = { callback, ms, cancelled: false };
+    timers.push(timer);
+    return () => { timer.cancelled = true; };
+  };
+  const fire = () => {
+    const timer = timers.shift();
+    if (!timer.cancelled) timer.callback();
+    return timer;
+  };
+  let sent = 0;
+  let retried = 0;
+  const run = (waitMs, results, budgetWaitMs = 600) => runReplayHighlightStep({ waitMs }, () => {
+    sent += 1;
+    return results.shift();
+  }, () => budgetWaitMs, schedule, () => { retried += 1; });
+  run(0, [true]);
+  assert.deepEqual([sent, retried, timers.length], [1, 0, 0], "sent at once, nothing scheduled");
+  run(0, [false]);
+  assert.deepEqual([sent, timers.length, timers[0].ms], [2, 1, 600], "held back: retry when the budget has a token");
+  fire();
+  assert.equal(retried, 1, "the retry re-runs the driver");
+  run(0, [false], 0);
+  assert.equal(timers[0].ms, REPLAY_HIGHLIGHT_RETRY_MIN_MS, "a budget that says now still waits the minimum");
+  fire();
+  const cancel = run(2_500, [false]);
+  assert.deepEqual([timers.length, timers[0].ms, sent], [1, 2_500, 3], "waits for the interval's end first");
+  fire();
+  assert.deepEqual([sent, timers.length, timers[0].ms], [4, 1, 600], "then jumps, held back, retry scheduled");
+  cancel();
+  fire();
+  assert.equal(retried, 2, "cancelling (a new position, highlights off) drops the pending retry");
+  const cancelEarly = run(1_000, [true]);
+  cancelEarly();
+  fire();
+  assert.equal(sent, 4, "cancelled before the interval's end: nothing sent");
 }
 console.log("replay model smoke: mode, position, timeline, players, commands, seek pacer, command budget, optimistic playback, catalog, results, transitions, HUD clock, HUD reset, chat jump and highlights ok");

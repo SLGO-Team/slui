@@ -1937,3 +1937,25 @@ Reproduced with Sogou in a debug SLUI over a stand-in game: holding Y typed its 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 84: Replay highlights: retry a held-back jump
+<!-- trellis-session: v=2 fp=6e2cc36dca7ccef3 -->
+
+**Date**: 2026-11-25
+**Task**: Replay highlights: retry a held-back jump
+**Branch**: `fix/replay-highlight-retry`
+
+### Summary
+
+useReplayHighlights' jumpTo now returns the send result; a highlights seek/pause the replay command budget held back is retried once a token is back (runReplayHighlightStep: replayCommandWaitMs, min 100 ms), re-deriving the step from the position. Pure scheduler covered in replay-model-smoke; spec updated.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3533e90` | fix(replay): retry a highlights jump the command budget held back |
+
+### Status
+
+[OK] **Completed**

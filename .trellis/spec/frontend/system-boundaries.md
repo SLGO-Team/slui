@@ -416,7 +416,10 @@ instead of a match; the same session, sidecar and HUD features serve it.
   interval's end to the next start (`replayHighlightStep`), jumps out of a gap at once and pauses after the last: one
   command per interval. The playback is the server's, so every viewer sees the jumps; only this viewer's bar is in
   highlights mode. Off with the free camera, another recording or an unload. WebView2 may throttle timers while the
-  overlay is hidden, so a jump can come late there.
+  overlay is hidden, so a jump can come late there. Jumps go through the command budget like every replay command; one
+  it holds back is retried once a token is back (`runReplayHighlightStep`: `replayCommandWaitMs`, at least 100 ms,
+  the step worked out afresh from the position then). Without that the driver's inputs never change and the playback
+  runs on outside the highlights.
 - Playback edges are SLUI's: play after a speed change sends `speed 1` then `play` (CS2's "resume at 1x"); play at the
   end sends `seek 0` then `play`; round stepping is clamped to the first and last round (CS2 `OnStepInterval`), so
   the UI never asks for a round that does not exist.

@@ -579,3 +579,29 @@ export function replayHighlightStep(intervals: readonly ReplayHighlightInterval[
   const jump = inside + 1 < intervals.length ? inside + 1 : -1;
   return { waitMs: (intervals[inside].endMs - position.positionMs) / Math.max(0.01, position.speed), jump };
 }
+
+/** The shortest wait before a highlights jump the command budget held back is tried again. */
+export const REPLAY_HIGHLIGHT_RETRY_MIN_MS = 100;
+
+/**
+ * Carries out one `replayHighlightStep`: after `step.waitMs` it calls `jump`, which returns false when the command
+ * budget held the command back. Nothing else would try again (the driver's inputs did not change), so the playback
+ * would run on outside the highlights: `retry` is scheduled for when a token is back (`budgetWaitMs`, at least
+ * REPLAY_HIGHLIGHT_RETRY_MIN_MS) and should work the step out afresh from the position then. Returns a cancel function.
+ */
+export function runReplayHighlightStep(
+  step: { waitMs: number },
+  jump: () => boolean,
+  budgetWaitMs: () => number,
+  schedule: (callback: () => void, ms: number) => () => void,
+  retry: () => void,
+): () => void {
+  let cancel: (() => void) | null = null;
+  const attempt = () => {
+    cancel = null;
+    if (!jump()) cancel = schedule(retry, Math.max(REPLAY_HIGHLIGHT_RETRY_MIN_MS, budgetWaitMs()));
+  };
+  if (step.waitMs <= 0) attempt();
+  else cancel = schedule(attempt, step.waitMs);
+  return () => cancel?.();
+}

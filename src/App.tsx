@@ -993,7 +993,7 @@ function App({ harness }: AppProps) {
   }, [connection, overlayController, replayBudget, replayFeature.beginCommand, replayFeature.notify, replayFeature.sendFailed]);
   const replayCommandWaitMs = useCallback(() => replayBudget.waitMs(), [replayBudget]);
   // Highlights mode (CS2's film button): App drives it, so it keeps playing the intervals while the bar is hidden.
-  const replayHighlights = useReplayHighlights(replayFeature.state, handleReplayCommand);
+  const replayHighlights = useReplayHighlights(replayFeature.state, handleReplayCommand, replayCommandWaitMs);
   // The recordings list: the first open queries page 1; an accepted pin or unpin re-queries the page shown.
   const queryReplayCatalog = useCallback((page: number, filters: ReplayCatalogFilters): string | null => {
     const built = catalogQuery(filters, page);
