@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.1](https://github.com/SLGO-Team/slui/compare/v0.13.0...v0.13.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **chat:** keep a held chat key from typing through a Chinese IME ([#127](https://github.com/SLGO-Team/slui/issues/127)) ([aeeff96](https://github.com/SLGO-Team/slui/commit/aeeff9600a4a06557941c8b61892ed8780496531))
+* **installer:** keep the wizard's guards on silent installs; tighten mock and license checks ([#130](https://github.com/SLGO-Team/slui/issues/130)) ([b1874f9](https://github.com/SLGO-Team/slui/commit/b1874f9a7d4ae68634ab0c075c5558f884f8af5d))
+* **overlay:** sync settings before rename, retry registry reads, free sockets on page reload ([#126](https://github.com/SLGO-Team/slui/issues/126)) ([7e7ede0](https://github.com/SLGO-Team/slui/commit/7e7ede0f8ef0dc845b2616808d9d4d84d5479032))
+* **replay:** retry a highlights jump the command budget held back ([#128](https://github.com/SLGO-Team/slui/issues/128)) ([7a449ee](https://github.com/SLGO-Team/slui/commit/7a449ee05c6932ced7b9a957a7f58dd4c4d323e6))
+
+
+### Performance Improvements
+
+* **overlay:** cut per-frame minimap and HUD re-render work ([#122](https://github.com/SLGO-Team/slui/issues/122)) ([96b09e8](https://github.com/SLGO-Team/slui/commit/96b09e81d6450ba7ba3c13d420eddc033cc27eea))
+* **overlay:** drop per-frame plan clone and relay frame copies in Rust ([#125](https://github.com/SLGO-Team/slui/issues/125)) ([09312db](https://github.com/SLGO-Team/slui/commit/09312dbc882334fe8aeff094463bea4f404b94e2))
+
 ## [0.13.0](https://github.com/SLGO-Team/slui/compare/v0.12.0...v0.13.0) (2026-11-18)
 
 
