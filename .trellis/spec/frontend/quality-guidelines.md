@@ -84,7 +84,10 @@ values.
   state (no eager bailout). `handleEvent` dispatches an event only to the
   reducers whose `*_EVENT_TYPES` list it; a reducer reading a new event type
   must add it there (`event-routing-smoke` checks every reducer ignores every
-  other type). Minimap positions arrive at 15 Hz.
+  other type). Minimap positions arrive at 15 Hz. Every protocol event type must
+  be listed by some consumer (the reducers' lists, `CHAT_EVENT_TYPES` with
+  `chatActionForEvent`, `MINIMAP_EVENT_TYPES`, `CONNECTION_EVENT_TYPES`);
+  `event-routing-smoke` fails on a type nobody reads.
 - The minimap's state is an external store (`useMinimapFeature` in `App` only
   dispatches) and `LiveMinimapRadar` subscribes with `useSyncExternalStore`, so
   its `requestAnimationFrame` clock re-renders only the radar, and only while a
@@ -348,7 +351,18 @@ SteamID64. It returns `null` when Steam is unavailable. Browser preview uses
 ### Required smoke coverage
 
 `npm test` runs `scripts/contract-smoke.mjs` without an additional test
-framework. The smoke assertions must cover a valid envelope, unknown schema,
+framework; it parses every `packages/protocol/v0/*.example.json` with the
+parser `scripts/protocol-examples.mjs` maps it to (a new example needs its row
+there). `scripts/protocol-schema-check.mjs` then keeps the JSON Schemas, the
+parsers and the examples in step: Ajv 2020 strict (keywords and formats, the
+dev dependency slgo-backend also uses) accepts every example and every schema is
+used, and schema and parser judge each top-level field removed and an unknown
+field added the same way, except the reasoned `KNOWN_DIFFERENCES` (parsers that
+let additive fields through to older clients; cross-field rules). A schema
+pattern is a JSON string: `"\\S"`, never `"\S"` (two schemas were invalid
+JSON that way until 11-25).
+
+The smoke assertions must cover a valid envelope, unknown schema,
 invalid JSON, stale sequence, new-instance baseline, route expiry shape,
 the identity gate (local-steamid accepted, unknown modes refused), and invalid
 minimap visibility. `scripts/backend-connection-smoke.mjs` covers the real

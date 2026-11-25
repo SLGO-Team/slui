@@ -36,7 +36,7 @@
       }
     }
   }, {
-    "if": { "properties": { "type": { "enum": ["hud.messages", "round.result"] } } },
+    "if": { "properties": { "type": { "enum": ["hud.messages", "round.result", "hud.killfeed", "match.snapshot", "scoreboard.snapshot", "instance.ended", "replay.state"] } } },
     "then": {
       "required": ["sent_at"],
       "properties": {

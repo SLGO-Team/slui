@@ -3,6 +3,9 @@ import type { GameLogProofReader } from "./gameLog.ts";
 import type { SlgoConnection } from "./index.ts";
 import { admitRoute, SidecarEventIntake } from "./sidecarIntake.ts";
 
+/** The sidecar events the connection itself reads: the baseline goes live, `instance.ended` gives the end reason. */
+export const CONNECTION_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>(["sidecar.baseline", "instance.ended"]);
+
 export class MockSidecarConnection implements SlgoConnection {
   private readonly events: SlgoEvent[];
   private readonly intake: SidecarEventIntake;
@@ -177,7 +180,8 @@ export class WebSocketSidecarConnection implements SlgoConnection {
           schema_version: SUPPORTED_SCHEMA_VERSION,
           type: "session.open",
           session_token: route.sessionToken,
-          // 6 from match servers, 7 (free-camera viewpoint) from demo replay servers: the radar draws both.
+          // 6 from older match servers, 7 (free-camera viewpoint) from demo replay servers, 8 (speaking flag) from
+          // current match servers: the radar draws all three.
           minimap_schema_versions: [...MINIMAP_SCHEMA_VERSIONS],
           ...(logMark ? { proofs: [SESSION_PROOF_GAME_LOG] } : {}),
         };

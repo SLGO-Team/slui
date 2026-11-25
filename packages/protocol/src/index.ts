@@ -1424,7 +1424,7 @@ export function parseMatchSnapshot(payload: unknown): ParseResult<MatchSnapshot>
   // An omniscient (demo replay) viewer may see both teams' vitals and loadouts; everyone else only their own team's.
   const seesTeam = (teamId: unknown) => omniscient || teamId === payload.viewer_team_id;
   const teams = payload.teams.map((team) => {
-    if (!isRecord(team) || !isTeamId(team.team_id) || !isRole(team.role) || !isNonEmptyString(team.display_name) || !Number.isInteger(team.score) || !Array.isArray(team.players)) return null;
+    if (!isRecord(team) || !isTeamId(team.team_id) || !isRole(team.role) || !isNonEmptyString(team.display_name) || !Number.isInteger(team.score) || Number(team.score) < 0 || !Array.isArray(team.players)) return null;
     const players = team.players.map((player) => {
       if (!isRecord(player) || !isNonEmptyString(player.player_id) || typeof player.display_name !== "string" || typeof player.is_online !== "boolean" || typeof player.is_alive !== "boolean") return null;
       const vitals = MATCH_PLAYER_VITAL_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(player, key));

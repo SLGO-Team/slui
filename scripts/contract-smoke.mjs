@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { protocolExample, protocolExampleFiles, readProtocolFile } from "./protocol-examples.mjs";
 import {
   CLIENT_FEATURE_HUD_KILLFEED,
   CLIENT_FEATURE_HUD_KILLFEED_FLASH_ASSIST,
@@ -1460,3 +1461,31 @@ console.log("contract smoke: ok");
   }
   console.log("contract smoke (demo replay): ok");
 }
+
+// Every example in packages/protocol/v0 parses with the parser for its kind, not only those a section above names
+// (command, control-route, route-request, route-rejected and shop-snapshot had no test). protocol-schema-check adds
+// the schemas.
+{
+  const files = protocolExampleFiles();
+  assert.ok(files.length >= 50, `read ${files.length} examples`);
+  for (const name of files) {
+    const example = readProtocolFile(name);
+    const how = protocolExample(name, example);
+    assert.ok(how, `${name}: no parser mapping in scripts/protocol-examples.mjs`);
+    const result = how.parse(example);
+    assert.equal(result.ok, true, `${name}: ${result.ok ? "" : result.error.message}`);
+  }
+}
+
+// A team score is a count of won rounds.
+{
+  const snapshot = readProtocolFile("match-snapshot.example.json");
+  const negative = structuredClone(snapshot);
+  negative.payload.teams[0].score = -1;
+  assert.equal(parseEvent(negative).ok, false, "a negative team score is refused");
+  const zero = structuredClone(snapshot);
+  zero.payload.teams[0].score = 0;
+  assert.equal(parseEvent(zero).ok, true, "a zero score is fine");
+}
+
+console.log("contract smoke (every v0 example, team scores): ok");
