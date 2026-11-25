@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 79
+- **Total Sessions**: 80
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1850 | Active |
+| `journal-1.md` | ~1872 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 80 | 2026-11-25 | Release workflow: verify updater signature, isolate signing | `cbf5101` | `ci/release-signing-hardening` |
 | 79 | 2026-11-25 | Overlay runtime performance pass | `42c13c0`, `e1507b0` | `ccr-eaedf94b-6pkylt` |
 | 78 | 2026-11-18 | Replay bar details and overlay native web input | `5c619a5` | `fix/overlay-native-input` |
 | 77 | 2026-11-17 | 小地图 CS2 对齐父任务验收与归档 | `8313d7f`, `4df5794` | `docs/archive-minimap-cs2-parity` |
