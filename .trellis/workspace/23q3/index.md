@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 84
+- **Total Sessions**: 85
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1961 | Active |
+| `journal-1.md` | ~1983 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 85 | 2026-11-25 | Protocol contracts: schemas, parsers, examples | `704d25b` | `test/protocol-contracts` |
 | 84 | 2026-11-25 | Replay highlights: retry a held-back jump | `3533e90` | `fix/replay-highlight-retry` |
 | 83 | 2026-11-25 | Chat: held opening key vs Chinese IME | `13416c9` | `fix/chat-ime-held-key` |
 | 82 | 2026-11-25 | Rust small defects: settings fsync, registry retry, reload frees sockets | `4d1594f`, `6f4ddeb` | `fix/rust-small-defects` |
