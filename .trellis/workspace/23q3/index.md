@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-1.md`
-- **Total Sessions**: 85
+- **Active File**: `journal-2.md`
+- **Total Sessions**: 86
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1983 | Active |
+| `journal-2.md` | ~29 | Active |
+| `journal-1.md` | ~1983 | Archived |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 86 | 2026-11-25 | Toolchain checks and silent install guards | `148f04f` | `fix/toolchain-and-silent-install` |
 | 85 | 2026-11-25 | Protocol contracts: schemas, parsers, examples | `704d25b` | `test/protocol-contracts` |
 | 84 | 2026-11-25 | Replay highlights: retry a held-back jump | `3533e90` | `fix/replay-highlight-retry` |
 | 83 | 2026-11-25 | Chat: held opening key vs Chinese IME | `13416c9` | `fix/chat-ime-held-key` |

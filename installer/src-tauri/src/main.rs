@@ -23,9 +23,15 @@ fn setup() -> i32 {
     let session = Session::create();
     let command_line = uninstall::own_command_line();
     if let Some(args) = slui_setup_lib::silent_install_args(uninstall::command_line_args(&command_line)) {
-        let installed = slui_setup_lib::detect::read_installed().map(|installed| installed.dir);
-        let args = slui_setup_lib::silent_install_command(args, installed.as_deref());
-        let code = slui_setup_lib::install::install_silently(&session, &args);
+        let installed = slui_setup_lib::detect::read_installed();
+        let code = match slui_setup_lib::silent_install_command(args, installed.as_ref()) {
+            Ok(args) => slui_setup_lib::install::install_silently(&session, &args),
+            // As NSIS reports a failure: no window to show it in.
+            Err(refusal) => {
+                eprintln!("slui-setup: {refusal}");
+                2
+            }
+        };
         session.cleanup_after_exit();
         return code;
     }

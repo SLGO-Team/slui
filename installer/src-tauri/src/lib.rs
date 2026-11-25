@@ -91,14 +91,46 @@ pub fn silent_install_args(args: &str) -> Option<&str> {
         .then_some(args)
 }
 
-/// A silent install's NSIS command line with the install directory: the caller's `/D=` when given, else the
-/// installed SLUI's directory (the uninstall entry's `InstallLocation`), so an install without `/D=` goes back
-/// where SLUI already is. NSIS would look for it under `Software\<publisher>\SLUI`, which moves whenever the
-/// bundle publisher changes (0.11 and earlier: `slui`); the uninstall entry does not.
-pub fn silent_install_command(args: &str, installed_dir: Option<&str>) -> String {
-    match installed_dir {
-        Some(dir) if !args.split_whitespace().any(|arg| arg.starts_with("/D=")) => format!("{} /D={dir}", args.trim_end()),
-        _ => args.to_string(),
+/// The `/D=` directory of an NSIS command line: everything after the argument that starts with `/D=` (it comes
+/// last and may contain spaces).
+pub fn silent_install_dir(args: &str) -> Option<&str> {
+    args.match_indices("/D=")
+        .find(|(index, _)| *index == 0 || args[..*index].ends_with(char::is_whitespace))
+        .map(|(index, _)| args[index + "/D=".len()..].trim_end())
+}
+
+/// Why a silent install does not start. The wizard's rules hold without a window too.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SilentRefusal {
+    /// A newer SLUI is installed; it is never downgraded.
+    Downgrade { installed: String },
+    /// SLUI is installed in another directory. Installing beside it would keep its `slui.exe` and `uninstall.exe`,
+    /// and that `uninstall.exe` would later delete the uninstall entry, which then belongs to the new install.
+    OtherDir { installed: String },
+}
+
+impl std::fmt::Display for SilentRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SilentRefusal::Downgrade { installed } => write!(f, "SLUI {installed} is installed, newer than this package"),
+            SilentRefusal::OtherDir { installed } => write!(f, "SLUI is installed in {installed}; omit /D= or uninstall it first"),
+        }
+    }
+}
+
+/// A silent install's NSIS command line, with the wizard's rules: never over a newer SLUI, never next to an
+/// installed one (`install::resolve_target`). Without `/D=` it goes to the installed SLUI's directory (the
+/// uninstall entry's `InstallLocation`). NSIS would look for it under `Software\<publisher>\SLUI`, which moves
+/// whenever the bundle publisher changes (0.11 and earlier: `slui`); the uninstall entry does not.
+pub fn silent_install_command(args: &str, installed: Option<&detect::Installed>) -> Result<String, SilentRefusal> {
+    let Some(installed) = installed else { return Ok(args.to_string()) };
+    if installed.relation == detect::Relation::Newer {
+        return Err(SilentRefusal::Downgrade { installed: installed.version.clone() });
+    }
+    match silent_install_dir(args) {
+        Some(dir) if !install::same_dir(dir, &installed.dir) => Err(SilentRefusal::OtherDir { installed: installed.dir.clone() }),
+        Some(_) => Ok(args.to_string()),
+        None => Ok(format!("{} /D={}", args.trim_end(), installed.dir)),
     }
 }
 
@@ -324,14 +356,45 @@ mod tests {
         }
     }
 
+    fn installed(version: &str, relation: detect::Relation) -> detect::Installed {
+        detect::Installed { version: version.into(), dir: r"D:\Program Files\SLUI".into(), relation }
+    }
+
     #[test]
     fn a_silent_install_without_a_dir_goes_back_to_the_installed_one() {
-        let installed = Some(r"D:\Program Files\SLUI");
-        assert_eq!(silent_install_command("/S", installed), r"/S /D=D:\Program Files\SLUI");
-        assert_eq!(silent_install_command("/S /NS /SLUI-STARTMENU ", installed), r"/S /NS /SLUI-STARTMENU /D=D:\Program Files\SLUI");
-        // The caller's /D= wins; with nothing installed NSIS picks its default.
-        assert_eq!(silent_install_command(r"/S /D=E:\SLUI", installed), r"/S /D=E:\SLUI");
-        assert_eq!(silent_install_command("/S /NS", None), "/S /NS");
+        for relation in [detect::Relation::Older, detect::Relation::Same] {
+            let installed = installed("0.12.0", relation);
+            assert_eq!(silent_install_command("/S", Some(&installed)), Ok(r"/S /D=D:\Program Files\SLUI".into()));
+            assert_eq!(
+                silent_install_command("/S /NS /SLUI-STARTMENU ", Some(&installed)),
+                Ok(r"/S /NS /SLUI-STARTMENU /D=D:\Program Files\SLUI".into())
+            );
+            // Its own directory, however spelt, is fine.
+            assert_eq!(silent_install_command(r"/S /D=d:\program files\slui\", Some(&installed)), Ok(r"/S /D=d:\program files\slui\".into()));
+        }
+        // With nothing installed the caller's /D= (or NSIS's default) is used.
+        assert_eq!(silent_install_command(r"/S /D=E:\SLUI", None), Ok(r"/S /D=E:\SLUI".into()));
+        assert_eq!(silent_install_command("/S /NS", None), Ok("/S /NS".into()));
+    }
+
+    #[test]
+    fn a_silent_install_never_downgrades_or_installs_beside_slui() {
+        let newer = installed("9.0.0", detect::Relation::Newer);
+        assert_eq!(silent_install_command("/S", Some(&newer)), Err(SilentRefusal::Downgrade { installed: "9.0.0".into() }));
+        assert_eq!(silent_install_command(r"/S /D=D:\Program Files\SLUI", Some(&newer)), Err(SilentRefusal::Downgrade { installed: "9.0.0".into() }));
+        let older = installed("0.12.0", detect::Relation::Older);
+        assert_eq!(
+            silent_install_command(r"/S /D=E:\SLUI", Some(&older)),
+            Err(SilentRefusal::OtherDir { installed: r"D:\Program Files\SLUI".into() })
+        );
+    }
+
+    #[test]
+    fn the_silent_dir_is_everything_after_d() {
+        assert_eq!(silent_install_dir(r"/S /NS /D=C:\Program Files\SLUI"), Some(r"C:\Program Files\SLUI"));
+        assert_eq!(silent_install_dir(r"/D=C:\a b "), Some(r"C:\a b"));
+        assert_eq!(silent_install_dir("/S /NS"), None);
+        assert_eq!(silent_install_dir("/S /SLUI-D=x"), None, "only an argument that starts with /D=");
     }
 
     #[test]

@@ -29,7 +29,10 @@ values.
   preview art (`src/mocks/preview`, not `public/`). A static import would ship
   them: a CSS import and module side effects survive tree-shaking even when the
   JS is unused. Type-only imports are fine. `mock-boundary-check` (in `npm test`)
-  enforces it; HomeApp's `import.meta.env.DEV` update, Steam tile and
+  enforces it for every way in: value imports, `export ... from` re-exports,
+  side-effect `import "..."` and dynamic `import()` (its matcher tests itself on
+  each form first; paths come from `fileURLToPath`, so a checkout under a path
+  with spaces or non-ASCII works); HomeApp's `import.meta.env.DEV` update, Steam tile and
   game-condition banner previews (`?update=`, `?steam=`, `?gameConditions=`)
   are the one allowed exception.
 - Do not silently swallow connection or command errors with an empty catch.
@@ -266,10 +269,14 @@ template switch (`/P /R /NS /ARGS /UPDATE`).
   "not installed". The template frees `slui.exe` with Restart Manager (it force-closes
   holders), so in practice leftovers are theme-pack files in use.
 - `SLUI-Setup.exe /S [...]` (a `/S` before `/D=`; `silent_install_args`) shows no
-  window: the shell extracts the package, runs it elevated with the arguments
-  verbatim and exits with its code (UAC declined 1, extract/start failure 2).
-  Without `/D=` the shell appends `/D=<InstallLocation>` of the installed SLUI
-  (`silent_install_command`): NSIS's own fallback reads
+  window: the shell extracts the package, runs it elevated and exits with its code
+  (UAC declined 1, extract/start failure 2). It keeps the wizard's rules
+  (`silent_install_command`, `install_silently`): a newer installed SLUI refuses
+  (exit 2, no downgrade), a `/D=` other than the installed SLUI's directory
+  refuses (exit 2, never beside an install), and an NSIS exit 0 still fails with 2
+  unless `verify` finds the payload version in the registry for that directory
+  with `slui.exe` in it. Without `/D=` the shell appends `/D=<InstallLocation>` of
+  the installed SLUI: NSIS's own fallback reads
   `HKLM\Software\<bundle publisher>\SLUI`, which moved when the publisher became
   SLGO Team (0.11 and earlier: `slui`), and a silent update over 0.11 then went
   to `C:\Program Files\SLUI` beside the old install. The uninstall entry is the
@@ -284,7 +291,10 @@ template switch (`/P /R /NS /ARGS /UPDATE`).
   document `npm run <script> -- <args>`: give the flag its own npm script or call
   node directly. `scripts/build-installer.mjs` fails on unknown arguments and on
   its own flags showing up as `npm_config_*` (the sign that `--` was dropped). npm entries carry no version, so Dependabot
-  bumps do not stale it; regenerate after Cargo.lock changes.
+  bumps do not stale it; regenerate after Cargo.lock changes. An npm entry is one per package name and distinct
+  license (expression plus license-file text): every installed version is read and checked, so a second version
+  under another license is listed instead of hiding behind the first. Extraneous packages (left by another branch's
+  install) are skipped.
 - POSTINSTALL rewrites `EstimatedSize` from `${GetSize} "$INSTDIR"`: the template
   counts only its own files, before the theme pack and `slui-uninstall.exe` exist.
 - The template wizard's "Delete the application data" box (uninstall.exe run

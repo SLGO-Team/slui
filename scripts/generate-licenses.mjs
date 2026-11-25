@@ -61,39 +61,47 @@ function npmSection() {
   const tree = JSON.parse(process.env.npm_execpath
     ? execFileSync(process.execPath, [process.env.npm_execpath, ...args], options)
     : execFileSync("npm", args, { ...options, shell: process.platform === "win32" }));
-  const packages = new Map();
+  // One entry per package name and distinct license: the expression and the license files' text. Versions stay out of
+  // the output (Dependabot bumps them monthly, and a bump that keeps the license must not stale the file), but every
+  // installed version is read, so a second version under another license, or with other license text, is checked
+  // and listed too instead of hiding behind the first one seen.
+  const variants = new Map();
+  const seenPaths = new Set();
+  const failures = new Set();
   const walk = (node) => {
     for (const [name, child] of Object.entries(node.dependencies ?? {})) {
       // First-party workspace packages (packages/*) are part of this repository.
       if (name.startsWith("@slgo/")) continue;
-      // By name: Dependabot bumps these monthly, and a version bump that keeps the license must not stale the file.
-      const key = name;
-      if (!packages.has(key)) {
+      // Left in node_modules by another branch's install, not part of this tree (`npm ci` never has them).
+      if (child.extraneous) continue;
+      if (!seenPaths.has(child.path)) {
+        seenPaths.add(child.path);
         // license and repository from the package's own package.json: `npm ls --long` leaves them out of some
         // entries (deduped ones), which made the output differ between runs.
         const manifest = JSON.parse(readFileSync(join(child.path, "package.json"), "utf8"));
         const repository = typeof manifest.repository === "string" ? manifest.repository : manifest.repository?.url;
-        packages.set(key, { name, version: manifest.version, license: manifest.license, path: child.path, repository });
+        const license = manifest.license;
+        if (typeof license !== "string" || !satisfies(license)) failures.add(`${name}@${manifest.version}: ${license ?? "no license"}`);
+        const files = existsSync(child.path) ? readdirSync(child.path).filter((file) => LICENSE_FILE.test(file)).sort() : [];
+        if (files.length === 0) failures.add(`${name}@${manifest.version}: no license file in ${child.path}`);
+        const texts = files.map((file) => readFileSync(join(child.path, file), "utf8").replace(/\r\n/g, "\n").trim()).join("\n\n");
+        const key = JSON.stringify([name, license, texts]);
+        if (!variants.has(key)) variants.set(key, { name, license, repository, texts });
       }
       walk(child);
     }
   };
   walk(tree);
-  const failures = [];
-  const entries = [...packages.values()].sort((a, b) => a.name.localeCompare(b.name)).map((entry) => {
-    if (typeof entry.license !== "string" || !satisfies(entry.license)) failures.push(`${entry.name}@${entry.version}: ${entry.license ?? "no license"}`);
-    const files = existsSync(entry.path) ? readdirSync(entry.path).filter((file) => LICENSE_FILE.test(file)).sort() : [];
-    if (files.length === 0) failures.push(`${entry.name}@${entry.version}: no license file in ${entry.path}`);
-    const texts = files.map((file) => readFileSync(join(entry.path, file), "utf8").replace(/\r\n/g, "\n").trim());
-    return [
+  if (failures.size > 0) throw new Error(`npm dependencies with unaccepted or missing licenses:\n  ${[...failures].join("\n  ")}`);
+  const entries = [...variants.values()]
+    .sort((a, b) => a.name.localeCompare(b.name) || String(a.license).localeCompare(String(b.license)) || a.texts.localeCompare(b.texts))
+    .map((entry) => [
       "-".repeat(100),
       `${entry.name} (${entry.license})${entry.repository ? `\n${String(entry.repository).replace(/^git\+/, "")}` : ""}`,
       "",
-      texts.join("\n\n"),
+      entry.texts,
       "",
-    ].join("\n");
-  });
-  if (failures.length > 0) throw new Error(`npm dependencies with unaccepted or missing licenses:\n  ${failures.join("\n  ")}`);
+    ].join("\n"));
   return entries.join("\n");
 }
 
