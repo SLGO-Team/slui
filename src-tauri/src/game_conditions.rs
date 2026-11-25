@@ -110,8 +110,12 @@ pub struct DisplaySettingWatch {
 
 impl DisplaySettingWatch {
     pub fn new() -> Self {
-        let path = std::env::var_os("APPDATA")
-            .map(|dir| PathBuf::from(dir).join("SCP Secret Laboratory").join("registry.txt"));
+        Self::at(
+            std::env::var_os("APPDATA").map(|dir| PathBuf::from(dir).join("SCP Secret Laboratory").join("registry.txt")),
+        )
+    }
+
+    fn at(path: Option<PathBuf>) -> Self {
         Self { path, modified: None, mode: None, logged: None }
     }
 
@@ -120,10 +124,12 @@ impl DisplaySettingWatch {
         let Some(path) = &self.path else { return false };
         let modified = std::fs::metadata(path).and_then(|metadata| metadata.modified()).ok();
         if modified.is_none() || modified != self.modified {
-            self.modified = modified;
             self.mode = modified
                 .and_then(|_| std::fs::read(path).ok())
                 .and_then(|bytes| parse_display_mode(&String::from_utf8_lossy(&bytes)));
+            // Only a successful read and parse settles this version of the file. A failed read (the game
+            // holds it while writing) or a half-written file without the setting is read again next poll.
+            self.modified = if self.mode.is_some() { modified } else { None };
         }
         if self.logged != Some(self.mode) {
             self.logged = Some(self.mode);
@@ -280,8 +286,8 @@ fn notification_state() -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_display_mode, DisplayModeLatch};
-    use std::time::{Duration, Instant};
+    use super::{parse_display_mode, DisplayModeLatch, DisplaySettingWatch};
+    use std::time::{Duration, Instant, SystemTime};
 
     const EXCLUSIVE: bool = true;
     const BUSY: bool = false;
@@ -357,5 +363,29 @@ mod tests {
         assert_eq!(parse_display_mode("UserSettings_0A50_2000::-%(|::2\n"), None, "no type prefix");
         assert_eq!(parse_display_mode("07UserSettings_0A50_2000::-%(|::x\n"), None, "not a number");
         assert_eq!(parse_display_mode(""), None);
+    }
+
+    #[test]
+    fn a_half_written_registry_is_read_again_even_with_the_same_modified_time() {
+        let path = std::env::temp_dir().join(format!("slui-registry-{}.txt", std::process::id()));
+        // Writes `text` and pins the modified time, as a write landing within one timestamp tick would.
+        let write = |text: &str| {
+            std::fs::write(&path, text).unwrap();
+            let file = std::fs::File::options().write(true).open(&path).unwrap();
+            file.set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000)).unwrap();
+        };
+        let mut watch = DisplaySettingWatch::at(Some(path.clone()));
+        write("07UserSettings_D755_1000::-%(|::0
+07UserSettings_0A50_20");
+        assert!(!watch.poll(), "no setting in the half-written file");
+        write("07UserSettings_D755_1000::-%(|::0
+07UserSettings_0A50_2000::-%(|::2
+");
+        assert!(watch.poll(), "the finished file is read although its modified time did not change");
+        // Settled: the same version of the file is not parsed again.
+        assert_eq!(watch.modified.map(|time| time.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()), Some(1_700_000_000));
+        std::fs::remove_file(&path).unwrap();
+        assert!(!watch.poll(), "a missing file reads as unknown");
+        assert_eq!(watch.modified, None);
     }
 }

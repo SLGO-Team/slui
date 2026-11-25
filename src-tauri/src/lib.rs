@@ -1499,6 +1499,16 @@ pub fn run() {
         .manage(GameRunningState::default())
         .manage(sidecar_socket::SidecarSockets::default())
         .manage(updater)
+        // A page that reloads or navigates (a new document starts loading, before its scripts run)
+        // drops the sidecar sockets its old document opened.
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Started {
+                let dropped = webview.state::<sidecar_socket::SidecarSockets>().drop_owned_by(webview.label());
+                if dropped > 0 {
+                    diag!("SLGO: {} reloaded: closed {dropped} sidecar socket(s)", webview.label());
+                }
+            }
+        })
         .setup(move |app| {
             // First, so the log has the whole session; a second instance has already exited.
             diag::log_panics();
