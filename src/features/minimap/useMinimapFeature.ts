@@ -66,7 +66,8 @@ export function useMinimapView(store: MinimapStore, options: { preferences?: Par
   const shown = useOverlayVisible();
   const { state, nowMs } = useSyncExternalStore(shown ? store.subscribe : subscribeNothing, store.getSnapshot);
   const { now } = store;
-  const preferences = normalizeRadarPreferences(options.preferences);
+  // The store re-renders the radar every displayed frame with the same preference prop: normalize it once per prop.
+  const preferences = useMemo(() => normalizeRadarPreferences(options.preferences), [options.preferences]);
   const alternateZoomActive = options.controls?.alternateZoomActive === true;
 
   useEffect(() => {

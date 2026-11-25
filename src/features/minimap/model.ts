@@ -1,7 +1,7 @@
 import { endsMatch, MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, type ConnectionStatus, type MinimapDiagnostic, type MinimapInit,
   type MinimapBombsite, type MinimapCommanderKeycard, type MinimapPosition, type MinimapPositions, type MinimapPositionsEvent, type SlgoEvent } from "../../contracts";
 import { assertSupportedMap, mapDescriptorKey, type MapGeometry } from "./resolver.ts";
-import { clampToRadar, createRadarCamera, positionMarker, radarIconScale, radarShape, radarZoom, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
+import { clampToRadar, positionMarker, radarCameraFor, radarIconScale, radarShape, radarZoom, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
 import { normalizeRadarPreferences, type RadarPreferences, type RadarControls } from "./preferences.ts";
 import { advanceDynamicZoom, dynamicZoomDistance, dynamicZoomScale, type DynamicZoomState } from "./dynamicZoom.ts";
 
@@ -259,8 +259,10 @@ function radarContext(state: MinimapState, nowMs: number, preferences: RadarPref
   // CS2 zooms dynamically only on the round radar (client.dll checks the round flag before cl_radar_scale_dynamic).
   const dynamicZoomActive = Boolean(preferences.dynamicZoom && state.focused && frame && viewpoint && state.geometry && !fullMap
     && radarShape(preferences, fullMap) === "circle");
-  const identity = JSON.stringify([state.identity, frame?.payload.viewer.player_id, frame?.payload.viewer.team_id, viewpoint?.player_id,
-    radarShape(preferences, fullMap), preferences.orientation, preferences.alwaysCentered, selectedScale]);
+  // The identity is read only while dynamic zoom is active (the reducer's `advanceDynamicZoom`, the selector's
+  // `zoomDistance`), so the per-frame tick skips serializing it otherwise.
+  const identity = dynamicZoomActive ? JSON.stringify([state.identity, frame?.payload.viewer.player_id, frame?.payload.viewer.team_id,
+    viewpoint?.player_id, radarShape(preferences, fullMap), preferences.orientation, preferences.alwaysCentered, selectedScale]) : "";
   // CS2 fits every element it draws: live markers at their displayed poses, fading last-known / death markers and the
   // keycard item while it shows. No zone filter (both zones are one level).
   const keycard = frame?.payload.commander_keycard;
@@ -333,9 +335,24 @@ export function shortestAngle(from: number, to: number, amount: number): number 
   return from + ((to - from + 540) % 360 - 180) * amount;
 }
 
+// Each buffered frame is read for every live player on every displayed frame (reducer and selector): its poses are
+// indexed by player once per payload instead of a linear search per player. The first pose of an id wins, as `find`.
+const posesByPlayer = new WeakMap<MinimapPositions, ReadonlyMap<string, MinimapPosition>>();
+
+function payloadPoses(payload: MinimapPositions): ReadonlyMap<string, MinimapPosition> {
+  let poses = posesByPlayer.get(payload);
+  if (!poses) {
+    const index = new Map<string, MinimapPosition>();
+    for (const position of payload.positions) if (!index.has(position.player_id)) index.set(position.player_id, position);
+    poses = index;
+    posesByPlayer.set(payload, poses);
+  }
+  return poses;
+}
+
 /** The player's pose in a buffered frame, if it is the same live, equally visible marker as in the latest frame. */
 function bufferedPose(frame: Frame, latest: MinimapPosition): MinimapPosition | undefined {
-  const pose = frame.payload.positions.find((position) => position.player_id === latest.player_id);
+  const pose = payloadPoses(frame.payload).get(latest.player_id);
   return pose && pose.status === "live" && pose.zone === latest.zone && pose.visibility === latest.visibility
     && pose.team_id === latest.team_id ? pose : undefined;
 }
@@ -415,7 +432,7 @@ export function selectMinimap(state: MinimapState, nowMs: number, preferences?: 
   // authorized target is included even while the followed viewpoint interpolates.
   const { positions, viewpoint } = context;
   const currentViewpoint = frame?.payload.viewpoint;
-  const camera = state.geometry ? createRadarCamera(state.geometry, viewpoint, normalized, fullMap, activeMapScale) : null;
+  const camera = state.geometry ? radarCameraFor(state.geometry, viewpoint, normalized, fullMap, activeMapScale) : null;
   // Frozen last-known / death markers render beneath live markers. Observed players of the other team keep the
   // enemy style; a team-less spectator sees every observed player in its team color.
   const viewerTeam = frame?.payload.viewer.team_id ?? null;

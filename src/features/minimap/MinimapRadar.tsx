@@ -1,4 +1,4 @@
-import { memo, useId, type CSSProperties } from "react";
+import { memo, useId, useMemo, type CSSProperties } from "react";
 import { useOverlayScale } from "../../shared/overlay";
 import { radarMarkerNumber, type MinimapViewModel, type RadarBombsite, type RadarKeycard } from "./model";
 import type { MapGeometry } from "./resolver";
@@ -18,6 +18,25 @@ const rgbOf = (color: string): [number, number, number] => {
   const value = Number.parseInt(color.replace("#", ""), 16);
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 };
+
+type Props = Readonly<Record<string, unknown>>;
+const sameFields = (a: Props, b: Props): boolean => {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && Object.is(a[key], b[key]));
+};
+/**
+ * The selector builds a fresh marker / keycard / bombsite object on every displayed frame, though one standing still on a
+ * still camera keeps every field. Their fields are all primitives, so equal fields render the same element: compare props
+ * one level deep and let React skip that item's render.
+ */
+function sameItemProps(previous: Props, next: Props): boolean {
+  const keys = Object.keys(previous);
+  return keys.length === Object.keys(next).length && keys.every((key) => {
+    const a = previous[key], b = next[key];
+    return Object.is(a, b) || (typeof a === "object" && typeof b === "object" && a !== null && b !== null
+      && Object.prototype.hasOwnProperty.call(next, key) && sameFields(a as Props, b as Props));
+  });
+}
 
 function ColorWash({ id, rgb }: { id: string; rgb: readonly [number, number, number] }) {
   // Multiplying source RGB preserves black outlines and the artwork's alpha layers.
@@ -88,8 +107,8 @@ function FrozenMarker({ marker, className, wash }: { marker: RadarMarker; classN
 
 const KEYCARD_ICON = "/assets/slui-svg/KeycardNTFCommander.svg";
 
-function KeycardItem({ keycard, observer, teammateColors, filterPrefix }: { keycard: RadarKeycard; observer: boolean; teammateColors: boolean;
-  filterPrefix: string }) {
+const KeycardItem = memo(function KeycardItem({ keycard, observer, teammateColors, filterPrefix }: { keycard: RadarKeycard; observer: boolean;
+  teammateColors: boolean; filterPrefix: string }) {
   // CS2 RI_BombDefuserPackage: the pack icon, plus the pulsing #DroppedBomb ring whenever it is on the ground and the red
   // #PlantedBomb ring as well once planted in a generator (client.dll shows both); a planted pack also pulses a red glow
   // (PlantedBombAnimateRed). A card no longer seen fades out at its last seen spot (m_fBombAlpha). Clamped to the edge it
@@ -107,7 +126,7 @@ function KeycardItem({ keycard, observer, teammateColors, filterPrefix }: { keyc
     <img className={`minimap-keycard-drop__icon${keycard.state === "planted" ? " minimap-keycard-drop__icon--planted" : ""}`}
       src={KEYCARD_ICON} alt="" />
   </span>;
-}
+}, sameItemProps);
 
 // SLUI-drawn letters in the CS2 BombZoneA/B style (white); later letters have no CS2 image and are drawn as text in the same style.
 const BOMBSITE_ICONS: Readonly<Record<string, string>> = {
@@ -115,7 +134,7 @@ const BOMBSITE_ICONS: Readonly<Record<string, string>> = {
   B: "/assets/minimap/bombsite-b.svg",
 };
 
-function BombsiteIcon({ site, filterPrefix }: { site: RadarBombsite; filterPrefix: string }) {
+const BombsiteIcon = memo(function BombsiteIcon({ site, filterPrefix }: { site: RadarBombsite; filterPrefix: string }) {
   // CS2 .BombZone: yellow-washed letter with a dark outline at the site's centre, always upright (the marker layer
   // never rotates). In range it uses the smaller, fainter .BombZone_OnMap tier; clamped to the edge the larger one.
   const icon = BOMBSITE_ICONS[site.label];
@@ -123,10 +142,10 @@ function BombsiteIcon({ site, filterPrefix }: { site: RadarBombsite; filterPrefi
     style={{ left: site.x, top: site.y, "--bombsite-wash": `url(#${filterPrefix}-bombzone)` } as CSSProperties}>
     {icon ? <img className="minimap-bombsite__icon" src={icon} alt="" /> : <span className="minimap-bombsite__letter">{site.label}</span>}
   </span>;
-}
+}, sameItemProps);
 
-function PlayerMarker({ marker, filterPrefix, slotColor, observer, teammateColors, number }: { marker: RadarMarker; filterPrefix: string;
-  slotColor?: string; observer: boolean; teammateColors: boolean; number: string | null }) {
+const PlayerMarker = memo(function PlayerMarker({ marker, filterPrefix, slotColor, observer, teammateColors, number }: { marker: RadarMarker;
+  filterPrefix: string; slotColor?: string; observer: boolean; teammateColors: boolean; number: string | null }) {
   const enemy = marker.hostile;
   const self = marker.visibility === "self";
   // The followed marker (self, or the spectated teammate / observed player) shows its view sector and heading.
@@ -167,7 +186,7 @@ function PlayerMarker({ marker, filterPrefix, slotColor, observer, teammateColor
         a viewer on neither side or with teammate colours off). */}
     {marker.hasKeycard ? <img className="minimap-marker__keycard" src={KEYCARD_ICON} alt="" /> : null}
   </span>;
-}
+}, sameItemProps);
 
 export function MinimapRadar({ radar, playerColors = {}, teammateColors = true, playerNumbers = {}, role = null, generatorActive = false }: {
   radar: MinimapViewModel;
@@ -179,7 +198,9 @@ export function MinimapRadar({ radar, playerColors = {}, teammateColors = true, 
   /** A generator overload is running (SLGO's planted bomb): the round frame pulses red like CS2 RadarBombPlantPulse. */
   generatorActive?: boolean }) {
   const scale = useOverlayScale();
-  const id = useId().replace(/:/g, "");
+  // The radar re-renders on every displayed frame; its filter id only changes with the React id.
+  const reactId = useId();
+  const id = useMemo(() => reactId.replace(/:/g, ""), [reactId]);
   const { camera, viewSize } = radar;
   // #Radar__Round--Inner / #Radar__Square--Inner have `world-blur: hudWorldBlur`; the "模糊背景" preference turns it off.
   const viewport = useBackdropRef({ enabled: radar.effects.blurBackground });
