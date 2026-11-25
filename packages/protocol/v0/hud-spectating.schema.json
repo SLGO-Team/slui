@@ -52,6 +52,6 @@
   },
   "$defs": {
     "count": { "type": "integer", "minimum": 0, "maximum": 65535 },
-    "text": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\S" }
+    "text": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" }
   }
 }

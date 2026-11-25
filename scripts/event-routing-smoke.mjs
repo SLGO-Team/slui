@@ -9,6 +9,9 @@ import { initialScoreboardState, SCOREBOARD_EVENT_TYPES, scoreboardReducer } fro
 import { initialShopState, SHOP_EVENT_TYPES, shopReducer } from "../src/features/shop/model.ts";
 import { initialReplayState, REPLAY_EVENT_TYPES, replayReducer } from "../src/features/replay/model.ts";
 import { initialTeamSelectState, TEAM_SELECT_EVENT_TYPES, teamSelectReducer } from "../src/features/teamselect/model.ts";
+import { CHAT_EVENT_TYPES, chatActionForEvent } from "../src/features/chat/model.ts";
+import { MINIMAP_EVENT_TYPES } from "../src/features/minimap/eventTypes.ts";
+import { CONNECTION_EVENT_TYPES } from "../src/platform/connection.ts";
 
 // App dispatches an event only to the reducers whose *_EVENT_TYPES list its type (a dispatch re-renders App,
 // and minimap positions arrive at 15 Hz). Every reducer must ignore every other event type, so the lists are
@@ -60,4 +63,23 @@ for (const [name, reducer, initial, types, timed] of reducers) {
   }
 }
 
-console.log(`event routing smoke passed (${eventTypes.length} event types, ${reducers.length} reducers)`);
+// Chat maps exactly its listed events to actions.
+for (const type of eventTypes) {
+  assert.equal(chatActionForEvent(event(type), 1_000) !== null, CHAT_EVENT_TYPES.has(type), `chat ${CHAT_EVENT_TYPES.has(type) ? "reads" : "ignores"} ${type}`);
+}
+
+// Every protocol event has a reader: a type nobody lists is parsed and then silently dropped. The minimap filters by
+// MINIMAP_EVENT_TYPES (minimap-model-smoke covers its reducer), the connection reads the baseline and the end reason.
+const consumers = [
+  ...reducers.map(([name, , , types]) => [name, types]),
+  ["chat", CHAT_EVENT_TYPES],
+  ["minimap", MINIMAP_EVENT_TYPES],
+  ["connection", CONNECTION_EVENT_TYPES],
+];
+for (const [name, types] of consumers) {
+  for (const type of types) assert.ok(eventTypes.includes(type), `${name} lists ${type}, which is no protocol event`);
+}
+const unread = eventTypes.filter((type) => !consumers.some(([, types]) => types.has(type)));
+assert.deepEqual(unread, [], `protocol events no consumer lists: ${unread.join(", ")} (add the type to the consumer that handles it)`);
+
+console.log(`event routing smoke passed (${eventTypes.length} event types, ${reducers.length} reducers, ${consumers.length} consumers)`);

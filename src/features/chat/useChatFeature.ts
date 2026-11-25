@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer } from "react";
 import type { ChatSendCommand, ConnectionStatus, SlgoEvent } from "../../contracts";
 import { overlayClock } from "../../shared/clock";
-import { chatInputReducer, hasPendingChat, initialChatInputState, type ChatCloseReason, type ChatInputScope } from "./model";
+import { chatActionForEvent, chatInputReducer, hasPendingChat, initialChatInputState, type ChatCloseReason, type ChatInputScope } from "./model";
 
 /** React adapter for the pure chat input reducer; App only composes these callbacks. */
 export function useChatFeature() {
@@ -28,14 +28,8 @@ export function useChatFeature() {
   }, []);
 
   const receiveEvent = useCallback((event: SlgoEvent, nowMs = Date.now()) => {
-    const source = { serverId: event.server_id, instanceId: event.instance_id };
-    switch (event.type) {
-      case "sidecar.baseline": dispatch({ type: "baseline", source }); break;
-      case "match.snapshot": dispatch({ type: "roster", source, snapshot: event.payload }); break;
-      case "chat.message": dispatch({ type: "message", source, message: event.payload, nowMs }); break;
-      case "chat.notice": dispatch({ type: "notice", source, notice: event.payload, nowMs }); break;
-      case "command.result": dispatch({ type: "command-result", result: event.payload, nowMs }); break;
-    }
+    const action = chatActionForEvent(event, nowMs);
+    if (action) dispatch(action);
   }, []);
 
   const failCommand = useCallback((command: ChatSendCommand, reason: string, nowMs = Date.now()) => {

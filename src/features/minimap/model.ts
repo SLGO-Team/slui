@@ -1,6 +1,7 @@
 import { endsMatch, MINIMAP_DEAD_MS, MINIMAP_KEYCARD_FADE_MS, MINIMAP_LAST_KNOWN_MS, type ConnectionStatus, type MinimapDiagnostic, type MinimapInit,
   type MinimapBombsite, type MinimapCommanderKeycard, type MinimapPosition, type MinimapPositions, type MinimapPositionsEvent, type SlgoEvent } from "../../contracts";
 import { assertSupportedMap, mapDescriptorKey, type MapGeometry } from "./resolver.ts";
+import { MINIMAP_EVENT_TYPES } from "./eventTypes.ts";
 import { clampToRadar, positionMarker, radarCameraFor, radarIconScale, radarShape, radarZoom, type RadarCamera, type RadarMarker, type RadarPoint, type RadarShape } from "./camera.ts";
 import { normalizeRadarPreferences, type RadarPreferences, type RadarControls } from "./preferences.ts";
 import { advanceDynamicZoom, dynamicZoomDistance, dynamicZoomScale, type DynamicZoomState } from "./dynamicZoom.ts";
@@ -91,6 +92,11 @@ function clearInit(state: MinimapState, availability: MinimapAvailability): Mini
 // The geometry and its bombsites are one unit: every path that drops the map drops both, so the sites can never
 // outlive or mismatch the geometry they were validated against.
 const NO_MAP = { geometry: null, bombsites: [] } as const satisfies Pick<MinimapState, "geometry" | "bombsites">;
+
+/** A minimap frame: what MINIMAP_EVENT_TYPES lists besides the baseline (handled before it). */
+function isMinimapFrame(event: SlgoEvent): event is Extract<SlgoEvent, { type: "minimap.init" | "minimap.positions" }> {
+  return event.type !== "sidecar.baseline" && MINIMAP_EVENT_TYPES.has(event.type);
+}
 
 function matchesSource(state: MinimapState, serverId: string, instanceId: string): boolean {
   return state.source?.serverId === serverId && state.source.instanceId === instanceId;
@@ -190,7 +196,7 @@ function reduceMapState(state: MinimapState, action: Exclude<MinimapAction, { ty
     return { ...clearInit(state, "syncing"), source: { serverId: event.server_id, instanceId: event.instance_id },
       baselineAccepted: true, sequence: event.sequence, ...NO_MAP };
   }
-  if (event.type !== "minimap.init" && event.type !== "minimap.positions") return state;
+  if (!isMinimapFrame(event)) return state;
   if (!state.baselineAccepted) return state;
   if (!matchesSource(state, event.server_id, event.instance_id)) return { ...clearInit(state, "syncing"), baselineAccepted: false, ...NO_MAP };
   if (event.sequence <= state.sequence) return state;

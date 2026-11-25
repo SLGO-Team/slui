@@ -10,6 +10,7 @@ import {
   type ConnectionStatus,
   type MatchSnapshot,
   type Role,
+  type SlgoEvent,
 } from "../../contracts/index.ts";
 
 /** Matches the plugin's ChatConstants.MAX_MESSAGE_LENGTH, counted in text elements. */
@@ -136,6 +137,24 @@ export type ChatInputAction =
   | { type: "tick"; nowMs: number }
   /** Demo replay jump (a seek, another recording): the chat area empties; the plugin resends what is still visible. */
   | { type: "clear-lines" };
+
+/** The sidecar events chat reads (event-routing-smoke checks every protocol event has a reader). */
+export const CHAT_EVENT_TYPES: ReadonlySet<SlgoEvent["type"]> = new Set<SlgoEvent["type"]>([
+  "sidecar.baseline", "match.snapshot", "chat.message", "chat.notice", "command.result",
+]);
+
+/** The chat action for a sidecar event (`nowMs`: when its lines start), or null for an event chat does not read. */
+export function chatActionForEvent(event: SlgoEvent, nowMs: number): ChatInputAction | null {
+  const source = { serverId: event.server_id, instanceId: event.instance_id };
+  switch (event.type) {
+    case "sidecar.baseline": return { type: "baseline", source };
+    case "match.snapshot": return { type: "roster", source, snapshot: event.payload };
+    case "chat.message": return { type: "message", source, message: event.payload, nowMs };
+    case "chat.notice": return { type: "notice", source, notice: event.payload, nowMs };
+    case "command.result": return { type: "command-result", result: event.payload, nowMs };
+    default: return null;
+  }
+}
 
 export function hasPendingChat(state: ChatInputState): boolean {
   return Object.keys(state.pending).length > 0;

@@ -1959,3 +1959,25 @@ useReplayHighlights' jumpTo now returns the send result; a highlights seek/pause
 ### Status
 
 [OK] **Completed**
+
+
+## Session 85: Protocol contracts: schemas, parsers, examples
+<!-- trellis-session: v=2 fp=bd2b165d23f6abfb -->
+
+**Date**: 2026-11-25
+**Task**: Protocol contracts: schemas, parsers, examples
+**Branch**: `test/protocol-contracts`
+
+### Summary
+
+New protocol-schema-check (Ajv 2020 strict on keywords/formats; every example vs schema and parser; 524 field-drop/unknown-field mutations judged alike; 7 reasoned known differences). It found two schema files that were invalid JSON (unescaped \S / \.) and the envelope schema missing sent_at for five event types; both fixed. contract-smoke parses every v0 example via scripts/protocol-examples.mjs; event-routing-smoke fails on event types no consumer lists (chat/minimap/connection lists added); negative team scores refused; replay mock omniscient snapshot drops mode_family/player_limit; connection comment names minimap v8.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `704d25b` | test(protocol): check schemas, parsers and examples together |
+
+### Status
+
+[OK] **Completed**

@@ -190,8 +190,12 @@ export class MockReplayServer {
     const finished = (r: number) => r < round || (r === round && mark !== null && mark.phase !== "buy" && mark.phase !== "action");
     const scoreA = Array.from({ length: ROUNDS }, (_, i) => i + 1).filter((r) => finished(r) && teamAWins(r)).length;
     const scoreB = Array.from({ length: ROUNDS }, (_, i) => i + 1).filter((r) => finished(r) && !teamAWins(r)).length;
+    // Demo replay sends neither mode_family nor player_limit (protocol README "Match snapshot top-HUD fields").
+    const live: MatchSnapshot = { ...this.snapshot };
+    delete live.mode_family;
+    delete live.player_limit;
     return {
-      ...this.snapshot,
+      ...live,
       viewer_team_id: null,
       omniscient: true,
       state,
