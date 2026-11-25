@@ -478,7 +478,13 @@ time. Never attach raw payloads, markers, or server-supplied error strings.
   `mapBlendLayers` compositing over 0 <= a <= 1. The visual audit measures
   `mapBlend` over a flat page colour W at a = 1 / 0.63 / 0.2 / 0: on minus off
   is 0 outside rooms, W·(1 - max(a, peak)) under whole room pixels and a share of
-  it elsewhere, never another hue.
+  it elsewhere, never another hue. The hue is judged where both shots are flat (3x3
+  neighbourhood one colour; most of the radar, asserted): the lift layer is its own
+  composited group, and on a room edge or seam Chrome may antialias it a fraction
+  differently from the base map (11-25, headless Chrome: one seam pixel at a = 0,
+  coverage 0.91 off vs 0.75 on), which mixes the map colour into on - off with no
+  blend error. Edge pixels keep the range check; their hue misses are reported as
+  `edgeOffHue`.
 - `resolver.ts` is also loaded directly by Node's `--experimental-strip-types`
   through the full smoke suite. New runtime TypeScript imports on that path
   must use explicit `.ts` extensions (allowed by the existing tsconfig).

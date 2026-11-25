@@ -560,7 +560,21 @@ try {
           const usable = (x, y) => Math.hypot(x-cx, y-cy) < circle.width * .36
             && !boxes.some(b => x >= b.x-5 && x < b.x+b.width+5 && y >= b.y-5 && y < b.y+b.height+5);
           const corner = [...on.rgba.slice(0, 3)];
-          let pixels = 0, whole = 0, unchanged = 0, outOfRange = 0, offHue = 0, worst = null;
+          // A pixel whose 3x3 neighbourhood is one colour in both shots is covered alike by both renders. On a room edge
+          // or seam the lift layer (its own composited group) may antialias a fraction differently from the base map
+          // (11-25: one seam pixel at a=0, coverage 0.91 off vs 0.75 on), which mixes the map's colour into on - off
+          // without any blend error; there only the range is judged and the hue is reported.
+          const flat = (image, x, y) => {
+            const i = (y * image.width + x) * 4;
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+              const nx = x + dx, ny = y + dy;
+              if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height) return false;
+              const j = (ny * image.width + nx) * 4;
+              if (image.rgba[j] !== image.rgba[i] || image.rgba[j+1] !== image.rgba[i+1] || image.rgba[j+2] !== image.rgba[i+2]) return false;
+            }
+            return true;
+          };
+          let pixels = 0, whole = 0, unchanged = 0, outOfRange = 0, flatPixels = 0, offHue = 0, edgeOffHue = 0, worst = null, edgeWorst = null;
           const shares = new Array(11).fill(0);
           for (let y = 0; y < on.height; y++) for (let x = 0; x < on.width; x++) {
             if (!usable(x, y)) continue;
@@ -572,15 +586,21 @@ try {
             if (diff.every((d, c) => Math.abs(d - added[c]) <= 3)) whole++;
             if (diff.every(d => Math.abs(d) <= 2)) unchanged++;
             if (diff.some((d, c) => d < -3 || d > added[c] + 3)) { outOfRange++; worst ??= { x, y, diff }; }
-            if (diff.some((d, c) => Math.abs(d - share * added[c]) > 4)) { offHue++; worst ??= { x, y, diff, share }; }
+            const hueOff = diff.some((d, c) => Math.abs(d - share * added[c]) > 4);
+            if (flat(off, x, y) && flat(on, x, y)) {
+              flatPixels++;
+              if (hueOff) { offHue++; worst ??= { x, y, diff, share }; }
+            } else if (hueOff) { edgeOffHue++; edgeWorst ??= { x, y, diff, share }; }
           }
-          return { pixels, whole: whole / pixels, unchanged: unchanged / pixels, outOfRange, offHue, worst, corner,
-            shares: shares.map(count => +(count / pixels).toFixed(3)) };
+          return { pixels, flatPixels, whole: whole / pixels, unchanged: unchanged / pixels, outOfRange, offHue, edgeOffHue, worst,
+            edgeWorst, corner, shares: shares.map(count => +(count / pixels).toFixed(3)) };
         })()`);
         const label = `map-blend a=${alpha}`;
         assert.ok(measured.pixels > 1000, `${label}: enough radar pixels away from markers`);
         assert.ok(measured.corner.every((value, c) => Math.abs(value - world[c]) <= 1), `${label}: the page shows ${world} outside the viewport`);
         assert.equal(measured.outOfRange, 0, `${label}: on - off stays within 0..W·(1 - max(a, peak)) (${JSON.stringify(measured.worst)})`);
+        // Most of the room and fill area is flat: a blend that added the map's colour would show there by the thousand.
+        assert.ok(measured.flatPixels > measured.pixels / 2, `${label}: most radar pixels are flat (${measured.flatPixels} of ${measured.pixels})`);
         assert.equal(measured.offHue, 0, `${label}: the blend adds the world's colour, not the map's (${JSON.stringify(measured.worst)})`);
         if (alpha === 1) assert.equal(measured.unchanged, 1, `${label}: an opaque fill leaves nothing to blend`);
         else {
