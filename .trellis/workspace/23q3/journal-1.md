@@ -1870,3 +1870,25 @@ release.yml split into build / sign / ci-gate / publish; sign verifies the signa
 ### Status
 
 [OK] **Completed**
+
+
+## Session 81: Rust relay and blur: drop per-frame copies
+<!-- trellis-session: v=2 fp=1578521f1e41647d -->
+
+**Date**: 2026-11-25
+**Task**: Rust relay and blur: drop per-frame copies
+**Branch**: `perf/rust-relay-copies`
+
+### Summary
+
+backdrop render moves the plan out (mem::take, restored on every exit) instead of cloning it per captured frame; sidecar relay holds the frame's Utf8Bytes with serialize_str (JSON byte-identical, unit-tested); game_log converts the read buffer in place. cargo test + clippy -D warnings pass. Live world-blur/HUD check deferred to one run with item 3 (stand-in game could not take the foreground while the user was typing).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `53d803d` | perf(overlay): drop per-frame plan clone and relay frame copies in Rust |
+
+### Status
+
+[OK] **Completed**

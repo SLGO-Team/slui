@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 80
+- **Total Sessions**: 81
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1872 | Active |
+| `journal-1.md` | ~1894 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 81 | 2026-11-25 | Rust relay and blur: drop per-frame copies | `53d803d` | `perf/rust-relay-copies` |
 | 80 | 2026-11-25 | Release workflow: verify updater signature, isolate signing | `cbf5101` | `ci/release-signing-hardening` |
 | 79 | 2026-11-25 | Overlay runtime performance pass | `42c13c0`, `e1507b0` | `ccr-eaedf94b-6pkylt` |
 | 78 | 2026-11-18 | Replay bar details and overlay native web input | `5c619a5` | `fix/overlay-native-input` |
