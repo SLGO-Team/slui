@@ -184,6 +184,24 @@ these are the code-level contracts behind them.
 - **Cargo.lock JSONPath needs `.value`.** release-please's TOML parser wraps
   every scalar as `{ value, start, end }`, so a lockfile entry is selected with
   `$.package[?(@.name.value==='slui')].version`, not `@.name==='slui'`.
+- **Release jobs are split by what they may touch.** `release.yml`: `build` (lint, `npm test`,
+  version equals the release-please output, installer; `contents: read`, references only
+  `CONTROL_PLANE_URL`), `sign` (`npm ci --ignore-scripts`, then only the Tauri CLI and
+  `scripts/verify-updater-signature.mjs` run next to `TAURI_SIGNING_PRIVATE_KEY`), `ci-gate` (the
+  `ci` run of the tagged commit must have passed) and `publish` (`contents: write`, no environment
+  secrets, re-verifies the exe/sig pair, then uploads and publishes). Every checkout sets
+  `persist-credentials: false`. Never give a job that runs dependency code the signing key, or a job
+  holding environment secrets `contents: write`.
+- **A published signature must verify against `plugins.updater.pubkey`.**
+  `scripts/verify-updater-signature.mjs` mirrors the client (minisign-verify key id, BLAKE2b-512
+  prehash, global signature over the trusted comment read from the third line, `file:` and
+  `version:` fields); `updater-signature-smoke` tests it on `tauri signer` output from a throwaway
+  key (`scripts/fixtures/updater-signature`). Rotating the key means a new pubkey in a release that
+  players install by hand first, or every update fails `failed { signature }`.
+- **Third-party actions are pinned to a commit SHA** with the version in a trailing comment
+  (Dependabot's github-actions updates keep both current); GitHub-owned `actions/*` stay on tags.
+- **Main CI runs are never cancelled** (`cancel-in-progress` only for pull requests): `ci-gate`
+  needs the release commit's own run to finish.
 - **Production builds need a URL at build time.** `vite.config.ts` runs
   `readBackendConfig` and refuses a non-mock build without a valid
   `VITE_CONTROL_PLANE_URL` (https, or http on loopback), so CI's build check sets the

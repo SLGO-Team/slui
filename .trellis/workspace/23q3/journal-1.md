@@ -1848,3 +1848,25 @@ Minimap: memoised still radar items, per-payload pose index, zoom identity only 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 80: Release workflow: verify updater signature, isolate signing
+<!-- trellis-session: v=2 fp=8429dfa86f142072 -->
+
+**Date**: 2026-11-25
+**Task**: Release workflow: verify updater signature, isolate signing
+**Branch**: `ci/release-signing-hardening`
+
+### Summary
+
+release.yml split into build / sign / ci-gate / publish; sign verifies the signature against tauri.conf.json's updater key (new scripts/verify-updater-signature.mjs + smoke, checked on the real v0.13.0 release); checkouts drop persisted credentials; third-party actions pinned to SHAs; main CI runs no longer cancelled so ci-gate can wait for the release commit's run.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cbf5101` | ci(release): verify the updater signature and sign in an isolated job |
+
+### Status
+
+[OK] **Completed**
