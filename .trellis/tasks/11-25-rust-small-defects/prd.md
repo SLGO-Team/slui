@@ -27,5 +27,13 @@ Source: item 3 of the 2026-11-25 cloud review follow-ups (low severity; needs a 
 - [x] Unit tests: a half-written registry with an unchanged modified time is read again; a page load
       drops only that page's sockets and frees their slots; dropping a socket's handle closes it promptly.
 - [x] `cargo test --workspace` and `cargo clippy --workspace --all-targets -- -D warnings` pass.
-- [ ] Live check in a debug SLUI: an overlay page reload closes the socket it opened (diag line and the
+- [x] Live check in a debug SLUI: an overlay page reload closes the socket it opened (diag line and the
       server sees the close); relayed messages arrive unchanged (also covers item 2's `Utf8Bytes` relay).
+
+## Result (2026-11-25)
+
+Debug SLUI (mock mode, own identifier) against a minimal local WebSocket server, driven over CDP:
+the overlay page opened a socket and received a 48-byte message with escapes / non-ASCII and a 300 KB
+message, both identical to what the server sent; `Page.reload` made the client send its close frame
+within ~15 ms (`overlay reloaded: closed 1 sidecar socket(s)`); the reloaded page opened 2 sockets and a
+third was refused. World blur frame output was not checked live here (needs the game in the foreground).
