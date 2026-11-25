@@ -1825,3 +1825,26 @@ Speed ticks no longer clickable (pointer only on the slider strip); replay playe
 ### Status
 
 [OK] **Completed**
+
+
+## Session 79: Overlay runtime performance pass
+<!-- trellis-session: v=2 fp=c4135191abdd35b6 -->
+
+**Date**: 2026-11-25
+**Task**: Overlay runtime performance pass
+**Branch**: `ccr-eaedf94b-6pkylt`
+
+### Summary
+
+Minimap: memoised still radar items, per-payload pose index, zoom identity only when dynamic zoom is on, preferences normalised once. HUD: unchanged chat roster keeps state, no URL parse in release renders. Rust relay/backdrop proposals recorded for Windows (crate does not build on Linux). Read-only audits of Rust, frontend, contracts and tooling done; findings not in repo.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `42c13c0` | perf(overlay): keep chat state on unchanged rosters and skip URL parsing in release renders |
+| `e1507b0` | perf(minimap): skip unchanged radar items and per-frame rework on the display tick |
+
+### Status
+
+[OK] **Completed**
