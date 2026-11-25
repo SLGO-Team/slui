@@ -143,14 +143,15 @@ function App({ harness }: AppProps) {
   const [minimapOptions, setMinimapOptions] = useState<OverlayMinimapOptions>(() => debug?.readMinimapPreviewOptions() ?? DEFAULT_MINIMAP_OPTIONS);
   // ?teamSelect=ntf|scp|forced: the mock plugin opens a menu and the panel lists the captures' rosters.
   const [teamSelectDebug] = useState<TeamSelectDebugOptions | null>(() => debug?.readTeamSelectDebugOptions() ?? null);
-  const previewParams = new URLSearchParams(window.location.search);
-  const showPreviewBackground = HUD_DEBUG_ENABLED && previewParams.get("background") !== "0";
-  const showHudDebugPanel = HUD_DEBUG_ENABLED && previewParams.get("hudDebug") !== "0";
+  // Read only by the debug and preview builds: a production render (one per HUD event) skips the URL parse.
+  const previewParams = HUD_DEBUG_ENABLED || import.meta.env.DEV || replayMockScenario ? new URLSearchParams(window.location.search) : null;
+  const showPreviewBackground = HUD_DEBUG_ENABLED && previewParams?.get("background") !== "0";
+  const showHudDebugPanel = HUD_DEBUG_ENABLED && previewParams?.get("hudDebug") !== "0";
   // Both debug panels are suppressible from the URL so the shop can be captured
   // as it will ship when comparing against the baseline screenshot.
-  const showShopDebugPanel = SHOP_DEBUG_ENABLED && previewParams.get("shopDebug") !== "0";
+  const showShopDebugPanel = SHOP_DEBUG_ENABLED && previewParams?.get("shopDebug") !== "0";
   // Replay previews keep the screenshot background (the HUD debug scene that normally picks it is off there).
-  const replayPreviewBackground = replayMockScenario ? previewParams.get("previewBackground") ?? "1" : undefined;
+  const replayPreviewBackground = replayMockScenario ? previewParams?.get("previewBackground") ?? "1" : undefined;
   const previewBackground = showPreviewBackground ? debugOptions?.background ?? replayPreviewBackground : undefined;
   const previewViewerTeam = debugOptions?.viewerTeam === "team-b" ? "team-b" : "team-a";
   const previewShopRole = shopDebugOptions?.role === "scp079" ? "scp079" : "scp";
@@ -158,7 +159,7 @@ function App({ harness }: AppProps) {
   // preview is still showing Team A or spectator data.
   const debugShopViewerTeam = previewShopRole === "scp079" ? "team-b" : previewViewerTeam;
   // The debug harness and a dev `hudVariant` URL parameter pin the variant for visual audits.
-  const urlHudVariant = import.meta.env.DEV ? previewParams.get("hudVariant") : null;
+  const urlHudVariant = import.meta.env.DEV ? previewParams?.get("hudVariant") ?? null : null;
   const pinnedHudVariant: HudPresentationVariant | null = debugOptions
     ? debugOptions.variant
     : urlHudVariant === "compact" || urlHudVariant === "detailed" ? urlHudVariant : null;

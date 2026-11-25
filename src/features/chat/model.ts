@@ -155,6 +155,11 @@ function appendLine(lines: ChatLine[], line: ChatLine): ChatLine[] {
 
 const sameSource = (a: ChatSource | null, b: ChatSource) => a !== null && a.serverId === b.serverId && a.instanceId === b.instanceId;
 
+/** Whether a snapshot's teams list the same roles and player ids, in the same order, as the roster. */
+const sameRoster = (roster: ChatRoster, teams: MatchSnapshot["teams"]) => roster.length === teams.length
+  && roster.every((team, index) => team.role === teams[index].role && team.playerIds.length === teams[index].players.length
+    && team.playerIds.every((id, slot) => id === teams[index].players[slot].player_id));
+
 export function chatSender(message: ChatMessage, roster: ChatRoster): ChatSender {
   let slot: ChatSender["slot"] = null;
   for (const team of roster) {
@@ -236,7 +241,8 @@ export function chatInputReducer(state: ChatInputState, action: ChatInputAction)
       // Same instance (a reconnect): keep the history. Another server or instance: start over.
       return sameSource(state.source, action.source) ? state : { ...state, source: action.source, lines: [], seen: [], roster: [] };
     case "roster":
-      return sameSource(state.source, action.source)
+      // Every match.snapshot carries the rosters: an unchanged one keeps the state, so ChatInput does not re-render.
+      return sameSource(state.source, action.source) && !sameRoster(state.roster, action.snapshot.teams)
         ? { ...state, roster: action.snapshot.teams.map((team) => ({ role: team.role, playerIds: team.players.map((player) => player.player_id) })) }
         : state;
     case "message":
